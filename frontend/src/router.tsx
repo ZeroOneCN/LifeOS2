@@ -4,6 +4,7 @@ import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
 import { BillsPage } from '@/pages/finance/bills'
 import { FinanceOverviewPage } from '@/pages/finance/overview'
+import { ForexPage } from '@/pages/investment/forex'
 import { PlanningPage } from '@/pages/finance/planning'
 import { PurchasesPage } from '@/pages/finance/purchases'
 import { RemindersPage } from '@/pages/finance/reminders'
@@ -42,6 +43,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/lifestyle/sim-cards': <SimCardsPage />,
   '/lifestyle/todos': <TodosPage />,
   '/lifestyle/schedule': <SchedulePage />,
+  '/investment/forex': <ForexPage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
-from app.api.routes import finance, health, health_check, lifestyle
+from app.api.routes import finance, health, health_check, investment, lifestyle
 from app.core.config import settings
 from app.core.database import Base, engine
 
@@ -30,6 +30,7 @@ app.include_router(health_check.router, prefix=settings.API_V1_PREFIX)
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(finance.router, prefix=settings.API_V1_PREFIX)
 app.include_router(lifestyle.router, prefix=settings.API_V1_PREFIX)
+app.include_router(investment.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
