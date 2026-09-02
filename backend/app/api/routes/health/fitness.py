@@ -1,11 +1,12 @@
 from collections import defaultdict
 from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
+from app.api.knowledge.fitness import estimate_calories
 from app.models import HealthFitness
 from app.schemas.health import FitnessCreate, FitnessRead
 
@@ -55,3 +56,17 @@ router = crud_router(
     date_column="record_date",
     stats_func=_fitness_stats,
 )
+
+
+@router.get("/estimate")
+def estimate(exercise_type: str = Query(..., max_length=32), duration_min: int = Query(30, ge=1), weight_kg: float = Query(65, gt=0)):
+    """根据运动类型与时长(可选体重)估算消耗热量，供前端自动填写。"""
+    calories, matched_key = estimate_calories(exercise_type, duration_min, weight_kg)
+    return {
+        "exercise_type": exercise_type,
+        "duration_min": duration_min,
+        "weight_kg": weight_kg,
+        "calories": calories,
+        "matched": matched_key is not None,
+        "matched_key": matched_key,
+    }

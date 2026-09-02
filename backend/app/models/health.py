@@ -51,7 +51,7 @@ class HealthVitalsSleep(TimestampMixin, Base):
 
 
 class HealthFitness(TimestampMixin, Base):
-    """健身运动：运动记录。"""
+    """健身运动：运动(热量消耗)记录。"""
 
     __tablename__ = "health_fitness"
 
@@ -59,8 +59,59 @@ class HealthFitness(TimestampMixin, Base):
     record_date: Mapped[date] = mapped_column(Date, index=True)
     exercise_type: Mapped[str] = mapped_column(String(32))  # 运动类型
     duration_min: Mapped[int] = mapped_column(Integer)  # 时长(分钟)
-    calories: Mapped[float | None] = mapped_column(Float)  # 消耗千卡
+    calories: Mapped[float | None] = mapped_column(Float)  # 消耗千卡(按MET自动推算)
     distance_km: Mapped[float | None] = mapped_column(Float)  # 距离 km
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class HealthDiet(TimestampMixin, Base):
+    """饮食记录：三餐与加餐营养摄入。"""
+
+    __tablename__ = "health_diet"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    record_date: Mapped[date] = mapped_column(Date, index=True)
+    meal_type: Mapped[str] = mapped_column(String(16))  # breakfast/lunch/dinner/snack
+    food_name: Mapped[str] = mapped_column(String(64))  # 食物名称
+    weight_g: Mapped[float] = mapped_column(Float)  # 重量(克)
+    calories: Mapped[float] = mapped_column(Float)  # 热量(千卡)
+    protein: Mapped[float | None] = mapped_column(Float)  # 蛋白质(g)
+    carbs: Mapped[float | None] = mapped_column(Float)  # 碳水(g)
+    fat: Mapped[float | None] = mapped_column(Float)  # 脂肪(g)
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class HealthBody(TimestampMixin, Base):
+    """体重记录：身体成分与身材参数。"""
+
+    __tablename__ = "health_body"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    record_date: Mapped[date] = mapped_column(Date, index=True)
+    gender: Mapped[str | None] = mapped_column(String(8))  # male/female
+    height_cm: Mapped[float | None] = mapped_column(Float)  # 身高 cm
+    weight_kg: Mapped[float | None] = mapped_column(Float)  # 体重 kg
+    bmi: Mapped[float | None] = mapped_column(Float)  # BMI(自动计算)
+    body_fat_percent: Mapped[float | None] = mapped_column(Float)  # 体脂率 %
+    fat_mass_kg: Mapped[float | None] = mapped_column(Float)  # 脂肪量 kg
+    visceral_fat: Mapped[float | None] = mapped_column(Float)  # 内脏脂肪等级
+    subcutaneous_fat_percent: Mapped[float | None] = mapped_column(Float)  # 皮下脂肪率 %
+    subcutaneous_fat_kg: Mapped[float | None] = mapped_column(Float)  # 皮下脂肪量 kg
+    muscle_percent: Mapped[float | None] = mapped_column(Float)  # 肌肉率 %
+    muscle_kg: Mapped[float | None] = mapped_column(Float)  # 肌肉量 kg
+    skeletal_muscle_percent: Mapped[float | None] = mapped_column(Float)  # 骨骼肌率 %
+    skeletal_muscle_kg: Mapped[float | None] = mapped_column(Float)  # 骨骼肌量 kg
+    water_percent: Mapped[float | None] = mapped_column(Float)  # 水分率 %
+    water_kg: Mapped[float | None] = mapped_column(Float)  # 水分量 kg
+    protein_percent: Mapped[float | None] = mapped_column(Float)  # 蛋白质占比 %
+    protein_kg: Mapped[float | None] = mapped_column(Float)  # 蛋白质含量 kg
+    bone_percent: Mapped[float | None] = mapped_column(Float)  # 骨量占比 %
+    bone_kg: Mapped[float | None] = mapped_column(Float)  # 骨量 kg
+    foot_length_cm: Mapped[float | None] = mapped_column(Float)  # 足长 cm
+    hip_circumference_cm: Mapped[float | None] = mapped_column(Float)  # 臀围 cm
+    waist_circumference_cm: Mapped[float | None] = mapped_column(Float)  # 腰围 cm
+    chest_circumference_cm: Mapped[float | None] = mapped_column(Float)  # 胸围 cm
+    neck_circumference_cm: Mapped[float | None] = mapped_column(Float)  # 颈围 cm
     note: Mapped[str | None] = mapped_column(Text)
 
 

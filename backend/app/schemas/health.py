@@ -76,8 +76,90 @@ class FitnessCreate(BaseModel):
     distance_km: float | None = Field(None, ge=0)
     note: str | None = None
 
+    @model_validator(mode="after")
+    def auto_calories(self):
+        if self.calories is None and self.duration_min:
+            weight = 65.0
+            from app.api.knowledge.fitness import estimate_calories
+
+            est, key = estimate_calories(self.exercise_type, self.duration_min, weight)
+            if key is not None:
+                self.calories = est
+        return self
+
 
 class FitnessRead(FitnessCreate, ORMRead):
+    pass
+
+
+class DietCreate(BaseModel):
+    record_date: date
+    meal_type: str = Field(pattern="^(breakfast|lunch|dinner|snack)$")
+    food_name: str
+    weight_g: float = Field(gt=0)
+    calories: float | None = Field(None, ge=0)
+    protein: float | None = Field(None, ge=0)
+    carbs: float | None = Field(None, ge=0)
+    fat: float | None = Field(None, ge=0)
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def auto_nutrition(self):
+        if self.calories is None:
+            from app.api.knowledge.fitness import estimate_nutrition
+
+            est = estimate_nutrition(self.food_name, self.weight_g)
+            self.calories = est["calories"]
+            if self.protein is None:
+                self.protein = est["protein"]
+            if self.carbs is None:
+                self.carbs = est["carbs"]
+            if self.fat is None:
+                self.fat = est["fat"]
+        return self
+
+
+class DietRead(DietCreate, ORMRead):
+    pass
+
+
+class BodyCreate(BaseModel):
+    record_date: date
+    gender: str | None = Field(None, pattern="^(male|female)$")
+    height_cm: float | None = Field(None, gt=0)
+    weight_kg: float | None = Field(None, gt=0)
+    bmi: float | None = Field(None, gt=0)
+    body_fat_percent: float | None = Field(None, ge=0)
+    fat_mass_kg: float | None = Field(None, ge=0)
+    visceral_fat: float | None = Field(None, ge=0)
+    subcutaneous_fat_percent: float | None = Field(None, ge=0)
+    subcutaneous_fat_kg: float | None = Field(None, ge=0)
+    muscle_percent: float | None = Field(None, ge=0)
+    muscle_kg: float | None = Field(None, ge=0)
+    skeletal_muscle_percent: float | None = Field(None, ge=0)
+    skeletal_muscle_kg: float | None = Field(None, ge=0)
+    water_percent: float | None = Field(None, ge=0)
+    water_kg: float | None = Field(None, ge=0)
+    protein_percent: float | None = Field(None, ge=0)
+    protein_kg: float | None = Field(None, ge=0)
+    bone_percent: float | None = Field(None, ge=0)
+    bone_kg: float | None = Field(None, ge=0)
+    foot_length_cm: float | None = Field(None, ge=0)
+    hip_circumference_cm: float | None = Field(None, ge=0)
+    waist_circumference_cm: float | None = Field(None, ge=0)
+    chest_circumference_cm: float | None = Field(None, ge=0)
+    neck_circumference_cm: float | None = Field(None, ge=0)
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def auto_bmi(self):
+        if self.bmi is None and self.height_cm and self.weight_kg:
+            h = self.height_cm / 100
+            self.bmi = round(self.weight_kg / (h * h), 1)
+        return self
+
+
+class BodyRead(BodyCreate, ORMRead):
     pass
 
 

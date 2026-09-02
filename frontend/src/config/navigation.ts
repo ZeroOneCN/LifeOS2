@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   Calendar,
   CandlestickChart,
@@ -19,9 +20,11 @@ import {
   Pill,
   Plane,
   Receipt,
+  Scale,
   ShoppingCart,
   Target,
   TrendingUp,
+  Utensils,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -57,11 +60,14 @@ export const navigation: NavSection[] = [
     children: [
       { title: '健康总览', url: '/health/overview', icon: HeartPulse },
       { title: '睡眠体征', url: '/health/vitals-sleep', icon: MoonStar },
-      { title: '健身运动', url: '/health/fitness', icon: Dumbbell },
+      { title: '健身-数据看板', url: '/health/fitness/dashboard', icon: Activity },
+      { title: '健身-饮食记录', url: '/health/diet', icon: Utensils },
+      { title: '健身-运动记录', url: '/health/fitness', icon: Dumbbell },
+      { title: '健身-体重记录', url: '/health/body', icon: Scale },
       { title: '步数统计', url: '/health/steps', icon: Footprints },
       { title: '体检指标', url: '/health/checkup', icon: ClipboardList },
-      { title: '健康报告', url: '/health/reports', icon: FileText },
       { title: '用药跟踪', url: '/health/medication', icon: Pill },
+      { title: '健康报告', url: '/health/reports', icon: FileText },
     ],
   },
   {

@@ -12,6 +12,8 @@ API_PREFIX = settings.API_V1_PREFIX
 MODULE_NAMES = {
     "health/vitals-sleep": "睡眠体征",
     "health/fitness": "健身运动",
+    "health/diet": "饮食记录",
+    "health/body": "体重记录",
     "health/steps": "步数统计",
     "health/checkup": "体检指标",
     "health/reports": "健康报告",

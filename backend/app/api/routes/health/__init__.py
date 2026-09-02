@@ -1,7 +1,10 @@
 from fastapi import APIRouter
 
 from app.api.routes.health import (
+    body,
     checkup,
+    dashboard,
+    diet,
     fitness,
     medication,
     overview,
@@ -15,6 +18,9 @@ for sub in (
     overview,
     vitals_sleep,
     fitness,
+    diet,
+    body,
+    dashboard,
     steps,
     checkup,
     reports,

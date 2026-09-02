@@ -8,7 +8,9 @@ from app.models.finance import (
     FinanceTravel,
 )
 from app.models.health import (
+    HealthBody,
     HealthCheckup,
+    HealthDiet,
     HealthFitness,
     HealthMedication,
     HealthReport,
@@ -28,6 +30,8 @@ from app.models.user import UserProfile
 __all__ = [
     "HealthVitalsSleep",
     "HealthFitness",
+    "HealthDiet",
+    "HealthBody",
     "HealthSteps",
     "HealthCheckup",
     "HealthReport",
