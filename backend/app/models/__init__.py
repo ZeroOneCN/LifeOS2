@@ -10,6 +10,7 @@ from app.models.finance import (
 from app.models.health import (
     HealthBody,
     HealthCheckup,
+    HealthCheckupTemplate,
     HealthDiet,
     HealthFitness,
     HealthMedication,
@@ -36,6 +37,7 @@ __all__ = [
     "HealthSteps",
     "HealthStepSetting",
     "HealthCheckup",
+    "HealthCheckupTemplate",
     "HealthReport",
     "HealthMedication",
     "FinancePurchase",

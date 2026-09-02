@@ -195,15 +195,47 @@ class StepSettingRead(StepSettingCreate, ORMRead):
 
 class CheckupCreate(BaseModel):
     check_date: date
+    template_id: int | None = None
     item_name: str
     value: float | None = None
     unit: str | None = None
+    ref_low: float | None = None
+    ref_high: float | None = None
     reference_range: str | None = None
     result: str | None = Field(None, pattern="^(normal|high|low)$")
     note: str | None = None
 
+    @model_validator(mode="after")
+    def auto_result(self):
+        # 自动生成参考范围展示文本
+        if not self.reference_range and (self.ref_low is not None or self.ref_high is not None):
+            lo = f"{self.ref_low:g}" if self.ref_low is not None else ""
+            hi = f"{self.ref_high:g}" if self.ref_high is not None else ""
+            self.reference_range = f"{lo}~{hi}" if lo and hi else lo or hi
+        # 依据参考范围自动判断是否正常
+        if self.result is None and self.value is not None:
+            if self.ref_high is not None and self.value > self.ref_high:
+                self.result = "high"
+            elif self.ref_low is not None and self.value < self.ref_low:
+                self.result = "low"
+            else:
+                self.result = "normal"
+        return self
+
 
 class CheckupRead(CheckupCreate, ORMRead):
+    pass
+
+
+class CheckupTemplateCreate(BaseModel):
+    item_name: str
+    category: str | None = None
+    unit: str | None = None
+    ref_low: float | None = None
+    ref_high: float | None = None
+
+
+class CheckupTemplateRead(CheckupTemplateCreate, ORMRead):
     pass
 
 

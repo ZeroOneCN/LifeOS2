@@ -138,6 +138,19 @@ class HealthStepSetting(TimestampMixin, Base):
     stride_cm: Mapped[float] = mapped_column(Float, default=70.0)  # 每步步幅 cm
 
 
+class HealthCheckupTemplate(TimestampMixin, Base):
+    """体检指标标准模板。"""
+
+    __tablename__ = "health_checkup_template"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    item_name: Mapped[str] = mapped_column(String(64), index=True)  # 指标名
+    category: Mapped[str | None] = mapped_column(String(32))  # 类别
+    unit: Mapped[str | None] = mapped_column(String(32))  # 单位
+    ref_low: Mapped[float | None] = mapped_column(Float)  # 参考下限
+    ref_high: Mapped[float | None] = mapped_column(Float)  # 参考上限
+
+
 class HealthCheckup(TimestampMixin, Base):
     """体检指标：各项体检数据。"""
 
@@ -145,10 +158,13 @@ class HealthCheckup(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     check_date: Mapped[date] = mapped_column(Date, index=True)
+    template_id: Mapped[int | None] = mapped_column(Integer)  # 关联模板
     item_name: Mapped[str] = mapped_column(String(64), index=True)  # 指标名
     value: Mapped[float | None] = mapped_column(Float)  # 数值
     unit: Mapped[str | None] = mapped_column(String(32))  # 单位
-    reference_range: Mapped[str | None] = mapped_column(String(128))  # 参考范围
+    ref_low: Mapped[float | None] = mapped_column(Float)  # 参考下限
+    ref_high: Mapped[float | None] = mapped_column(Float)  # 参考上限
+    reference_range: Mapped[str | None] = mapped_column(String(128))  # 参考范围(展示文本)
     result: Mapped[str | None] = mapped_column(String(16))  # normal/high/low
     note: Mapped[str | None] = mapped_column(Text)
 
