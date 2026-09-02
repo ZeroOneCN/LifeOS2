@@ -235,7 +235,7 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
 
     content: list = []
     # 1 生命体征与睡眠
-    content.append({"type": "h2", "text": "一、生命体征与睡眠"})
+    content.append({"type": "h2", "text": "一、生命体征"})
     v = data["latest_vitals"]
     if v:
         content.append(
@@ -264,7 +264,7 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
         }
     )
     # 2 身体成分
-    content.append({"type": "h2", "text": "二、体重与身体成分"})
+    content.append({"type": "h2", "text": "二、身体成分"})
     b = data["body_latest"]
     if b:
         content.append(
@@ -284,7 +284,7 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
     change_txt = f"期内体重变化 {change:+g} kg" if change is not None else "期内无体重记录"
     content.append({"type": "kv", "rows": [["记录次数", f"{data['body_records']} 次"], ["变化趋势", change_txt]]})
     # 3 运动与步数
-    content.append({"type": "h2", "text": "三、运动与步数"})
+    content.append({"type": "h2", "text": "三、运动步数"})
     content.append(
         {
             "type": "kv",

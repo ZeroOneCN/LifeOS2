@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 type StepsRecord = {
@@ -51,16 +52,24 @@ type StepsStats = {
 
 type MonthlyStats = { months: { month: string; steps: number; distance_km: number; days: number }[] }
 
+// 逐小时时段：08-09 … 22-23，末段 23:59 为全天最终累计数据
 const PERIODS = [
-  { value: '08-10', label: '08:00-10:00' },
-  { value: '10-12', label: '10:00-12:00' },
-  { value: '12-14', label: '12:00-14:00' },
-  { value: '14-16', label: '14:00-16:00' },
-  { value: '16-18', label: '16:00-18:00' },
-  { value: '18-20', label: '18:00-20:00' },
-  { value: '20-22', label: '20:00-22:00' },
-  { value: '22-00', label: '22:00-00:00' },
-  { value: 'full', label: '全天（凌晨0点累计）' },
+  { value: '08-09', label: '08:00-09:00' },
+  { value: '09-10', label: '09:00-10:00' },
+  { value: '10-11', label: '10:00-11:00' },
+  { value: '11-12', label: '11:00-12:00' },
+  { value: '12-13', label: '12:00-13:00' },
+  { value: '13-14', label: '13:00-14:00' },
+  { value: '14-15', label: '14:00-15:00' },
+  { value: '15-16', label: '15:00-16:00' },
+  { value: '16-17', label: '16:00-17:00' },
+  { value: '17-18', label: '17:00-18:00' },
+  { value: '18-19', label: '18:00-19:00' },
+  { value: '19-20', label: '19:00-20:00' },
+  { value: '20-21', label: '20:00-21:00' },
+  { value: '21-22', label: '21:00-22:00' },
+  { value: '22-23', label: '22:00-23:00' },
+  { value: 'full', label: '23:59（全天最终）' },
 ]
 
 const periodLabel = (p: string) => PERIODS.find((x) => x.value === p)?.label ?? p
@@ -83,6 +92,10 @@ export function StepsPage() {
   const [form, setForm] = useState(EMPTY)
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
   const [stride, setStride] = useState('70')
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条步数记录吗？此操作不可恢复。',
+  })
 
   const stats = useStats<StepsStats>('/health/steps')
   const [months, setMonths] = useState<MonthlyStats['months']>([])
@@ -150,7 +163,7 @@ export function StepsPage() {
   }
 
   const remove = async (row: StepsRecord) => {
-    if (!window.confirm('确定删除这条步数记录吗？')) return
+    if (!(await confirm())) return
     await api.remove('/health/steps', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
@@ -234,6 +247,78 @@ export function StepsPage() {
           series={[{ key: 'steps', name: '步数', color: '#f59e0b' }]}
           height={240}
         />
+      )}
+
+      {stats && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardContent className="p-0">
+              <div className="px-4 pt-4 pb-1 text-sm font-medium">每日步数汇总</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>日期</TableHead>
+                    <TableHead className="text-right">步数</TableHead>
+                    <TableHead className="text-right">距离</TableHead>
+                    <TableHead className="text-right">消耗</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats.trend.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-16 text-center text-muted-foreground">
+                        暂无数据
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    stats.trend.map((d) => (
+                      <TableRow key={d.record_date}>
+                        <TableCell>{d.record_date}</TableCell>
+                        <TableCell className="text-right">{d.steps.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          {d.distance_km != null ? `${d.distance_km} km` : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {d.calories != null ? `${d.calories} kcal` : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {months.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-4 pt-4 pb-1 text-sm font-medium">每月步数汇总</div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>月份</TableHead>
+                      <TableHead className="text-right">步数</TableHead>
+                      <TableHead className="text-right">距离</TableHead>
+                      <TableHead className="text-right">天数</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...months]
+                      .sort((a, b) => b.month.localeCompare(a.month))
+                      .map((m) => (
+                        <TableRow key={m.month}>
+                          <TableCell>{m.month}</TableCell>
+                          <TableCell className="text-right">{m.steps.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">{m.distance_km} km</TableCell>
+                          <TableCell className="text-right">{m.days} 天</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       <Card>
@@ -374,6 +459,8 @@ export function StepsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

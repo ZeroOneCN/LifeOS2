@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Library, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 type CheckupRecord = {
   id: number
@@ -97,6 +98,15 @@ export function CheckupPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [templates, setTemplates] = useState<Template[]>([])
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templateFormOpen, setTemplateFormOpen] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [tplForm, setTplForm] = useState({ item_name: '', category: '', unit: '', ref_low: '', ref_high: '' })
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条体检记录吗？此操作不可恢复。',
+  })
 
   const stats = useStats<CheckupStats>('/health/checkup')
   const PAGE_SIZE = 20
@@ -114,9 +124,14 @@ export function CheckupPage() {
     }
   }
 
+  const loadTemplates = async () => {
+    const res = await api.list<Template>('/health/checkup/templates', { page: 1, page_size: 100 })
+    setTemplates(res.items)
+  }
+
   useEffect(() => {
     load()
-    api.query<{ items: Template[] }>('/health/checkup/templates/standard').then((r) => setTemplates(r.items))
+    loadTemplates()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
@@ -189,10 +204,61 @@ export function CheckupPage() {
   }
 
   const remove = async (row: CheckupRecord) => {
-    if (!window.confirm('确定删除这条体检记录吗？')) return
+    if (!(await confirm())) return
     await api.remove('/health/checkup', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+  }
+
+  const openTemplateDialog = () => {
+    setTemplateDialogOpen(true)
+  }
+
+  const openTemplateCreate = () => {
+    setEditingTemplate(null)
+    setTplForm({ item_name: '', category: '', unit: '', ref_low: '', ref_high: '' })
+    setTemplateFormOpen(true)
+  }
+
+  const openTemplateEdit = (t: Template) => {
+    setEditingTemplate(t)
+    setTplForm({
+      item_name: t.item_name,
+      category: t.category ?? '',
+      unit: t.unit ?? '',
+      ref_low: String(t.ref_low ?? ''),
+      ref_high: String(t.ref_high ?? ''),
+    })
+    setTemplateFormOpen(true)
+  }
+
+  const setTpl = (key: keyof typeof tplForm, value: string) => setTplForm((f) => ({ ...f, [key]: value }))
+
+  const saveTemplate = async () => {
+    if (!tplForm.item_name.trim()) return
+    const num = (v: string) => (v === '' ? null : Number(v))
+    const payload = {
+      item_name: tplForm.item_name.trim(),
+      category: tplForm.category === '' ? null : tplForm.category,
+      unit: tplForm.unit === '' ? null : tplForm.unit,
+      ref_low: num(tplForm.ref_low),
+      ref_high: num(tplForm.ref_high),
+    }
+    setSavingTemplate(true)
+    try {
+      if (editingTemplate) await api.update('/health/checkup/templates', editingTemplate.id, payload)
+      else await api.create('/health/checkup/templates', payload)
+      setTemplateFormOpen(false)
+      await loadTemplates()
+    } finally {
+      setSavingTemplate(false)
+    }
+  }
+
+  const removeTemplate = async (t: Template) => {
+    if (!(await confirm({ title: '确认删除模板', description: `确定删除模板「${t.item_name}」吗？` }))) return
+    await api.remove('/health/checkup/templates', t.id)
+    await loadTemplates()
   }
 
   const sc = stats?.status_counts
@@ -202,11 +268,16 @@ export function CheckupPage() {
       <section className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">体检指标</h1>
-          <p className="text-sm text-muted-foreground">使用标准模板录入，依据参考范围自动判断正常/异常，并提供分析。</p>
+          <p className="text-sm text-muted-foreground">使用自建的指标模板录入，依据参考范围自动判断正常/异常，并提供分析。</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus /> 新增体检记录
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openTemplateDialog}>
+            <Library /> 模板库({templates.length})
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus /> 新增体检记录
+          </Button>
+        </div>
       </section>
 
       {stats && (
@@ -360,12 +431,15 @@ export function CheckupPage() {
               <Input type="date" value={form.check_date} onChange={(e) => set('check_date', e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>标准模板</Label>
+              <Label>模板库</Label>
               <Select value={form.template_id} onValueChange={selectTemplate} disabled={!!editing}>
                 <SelectTrigger>
                   <SelectValue placeholder="选择模板自动填充" />
                 </SelectTrigger>
                 <SelectContent>
+                  {templates.length === 0 && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无模板，请在"模板库"中添加</div>
+                  )}
                   {templates.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.category ? `[${t.category}] ` : ''}
@@ -430,6 +504,95 @@ export function CheckupPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>指标模板库</DialogTitle>
+            <DialogDescription>配置常用体检指标的类别、单位与参考范围，便于快速录入。</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+            {templates.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">暂无模板，点击右上角"新增模板"开始添加。</div>
+            ) : (
+              templates.map((t) => (
+                <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{t.item_name}</span>
+                      {t.category && <Badge variant="secondary">{t.category}</Badge>}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      参考范围 {t.ref_low != null || t.ref_high != null ? `${t.ref_low ?? ''}~${t.ref_high ?? ''}` : '—'}
+                      {t.unit ? ` · ${t.unit}` : ''}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openTemplateEdit(t)}>
+                      <Pencil />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTemplate(t)}>
+                      <Trash2 />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
+              关闭
+            </Button>
+            <Button onClick={openTemplateCreate}>
+              <Plus /> 新增模板
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templateFormOpen} onOpenChange={setTemplateFormOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingTemplate ? '编辑模板' : '新增模板'}</DialogTitle>
+            <DialogDescription>配置体检指标的类别、单位与参考范围，用于快速录入。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <Label>
+                指标名称 <span className="text-destructive">*</span>
+              </Label>
+              <Input value={tplForm.item_name} onChange={(e) => setTpl('item_name', e.target.value)} placeholder="如：空腹血糖" />
+            </div>
+            <div className="space-y-2">
+              <Label>类别</Label>
+              <Input value={tplForm.category} onChange={(e) => setTpl('category', e.target.value)} placeholder="如：血糖" />
+            </div>
+            <div className="space-y-2">
+              <Label>单位</Label>
+              <Input value={tplForm.unit} onChange={(e) => setTpl('unit', e.target.value)} placeholder="如：mmol/L" />
+            </div>
+            <div className="space-y-2">
+              <Label>参考下限</Label>
+              <Input type="number" step="0.01" value={tplForm.ref_low} onChange={(e) => setTpl('ref_low', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>参考上限</Label>
+              <Input type="number" step="0.01" value={tplForm.ref_high} onChange={(e) => setTpl('ref_high', e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateFormOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={saveTemplate} disabled={savingTemplate || !tplForm.item_name.trim()}>
+              {savingTemplate && <Loader2 className="animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

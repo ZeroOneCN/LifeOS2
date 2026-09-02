@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
@@ -86,6 +87,10 @@ export function DietPage() {
   const [foodHints, setFoodHints] = useState<FoodHint[]>([])
   const [estimating, setEstimating] = useState(false)
   const estTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条饮食记录吗？此操作不可恢复。',
+  })
 
   const stats = useStats<DietStats>('/health/diet')
   const PAGE_SIZE = 20
@@ -181,7 +186,7 @@ export function DietPage() {
   }
 
   const remove = async (row: DietRecord) => {
-    if (!window.confirm('确定删除这条饮食记录吗？')) return
+    if (!(await confirm())) return
     await api.remove('/health/diet', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
@@ -416,6 +421,8 @@ export function DietPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
   FileText,
   Loader2,
@@ -58,11 +60,17 @@ function SectionBody({ section }: { section: ContentSection }) {
     const header = section.header ?? ['项目', '数值']
     return (
       <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
+        {section.name && (
+          <div className="border-b bg-muted/40 px-3 py-1.5 text-xs font-medium text-emerald-700">
+            {section.name}
+          </div>
+        )}
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[320px] text-sm">
           <thead>
-            <tr className="bg-emerald-50">
+            <tr className="bg-emerald-600">
               {header.map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium text-emerald-800">
+                <th key={h} className="px-3 py-2 text-left font-medium text-white">
                   {h}
                 </th>
               ))}
@@ -73,13 +81,14 @@ function SectionBody({ section }: { section: ContentSection }) {
               <tr key={i} className="border-t odd:bg-muted/30">
                 {row.map((cell, j) => (
                   <td key={j} className="px-3 py-2">
-                    {j > 0 ? cell : cell}
+                    {cell}
                   </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     )
   }
@@ -137,6 +146,7 @@ export function ReportsPage() {
   const [genDays, setGenDays] = useState('30')
   const [generating, setGenerating] = useState(false)
   const [preview, setPreview] = useState<ReportRecord | null>(null)
+  const [previewCollapsed, setPreviewCollapsed] = useState(false)
   const [exportingId, setExportingId] = useState<number | null>(null)
 
   const PAGE_SIZE = 10
@@ -169,6 +179,7 @@ export function ReportsPage() {
       setGenOpen(false)
       toast.success('报告已生成', { description: rep.title })
       setPreview(rep)
+      setPreviewCollapsed(false)
       await load()
     } catch (e) {
       toast.error('生成失败', { description: (e as Error).message })
@@ -218,29 +229,50 @@ export function ReportsPage() {
       {preview && (
         <Card className="border-emerald-200">
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b pb-3">
-            <div>
-              <CardTitle className="text-base">{preview.title}</CardTitle>
+            <button
+              type="button"
+              className="min-w-0 flex-1 text-left"
+              onClick={() => setPreviewCollapsed((v) => !v)}
+            >
+              <div className="flex items-center gap-2">
+                <ChevronDown
+                  className={`size-4 shrink-0 text-emerald-600 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
+                />
+                <CardTitle className="text-base">{preview.title}</CardTitle>
+              </div>
               {preview.summary && (
                 <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>
               )}
+            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setPreviewCollapsed((v) => !v)}
+                title={previewCollapsed ? '展开' : '收起'}
+              >
+                {previewCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleExport(preview.id)}
+                disabled={exportingId === preview.id}
+              >
+                {exportingId === preview.id ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                导出 PDF
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleExport(preview.id)}
-              disabled={exportingId === preview.id}
-            >
-              {exportingId === preview.id ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Download className="size-4" />
-              )}
-              导出 PDF
-            </Button>
           </CardHeader>
-          <CardContent className="pt-4">
-            <ReportContent content={preview.content} />
-          </CardContent>
+          {!previewCollapsed && (
+            <CardContent className="pt-4">
+              <ReportContent content={preview.content} />
+            </CardContent>
+          )}
         </Card>
       )}
 
@@ -270,7 +302,10 @@ export function ReportsPage() {
                   <button
                     type="button"
                     className="min-w-0 flex-1 text-left"
-                    onClick={() => setPreview(r)}
+                    onClick={() => {
+                      setPreview(r)
+                      setPreviewCollapsed(false)
+                    }}
                   >
                     <div className="flex items-center gap-2">
                       <FileText className="size-4 shrink-0 text-emerald-600" />

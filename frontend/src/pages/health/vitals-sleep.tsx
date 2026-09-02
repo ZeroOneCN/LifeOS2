@@ -1,4 +1,5 @@
 import {
+  BarChartCard,
   LineChartCard,
   useStats,
 } from '@/components/health/charts'
@@ -54,15 +55,6 @@ const fields: FieldDef[] = [
   { key: 'deep_sleep_min', label: '深睡时长', type: 'number', placeholder: '分钟' },
   { key: 'light_sleep_min', label: '浅睡时长', type: 'number', placeholder: '分钟' },
   { key: 'wake_count', label: '醒来次数', type: 'number' },
-  {
-    key: 'sleep_quality',
-    label: '睡眠质量',
-    type: 'select',
-    options: Array.from({ length: 10 }, (_, i) => ({
-      value: String(i + 1),
-      label: `${i + 1} 分`,
-    })),
-  },
   { key: 'note', label: '备注', type: 'textarea', full: true },
 ]
 
@@ -94,7 +86,26 @@ const columns: ColumnDef<VitalsRecord>[] = [
   { key: 'blood_oxygen', label: '血氧', render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—') },
   { key: 'blood_glucose', label: '血糖', render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—') },
   { key: 'body_temp', label: '体温', render: (r) => (r.body_temp ? `${r.body_temp}℃` : '—') },
-  { key: 'sleep_quality', label: '质量', render: (r) => (r.sleep_quality ? `${r.sleep_quality}/10` : '—') },
+  {
+    key: 'deep_sleep_min',
+    label: '深睡',
+    render: (r) => (r.deep_sleep_min != null ? `${r.deep_sleep_min}m` : '—'),
+  },
+  {
+    key: 'light_sleep_min',
+    label: '浅睡',
+    render: (r) => (r.light_sleep_min != null ? `${r.light_sleep_min}m` : '—'),
+  },
+  {
+    key: 'wake_count',
+    label: '醒来',
+    render: (r) => (r.wake_count != null ? `${r.wake_count} 次` : '—'),
+  },
+  {
+    key: 'sleep_quality',
+    label: '质量',
+    render: (r) => (r.sleep_quality != null ? `${r.sleep_quality}/10` : '—'),
+  },
 ]
 
 export function VitalsSleepPage() {
@@ -127,6 +138,15 @@ export function VitalsSleepPage() {
               series={[
                 { key: 'sleep_duration_min', name: '时长(分钟)', color: '#8b5cf6' },
                 { key: 'sleep_quality', name: '质量(分)', color: '#10b981' },
+              ]}
+            />
+            <BarChartCard
+              title="深睡 / 浅睡时长"
+              data={trend}
+              xKey="record_date"
+              series={[
+                { key: 'deep_sleep_min', name: '深睡(分钟)', color: '#3b82f6' },
+                { key: 'light_sleep_min', name: '浅睡(分钟)', color: '#f59e0b' },
               ]}
             />
           </div>

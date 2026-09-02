@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
@@ -105,6 +106,10 @@ export function NotificationsPage() {
   const [editing, setEditing] = useState<NotificationRecord | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条通知吗？此操作不可恢复。',
+  })
 
   const load = async () => {
     setLoading(true)
@@ -186,7 +191,7 @@ export function NotificationsPage() {
   }
 
   const remove = async (row: NotificationRecord) => {
-    if (!window.confirm('确定删除这条通知吗？')) return
+    if (!(await confirm())) return
     await api.remove('/notifications', row.id)
     await load()
   }
@@ -424,6 +429,8 @@ export function NotificationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
@@ -70,6 +71,11 @@ type Stock = {
   threshold?: number
   unit?: string
   is_low: boolean
+  purchased?: number
+  consumed?: number
+  avg_daily?: number | null
+  days_left?: number | null
+  predicted_date?: string | null
 }
 
 const MEAL_LABEL: Record<string, string> = { breakfast: '早餐', lunch: '午餐', dinner: '晚餐' }
@@ -109,6 +115,7 @@ export function MedicationPage() {
   const [medForm, setMedForm] = useState(MED_EMPTY)
   const [purForm, setPurForm] = useState(PUR_EMPTY)
   const [stockForm, setStockForm] = useState(STOCK_EMPTY)
+  const { confirm, dialog: confirmDialog } = useConfirm()
 
   const stats = useStats<MedStats>('/health/medication')
   const PAGE_SIZE = 20
@@ -169,7 +176,7 @@ export function MedicationPage() {
     }
   }
   const removeMed = async (row: MedRecord) => {
-    if (!window.confirm('确定删除这条用药记录吗？')) return
+    if (!(await confirm({ title: '确认删除', description: '确定删除这条用药记录吗？' }))) return
     await api.remove('/health/medication', row.id)
     await loadMed()
   }
@@ -216,10 +223,17 @@ export function MedicationPage() {
     }
   }
   const removePur = async (row: Purchase) => {
-    if (!window.confirm('确定删除这条购药记录吗？')) return
+    if (!(await confirm({ title: '确认删除', description: '确定删除这条购药记录吗？' }))) return
     await api.remove('/health/medication/purchases', row.id)
     const r = await api.query<{ items: Purchase[] }>('/health/medication/purchases')
     setPurItems(r.items)
+  }
+
+  const removeStock = async (row: Stock) => {
+    if (!(await confirm({ title: '确认删除', description: '确定删除该库存吗？' }))) return
+    await api.remove('/health/medication/stocks', row.id)
+    const r = await api.query<{ items: Stock[] }>('/health/medication/stocks')
+    setStocks(r.items)
   }
 
   const openStockCreate = () => {
@@ -241,7 +255,7 @@ export function MedicationPage() {
     const num = (v: string) => (v === '' ? null : Number(v))
     const payload = {
       medicine_name: stockForm.medicine_name,
-      stock_qty: Number(stockForm.stock_qty),
+      stock_qty: num(stockForm.stock_qty) ?? 0,
       threshold: num(stockForm.threshold),
       unit: stockForm.unit === '' ? null : stockForm.unit,
     }
@@ -489,12 +503,19 @@ export function MedicationPage() {
       {tab === 'stock' && (
         <Card>
           <CardContent className="p-0">
+            <div className="border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+              库存 = 累计购药 − 已服用次数，并按日均消耗自动预测可维持天数。
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>药品</TableHead>
                   <TableHead>当前库存</TableHead>
-                  <TableHead>低库存阈值</TableHead>
+                  <TableHead>累计购药</TableHead>
+                  <TableHead>已消耗</TableHead>
+                  <TableHead>日均消耗</TableHead>
+                  <TableHead>预计耗尽</TableHead>
+                  <TableHead>阈值</TableHead>
                   <TableHead>状态</TableHead>
                   <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
@@ -502,13 +523,26 @@ export function MedicationPage() {
               <TableBody>
                 {stocks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">暂无库存记录</TableCell>
+                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">暂无库存记录</TableCell>
                   </TableRow>
                 ) : (
                   stocks.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>{row.medicine_name}</TableCell>
-                      <TableCell>{row.stock_qty}{row.unit ?? ''}</TableCell>
+                      <TableCell className="font-medium">{row.stock_qty}{row.unit ?? ''}</TableCell>
+                      <TableCell>{row.purchased ?? '—'}{row.unit ?? ''}</TableCell>
+                      <TableCell>{row.consumed ?? 0}{row.unit ?? ''}</TableCell>
+                      <TableCell>{row.avg_daily != null ? row.avg_daily.toFixed(3) : '—'}{row.unit ?? '/天'}</TableCell>
+                      <TableCell>
+                        {row.days_left != null ? (
+                          <div className="flex items-center gap-1.5">
+                            <span>约 {row.days_left} 天</span>
+                            <span className="text-xs text-muted-foreground">{row.predicted_date}</span>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
                       <TableCell>{row.threshold ?? '—'}</TableCell>
                       <TableCell>
                         {row.is_low ? (
@@ -524,12 +558,7 @@ export function MedicationPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive"
-                            onClick={() => {
-                              if (!window.confirm('确定删除该库存吗？')) return
-                              api.remove('/health/medication/stocks', row.id).then(() => {
-                                api.query<{ items: Stock[] }>('/health/medication/stocks').then((r) => setStocks(r.items))
-                              })
-                            }}
+                            onClick={() => removeStock(row)}
                           >
                             <Trash2 />
                           </Button>
@@ -643,15 +672,14 @@ export function MedicationPage() {
                   <Label>药品名称 <span className="text-destructive">*</span></Label>
                   <Input value={stockForm.medicine_name} onChange={(e) => setStock('medicine_name', e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <Label>当前库存 <span className="text-destructive">*</span></Label>
-                  <Input type="number" step="0.01" value={stockForm.stock_qty} onChange={(e) => setStock('stock_qty', e.target.value)} />
+                <div className="space-y-2 col-span-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  库存由购药记录减用药记录自动计算，无需手动维护。
                 </div>
                 <div className="space-y-2">
                   <Label>低库存阈值</Label>
                   <Input type="number" step="0.01" value={stockForm.threshold} onChange={(e) => setStock('threshold', e.target.value)} />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2">
                   <Label>单位</Label>
                   <Input value={stockForm.unit} onChange={(e) => setStock('unit', e.target.value)} />
                 </div>
@@ -670,6 +698,8 @@ export function MedicationPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

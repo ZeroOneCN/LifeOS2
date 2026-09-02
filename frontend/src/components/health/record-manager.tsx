@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 export type FieldType = 'date' | 'time' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
@@ -90,6 +91,10 @@ export function RecordManager<T extends { id: number }>({
   const [form, setForm] = useState<Record<string, string>>({})
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条记录吗？此操作不可恢复。',
+  })
 
   const load = async () => {
     setLoading(true)
@@ -150,7 +155,7 @@ export function RecordManager<T extends { id: number }>({
   }
 
   const remove = async (row: T) => {
-    if (!window.confirm('确定删除这条记录吗？')) return
+    if (!(await confirm())) return
     await api.remove(apiPath, row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
@@ -325,6 +330,8 @@ export function RecordManager<T extends { id: number }>({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

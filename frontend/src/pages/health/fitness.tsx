@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 type FitnessRecord = {
@@ -69,6 +70,10 @@ export function FitnessPage() {
   const [form, setForm] = useState(EMPTY)
   const [estimating, setEstimating] = useState(false)
   const estTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条运动记录吗？此操作不可恢复。',
+  })
 
   const stats = useStats<FitnessStats>('/health/fitness')
   const PAGE_SIZE = 20
@@ -159,7 +164,7 @@ export function FitnessPage() {
   }
 
   const remove = async (row: FitnessRecord) => {
-    if (!window.confirm('确定删除这条运动记录吗？')) return
+    if (!(await confirm())) return
     await api.remove('/health/fitness', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
@@ -363,6 +368,8 @@ export function FitnessPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

@@ -103,12 +103,3 @@ template_router = crud_router(
     order_by=HealthCheckupTemplate.item_name,
 )
 router.include_router(template_router)
-
-
-@router.get("/templates/standard")
-def standard_templates(db: Session = Depends(get_db)):
-    """返回全部标准模板，按类别分组，供录入时选择。"""
-    rows = db.scalars(
-        select(HealthCheckupTemplate).order_by(HealthCheckupTemplate.category, HealthCheckupTemplate.item_name)
-    ).all()
-    return {"items": rows, "total": len(rows)}

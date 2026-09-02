@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { LineChartCard, useStats } from '@/components/health/charts'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 type BodyRecord = Record<string, unknown> & { id: number }
@@ -95,6 +96,10 @@ export function BodyPage() {
   const [editing, setEditing] = useState<BodyRecord | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除',
+    description: '确定删除这条体重记录吗？此操作不可恢复。',
+  })
 
   const stats = useStats<BodyStats>('/health/body')
   const PAGE_SIZE = 20
@@ -170,7 +175,7 @@ export function BodyPage() {
   }
 
   const remove = async (row: BodyRecord) => {
-    if (!window.confirm('确定删除这条体重记录吗？')) return
+    if (!(await confirm())) return
     await api.remove('/health/body', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
@@ -393,6 +398,8 @@ export function BodyPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

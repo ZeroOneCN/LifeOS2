@@ -110,18 +110,58 @@ router.include_router(purchase_router)
 
 
 def _get_stock_list(db: Session) -> list[dict]:
-    rows = db.scalars(select(HealthMedStock).order_by(HealthMedStock.medicine_name)).all()
-    return [
-        {
-            "id": s.id,
-            "medicine_name": s.medicine_name,
-            "stock_qty": s.stock_qty,
-            "threshold": s.threshold,
-            "unit": s.unit,
-            "is_low": s.threshold is not None and s.threshold > 0 and s.stock_qty <= s.threshold,
-        }
-        for s in rows
-    ]
+    """根据购药记录与用药记录自动计算库存并预测耗尽时间。"""
+    stock_rows = db.scalars(select(HealthMedStock).order_by(HealthMedStock.medicine_name)).all()
+    purchases = db.scalars(select(HealthMedPurchase)).all()
+    meds = db.scalars(select(HealthMedication)).all()
+
+    # 每种药品的累计购买量
+    bought: dict[str, float] = defaultdict(float)
+    for p in purchases:
+        bought[p.medicine_name] += p.quantity or 0
+
+    # 每种药品的已服用次数（用药记录 taken=True 计为一次消耗）
+    taken_dates: dict[str, list[date]] = defaultdict(list)
+    for m in meds:
+        if m.taken:
+            taken_dates[m.medicine_name].append(m.record_date)
+
+    today = date.today()
+    rows: list[dict] = []
+    for s in stock_rows:
+        name = s.medicine_name
+        consumed = len(taken_dates.get(name, []))
+        stock = max(0.0, round(bought.get(name, 0) - consumed, 2))
+
+        # 预测：按近 consumed 记录的实际区间推算日均消耗
+        dates = taken_dates.get(name, [])
+        avg_daily: float | None = None
+        days_left: float | None = None
+        predicted_date: date | None = None
+        if dates and stock > 0:
+            span_days = max(1, (today - min(dates)).days + 1)
+            avg_daily = round(consumed / span_days, 3)
+            if avg_daily > 0:
+                days_left = int(stock // avg_daily)
+                predicted_date = today + timedelta(days=days_left)
+
+        is_low = s.threshold is not None and s.threshold > 0 and stock <= s.threshold
+        rows.append(
+            {
+                "id": s.id,
+                "medicine_name": name,
+                "stock_qty": stock,
+                "threshold": s.threshold,
+                "unit": s.unit,
+                "is_low": is_low,
+                "purchased": round(bought.get(name, 0), 2),
+                "consumed": consumed,
+                "avg_daily": avg_daily,
+                "days_left": days_left,
+                "predicted_date": predicted_date.isoformat() if predicted_date else None,
+            }
+        )
+    return rows
 
 
 # ---- 药品库存 ----

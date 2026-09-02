@@ -63,6 +63,84 @@ class VitalsSleepCreate(BaseModel):
                 pass
         return data
 
+    @model_validator(mode="after")
+    def auto_sleep_score(self):
+        """根据深睡/浅睡时长与醒来次数自动分析睡眠质量（1-10 分）。"""
+        if self.sleep_quality is not None:
+            return self
+        deep = self.deep_sleep_min
+        light = self.light_sleep_min
+        wake = self.wake_count
+        if deep is None and light is None and wake is None:
+            return self  # 缺少打分依据
+
+        def dur_score(m: int | None) -> int | None:
+            if not m:
+                return None
+            if m >= 540:
+                return 6
+            if m >= 480:
+                return 8
+            if m >= 420:
+                return 10
+            if m >= 360:
+                return 8
+            if m >= 300:
+                return 6
+            if m >= 240:
+                return 4
+            return 2
+
+        total = (deep or 0) + (light or 0)
+
+        def deep_score() -> int | None:
+            if not total or not deep:
+                return None
+            r = deep / total
+            if r >= 0.25:
+                return 10
+            if r >= 0.20:
+                return 9
+            if r >= 0.15:
+                return 7
+            if r >= 0.10:
+                return 5
+            return 3
+
+        def light_score() -> int | None:
+            if not total or not light:
+                return None
+            r = light / total
+            if 0.55 <= r <= 0.75:
+                return 9
+            if 0.40 <= r < 0.55:
+                return 7
+            if 0.75 < r <= 0.85:
+                return 6
+            return 4
+
+        def wake_score() -> int | None:
+            if wake is None:
+                return None
+            if wake == 0:
+                return 10
+            if wake == 1:
+                return 9
+            if wake == 2:
+                return 8
+            if wake == 3:
+                return 6
+            if wake == 4:
+                return 4
+            return 2
+
+        dur = self.sleep_duration_min or (total or None)
+        scores = [s for s in (dur_score(dur), deep_score(), light_score(), wake_score()) if s is not None]
+        if not scores:
+            return self
+        self.sleep_quality = max(1, min(10, round(sum(scores) / len(scores))))
+        return self
+
 
 class VitalsSleepRead(VitalsSleepCreate, ORMRead):
     pass
