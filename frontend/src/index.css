@@ -126,5 +126,7 @@
     }
   html {
     @apply font-sans;
+    /* 固定预留滚动条空间，避免内容高度变化时滚动条出现/消失引起水平抖动 */
+    scrollbar-gutter: stable;
     }
 }
