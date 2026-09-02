@@ -17,14 +17,14 @@ import { api } from '@/lib/api'
 
 type Series = { key: string; name: string; color?: string }
 
-export function useStats<T>(path: string, days = 30) {
+export function useStats<T>(path: string, days = 30, refresh?: number) {
   const [data, setData] = useState<T | null>(null)
   useEffect(() => {
     api
       .stats<T>(path, days)
       .then(setData)
       .catch(() => setData(null))
-  }, [path, days])
+  }, [path, days, refresh])
   return data
 }
 

@@ -96,9 +96,18 @@ export function StepsPage() {
     description: '确定删除这条步数记录吗？此操作不可恢复。',
   })
 
-  const stats = useStats<StepsStats>('/health/steps')
+  const stats = useStats<StepsStats>('/health/steps', 30, refresh)
   const [months, setMonths] = useState<MonthlyStats['months']>([])
   const [view, setView] = useState<'daily' | 'monthly'>('daily')
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
+  }, [])
+
+  useEffect(() => {
+    api.query<MonthlyStats>('/health/steps/monthly').then((r) => setMonths(r.months))
+  }, [refresh])
 
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -170,6 +179,8 @@ export function StepsPage() {
   const saveSetting = async () => {
     await api.put('/health/steps/settings', { stride_cm: Number(stride) || 70 })
     setSettingDialogOpen(false)
+    setRefresh((r) => r + 1)
+    await load()
   }
 
   return (

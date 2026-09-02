@@ -34,6 +34,10 @@ def _register_fixed(router) -> None:
     def update_settings(payload: StepSettingCreate, db: Session = Depends(get_db)):
         setting = _get_setting(db)
         setting.stride_cm = payload.stride_cm
+        # 步幅变更后，按新步幅实时重算所有记录的距离
+        rows = db.scalars(select(HealthSteps).where(HealthSteps.steps.isnot(None))).all()
+        for r in rows:
+            r.distance_km = round(r.steps * payload.stride_cm / 100000, 2)
         db.commit()
         db.refresh(setting)
         return setting
