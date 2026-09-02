@@ -182,14 +182,43 @@ class HealthReport(TimestampMixin, Base):
 
 
 class HealthMedication(TimestampMixin, Base):
-    """用药跟踪：每日用药记录。"""
+    """用药跟踪：每日分早/午/晚用药记录。"""
 
     __tablename__ = "health_medication"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)
     medicine_name: Mapped[str] = mapped_column(String(64), index=True)
+    meal_slot: Mapped[str] = mapped_column(String(16), default="breakfast")  # breakfast/lunch/dinner
     dosage: Mapped[str | None] = mapped_column(String(64))  # 剂量
     frequency: Mapped[str | None] = mapped_column(String(64))  # 频次
     taken: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否已服用
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class HealthMedPurchase(TimestampMixin, Base):
+    """用药跟踪：购药记录。"""
+
+    __tablename__ = "health_med_purchase"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    buy_date: Mapped[date] = mapped_column(Date, index=True)
+    medicine_name: Mapped[str] = mapped_column(String(64), index=True)
+    channel: Mapped[str | None] = mapped_column(String(64))  # 购买渠道
+    unit: Mapped[str | None] = mapped_column(String(32))  # 单位(盒/片)
+    quantity: Mapped[float] = mapped_column(Float)  # 数量
+    unit_price: Mapped[float] = mapped_column(Float)  # 单价
+    total_price: Mapped[float | None] = mapped_column(Float)  # 总价
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class HealthMedStock(TimestampMixin, Base):
+    """用药跟踪：药品库存与低库存阈值。"""
+
+    __tablename__ = "health_med_stock"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    medicine_name: Mapped[str] = mapped_column(String(64), index=True, unique=True)
+    stock_qty: Mapped[float] = mapped_column(Float)  # 当前库存
+    threshold: Mapped[float | None] = mapped_column(Float)  # 低库存阈值
+    unit: Mapped[str | None] = mapped_column(String(32))  # 单位

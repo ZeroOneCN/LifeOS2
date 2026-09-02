@@ -46,6 +46,7 @@ type StepsStats = {
   avg_steps?: number
   total_steps: number
   max_steps?: number
+  record_count?: number
 }
 
 type MonthlyStats = { months: { month: string; steps: number; distance_km: number; days: number }[] }

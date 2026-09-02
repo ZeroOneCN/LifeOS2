@@ -18,6 +18,8 @@ MODULE_NAMES = {
     "health/checkup": "体检指标",
     "health/reports": "健康报告",
     "health/medication": "用药跟踪",
+    "health/medication/purchases": "购药记录",
+    "health/medication/stocks": "药品库存",
     "finance/purchases": "购买记录",
     "finance/travel": "旅行开支",
     "finance/bills": "账单管理",

@@ -253,6 +253,7 @@ class ReportRead(ReportCreate, ORMRead):
 class MedicationCreate(BaseModel):
     record_date: date
     medicine_name: str
+    meal_slot: str = "breakfast"
     dosage: str | None = None
     frequency: str | None = None
     taken: bool = False
@@ -260,6 +261,38 @@ class MedicationCreate(BaseModel):
 
 
 class MedicationRead(MedicationCreate, ORMRead):
+    pass
+
+
+class MedPurchaseCreate(BaseModel):
+    buy_date: date
+    medicine_name: str
+    channel: str | None = None
+    unit: str | None = None
+    quantity: float = Field(gt=0)
+    unit_price: float = Field(ge=0)
+    total_price: float | None = Field(None, ge=0)
+    note: str | None = None
+
+    @model_validator(mode="after")
+    def auto_total(self):
+        if self.total_price is None:
+            self.total_price = round(self.quantity * self.unit_price, 2)
+        return self
+
+
+class MedPurchaseRead(MedPurchaseCreate, ORMRead):
+    pass
+
+
+class MedStockCreate(BaseModel):
+    medicine_name: str
+    stock_qty: float = Field(ge=0)
+    threshold: float | None = Field(None, ge=0)
+    unit: str | None = None
+
+
+class MedStockRead(MedStockCreate, ORMRead):
     pass
 
 
