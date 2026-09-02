@@ -99,6 +99,7 @@ export function StepsPage() {
 
   const stats = useStats<StepsStats>('/health/steps')
   const [months, setMonths] = useState<MonthlyStats['months']>([])
+  const [view, setView] = useState<'daily' | 'monthly'>('daily')
 
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -220,37 +221,44 @@ export function StepsPage() {
         </div>
       )}
 
-      {stats && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <LineChartCard
-            title="每日步数趋势"
-            data={stats.trend}
-            xKey="record_date"
-            series={[{ key: 'steps', name: '步数', color: '#10b981' }]}
-            height={260}
-          />
-          <BarChartCard
-            title="各时间段步数分布"
-            data={stats.by_period.map((p) => ({ ...p, label: periodLabel(p.period) }))}
-            xKey="label"
-            series={[{ key: 'steps', name: '步数', color: '#3b82f6' }]}
-            height={260}
-          />
-        </div>
-      )}
+      <section className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+        {(
+          [
+            ['daily', '按日'],
+            ['monthly', '按月'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setView(key)}
+            className={`rounded-md px-3 py-1 text-sm transition-colors ${
+              view === key ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </section>
 
-      {months.length > 0 && (
-        <LineChartCard
-          title="月度步数统计（近12个月）"
-          data={months}
-          xKey="month"
-          series={[{ key: 'steps', name: '步数', color: '#f59e0b' }]}
-          height={240}
-        />
-      )}
+      {view === 'daily' && stats && (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <LineChartCard
+              title="每日步数趋势"
+              data={stats.trend}
+              xKey="record_date"
+              series={[{ key: 'steps', name: '步数', color: '#10b981' }]}
+              height={260}
+            />
+            <BarChartCard
+              title="各时间段步数分布"
+              data={stats.by_period.map((p) => ({ ...p, label: periodLabel(p.period) }))}
+              xKey="label"
+              series={[{ key: 'steps', name: '步数', color: '#3b82f6' }]}
+              height={260}
+            />
+          </div>
 
-      {stats && (
-        <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardContent className="p-0">
               <div className="px-4 pt-4 pb-1 text-sm font-medium">每日步数汇总</div>
@@ -288,37 +296,47 @@ export function StepsPage() {
               </Table>
             </CardContent>
           </Card>
+        </>
+      )}
 
-          {months.length > 0 && (
-            <Card>
-              <CardContent className="p-0">
-                <div className="px-4 pt-4 pb-1 text-sm font-medium">每月步数汇总</div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>月份</TableHead>
-                      <TableHead className="text-right">步数</TableHead>
-                      <TableHead className="text-right">距离</TableHead>
-                      <TableHead className="text-right">天数</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...months]
-                      .sort((a, b) => b.month.localeCompare(a.month))
-                      .map((m) => (
-                        <TableRow key={m.month}>
-                          <TableCell>{m.month}</TableCell>
-                          <TableCell className="text-right">{m.steps.toLocaleString()}</TableCell>
-                          <TableCell className="text-right">{m.distance_km} km</TableCell>
-                          <TableCell className="text-right">{m.days} 天</TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {view === 'monthly' && months.length > 0 && (
+        <>
+          <LineChartCard
+            title="月度步数统计（近12个月）"
+            data={months}
+            xKey="month"
+            series={[{ key: 'steps', name: '步数', color: '#f59e0b' }]}
+            height={240}
+          />
+
+          <Card>
+            <CardContent className="p-0">
+              <div className="px-4 pt-4 pb-1 text-sm font-medium">每月步数汇总</div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>月份</TableHead>
+                    <TableHead className="text-right">步数</TableHead>
+                    <TableHead className="text-right">距离</TableHead>
+                    <TableHead className="text-right">天数</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[...months]
+                    .sort((a, b) => b.month.localeCompare(a.month))
+                    .map((m) => (
+                      <TableRow key={m.month}>
+                        <TableCell>{m.month}</TableCell>
+                        <TableCell className="text-right">{m.steps.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{m.distance_km} km</TableCell>
+                        <TableCell className="text-right">{m.days} 天</TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       <Card>
