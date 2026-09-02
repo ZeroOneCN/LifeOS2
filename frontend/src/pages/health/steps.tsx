@@ -440,7 +440,7 @@ export function StepsPage() {
               <Label>
                 步数 <span className="text-destructive">*</span>
               </Label>
-              <Input type="number" min="0" value={form.steps} onChange={(e) => set('steps', e.target.value)} disabled={!!editing} />
+              <Input type="number" min="0" value={form.steps} onChange={(e) => set('steps', e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>消耗(kcal)</Label>
