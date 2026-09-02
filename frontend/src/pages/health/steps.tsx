@@ -229,24 +229,23 @@ export function StepsPage() {
         </div>
       )}
 
-      <section className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
         {(
           [
             ['daily', '按日'],
             ['monthly', '按月'],
           ] as const
         ).map(([key, label]) => (
-          <button
+          <Button
             key={key}
+            variant={view === key ? 'default' : 'ghost'}
+            className="flex-1"
             onClick={() => setView(key)}
-            className={`rounded-md px-3 py-1 text-sm transition-colors ${
-              view === key ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
           >
             {label}
-          </button>
+          </Button>
         ))}
-      </section>
+      </div>
 
       {view === 'daily' && stats && (
         <>

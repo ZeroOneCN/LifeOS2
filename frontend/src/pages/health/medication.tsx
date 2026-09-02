@@ -310,17 +310,16 @@ export function MedicationPage() {
         </div>
       </section>
 
-      <div className="flex gap-1 rounded-lg border bg-muted/40 p-1 w-fit">
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
         {tabs.map((t) => (
-          <button
+          <Button
             key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="flex-1"
             onClick={() => setTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-              tab === t.key ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'
-            }`}
           >
             {t.label}
-          </button>
+          </Button>
         ))}
       </div>
 

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Activity, Dumbbell, Scale, Utensils } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { FitnessDashboardPage } from './fitness-dashboard'
 import { DietPage } from './diet'
 import { FitnessPage } from './fitness'
@@ -29,22 +30,19 @@ export function FitnessTabsPage() {
           数据看板、饮食记录、运动记录与体重记录集中管理。
         </p>
       </section>
-      <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
         {TABS.map((t) => {
           const Icon = t.icon
           return (
-            <button
+            <Button
               key={t.key}
+              variant={tab === t.key ? 'default' : 'ghost'}
+              className="flex-1"
               onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                tab === t.key
-                  ? 'bg-background font-medium shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
             >
               <Icon className="size-4" />
               {t.label}
-            </button>
+            </Button>
           )
         })}
       </div>
