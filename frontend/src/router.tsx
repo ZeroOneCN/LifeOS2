@@ -13,12 +13,9 @@ import { RemindersPage } from '@/pages/finance/reminders'
 import { TravelPage } from '@/pages/finance/travel'
 import { HomePage } from '@/pages/home'
 import { CheckupPage } from '@/pages/health/checkup'
-import { BodyPage } from '@/pages/health/body'
-import { DietPage } from '@/pages/health/diet'
-import { FitnessDashboardPage } from '@/pages/health/fitness-dashboard'
-import { FitnessPage } from '@/pages/health/fitness'
-import { MedicationPage } from '@/pages/health/medication'
+import { FitnessTabsPage } from '@/pages/health/fitness-tabs'
 import { HealthOverviewPage } from '@/pages/health/overview'
+import { MedicationPage } from '@/pages/health/medication'
 import { ReportsPage } from '@/pages/health/reports'
 import { StepsPage } from '@/pages/health/steps'
 import { VitalsSleepPage } from '@/pages/health/vitals-sleep'
@@ -36,10 +33,10 @@ import { UserCenterPage } from '@/pages/user-center'
 const implementedPages: Record<string, React.ReactNode> = {
   '/health/overview': <HealthOverviewPage />,
   '/health/vitals-sleep': <VitalsSleepPage />,
-  '/health/fitness': <FitnessPage />,
-  '/health/diet': <DietPage />,
-  '/health/body': <BodyPage />,
-  '/health/fitness/dashboard': <FitnessDashboardPage />,
+  '/health/fitness': <FitnessTabsPage />,
+  '/health/diet': <FitnessTabsPage />,
+  '/health/body': <FitnessTabsPage />,
+  '/health/fitness/dashboard': <FitnessTabsPage />,
   '/health/steps': <StepsPage />,
   '/health/checkup': <CheckupPage />,
   '/health/reports': <ReportsPage />,
