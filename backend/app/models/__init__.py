@@ -1,9 +1,12 @@
 from app.models.activity_log import ActivityLog
 from app.models.finance import (
+    FinanceCurrency,
     FinanceDebt,
     FinanceHousing,
+    FinanceInvestment,
     FinanceLoanBill,
     FinanceLoanPlatform,
+    FinanceMemo,
     FinancePlan,
     FinanceRepayment,
     FinanceReminder,
@@ -70,6 +73,9 @@ __all__ = [
     "FinanceReminder",
     "FinancePlan",
     "FinanceDebt",
+    "FinanceInvestment",
+    "FinanceMemo",
+    "FinanceCurrency",
     "LifestyleItem",
     "LifestyleSimCard",
     "LifestyleTodo",

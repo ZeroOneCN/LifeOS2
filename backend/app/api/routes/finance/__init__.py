@@ -1,9 +1,12 @@
 from fastapi import APIRouter
 
 from app.api.routes.finance import (
+    currencies,
     debts,
     housing,
+    investments,
     loans,
+    memos,
     overview,
     planning,
     reminders,
@@ -26,5 +29,8 @@ for sub in (
     reminders.router,
     planning.router,
     debts.router,
+    investments.router,
+    memos.router,
+    currencies.router,
 ):
     router.include_router(sub)

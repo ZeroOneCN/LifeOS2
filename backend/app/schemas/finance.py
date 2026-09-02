@@ -208,6 +208,44 @@ class DebtRead(DebtCreate, ORMRead):
     pass
 
 
+class InvestmentCreate(BaseModel):
+    platform: str
+    account: str | None = None
+    category: str
+    pnl: float
+    note: str | None = None
+
+
+class InvestmentRead(InvestmentCreate, ORMRead):
+    pass
+
+
+class MemoCreate(BaseModel):
+    title: str
+    content: str | None = None
+    memo_date: date | None = None
+
+
+class MemoRead(MemoCreate, ORMRead):
+    pass
+
+
+class CurrencyCreate(BaseModel):
+    currency: str
+    name: str | None = None
+    rate_to_cny: float = Field(gt=0)
+    symbol: str | None = None
+
+
+class CurrencyRead(CurrencyCreate, ORMRead):
+    pass
+
+
+class DebtRepayPayload(BaseModel):
+    repay_date: date
+    amount: float = Field(gt=0)
+
+
 class PageOut(BaseModel, Generic[T]):
     items: list[T]
     total: int

@@ -1,12 +1,17 @@
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.database import get_db
 from app.api.crud import crud_router
-from app.models import FinanceDebt
-from app.schemas.finance import DebtCreate, DebtRead
+from app.models import FinanceDebt, FinanceLoanBill, FinanceLoanPlatform
+from app.schemas.finance import (
+    DebtCreate,
+    DebtRead,
+    DebtRepayPayload,
+)
 
 router = APIRouter()
 
@@ -23,8 +28,8 @@ def _debt_stats(db: Session, days: int) -> dict:
         for r in rows
         if r.status == "active"
     )
-    settled = len([r for r in rows if r.status == "settled"])
     active = len([r for r in rows if r.status == "active"])
+    settled = len([r for r in rows if r.status == "settled"])
     overdue = [
         r
         for r in rows
@@ -60,13 +65,74 @@ def _debt_stats(db: Session, days: int) -> dict:
     }
 
 
-router = crud_router(
-    prefix="/finance/debts",
-    tag="finance-debts",
-    model=FinanceDebt,
-    create_schema=DebtCreate,
-    read_schema=DebtRead,
-    order_by=FinanceDebt.debt_date,
-    date_column="debt_date",
-    stats_func=_debt_stats,
+@router.get("/finance/debts/loan-sync")
+def loan_sync(db: Session = Depends(get_db)) -> dict:
+    """网贷平台的欠款汇总（只读同步，来源为网贷借还模块）。"""
+    platforms = db.scalars(
+        select(FinanceLoanPlatform).order_by(FinanceLoanPlatform.id)
+    ).all()
+    detail = []
+    total_remaining = 0.0
+    for p in platforms:
+        bills = db.scalars(
+            select(FinanceLoanBill).where(FinanceLoanBill.platform_id == p.id)
+        ).all()
+        remaining = round(sum(b.amount - b.paid_amount for b in bills), 2)
+        total_remaining += remaining
+        detail.append(
+            {
+                "platform_id": p.id,
+                "name": p.name,
+                "remaining": remaining,
+                "bill_count": sum(
+                    1 for b in bills if b.amount - b.paid_amount > 0
+                ),
+            }
+        )
+    detail.sort(key=lambda x: -x["remaining"])
+    return {
+        "total_remaining": round(total_remaining, 2),
+        "platform_count": len(detail),
+        "platforms": detail,
+    }
+
+
+@router.post("/finance/debts/{item_id}/repay")
+def repay_debt(item_id: int, payload: DebtRepayPayload, db: Session = Depends(get_db)):
+    """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清。"""
+    debt = db.get(FinanceDebt, item_id)
+    if not debt:
+        raise HTTPException(status_code=404, detail="债务记录不存在")
+    if debt.status == "settled":
+        raise HTTPException(status_code=400, detail="该债务已结清，无需还款")
+    current = debt.remaining if debt.remaining is not None else debt.amount
+    if payload.amount > current + 1e-6:
+        raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余 {current:.2f}")
+    debt.remaining = round(current - payload.amount, 2)
+    if debt.remaining <= 1e-6:
+        debt.remaining = 0
+        debt.status = "settled"
+    db.commit()
+    return {
+        "id": debt.id,
+        "name": debt.name,
+        "direction": debt.direction,
+        "remaining": debt.remaining,
+        "status": debt.status,
+        "repay": payload.repay_date,
+        "amount": round(payload.amount, 2),
+    }
+
+
+router.include_router(
+    crud_router(
+        prefix="/finance/debts",
+        tag="finance-debts",
+        model=FinanceDebt,
+        create_schema=DebtCreate,
+        read_schema=DebtRead,
+        order_by=FinanceDebt.debt_date,
+        date_column="debt_date",
+        stats_func=_debt_stats,
+    )
 )

@@ -233,3 +233,39 @@ class FinanceDebt(TimestampMixin, Base):
     due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
     status: Mapped[str] = mapped_column(String(16), default="active")  # active=进行中 / settled=已结清
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceInvestment(TimestampMixin, Base):
+    """投资记账：各投资平台的盈亏总额，无需过细。"""
+
+    __tablename__ = "finance_investments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String(64))  # 平台名称
+    account: Mapped[str | None] = mapped_column(String(64))  # 平台账号
+    category: Mapped[str] = mapped_column(String(24), index=True)  # 美股/港股/外汇/加密货币-合约等
+    pnl: Mapped[float] = mapped_column(Float)  # 盈亏总额
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceMemo(TimestampMixin, Base):
+    """备忘录：模糊记忆或有待处理事项。"""
+
+    __tablename__ = "finance_memos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(128))  # 标题
+    content: Mapped[str | None] = mapped_column(Text)  # 内容
+    memo_date: Mapped[date | None] = mapped_column(Date)  # 日期
+
+
+class FinanceCurrency(TimestampMixin, Base):
+    """汇率设置：按币种相对人民币的汇率，用于金额切换显示。"""
+
+    __tablename__ = "finance_currencies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    currency: Mapped[str] = mapped_column(String(8), unique=True, index=True)  # USD/HKD/CNY
+    name: Mapped[str | None] = mapped_column(String(32))  # 币种名称
+    rate_to_cny: Mapped[float] = mapped_column(Float)  # 1 单位该币种 = 多少人民币
+    symbol: Mapped[str | None] = mapped_column(String(8))  # 符号，如 $ / HK$ / ¥
