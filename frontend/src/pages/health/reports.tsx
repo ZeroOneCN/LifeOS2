@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 type ReportRecord = {
@@ -148,6 +149,10 @@ export function ReportsPage() {
   const [preview, setPreview] = useState<ReportRecord | null>(null)
   const [previewCollapsed, setPreviewCollapsed] = useState(false)
   const [exportingId, setExportingId] = useState<number | null>(null)
+  const { confirm, dialog: confirmDialog } = useConfirm({
+    title: '确认删除报告',
+    description: '确定删除这篇健康报告吗？此操作不可恢复。',
+  })
 
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -201,6 +206,7 @@ export function ReportsPage() {
   }
 
   const handleDelete = async (id: number) => {
+    if (!(await confirm())) return
     try {
       await api.remove('/health/reports', id)
       toast.success('报告已删除')
@@ -215,7 +221,7 @@ export function ReportsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">健康报告</h2>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">健康报告</h1>
           <p className="text-sm text-muted-foreground">
             自动汇总健康中心数据，生成专业报告并支持 PDF 导出。
           </p>
@@ -402,6 +408,8 @@ export function ReportsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {confirmDialog}
     </div>
   )
 }

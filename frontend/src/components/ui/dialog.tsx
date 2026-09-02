@@ -47,6 +47,22 @@ function DialogOverlay({
   )
 }
 
+// 全局滚动锁：支持弹窗嵌套，且仅在弹窗真正打开(data-state=open)时锁定，
+// 关闭后自动恢复，避免历史遗留的 hidden 导致页面无法滚动。
+const scrollLockCount = { value: 0 }
+function lockScroll() {
+  scrollLockCount.value += 1
+  document.documentElement.style.overflow = "hidden"
+  document.body.style.overflow = "hidden"
+}
+function unlockScroll() {
+  scrollLockCount.value = Math.max(0, scrollLockCount.value - 1)
+  if (scrollLockCount.value === 0) {
+    document.documentElement.style.overflow = ""
+    document.body.style.overflow = ""
+  }
+}
+
 function DialogContent({
   className,
   children,
@@ -59,12 +75,25 @@ function DialogContent({
   closeOnEscape?: boolean
   onConfirmEnter?: boolean
 }) {
-  // 弹窗打开期间锁定页面滚动；卸载时恢复
+  const contentRef = React.useRef<React.ComponentRef<typeof DialogPrimitive.Content>>(null)
+
+  // 弹窗打开期间锁定页面滚动；随 data-state 变化锁定/恢复，关闭时确保释放
   React.useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const el = contentRef.current
+    if (!el) return
+    let isOpen = el.getAttribute("data-state") === "open"
+    if (isOpen) lockScroll()
+    const observer = new MutationObserver(() => {
+      const open = el.getAttribute("data-state") === "open"
+      if (open === isOpen) return
+      if (open) lockScroll()
+      else unlockScroll()
+      isOpen = open
+    })
+    observer.observe(el, { attributes: true, attributeFilter: ["data-state"] })
     return () => {
-      document.body.style.overflow = prev
+      observer.disconnect()
+      if (isOpen) unlockScroll()
     }
   }, [])
 
@@ -96,6 +125,7 @@ function DialogContent({
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        ref={contentRef}
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",

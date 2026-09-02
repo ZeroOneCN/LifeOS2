@@ -72,7 +72,7 @@ def _steps_stats(db: Session, days: int) -> dict:
         by_day[r.record_date]["calories"] += r.calories or 0
         by_period[r.period] += r.steps
 
-    steps_list = [sum(by_day[d]["steps"]) for d in by_day]
+    steps_list = [by_day[d]["steps"] for d in by_day]
     total_steps = sum(steps_list)
 
     return {

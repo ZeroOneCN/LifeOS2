@@ -23,6 +23,12 @@ export function FitnessTabsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <section className="space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">健身运动</h1>
+        <p className="text-sm text-muted-foreground">
+          数据看板、饮食记录、运动记录与体重记录集中管理。
+        </p>
+      </section>
       <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
         {TABS.map((t) => {
           const Icon = t.icon
