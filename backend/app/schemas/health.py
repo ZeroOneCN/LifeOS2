@@ -165,12 +165,31 @@ class BodyRead(BodyCreate, ORMRead):
 
 class StepsCreate(BaseModel):
     record_date: date
+    period: str = "full"
     steps: int = Field(ge=0)
+    stride_cm: float | None = Field(None, ge=0)
     distance_km: float | None = Field(None, ge=0)
     calories: float | None = Field(None, ge=0)
 
+    @model_validator(mode="after")
+    def auto_distance_calories(self):
+        stride = self.stride_cm if isinstance(self.stride_cm, (int, float)) else 70.0
+        if self.distance_km is None:
+            self.distance_km = round(self.steps * stride / 100000, 2)
+        if self.calories is None:
+            self.calories = round(self.steps * 0.04, 1)
+        return self
+
 
 class StepsRead(StepsCreate, ORMRead):
+    pass
+
+
+class StepSettingCreate(BaseModel):
+    stride_cm: float = Field(ge=0)
+
+
+class StepSettingRead(StepSettingCreate, ORMRead):
     pass
 
 

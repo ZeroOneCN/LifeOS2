@@ -14,6 +14,7 @@ from app.models.health import (
     HealthFitness,
     HealthMedication,
     HealthReport,
+    HealthStepSetting,
     HealthSteps,
     HealthVitalsSleep,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "HealthDiet",
     "HealthBody",
     "HealthSteps",
+    "HealthStepSetting",
     "HealthCheckup",
     "HealthReport",
     "HealthMedication",

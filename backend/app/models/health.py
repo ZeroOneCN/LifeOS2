@@ -116,15 +116,26 @@ class HealthBody(TimestampMixin, Base):
 
 
 class HealthSteps(TimestampMixin, Base):
-    """步数统计：每日步数。"""
+    """步数统计：按时间段录入每日步数。"""
 
     __tablename__ = "health_steps"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)
+    period: Mapped[str] = mapped_column(String(8), default="full", index=True)  # 时间段(full 代表全天/0点)
     steps: Mapped[int] = mapped_column(Integer)  # 步数
-    distance_km: Mapped[float | None] = mapped_column(Float)
+    stride_cm: Mapped[float | None] = mapped_column(Float)  # 录入时的每步步幅 cm
+    distance_km: Mapped[float | None] = mapped_column(Float)  # 由步幅自动计算
     calories: Mapped[float | None] = mapped_column(Float)
+
+
+class HealthStepSetting(TimestampMixin, Base):
+    """步数设置：每步步幅（固定单行 id=1）。"""
+
+    __tablename__ = "health_step_setting"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    stride_cm: Mapped[float] = mapped_column(Float, default=70.0)  # 每步步幅 cm
 
 
 class HealthCheckup(TimestampMixin, Base):
