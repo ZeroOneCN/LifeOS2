@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/sidebar'
 import { navigation, type NavSection } from '@/config/navigation'
 
-/** 多子项的普通分区渲染为可折叠子菜单；系统区与单子项分区保持平铺。 */
+/** 业务中心分区渲染为可折叠子菜单；系统区保持平铺。 */
 function SidebarSection({ section }: { section: NavSection }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -31,7 +31,7 @@ function SidebarSection({ section }: { section: NavSection }) {
     section.children.some((item) => item.url === pathname),
   )
 
-  const collapsible = !section.system && section.children.length > 1
+  const collapsible = !section.system
 
   if (!collapsible) {
     return (

@@ -3,7 +3,6 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
-  FileText,
   History,
   Loader2,
   Pencil,
