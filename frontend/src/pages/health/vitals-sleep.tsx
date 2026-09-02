@@ -15,8 +15,10 @@ type VitalsRecord = {
   blood_pressure_low?: number
   heart_rate?: number
   blood_oxygen?: number
-  weight?: number
+  blood_glucose?: number
   body_temp?: number
+  bedtime?: string
+  wake_time?: string
   sleep_duration_min?: number
   deep_sleep_min?: number
   light_sleep_min?: number
@@ -31,6 +33,8 @@ type VitalsStats = {
     blood_pressure_high?: number
     blood_pressure_low?: number
     heart_rate?: number
+    blood_glucose?: number
+    body_temp?: number
     sleep_duration_min?: number
     deep_sleep_min?: number
     sleep_quality?: number
@@ -39,13 +43,14 @@ type VitalsStats = {
 
 const fields: FieldDef[] = [
   { key: 'record_date', label: '日期', type: 'date', required: true },
+  { key: 'bedtime', label: '睡觉时间', type: 'time', placeholder: '如 23:00' },
+  { key: 'wake_time', label: '起床时间', type: 'time', placeholder: '如 07:30' },
   { key: 'blood_pressure_high', label: '血压-高压', type: 'number', placeholder: 'mmHg' },
   { key: 'blood_pressure_low', label: '血压-低压', type: 'number', placeholder: 'mmHg' },
   { key: 'heart_rate', label: '心率', type: 'number', placeholder: 'bpm' },
   { key: 'blood_oxygen', label: '血氧', type: 'number', step: '0.1', placeholder: '%' },
-  { key: 'weight', label: '体重', type: 'number', step: '0.1', placeholder: 'kg' },
+  { key: 'blood_glucose', label: '血糖', type: 'number', step: '0.1', placeholder: 'mmol/L' },
   { key: 'body_temp', label: '体温', type: 'number', step: '0.1', placeholder: '℃' },
-  { key: 'sleep_duration_min', label: '睡眠时长', type: 'number', placeholder: '分钟' },
   { key: 'deep_sleep_min', label: '深睡时长', type: 'number', placeholder: '分钟' },
   { key: 'light_sleep_min', label: '浅睡时长', type: 'number', placeholder: '分钟' },
   { key: 'wake_count', label: '醒来次数', type: 'number' },
@@ -64,6 +69,20 @@ const fields: FieldDef[] = [
 const columns: ColumnDef<VitalsRecord>[] = [
   { key: 'record_date', label: '日期' },
   {
+    key: 'sleep',
+    label: '睡眠时段',
+    render: (r) =>
+      r.bedtime && r.wake_time ? `${r.bedtime.slice(0, 5)} - ${r.wake_time.slice(0, 5)}` : '—',
+  },
+  {
+    key: 'sleep_duration_min',
+    label: '睡眠',
+    render: (r) =>
+      r.sleep_duration_min != null
+        ? `${Math.floor(r.sleep_duration_min / 60)}h${r.sleep_duration_min % 60}m`
+        : '—',
+  },
+  {
     key: 'bp',
     label: '血压',
     render: (r) =>
@@ -73,14 +92,8 @@ const columns: ColumnDef<VitalsRecord>[] = [
   },
   { key: 'heart_rate', label: '心率', render: (r) => (r.heart_rate ? `${r.heart_rate} bpm` : '—') },
   { key: 'blood_oxygen', label: '血氧', render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—') },
-  {
-    key: 'sleep_duration_min',
-    label: '睡眠',
-    render: (r) =>
-      r.sleep_duration_min != null
-        ? `${Math.floor(r.sleep_duration_min / 60)}h${r.sleep_duration_min % 60}m`
-        : '—',
-  },
+  { key: 'blood_glucose', label: '血糖', render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—') },
+  { key: 'body_temp', label: '体温', render: (r) => (r.body_temp ? `${r.body_temp}℃` : '—') },
   { key: 'sleep_quality', label: '质量', render: (r) => (r.sleep_quality ? `${r.sleep_quality}/10` : '—') },
 ]
 

@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     Boolean,
@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -37,9 +38,11 @@ class HealthVitalsSleep(TimestampMixin, Base):
     blood_pressure_low: Mapped[int | None] = mapped_column(Integer)  # 低压
     heart_rate: Mapped[int | None] = mapped_column(Integer)  # 心率
     blood_oxygen: Mapped[float | None] = mapped_column(Float)  # 血氧饱和度 %
-    weight: Mapped[float | None] = mapped_column(Float)  # 体重 kg
+    blood_glucose: Mapped[float | None] = mapped_column(Float)  # 血糖 mmol/L
     body_temp: Mapped[float | None] = mapped_column(Float)  # 体温 ℃
-    sleep_duration_min: Mapped[int | None] = mapped_column(Integer)  # 总睡眠(分钟)
+    bedtime: Mapped[time | None] = mapped_column(Time)  # 睡觉时间
+    wake_time: Mapped[time | None] = mapped_column(Time)  # 起床时间
+    sleep_duration_min: Mapped[int | None] = mapped_column(Integer)  # 总睡眠(分钟) 由 bedtime/wake_time 自动计算
     deep_sleep_min: Mapped[int | None] = mapped_column(Integer)  # 深睡(分钟)
     light_sleep_min: Mapped[int | None] = mapped_column(Integer)  # 浅睡(分钟)
     wake_count: Mapped[int | None] = mapped_column(Integer)  # 醒来次数

@@ -31,7 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 
-export type FieldType = 'date' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
+export type FieldType = 'date' | 'time' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
 
 export type FieldDef = {
   key: string
@@ -68,6 +68,7 @@ const PAGE_SIZE = 20
 function toFormValue(field: FieldDef, value: unknown): string {
   if (value === null || value === undefined) return ''
   if (field.type === 'boolean') return value ? 'true' : 'false'
+  if (field.type === 'time') return String(value).slice(0, 5)
   return String(value)
 }
 
@@ -302,7 +303,7 @@ export function RecordManager<T extends { id: number }>({
                 ) : (
                   <Input
                     id={field.key}
-                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
                     step={field.step}
                     min={field.min}
                     value={form[field.key] ?? ''}

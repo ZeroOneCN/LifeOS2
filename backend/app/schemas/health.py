@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
 
@@ -14,20 +14,54 @@ class ORMRead(BaseModel):
     updated_at: datetime
 
 
+def _compute_sleep_min(bedtime: time | None, wake_time: time | None) -> int | None:
+    """根据睡觉/起床时间计算睡眠时长（分钟），跨零点时自动加一天。"""
+    if bedtime is None or wake_time is None:
+        return None
+    start = bedtime.hour * 60 + bedtime.minute
+    end = wake_time.hour * 60 + wake_time.minute
+    if end < start:
+        end += 24 * 60
+    return end - start
+
+
 class VitalsSleepCreate(BaseModel):
     record_date: date
     blood_pressure_high: int | None = Field(None, ge=0)
     blood_pressure_low: int | None = Field(None, ge=0)
     heart_rate: int | None = Field(None, ge=0)
     blood_oxygen: float | None = Field(None, ge=0, le=100)
-    weight: float | None = Field(None, ge=0)
+    blood_glucose: float | None = Field(None, ge=0)
     body_temp: float | None = Field(None, ge=0)
+    bedtime: time | None = None
+    wake_time: time | None = None
     sleep_duration_min: int | None = Field(None, ge=0)
     deep_sleep_min: int | None = Field(None, ge=0)
     light_sleep_min: int | None = Field(None, ge=0)
     wake_count: int | None = Field(None, ge=0)
     sleep_quality: int | None = Field(None, ge=1, le=10)
     note: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def auto_sleep_duration(cls, data):
+        from datetime import time as _time
+
+        if not isinstance(data, dict):
+            return data
+        duration = data.get("sleep_duration_min")
+        if duration is not None:
+            return data
+        bedtime = data.get("bedtime")
+        wake = data.get("wake_time")
+        if bedtime is not None and wake is not None:
+            try:
+                b = bedtime if isinstance(bedtime, _time) else _time.fromisoformat(str(bedtime))
+                w = wake if isinstance(wake, _time) else _time.fromisoformat(str(wake))
+                data["sleep_duration_min"] = _compute_sleep_min(b, w)
+            except (ValueError, TypeError):
+                pass
+        return data
 
 
 class VitalsSleepRead(VitalsSleepCreate, ORMRead):

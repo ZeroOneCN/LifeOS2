@@ -32,10 +32,11 @@ def _vitals_stats(db: Session, days: int) -> dict:
                 "blood_pressure_low": r.blood_pressure_low,
                 "heart_rate": r.heart_rate,
                 "blood_oxygen": r.blood_oxygen,
+                "blood_glucose": r.blood_glucose,
+                "body_temp": r.body_temp,
                 "sleep_duration_min": r.sleep_duration_min,
                 "deep_sleep_min": r.deep_sleep_min,
                 "sleep_quality": r.sleep_quality,
-                "weight": r.weight,
             }
             for r in rows
         ],
@@ -44,6 +45,8 @@ def _vitals_stats(db: Session, days: int) -> dict:
             "blood_pressure_low": avg("blood_pressure_low"),
             "heart_rate": avg("heart_rate"),
             "blood_oxygen": avg("blood_oxygen"),
+            "blood_glucose": avg("blood_glucose"),
+            "body_temp": avg("body_temp"),
             "sleep_duration_min": avg("sleep_duration_min"),
             "deep_sleep_min": avg("deep_sleep_min"),
             "sleep_quality": avg("sleep_quality"),
