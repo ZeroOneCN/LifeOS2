@@ -20,6 +20,7 @@ from app.models.lifestyle import (
     LifestyleSimCard,
     LifestyleTodo,
 )
+from app.models.notification import Notification
 
 __all__ = [
     "HealthVitalsSleep",
@@ -38,4 +39,5 @@ __all__ = [
     "LifestyleTodo",
     "LifestyleSchedule",
     "InvestmentForex",
+    "Notification",
 ]

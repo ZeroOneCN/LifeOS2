@@ -22,6 +22,7 @@ import { SchedulePage } from '@/pages/lifestyle/schedule'
 import { SimCardsPage } from '@/pages/lifestyle/sim-cards'
 import { TodosPage } from '@/pages/lifestyle/todos'
 import { NotFoundPage } from '@/pages/not-found'
+import { NotificationsPage } from '@/pages/notifications'
 import { PlaceholderPage } from '@/pages/placeholder'
 
 // 已实现具体功能的页面，其余菜单项统一使用占位页。
@@ -44,6 +45,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/lifestyle/todos': <TodosPage />,
   '/lifestyle/schedule': <SchedulePage />,
   '/investment/forex': <ForexPage />,
+  '/notifications': <NotificationsPage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>

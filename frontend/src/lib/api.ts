@@ -41,6 +41,11 @@ export const api = {
   query: <T>(path: string) => request<T>(path),
   create: <T>(path: string, data: unknown) =>
     request<T>(path, { method: 'POST', body: JSON.stringify(data) }),
+  post: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
   update: <T>(path: string, id: number, data: unknown) =>
     request<T>(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (path: string, id: number) =>
