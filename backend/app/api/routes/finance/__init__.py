@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 
 from app.api.routes.finance import (
-    bills,
     debts,
+    housing,
+    loans,
     overview,
     planning,
     reminders,
     shopping,
+    subscriptions,
     travel,
 )
 
@@ -18,7 +20,9 @@ for sub in (
     shopping.records_router,
     shopping.import_router,
     travel.router,
-    bills.router,
+    housing.router,
+    subscriptions.router,
+    loans.router,
     reminders.router,
     planning.router,
     debts.router,

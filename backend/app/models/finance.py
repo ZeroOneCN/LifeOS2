@@ -94,17 +94,96 @@ class FinanceTravelDetail(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceBill(TimestampMixin, Base):
-    """账单管理：生活缴费账单。"""
+class FinanceHousing(TimestampMixin, Base):
+    """住房信息：租房渠道/押金/杂费/租期等，用于组合月租分析。"""
 
-    __tablename__ = "finance_bills"
+    __tablename__ = "finance_housing"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    bill_date: Mapped[date] = mapped_column(Date, index=True)  # 出账日期
-    bill_type: Mapped[str] = mapped_column(String(32), index=True)  # 水/电/燃气等
+    name: Mapped[str] = mapped_column(String(128))  # 房屋名称
+    channel: Mapped[str | None] = mapped_column(String(64))  # 租房渠道
+    orientation: Mapped[str | None] = mapped_column(String(16))  # 房屋朝向
+    move_in_date: Mapped[date] = mapped_column(Date)  # 入住时间
+    move_out_date: Mapped[date | None] = mapped_column(Date)  # 退租时间
+    rent_term: Mapped[str] = mapped_column(String(16), default="monthly")  # monthly/quarterly 按月/按季付
+    actual_monthly_rent: Mapped[float] = mapped_column(Float)  # 实际月租
+    deposit: Mapped[float | None] = mapped_column(Float, default=0)  # 押金
+    agent_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 中介费
+    clean_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 保洁费
+    service_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 服务费
+    laundry_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 洗衣费
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceUtility(TimestampMixin, Base):
+    """水电燃气/宽带费用账单。"""
+
+    __tablename__ = "finance_utilities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    housing_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联住房
+    bill_month: Mapped[date] = mapped_column(Date, index=True)  # 账单月份
+    fee_type: Mapped[str] = mapped_column(String(16), index=True)  # 水/电/气/网
     amount: Mapped[float] = mapped_column(Float)  # 金额
     due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
     paid: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否已支付
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceSubscription(TimestampMixin, Base):
+    """服务订阅：会员/服务器等周期性付费订阅。"""
+
+    __tablename__ = "finance_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128))  # 订阅名称
+    category: Mapped[str] = mapped_column(String(32), index=True)  # 分类（会员/服务器/软件等）
+    billing_cycle: Mapped[str] = mapped_column(String(16), default="month")  # month/quarter/year
+    amount: Mapped[float] = mapped_column(Float)  # 每期金额
+    start_date: Mapped[date] = mapped_column(Date)  # 起始时间
+    remind_days: Mapped[int] = mapped_column(Integer, default=30)  # 过期前多少天提醒
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active/expired/cancelled
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceLoanPlatform(TimestampMixin, Base):
+    """借款平台：账单日/还款日/额度/累计欠款。"""
+
+    __tablename__ = "finance_loan_platforms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64))  # 平台名称
+    bill_day: Mapped[int | None] = mapped_column(Integer)  # 账单日
+    due_day: Mapped[int | None] = mapped_column(Integer)  # 还款日
+    credit_limit: Mapped[float | None] = mapped_column(Float)  # 额度
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceLoanBill(TimestampMixin, Base):
+    """网贷账单：按月分期的还款账单。"""
+
+    __tablename__ = "finance_loan_bills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    platform_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 借款平台
+    bill_month: Mapped[date] = mapped_column(Date, index=True)  # 账单月份
+    due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
+    amount: Mapped[float] = mapped_column(Float)  # 欠款（含利息，不单独算）
+    paid_amount: Mapped[float] = mapped_column(Float, default=0)  # 已还
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/partial/cleared
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceRepayment(TimestampMixin, Base):
+    """还款记录：网贷账单的还款明细。"""
+
+    __tablename__ = "finance_repayments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    bill_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联账单
+    repay_date: Mapped[date] = mapped_column(Date)  # 还款日期
+    amount: Mapped[float] = mapped_column(Float)  # 还款金额
+    method: Mapped[str | None] = mapped_column(String(32))  # 还款方式
     note: Mapped[str | None] = mapped_column(Text)
 
 

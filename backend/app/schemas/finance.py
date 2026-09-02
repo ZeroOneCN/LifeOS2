@@ -76,16 +76,90 @@ class TravelDetailRead(TravelDetailCreate, ORMRead):
     pass
 
 
-class BillCreate(BaseModel):
-    bill_date: date
-    bill_type: str
+class HousingCreate(BaseModel):
+    name: str
+    channel: str | None = None
+    orientation: str | None = None
+    move_in_date: date
+    move_out_date: date | None = None
+    rent_term: str = Field("monthly", pattern="^(monthly|quarterly)$")
+    actual_monthly_rent: float = Field(ge=0)
+    deposit: float | None = Field(None, ge=0)
+    agent_fee: float | None = Field(None, ge=0)
+    clean_fee: float | None = Field(None, ge=0)
+    service_fee: float | None = Field(None, ge=0)
+    laundry_fee: float | None = Field(None, ge=0)
+    note: str | None = None
+
+
+class HousingRead(HousingCreate, ORMRead):
+    pass
+
+
+class UtilityCreate(BaseModel):
+    housing_id: int | None = None
+    bill_month: date
+    fee_type: str
     amount: float = Field(ge=0)
     due_date: date | None = None
     paid: bool = False
     note: str | None = None
 
 
-class BillRead(BillCreate, ORMRead):
+class UtilityRead(UtilityCreate, ORMRead):
+    pass
+
+
+class SubscriptionCreate(BaseModel):
+    name: str
+    category: str
+    billing_cycle: str = Field("month", pattern="^(month|quarter|year)$")
+    amount: float = Field(ge=0)
+    start_date: date
+    remind_days: int = Field(30, ge=0)
+    status: str = Field("active", pattern="^(active|expired|cancelled)$")
+    note: str | None = None
+
+
+class SubscriptionRead(SubscriptionCreate, ORMRead):
+    pass
+
+
+class LoanPlatformCreate(BaseModel):
+    name: str
+    bill_day: int | None = Field(None, ge=1, le=31)
+    due_day: int | None = Field(None, ge=1, le=31)
+    credit_limit: float | None = Field(None, ge=0)
+    note: str | None = None
+
+
+class LoanPlatformRead(LoanPlatformCreate, ORMRead):
+    pass
+
+
+class LoanBillCreate(BaseModel):
+    platform_id: int | None = None
+    bill_month: date
+    due_date: date | None = None
+    amount: float = Field(ge=0)
+    paid_amount: float = Field(default=0, ge=0)
+    status: str = Field("pending", pattern="^(pending|partial|cleared)$")
+    note: str | None = None
+
+
+class LoanBillRead(LoanBillCreate, ORMRead):
+    pass
+
+
+class RepaymentCreate(BaseModel):
+    bill_id: int | None = None
+    repay_date: date
+    amount: float = Field(gt=0)
+    method: str | None = None
+    note: str | None = None
+
+
+class RepaymentRead(RepaymentCreate, ORMRead):
     pass
 
 

@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import (
-    FinanceBill,
+    FinanceLoanBill,
     FinancePlan,
     FinanceReminder,
     FinanceShoppingRecord,
+    FinanceSubscription,
     FinanceTravelDetail,
 )
 
@@ -30,13 +31,18 @@ def overview(db: Session = Depends(get_db)) -> dict:
         select(FinanceTravelDetail).where(FinanceTravelDetail.detail_date >= month_start)
     ).all()
     month_bills = db.scalars(
-        select(FinanceBill).where(FinanceBill.bill_date >= month_start)
+        select(FinanceLoanBill).where(FinanceLoanBill.bill_month >= month_start)
+    ).all()
+    month_subs = db.scalars(
+        select(FinanceSubscription)
+        .where(FinanceSubscription.start_date >= month_start)
+        .where(FinanceSubscription.status == "active")
     ).all()
 
     pending_bills = db.scalars(
-        select(FinanceBill)
-        .where(FinanceBill.paid.is_(False))
-        .order_by(FinanceBill.due_date)
+        select(FinanceLoanBill)
+        .where(FinanceLoanBill.status.in_(["pending", "partial"]))
+        .order_by(FinanceLoanBill.due_date)
         .limit(5)
     ).all()
     pending_reminders = db.scalars(
@@ -61,8 +67,11 @@ def overview(db: Session = Depends(get_db)) -> dict:
         if r.detail_date >= week_ago:
             week_rows.append((r.detail_date, r.actual_price))
     for r in month_bills:
-        if r.bill_date >= week_ago:
-            week_rows.append((r.bill_date, r.amount))
+        if r.bill_month >= week_ago:
+            week_rows.append((r.bill_month, r.amount - r.paid_amount))
+    for s in month_subs:
+        if s.start_date >= week_ago:
+            week_rows.append((s.start_date, s.amount))
 
     daily: dict[date, float] = defaultdict(float)
     for d, amount in week_rows:
@@ -71,7 +80,8 @@ def overview(db: Session = Depends(get_db)) -> dict:
     month_expense = (
         sum(r.total_price for r in month_purchases)
         + sum(r.actual_price for r in month_travel)
-        + sum(r.amount for r in month_bills)
+        + sum(r.amount - r.paid_amount for r in month_bills)
+        + sum(s.amount for s in month_subs)
     )
 
     return {
@@ -79,7 +89,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
         "month_purchase_count": len(month_purchases),
         "month_travel_count": len(month_travel),
         "month_bill_count": len(month_bills),
-        "unpaid_bills": round(sum(r.amount for r in month_bills if not r.paid), 2),
+        "unpaid_bills": round(sum(r.amount - r.paid_amount for r in month_bills if r.status in ("pending", "partial")), 2),
         "week_trend": [
             {"date": d, "amount": round(amount, 2)}
             for d, amount in sorted(daily.items())
@@ -87,8 +97,10 @@ def overview(db: Session = Depends(get_db)) -> dict:
         "pending_bills": [
             {
                 "id": r.id,
-                "bill_type": r.bill_type,
+                "bill_month": r.bill_month,
                 "amount": r.amount,
+                "paid_amount": r.paid_amount,
+                "remaining": round(r.amount - r.paid_amount, 2),
                 "due_date": r.due_date,
             }
             for r in pending_bills
