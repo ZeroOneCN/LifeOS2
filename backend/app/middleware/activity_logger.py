@@ -27,6 +27,7 @@ MODULE_NAMES = {
     "lifestyle/schedule": "日程管理",
     "investment/forex": "外汇交易",
     "notifications": "通知中心",
+    "user/profile": "个人资料",
 }
 
 ACTION_NAMES = {"create": "新增", "update": "更新", "delete": "删除"}

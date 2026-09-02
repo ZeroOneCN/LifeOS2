@@ -22,6 +22,7 @@ from app.models.lifestyle import (
     LifestyleTodo,
 )
 from app.models.notification import Notification
+from app.models.user import UserProfile
 
 __all__ = [
     "HealthVitalsSleep",
@@ -42,4 +43,5 @@ __all__ = [
     "InvestmentForex",
     "Notification",
     "ActivityLog",
+    "UserProfile",
 ]

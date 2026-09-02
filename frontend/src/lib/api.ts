@@ -48,6 +48,8 @@ export const api = {
     }),
   update: <T>(path: string, id: number, data: unknown) =>
     request<T>(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  put: <T>(path: string, data: unknown) =>
+    request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (path: string, id: number) =>
     request<void>(`${path}/${id}`, { method: 'DELETE' }),
   stats: <T>(path: string, days = 30) =>

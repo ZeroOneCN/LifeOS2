@@ -12,6 +12,7 @@ from app.api.routes import (
     investment,
     lifestyle,
     notification,
+    user,
 )
 from app.core.config import settings
 from app.core.database import Base, engine
@@ -43,6 +44,7 @@ app.include_router(finance.router, prefix=settings.API_V1_PREFIX)
 app.include_router(lifestyle.router, prefix=settings.API_V1_PREFIX)
 app.include_router(investment.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
+app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
