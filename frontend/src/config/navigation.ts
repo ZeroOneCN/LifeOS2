@@ -21,7 +21,6 @@ import {
   ShoppingCart,
   Target,
   TrendingUp,
-  UserRound,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -49,7 +48,6 @@ export const navigation: NavSection[] = [
       { title: '系统首页', url: '/home', icon: Home },
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History },
-      { title: '用户中心', url: '/user-center', icon: UserRound },
     ],
   },
   {

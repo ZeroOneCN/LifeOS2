@@ -34,3 +34,22 @@ class UserProfileUpdate(BaseModel):
     job_title: str | None = None
     bio: str | None = None
     signature: str | None = None
+
+
+class UserSettingsRead(BaseModel):
+    """账号设置读取：不暴露密码哈希。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    username: str | None
+    has_password: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserSettingsUpdate(BaseModel):
+    """账号设置更新：用户名可选；提供 new_password 时执行设置/修改密码。"""
+
+    username: str | None = None
+    current_password: str | None = None
+    new_password: str | None = None

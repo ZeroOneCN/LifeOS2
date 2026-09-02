@@ -28,6 +28,7 @@ MODULE_NAMES = {
     "investment/forex": "外汇交易",
     "notifications": "通知中心",
     "user/profile": "个人资料",
+    "user/settings": "账号设置",
 }
 
 ACTION_NAMES = {"create": "新增", "update": "更新", "delete": "删除"}

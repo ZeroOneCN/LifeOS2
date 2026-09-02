@@ -25,6 +25,7 @@ import { TodosPage } from '@/pages/lifestyle/todos'
 import { NotFoundPage } from '@/pages/not-found'
 import { NotificationsPage } from '@/pages/notifications'
 import { PlaceholderPage } from '@/pages/placeholder'
+import { AccountSettingsPage } from '@/pages/account-settings'
 import { UserCenterPage } from '@/pages/user-center'
 
 // 已实现具体功能的页面，其余菜单项统一使用占位页。
@@ -50,6 +51,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/notifications': <NotificationsPage />,
   '/activity-logs': <ActivityLogsPage />,
   '/user-center': <UserCenterPage />,
+  '/user-center/settings': <AccountSettingsPage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>
@@ -73,6 +75,8 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <Navigate to="/home" replace /> },
       { path: '/home', element: <HomePage /> },
+      { path: '/user-center', element: <UserCenterPage /> },
+      { path: '/user-center/settings', element: <AccountSettingsPage /> },
       ...placeholderRoutes,
       { path: '*', element: <NotFoundPage /> },
     ],
