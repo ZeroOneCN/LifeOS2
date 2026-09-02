@@ -1,12 +1,6 @@
-import { ChevronRight } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 
 import { NavUser } from '@/components/nav-user'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import {
   Sidebar,
   SidebarContent,
@@ -18,85 +12,34 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
 import { navigation, type NavSection } from '@/config/navigation'
 
-function SectionLinks({ section }: { section: NavSection }) {
-  const { pathname } = useLocation()
-
-  return (
-    <SidebarMenu>
-      {section.children.map((item) => (
-        <SidebarMenuItem key={item.url}>
-          <SidebarMenuButton
-            asChild
-            isActive={pathname === item.url}
-            tooltip={item.title}
-          >
-            <NavLink to={item.url}>
-              <item.icon />
-              <span>{item.title}</span>
-            </NavLink>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      ))}
-    </SidebarMenu>
-  )
-}
-
-function SectionCollapsible({ section }: { section: NavSection }) {
-  const { pathname } = useLocation()
-
-  return (
-    <SidebarMenu>
-      <Collapsible
-        asChild
-        defaultOpen
-        className="group/collapsible"
-      >
-        <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton tooltip={section.title}>
-              <section.icon />
-              <span>{section.title}</span>
-              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <SidebarMenuSub>
-              {section.children.map((item) => (
-                <SidebarMenuSubItem key={item.url}>
-                  <SidebarMenuSubButton
-                    asChild
-                    isActive={pathname === item.url}
-                  >
-                    <NavLink to={item.url}>
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-              ))}
-            </SidebarMenuSub>
-          </CollapsibleContent>
-        </SidebarMenuItem>
-      </Collapsible>
-    </SidebarMenu>
-  )
-}
-
 function SidebarSection({ section }: { section: NavSection }) {
+  const { pathname } = useLocation()
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+      {!section.system && (
+        <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+      )}
       <SidebarGroupContent>
-        {section.collapsible ? (
-          <SectionCollapsible section={section} />
-        ) : (
-          <SectionLinks section={section} />
-        )}
+        <SidebarMenu>
+          {section.children.map((item) => (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === item.url}
+                tooltip={item.title}
+              >
+                <NavLink to={item.url}>
+                  <item.icon />
+                  <span>{item.title}</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
   )

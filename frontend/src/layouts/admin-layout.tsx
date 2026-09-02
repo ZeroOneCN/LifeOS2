@@ -20,7 +20,7 @@ export function AdminLayout() {
   const { pathname } = useLocation()
   const found = findNavEntry(pathname)
   const sectionTitle = found?.section.title
-  const showSection = found?.section.collapsible
+  const showSection = found ? !found.section.system : false
   const pageTitle = found?.entry.title ?? '页面'
 
   return (

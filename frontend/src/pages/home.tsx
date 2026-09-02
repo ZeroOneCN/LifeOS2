@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/card'
 import { navigation } from '@/config/navigation'
 
-const centers = navigation.filter((s) => s.collapsible)
+const centers = navigation.filter((s) => !s.system)
 
 export function HomePage() {
   return (

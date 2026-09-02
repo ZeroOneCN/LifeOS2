@@ -21,7 +21,6 @@ import {
   ShoppingCart,
   Target,
   TrendingUp,
-  User,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -35,7 +34,8 @@ export type NavEntry = {
 export type NavSection = {
   title: string
   icon: LucideIcon
-  collapsible: boolean
+  /** 系统功能区（首页/通知/日志），置顶展示且不显示分区标题 */
+  system?: boolean
   children: NavEntry[]
 }
 
@@ -43,22 +43,20 @@ export const navigation: NavSection[] = [
   {
     title: '系统',
     icon: Home,
-    collapsible: false,
+    system: true,
     children: [
       { title: '系统首页', url: '/home', icon: Home },
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History },
-      { title: '用户资料', url: '/profile', icon: User },
     ],
   },
   {
     title: '健康中心',
     icon: HeartPulse,
-    collapsible: true,
     children: [
       { title: '健康总览', url: '/health/overview', icon: HeartPulse },
-      { title: '生命体征与睡眠', url: '/health/vitals-sleep', icon: MoonStar },
-      { title: '健身与运动', url: '/health/fitness', icon: Dumbbell },
+      { title: '睡眠体征', url: '/health/vitals-sleep', icon: MoonStar },
+      { title: '健身运动', url: '/health/fitness', icon: Dumbbell },
       { title: '步数统计', url: '/health/steps', icon: Footprints },
       { title: '体检指标', url: '/health/checkup', icon: ClipboardList },
       { title: '健康报告', url: '/health/reports', icon: FileText },
@@ -68,7 +66,6 @@ export const navigation: NavSection[] = [
   {
     title: '财务中心',
     icon: Wallet,
-    collapsible: true,
     children: [
       { title: '财务总览', url: '/finance/overview', icon: PieChart },
       { title: '购买记录', url: '/finance/purchases', icon: ShoppingCart },
@@ -81,10 +78,9 @@ export const navigation: NavSection[] = [
   {
     title: '生活中心',
     icon: Compass,
-    collapsible: true,
     children: [
       { title: '物品追踪', url: '/lifestyle/items', icon: Package },
-      { title: 'SIM/卡服务', url: '/lifestyle/sim-cards', icon: CreditCard },
+      { title: '卡片管理', url: '/lifestyle/sim-cards', icon: CreditCard },
       { title: '待办清单', url: '/lifestyle/todos', icon: ListTodo },
       { title: '日程管理', url: '/lifestyle/schedule', icon: Calendar },
     ],
@@ -92,14 +88,13 @@ export const navigation: NavSection[] = [
   {
     title: '投资中心',
     icon: TrendingUp,
-    collapsible: true,
     children: [
       { title: '外汇交易', url: '/investment/forex', icon: CandlestickChart },
     ],
   },
 ]
 
-/** 根据路径查找对应的菜单项及其所属分组，用于面包屑与页面标题。 */
+/** 根据路径查找对应的菜单项及其所属分区，用于面包屑与页面标题。 */
 export function findNavEntry(
   pathname: string,
 ): { section: NavSection; entry: NavEntry } | null {
