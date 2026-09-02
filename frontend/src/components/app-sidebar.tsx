@@ -1,13 +1,12 @@
-import {
-  LayoutDashboard,
-  Settings,
-  ShieldCheck,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
-import { useLocation, NavLink } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
 
 import { NavUser } from '@/components/nav-user'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import {
   Sidebar,
   SidebarContent,
@@ -19,40 +18,91 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from '@/components/ui/sidebar'
+import { navigation, type NavSection } from '@/config/navigation'
 
-type NavItem = {
-  title: string
-  url: string
-  icon: LucideIcon
-}
-
-type NavGroup = {
-  label: string
-  items: NavItem[]
-}
-
-const navGroups: NavGroup[] = [
-  {
-    label: '概览',
-    items: [{ title: '工作台', url: '/dashboard', icon: LayoutDashboard }],
-  },
-  {
-    label: '系统管理',
-    items: [
-      { title: '用户管理', url: '/system/users', icon: Users },
-      { title: '角色管理', url: '/system/roles', icon: ShieldCheck },
-    ],
-  },
-  {
-    label: '系统',
-    items: [{ title: '系统设置', url: '/settings', icon: Settings }],
-  },
-]
-
-export function AppSidebar() {
+function SectionLinks({ section }: { section: NavSection }) {
   const { pathname } = useLocation()
 
+  return (
+    <SidebarMenu>
+      {section.children.map((item) => (
+        <SidebarMenuItem key={item.url}>
+          <SidebarMenuButton
+            asChild
+            isActive={pathname === item.url}
+            tooltip={item.title}
+          >
+            <NavLink to={item.url}>
+              <item.icon />
+              <span>{item.title}</span>
+            </NavLink>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+  )
+}
+
+function SectionCollapsible({ section }: { section: NavSection }) {
+  const { pathname } = useLocation()
+
+  return (
+    <SidebarMenu>
+      <Collapsible
+        asChild
+        defaultOpen
+        className="group/collapsible"
+      >
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton tooltip={section.title}>
+              <section.icon />
+              <span>{section.title}</span>
+              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <SidebarMenuSub>
+              {section.children.map((item) => (
+                <SidebarMenuSubItem key={item.url}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={pathname === item.url}
+                  >
+                    <NavLink to={item.url}>
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              ))}
+            </SidebarMenuSub>
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    </SidebarMenu>
+  )
+}
+
+function SidebarSection({ section }: { section: NavSection }) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        {section.collapsible ? (
+          <SectionCollapsible section={section} />
+        ) : (
+          <SectionLinks section={section} />
+        )}
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
+export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
@@ -66,28 +116,8 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.url}
-                      tooltip={item.title}
-                    >
-                      <NavLink to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+        {navigation.map((section) => (
+          <SidebarSection key={section.title} section={section} />
         ))}
       </SidebarContent>
       <SidebarFooter>

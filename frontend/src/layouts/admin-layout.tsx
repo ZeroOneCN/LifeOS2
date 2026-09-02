@@ -14,17 +14,14 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-
-const breadcrumbMap: Record<string, { parent: string; title: string }> = {
-  '/dashboard': { parent: '', title: '工作台' },
-  '/system/users': { parent: '系统管理', title: '用户管理' },
-  '/system/roles': { parent: '系统管理', title: '角色管理' },
-  '/settings': { parent: '', title: '系统设置' },
-}
+import { findNavEntry } from '@/config/navigation'
 
 export function AdminLayout() {
   const { pathname } = useLocation()
-  const crumb = breadcrumbMap[pathname] ?? { parent: '', title: '页面' }
+  const found = findNavEntry(pathname)
+  const sectionTitle = found?.section.title
+  const showSection = found?.section.collapsible
+  const pageTitle = found?.entry.title ?? '页面'
 
   return (
     <SidebarProvider>
@@ -38,16 +35,16 @@ export function AdminLayout() {
           />
           <Breadcrumb>
             <BreadcrumbList>
-              {crumb.parent && (
+              {showSection && sectionTitle && (
                 <>
                   <BreadcrumbItem className="hidden sm:block">
-                    <BreadcrumbPage>{crumb.parent}</BreadcrumbPage>
+                    <BreadcrumbPage>{sectionTitle}</BreadcrumbPage>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="hidden sm:block" />
                 </>
               )}
               <BreadcrumbItem>
-                <BreadcrumbPage>{crumb.title}</BreadcrumbPage>
+                <BreadcrumbPage>{pageTitle}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
