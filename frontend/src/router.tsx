@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
+import { ActivityLogsPage } from '@/pages/activity-logs'
 import { BillsPage } from '@/pages/finance/bills'
 import { FinanceOverviewPage } from '@/pages/finance/overview'
 import { ForexPage } from '@/pages/investment/forex'
@@ -46,6 +47,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/lifestyle/schedule': <SchedulePage />,
   '/investment/forex': <ForexPage />,
   '/notifications': <NotificationsPage />,
+  '/activity-logs': <ActivityLogsPage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>

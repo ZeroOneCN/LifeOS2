@@ -1,3 +1,4 @@
+from app.models.activity_log import ActivityLog
 from app.models.finance import (
     FinanceBill,
     FinancePlan,
@@ -40,4 +41,5 @@ __all__ = [
     "LifestyleSchedule",
     "InvestmentForex",
     "Notification",
+    "ActivityLog",
 ]

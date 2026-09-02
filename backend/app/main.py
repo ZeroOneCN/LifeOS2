@@ -4,9 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
-from app.api.routes import finance, health, health_check, investment, lifestyle, notification
+from app.api.routes import (
+    activity_log,
+    finance,
+    health,
+    health_check,
+    investment,
+    lifestyle,
+    notification,
+)
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.middleware.activity_logger import ActivityLoggerMiddleware
 
 
 @asynccontextmanager
@@ -25,8 +34,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(ActivityLoggerMiddleware)
 
 app.include_router(health_check.router, prefix=settings.API_V1_PREFIX)
+app.include_router(activity_log.router, prefix=settings.API_V1_PREFIX)
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(finance.router, prefix=settings.API_V1_PREFIX)
 app.include_router(lifestyle.router, prefix=settings.API_V1_PREFIX)
