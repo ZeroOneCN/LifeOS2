@@ -75,6 +75,7 @@ export const navigation: NavSection[] = [
       { title: '账单提醒', url: '/finance/reminders', icon: Bell },
       { title: '财务规划', url: '/finance/planning', icon: Target },
       { title: '债务管理', url: '/finance/debts', icon: HandCoins },
+      { title: '财务报告', url: '/finance/reports', icon: FileText },
     ],
   },
   {

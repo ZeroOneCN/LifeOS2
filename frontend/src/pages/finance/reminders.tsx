@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, Banknote, Clock, Inbox, Repeat, User, Zap } from 'lucide-react'
+import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

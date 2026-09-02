@@ -10,6 +10,7 @@ from app.api.routes.finance import (
     overview,
     planning,
     reminders,
+    reports,
     shopping,
     subscriptions,
     travel,
@@ -32,5 +33,6 @@ for sub in (
     investments.router,
     memos.router,
     currencies.router,
+    reports.router,
 ):
     router.include_router(sub)

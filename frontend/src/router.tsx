@@ -7,6 +7,7 @@ import { BillsPage } from '@/pages/finance/bills'
 import { DebtsPage } from '@/pages/finance/debts'
 import { FinanceOverviewPage } from '@/pages/finance/overview'
 import { ForexPage } from '@/pages/investment/forex'
+import { FinanceReportsPage } from '@/pages/finance/reports'
 import { PlanningPage } from '@/pages/finance/planning'
 import { RemindersPage } from '@/pages/finance/reminders'
 import { ShoppingPage } from '@/pages/finance/shopping'
@@ -48,6 +49,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/finance/reminders': <RemindersPage />,
   '/finance/planning': <PlanningPage />,
   '/finance/debts': <DebtsPage />,
+  '/finance/reports': <FinanceReportsPage />,
   '/lifestyle/items': <ItemsPage />,
   '/lifestyle/sim-cards': <SimCardsPage />,
   '/lifestyle/todos': <TodosPage />,

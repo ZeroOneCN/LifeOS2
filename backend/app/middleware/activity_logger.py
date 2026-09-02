@@ -39,6 +39,8 @@ MODULE_NAMES = {
     "finance/reminders": "账单提醒",
     "finance/planning": "财务规划",
     "finance/debts": "债务管理",
+    "finance/reports": "财务报告",
+    "finance/reports/generate": "财务报告",
     "lifestyle/items": "物品追踪",
     "lifestyle/sim-cards": "卡片管理",
     "lifestyle/todos": "待办清单",

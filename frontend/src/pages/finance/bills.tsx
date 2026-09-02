@@ -607,7 +607,7 @@ type LoanBillStats = {
   total: number; paid: number; remaining: number
   status: { pending: number; partial: number; cleared: number }
   by_month: { month: string; amount: number }[]
-  upcoming: { id: number; bill_month: string; due_date?: string; amount: number; paid_amount: number; remaining: number; status: string }[]
+  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; paid_amount: number; remaining: number; status: string }[]
 }
 type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; method?: string; note?: string }
 

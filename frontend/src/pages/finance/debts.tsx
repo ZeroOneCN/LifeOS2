@@ -86,7 +86,7 @@ type LoanSync = { total_remaining: number; platform_count: number; platforms: { 
 
 /* ---------------- 民间借贷 ---------------- */
 
-function DebtTab({ fmtMoney, currency }: { fmtMoney: Fmt; currency: Currency | null }) {
+function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const stats = useStats<DebtStats>('/finance/debts')
   const [items, setItems] = useState<DebtRecord[]>([])
   const [total, setTotal] = useState(0)
@@ -569,7 +569,7 @@ function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
   currency: Currency | null
   setCurrency: (c: Currency) => void
 }) {
-  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这个币种吗？' })
+  const { dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这个币种吗？' })
   const [editing, setEditing] = useState<Currency | null>(null)
   const [rateValue, setRateValue] = useState('')
 
@@ -714,7 +714,7 @@ export function DebtsPage() {
         ))}
       </div>
 
-      {tab === 'debt' && <DebtTab fmtMoney={fmtMoney} currency={currency} />}
+      {tab === 'debt' && <DebtTab fmtMoney={fmtMoney} />}
       {tab === 'invest' && <InvestTab fmtMoney={fmtMoney} />}
       {tab === 'memo' && <MemoTab />}
       {tab === 'rate' && <RateTab currencies={currencies} setCurrencies={setCurrencies} currency={currency} setCurrency={setCurrency} />}

@@ -269,3 +269,17 @@ class FinanceCurrency(TimestampMixin, Base):
     name: Mapped[str | None] = mapped_column(String(32))  # 币种名称
     rate_to_cny: Mapped[float] = mapped_column(Float)  # 1 单位该币种 = 多少人民币
     symbol: Mapped[str | None] = mapped_column(String(8))  # 符号，如 $ / HK$ / ¥
+
+
+class FinanceReport(TimestampMixin, Base):
+    """财务报告：按月聚合各财务模块数据生成的报告，支持 PDF 导出。"""
+
+    __tablename__ = "finance_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(128))  # 报告标题
+    period_label: Mapped[str] = mapped_column(String(16))  # 周期标签，如 2026-09
+    period_start: Mapped[date] = mapped_column(Date)  # 统计起始
+    period_end: Mapped[date] = mapped_column(Date)  # 统计结束
+    summary: Mapped[str | None] = mapped_column(Text)  # 概览摘要
+    content: Mapped[str] = mapped_column(Text)  # JSON 结构内容

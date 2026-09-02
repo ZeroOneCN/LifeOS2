@@ -6,7 +6,17 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import FinanceTravelDetail, FinanceTravelLedger
+from app.models import (
+    FinanceDebt,
+    FinanceHousing,
+    FinanceInvestment,
+    FinanceLoanBill,
+    FinanceShoppingRecord,
+    FinanceSubscription,
+    FinanceTravelDetail,
+    FinanceTravelLedger,
+    FinanceUtility,
+)
 
 # --------------------------------------------------------------------------
 # 通用 PDF 渲染：把结构化内容(content JSON)渲染为 A4 PDF
@@ -212,4 +222,196 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
             else [["—", "—", "—", "—", "—", "—", "—"]],
         },
     ]
+    return title, summary, content
+
+
+# --------------------------------------------------------------------------
+# 财务月度报告内容构建
+# --------------------------------------------------------------------------
+def _month_range(month: str | None) -> tuple[date, date, str]:
+    today = date.today()
+    if month:
+        try:
+            y, m = month.split("-")
+            y, m = int(y), int(m)
+        except (ValueError, AttributeError):
+            y, m = today.year, today.month
+    else:
+        y, m = today.year, today.month
+    import calendar
+
+    start = date(y, m, 1)
+    end = date(y, m, calendar.monthrange(y, m)[1])
+    return start, end, f"{y}-{m:02d}"
+
+
+def build_finance_report(db: Session, month: str | None = None):
+    """聚合财务各模块数据生成月度财务报告内容。"""
+    start, end, label = _month_range(month)
+
+    # 购物
+    shoppings = db.scalars(
+        select(FinanceShoppingRecord).where(
+            FinanceShoppingRecord.record_date >= start,
+            FinanceShoppingRecord.record_date <= end,
+        )
+    ).all()
+    shopping_total = sum(r.total_price for r in shoppings)
+
+    # 旅行
+    travels = db.scalars(
+        select(FinanceTravelDetail).where(
+            FinanceTravelDetail.detail_date >= start,
+            FinanceTravelDetail.detail_date <= end,
+        )
+    ).all()
+    travel_total = sum(r.actual_price for r in travels)
+
+    # 水电
+    utils = db.scalars(
+        select(FinanceUtility).where(
+            FinanceUtility.bill_month >= start,
+            FinanceUtility.bill_month <= end,
+        )
+    ).all()
+    utility_total = sum(r.amount for r in utils)
+
+    # 服务订阅（生效中月均）
+    subs = db.scalars(
+        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+    ).all()
+    sub_monthly = sum(
+        s.amount / {"month": 1, "quarter": 3, "year": 12}.get(s.billing_cycle, 1)
+        for s in subs
+    )
+
+    # 组合月租（当月）
+    houses = db.scalars(select(FinanceHousing)).all()
+    days_in_month = (end - start).days + 1
+    combined_rent = 0.0
+    total_deposit = sum(h.deposit or 0 for h in houses)
+    for h in houses:
+        base = h.actual_monthly_rent / (3 if h.rent_term == "quarterly" else 1)
+        hs, he = max(h.move_in_date, start), min(h.move_out_date, end) if h.move_out_date else end
+        if hs <= end and he >= start and he > hs:
+            combined_rent += base * ((he - hs).days + 1) / days_in_month
+
+    # 网贷（当月账单 + 累计待还）
+    loan_bills = db.scalars(
+        select(FinanceLoanBill).where(
+            FinanceLoanBill.bill_month >= start,
+            FinanceLoanBill.bill_month <= end,
+        )
+    ).all()
+    loan_month = sum(r.amount for r in loan_bills)
+    loan_paid_month = sum(r.paid_amount for r in loan_bills)
+    outstanding_loans = sum(
+        b.amount - b.paid_amount
+        for b in db.scalars(select(FinanceLoanBill)).all()
+        if (b.amount - b.paid_amount) > 0
+    )
+
+    # 债务快照
+    debts = db.scalars(select(FinanceDebt)).all()
+    outstanding_debt = sum(
+        (r.remaining if r.remaining is not None else r.amount)
+        for r in debts
+        if r.status == "active"
+    )
+    borrow_total = sum(r.amount for r in debts if r.direction == "borrow")
+    lend_total = sum(r.amount for r in debts if r.direction == "lend")
+
+    # 投资快照
+    investments = db.scalars(select(FinanceInvestment)).all()
+    invest_pnl = sum(r.pnl for r in investments)
+
+    total_expense = shopping_total + travel_total + utility_total + sub_monthly + combined_rent + loan_paid_month
+
+    # 分类支出占比
+    cat_expense = [
+        ("购物消费", shopping_total),
+        ("旅行开支", travel_total),
+        ("水电缴费", utility_total),
+        ("服务订阅", sub_monthly),
+        ("住房月租", combined_rent),
+        ("网贷已还", loan_paid_month),
+    ]
+    cat_expense = [c for c in cat_expense if c[1] > 0]
+    cat_expense.sort(key=lambda x: -x[1])
+
+    title = f"{label} 财务报告"
+    summary = (
+        f"统计区间 {start.isoformat()} ~ {end.isoformat()}，当月支出合计约 ¥{total_expense:,.2f}；"
+        f"购物 {len(shoppings)} 笔、旅行 {len(travels)} 笔，累计网贷待还 ¥{outstanding_loans:,.2f}。"
+    )
+
+    content = [
+        {"type": "h2", "text": "一、整体概览"},
+        {
+            "type": "table",
+            "header": ["指标", "金额（人民币）"],
+            "rows": [
+                ["当月支出合计", f"¥{total_expense:,.2f}"],
+                ["购物消费", f"¥{shopping_total:,.2f}（{len(shoppings)} 笔）"],
+                ["旅行开支", f"¥{travel_total:,.2f}（{len(travels)} 笔）"],
+                ["水电缴费", f"¥{utility_total:,.2f}"],
+                ["服务订阅（月均）", f"¥{sub_monthly:,.2f}"],
+                ["组合房租（当月折算）", f"¥{combined_rent:,.2f}"],
+                ["住房押金合计", f"¥{total_deposit:,.2f}"],
+                ["网贷当月账单", f"¥{loan_month:,.2f}（已还 ¥{loan_paid_month:,.2f}）"],
+            ],
+        },
+        {"type": "h2", "text": "二、分类支出占比"},
+        {
+            "type": "table",
+            "header": ["类别", "金额", "占比"],
+            "rows": [
+                [
+                    c,
+                    f"¥{a:,.2f}",
+                    f"{a / total_expense * 100:.1f}%" if total_expense else "—",
+                ]
+                for c, a in cat_expense
+            ]
+            if cat_expense
+            else [["—", "¥0.00", "—"]],
+        },
+        {"type": "h2", "text": "三、债务与投资快照"},
+        {
+            "type": "table",
+            "header": ["项目", "金额 / 说明"],
+            "rows": [
+                ["网贷累计待还", f"¥{outstanding_loans:,.2f}"],
+                ["民间借贷未结清", f"¥{outstanding_debt:,.2f}"],
+                ["民间借入总额", f"¥{borrow_total:,.2f}"],
+                ["民间借出总额", f"¥{lend_total:,.2f}"],
+                [
+                    "投资平台盈亏合计",
+                    f"¥{invest_pnl:,.2f}（{len(investments)} 个平台）",
+                ],
+            ],
+        },
+    ]
+
+    # 购物明细（前 30 条）
+    if shoppings:
+        content.append({"type": "h2", "text": "四、购物明细"})
+        content.append(
+            {
+                "type": "table",
+                "header": ["日期", "平台", "商品", "规格", "单价", "总价"],
+                "rows": [
+                    [
+                        r.record_date.isoformat(),
+                        str(r.platform_id or "—"),
+                        r.product_name,
+                        r.spec or "—",
+                        f"{r.unit_price or 0:g}",
+                        f"{r.total_price:g}",
+                    ]
+                    for r in shoppings[:30]
+                ],
+            }
+        )
+
     return title, summary, content
