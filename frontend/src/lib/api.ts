@@ -54,4 +54,21 @@ export const api = {
     request<void>(`${path}/${id}`, { method: 'DELETE' }),
   stats: <T>(path: string, days = 30) =>
     request<T>(`${path}/stats?days=${days}`),
+  download: async (path: string, fallbackName = 'download.pdf') => {
+    const res = await fetch(`${BASE}${path}`)
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.detail ?? `下载失败（${res.status}）`)
+    }
+    const blob = await res.blob()
+    const disp = res.headers.get('Content-Disposition') || ''
+    const match = disp.match(/filename\*=UTF-8''([^;]+)/)
+    const filename = match ? decodeURIComponent(match[1]) : fallbackName
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

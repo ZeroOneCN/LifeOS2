@@ -1,14 +1,18 @@
 from datetime import date, timedelta
+from io import BytesIO
+from urllib.parse import quote
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
+from app.core.database import get_db
 from app.models import HealthReport
 from app.schemas.health import ReportCreate, ReportRead
-
-router = APIRouter()
+from app.services import health_report
 
 
 def _reports_stats(db: Session, days: int) -> dict:
@@ -43,3 +47,43 @@ router = crud_router(
     date_column="report_date",
     stats_func=_reports_stats,
 )
+
+
+class GenerateReq(BaseModel):
+    days: int = 30
+    end_date: date | None = None
+
+
+@router.post("/generate")
+def generate_report(payload: GenerateReq, db: Session = Depends(get_db)):
+    """自动汇总健康中心数据生成报告并落库。"""
+    try:
+        start, end = health_report.get_period(payload.days, payload.end_date)
+    except OverflowError:
+        raise HTTPException(status_code=400, detail="日期范围超出范围")
+    report = health_report.generate_and_save(db, start, end)
+    return {
+        "id": report.id,
+        "report_date": report.report_date,
+        "title": report.title,
+        "summary": report.summary,
+        "content": report.content,
+    }
+
+
+@router.get("/{report_id}/export")
+def export_report(report_id: int, db: Session = Depends(get_db)):
+    """导出指定报告为 PDF。"""
+    report = db.get(HealthReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    try:
+        pdf = health_report.build_pdf(report)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"PDF 生成失败：{exc}")
+    filename = f"健康报告_{report.report_date.isoformat()}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
