@@ -2,6 +2,12 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
+import { BillsPage } from '@/pages/finance/bills'
+import { FinanceOverviewPage } from '@/pages/finance/overview'
+import { PlanningPage } from '@/pages/finance/planning'
+import { PurchasesPage } from '@/pages/finance/purchases'
+import { RemindersPage } from '@/pages/finance/reminders'
+import { TravelPage } from '@/pages/finance/travel'
 import { HomePage } from '@/pages/home'
 import { CheckupPage } from '@/pages/health/checkup'
 import { FitnessPage } from '@/pages/health/fitness'
@@ -22,6 +28,12 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/health/checkup': <CheckupPage />,
   '/health/reports': <ReportsPage />,
   '/health/medication': <MedicationPage />,
+  '/finance/overview': <FinanceOverviewPage />,
+  '/finance/purchases': <PurchasesPage />,
+  '/finance/travel': <TravelPage />,
+  '/finance/bills': <BillsPage />,
+  '/finance/reminders': <RemindersPage />,
+  '/finance/planning': <PlanningPage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>

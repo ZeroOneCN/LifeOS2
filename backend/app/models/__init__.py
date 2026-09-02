@@ -1,3 +1,10 @@
+from app.models.finance import (
+    FinanceBill,
+    FinancePlan,
+    FinancePurchase,
+    FinanceReminder,
+    FinanceTravel,
+)
 from app.models.health import (
     HealthCheckup,
     HealthFitness,
@@ -14,4 +21,9 @@ __all__ = [
     "HealthCheckup",
     "HealthReport",
     "HealthMedication",
+    "FinancePurchase",
+    "FinanceTravel",
+    "FinanceBill",
+    "FinanceReminder",
+    "FinancePlan",
 ]
