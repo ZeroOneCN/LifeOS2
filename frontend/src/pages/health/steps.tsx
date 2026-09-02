@@ -96,10 +96,10 @@ export function StepsPage() {
     description: '确定删除这条步数记录吗？此操作不可恢复。',
   })
 
+  const [refresh, setRefresh] = useState(0)
   const stats = useStats<StepsStats>('/health/steps', 30, refresh)
   const [months, setMonths] = useState<MonthlyStats['months']>([])
   const [view, setView] = useState<'daily' | 'monthly'>('daily')
-  const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
     api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
