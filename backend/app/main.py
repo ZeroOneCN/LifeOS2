@@ -1,10 +1,22 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
+from app.api.routes import health, health_check
 from app.core.config import settings
+from app.core.database import Base, engine
 
-app = FastAPI(title=settings.PROJECT_NAME)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动时自动创建数据库表（若不存在）。"""
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_check.router, prefix=settings.API_V1_PREFIX)
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 
 
