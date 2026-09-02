@@ -1,4 +1,5 @@
 import json
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -82,7 +83,7 @@ def export_report(report_id: int, db: Session = Depends(get_db)):
         content=pdf,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{filename}.pdf"
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}.pdf"
         },
     )
 

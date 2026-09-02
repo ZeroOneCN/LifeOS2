@@ -78,6 +78,7 @@ class TravelDetailRead(TravelDetailCreate, ORMRead):
 
 class HousingCreate(BaseModel):
     name: str
+    short_name: str | None = None
     channel: str | None = None
     orientation: str | None = None
     move_in_date: date

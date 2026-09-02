@@ -101,6 +101,7 @@ class FinanceHousing(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128))  # 房屋名称
+    short_name: Mapped[str | None] = mapped_column(String(64))  # 显示缩写（小区名等）
     channel: Mapped[str | None] = mapped_column(String(64))  # 租房渠道
     orientation: Mapped[str | None] = mapped_column(String(16))  # 房屋朝向
     move_in_date: Mapped[date] = mapped_column(Date)  # 入住时间
@@ -279,6 +280,20 @@ class FinanceReport(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(128))  # 报告标题
     period_label: Mapped[str] = mapped_column(String(16))  # 周期标签，如 2026-09
+    period_start: Mapped[date] = mapped_column(Date)  # 统计起始
+    period_end: Mapped[date] = mapped_column(Date)  # 统计结束
+    summary: Mapped[str | None] = mapped_column(Text)  # 概览摘要
+    content: Mapped[str] = mapped_column(Text)  # JSON 结构内容
+
+
+class FinanceTravelReport(TimestampMixin, Base):
+    """旅行报告：按行程明细汇总生成并保存的报告，支持预览与 PDF 导出。"""
+
+    __tablename__ = "finance_travel_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(128))  # 报告标题
+    ledger_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联行程账本
     period_start: Mapped[date] = mapped_column(Date)  # 统计起始
     period_end: Mapped[date] = mapped_column(Date)  # 统计结束
     summary: Mapped[str | None] = mapped_column(Text)  # 概览摘要

@@ -1,17 +1,18 @@
-from collections import defaultdict
+﻿from collections import defaultdict
 from datetime import date, time, timedelta
-from io import BytesIO
 from urllib.parse import quote
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import FinanceTravelDetail, FinanceTravelLedger
+from app.models import FinanceTravelDetail, FinanceTravelLedger, FinanceTravelReport
 from app.schemas.health import PageOut
 from app.schemas.finance import TravelDetailCreate, TravelDetailRead, TravelLedgerCreate, TravelLedgerRead
 from app.services import finance_report
@@ -145,32 +146,93 @@ def _resolve_period(days: int, end_date: date | None) -> tuple[date, date]:
     return start, end
 
 
+def _to_read(r: FinanceTravelReport) -> dict:
+    content = []
+    try:
+        content = json.loads(r.content or "[]")
+    except (ValueError, TypeError):
+        content = []
+    return {
+        "id": r.id,
+        "title": r.title,
+        "ledger_id": r.ledger_id,
+        "period_start": r.period_start.isoformat() if r.period_start else None,
+        "period_end": r.period_end.isoformat() if r.period_end else None,
+        "summary": r.summary,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "content": content,
+    }
+
+
+@report_router.get("/report")
+def travel_report_list(db: Session = Depends(get_db)):
+    rows = db.scalars(select(FinanceTravelReport).order_by(FinanceTravelReport.id.desc()).limit(50)).all()
+    return [
+        {
+            "id": r.id,
+            "title": r.title,
+            "ledger_id": r.ledger_id,
+            "period_start": r.period_start.isoformat() if r.period_start else None,
+            "period_end": r.period_end.isoformat() if r.period_end else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
 @report_router.post("/report/generate")
 def travel_report_generate(payload: ReportGenReq, db: Session = Depends(get_db)):
     start, end = _resolve_period(payload.days, payload.end_date)
     title, summary, content = finance_report.build_travel_report(db, start, end, payload.ledger_id)
-    return {"title": title, "summary": summary, "content": content, "start": start, "end": end}
-
-
-@report_router.get("/report/export")
-def travel_report_export(
-    ledger_id: int | None = None,
-    days: int = Query(30, ge=1, le=365),
-    end_date: date | None = None,
-    db: Session = Depends(get_db),
-):
-    start, end = _resolve_period(days, end_date)
-    try:
-        title, summary, content = finance_report.build_travel_report(db, start, end, ledger_id)
-        pdf = finance_report.build_pdf(title=title, summary=summary, content=content)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"PDF 生成失败：{exc}")
-    filename = f"旅行开支报告_{start.isoformat()}_{end.isoformat()}.pdf"
-    return StreamingResponse(
-        BytesIO(pdf),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    report = FinanceTravelReport(
+        title=title,
+        ledger_id=payload.ledger_id,
+        period_start=start,
+        period_end=end,
+        summary=summary,
+        content=json.dumps(content, ensure_ascii=False),
     )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return _to_read(report)
+
+
+@report_router.get("/report/{report_id}")
+def travel_report_get(report_id: int, db: Session = Depends(get_db)):
+    r = db.get(FinanceTravelReport, report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    return _to_read(r)
+
+
+@report_router.get("/report/{report_id}/export")
+def travel_report_export(report_id: int, db: Session = Depends(get_db)):
+    r = db.get(FinanceTravelReport, report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    content = json.loads(r.content or "[]")
+    pdf = finance_report.build_pdf(title=r.title or "旅行开支报告", summary=r.summary or "", content=content)
+    filename = (
+        f"旅行开支报告_{r.period_start.isoformat()}_{r.period_end.isoformat()}"
+        if r.period_start and r.period_end
+        else f"旅行开支报告_{report_id}"
+    )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}.pdf"},
+    )
+
+
+@report_router.delete("/report/{report_id}", status_code=204)
+def travel_report_delete(report_id: int, db: Session = Depends(get_db)):
+    r = db.get(FinanceTravelReport, report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    db.delete(r)
+    db.commit()
+    return None
 
 
 # 合并为一个 router 供 __init__ 使用

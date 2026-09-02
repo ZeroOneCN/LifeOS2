@@ -69,6 +69,7 @@ function StatCard({ icon: Icon, label, value, hint, className }: { icon: typeof 
 type Housing = {
   id: number
   name: string
+  short_name?: string
   channel?: string
   orientation?: string
   move_in_date: string
@@ -139,15 +140,15 @@ function HousingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const houseName = (id?: number) => houses.find((h) => h.id === id)?.name ?? '—'
+  const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
 
   const openCreate = () => {
-    setForm({ name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
+    setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
     setDialog({})
   }
   const openEdit = (h: Housing) => {
     setForm({
-      name: h.name, channel: h.channel ?? '', orientation: h.orientation ?? '',
+      name: h.name, short_name: h.short_name ?? '', channel: h.channel ?? '', orientation: h.orientation ?? '',
       move_in_date: h.move_in_date, move_out_date: h.move_out_date ?? '',
       rent_term: h.rent_term, actual_monthly_rent: String(h.actual_monthly_rent),
       deposit: h.deposit != null ? String(h.deposit) : '', agent_fee: h.agent_fee != null ? String(h.agent_fee) : '',
@@ -158,7 +159,7 @@ function HousingTab() {
   }
   const saveHousing = async () => {
     const payload = {
-      name: form.name, channel: form.channel || null, orientation: form.orientation || null,
+      name: form.name, short_name: form.short_name || null, channel: form.channel || null, orientation: form.orientation || null,
       move_in_date: form.move_in_date, move_out_date: form.move_out_date || null,
       rent_term: form.rent_term, actual_monthly_rent: Number(form.actual_monthly_rent),
       deposit: form.deposit ? Number(form.deposit) : 0, agent_fee: form.agent_fee ? Number(form.agent_fee) : 0,
@@ -218,6 +219,7 @@ function HousingTab() {
             <StatCard icon={Home} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint={`${stats.month} · ${stats.house_count} 套`} className="text-indigo-500" />
             <StatCard icon={Building} label="押金合计" value={fmt(stats.total_deposit)} className="text-blue-500" />
             <StatCard icon={Wallet} label="杂费合计" value={fmt(stats.total_fees)} hint="中介/保洁/服务/洗衣" className="text-amber-500" />
+            <StatCard icon={Wallet} label="全部月租之和" value={fmt(stats.houses.reduce((s, h) => s + h.actual_monthly_rent, 0))} hint={`${stats.houses.length} 套在租`} className="text-emerald-500" />
           </section>
           {stats.houses.length > 0 && (
             <Card>
@@ -226,9 +228,10 @@ function HousingTab() {
                 {stats.houses.map((h) => (
                   <div key={h.id} className="rounded-lg border p-3 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">{h.name}</span>
+                      <span className="font-medium">{h.short_name || h.name}</span>
                       <Badge variant="outline">{h.rent_term === 'quarterly' ? '按季付' : '按月付'}</Badge>
                     </div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{h.name}</div>
                     <div className="mt-1 text-muted-foreground">
                       {h.channel ? `${h.channel} · ` : ''}入住 {h.move_in_date}
                       {h.move_out_date ? ` · 退租 ${h.move_out_date}` : ''}
@@ -256,16 +259,17 @@ function HousingTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>名称</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
+                <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
                 <TableHead>月租</TableHead><TableHead>押金</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {houses.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
               ) : houses.map((h) => (
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{h.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{h.short_name ?? '—'}</TableCell>
                   <TableCell>{h.channel ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : ''}</TableCell>
                   <TableCell>{fmt(h.actual_monthly_rent)}</TableCell>
@@ -328,7 +332,8 @@ function HousingTab() {
             <DialogDescription>记录租房渠道、押金、杂费与租期，用于组合月租分析。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
+            <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
             <div className="space-y-2"><Label>租房渠道</Label><Input value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} placeholder="贝壳/自如/中介" /></div>
             <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><Input type="date" value={form.move_in_date} onChange={(e) => setForm({ ...form, move_in_date: e.target.value })} /></div>
             <div className="space-y-2"><Label>退租时间</Label><Input type="date" value={form.move_out_date} onChange={(e) => setForm({ ...form, move_out_date: e.target.value })} /></div>
@@ -473,9 +478,11 @@ function SubscriptionTab() {
     <div className="flex flex-col gap-4">
       {stats && (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Repeat} label="每月订阅支出" value={fmt(stats.total_active)} hint={`${stats.active_count} 项生效中`} className="text-indigo-500" />
-            <StatCard icon={Wallet} label="总订阅数" value={`${stats.total_count} 项`} />
+            <StatCard icon={Wallet} label="总订阅数" value={`${stats.total_count} 项`} hint={`${stats.active_count} 项生效`} />
+            <StatCard icon={Layers} label="订阅分类" value={`${stats.by_category.length} 类`} hint={stats.by_category[0] ? `最多 ${stats.by_category[0].category}` : '暂无分类'} />
+            <StatCard icon={Repeat} label="即将续费" value={`${stats.upcoming.length} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-amber-500" />
           </section>
           {stats.by_category.length > 0 && (
             <Card>
@@ -744,7 +751,9 @@ function LoanTab() {
       {platformStats && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
+          <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
           <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} />
+          <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
         </section>
       )}
 
@@ -958,11 +967,11 @@ function LoanTab() {
 /* ---------------- 页面 ---------------- */
 
 export function BillsPage() {
-  const [tab, setTab] = useState<TabKey>('housing')
+  const [tab, setTab] = useState<TabKey>('loan')
   const tabs: { key: TabKey; label: string; icon: typeof Home }[] = [
+    { key: 'loan', label: '网贷借还', icon: Banknote },
     { key: 'housing', label: '房租水电', icon: Home },
     { key: 'subscription', label: '服务订阅', icon: Repeat },
-    { key: 'loan', label: '网贷借还', icon: Banknote },
   ]
 
   return (
@@ -985,9 +994,9 @@ export function BillsPage() {
         ))}
       </div>
 
+      {tab === 'loan' && <LoanTab />}
       {tab === 'housing' && <HousingTab />}
       {tab === 'subscription' && <SubscriptionTab />}
-      {tab === 'loan' && <LoanTab />}
     </div>
   )
 }

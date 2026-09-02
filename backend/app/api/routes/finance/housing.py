@@ -55,6 +55,7 @@ def housing_stats(month: str | None = Query(None, description="YYYY-MM，默认�
             {
                 "id": h.id,
                 "name": h.name,
+                "short_name": h.short_name,
                 "channel": h.channel,
                 "orientation": h.orientation,
                 "move_in_date": h.move_in_date.isoformat(),

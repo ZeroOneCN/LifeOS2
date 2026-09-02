@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
+  ChevronDown,
+  ChevronUp,
   Download,
+  FileText,
+  History,
   Loader2,
   Pencil,
   Plane,
@@ -11,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -71,6 +76,65 @@ type Stats = {
 }
 
 const CATEGORY_OPTIONS = ['交通', '住宿', '餐饮', '门票', '购物', '其他']
+
+type ContentSection = {
+  type: 'h2' | 'paragraph' | 'kv' | 'table'
+  text?: string
+  label?: string
+  header?: string[]
+  rows?: string[][]
+}
+
+type TravelReport = {
+  id: number
+  title: string
+  summary?: string
+  period_start?: string
+  period_end?: string
+  created_at?: string
+  content?: ContentSection[]
+}
+
+function ReportContent({ content }: { content?: ContentSection[] }) {
+  const sections = Array.isArray(content) ? content : []
+  return (
+    <div className="space-y-3">
+      {sections.map((s, i) => {
+        if (s.type === 'h2')
+          return (
+            <h3 key={i} className="border-l-4 border-indigo-500 pl-3 text-sm font-semibold">
+              {s.text}
+            </h3>
+          )
+        return (
+          <div key={i}>
+            {s.label && <div className="mb-1 text-xs font-semibold text-indigo-600">{s.label}</div>}
+            <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[280px] text-sm">
+                  <tbody>
+                    {(s.rows ?? []).map((row, ri) => (
+                      <tr key={ri} className="border-t odd:bg-muted/30">
+                        {row.map((c, ci) => (
+                          <td key={ci} className="px-3 py-1.5">
+                            {c}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+      {sections.length === 0 && (
+        <p className="py-4 text-center text-sm text-muted-foreground">暂无报告内容</p>
+      )}
+    </div>
+  )
+}
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
@@ -143,7 +207,16 @@ export function TravelPage() {
   const [reportDialog, setReportDialog] = useState(false)
   const [reportDays, setReportDays] = useState('30')
   const [reportLoading, setReportLoading] = useState(false)
-  const [report, setReport] = useState<{ title: string; summary: string; content: unknown[] } | null>(null)
+  const [report, setReport] = useState<TravelReport | null>(null)
+  const [reportCollapsed, setReportCollapsed] = useState(false)
+  const [reportHistory, setReportHistory] = useState<TravelReport[]>([])
+  const [exportingId, setExportingId] = useState<number | null>(null)
+
+  // 新建行程名称弹窗
+  const [ledgerDialog, setLedgerDialog] = useState(false)
+  const [ledgerName, setLedgerName] = useState('')
+  const [ledgerSaving, setLedgerSaving] = useState(false)
+  const [ledgerNote, setLedgerNote] = useState('')
 
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -181,14 +254,29 @@ export function TravelPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const createLedger = async () => {
-    const name = prompt('请输入行程名称')
-    if (!name?.trim()) return
-    const item = await api.create<Ledger>('/finance/travel/ledgers', { name })
-    const next = await loadLedgers()
-    setCurrentLedger(String(item.id))
-    setPage(1)
-    setLedgers(next)
+  const openCreateLedger = () => {
+    setLedgerName('')
+    setLedgerNote('')
+    setLedgerDialog(true)
+  }
+  const saveLedger = async () => {
+    const name = ledgerName.trim()
+    if (!name || ledgerSaving) return
+    setLedgerSaving(true)
+    try {
+      const item = await api.create<Ledger>('/finance/travel/ledgers', {
+        name,
+        note: ledgerNote.trim() || null,
+        start_date: new Date().toISOString().slice(0, 10),
+      })
+      const next = await loadLedgers()
+      setCurrentLedger(String(item.id))
+      setPage(1)
+      setLedgers(next)
+      setLedgerDialog(false)
+    } finally {
+      setLedgerSaving(false)
+    }
   }
   const removeLedger = async () => {
     if (!currentLedger) return
@@ -272,18 +360,45 @@ export function TravelPage() {
   const generateReport = async () => {
     setReportLoading(true)
     try {
-      const res = await api.post<{ title: string; summary: string; content: unknown[] }>('/finance/travel/report/generate', {
+      const res = await api.create<TravelReport>('/finance/travel/report/generate', {
         ledger_id: currentLedger ? Number(currentLedger) : null,
         days: Number(reportDays),
       })
       setReport(res)
+      setReportCollapsed(false)
+      await loadReportHistory()
+    } catch (e) {
+      toast.error('生成失败', { description: (e as Error).message })
     } finally {
       setReportLoading(false)
     }
   }
-  const exportReport = () => {
-    const ledgerParam = currentLedger ? `&ledger_id=${currentLedger}` : ''
-    api.download(`/finance/travel/report/export?days=${reportDays}${ledgerParam}`, '旅行开支报告.pdf')
+  const loadReportHistory = async () => {
+    api
+      .query<TravelReport[]>('/finance/travel/report')
+      .then(setReportHistory)
+      .catch(() => setReportHistory([]))
+  }
+  const exportReport = (id: number) => {
+    setExportingId(id)
+    api
+      .download(`/finance/travel/report/${id}/export`, '旅行开支报告.pdf')
+      .catch((e) => toast.error('导出失败', { description: (e as Error).message }))
+      .finally(() => setExportingId(null))
+  }
+  const deleteReport = async (id: number) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/travel/report', id)
+      if (report?.id === id) setReport(null)
+      await loadReportHistory()
+    } catch (e) {
+      toast.error('删除失败', { description: (e as Error).message })
+    }
+  }
+  const viewReport = (r: TravelReport) => {
+    setReport(r)
+    setReportCollapsed(false)
   }
 
   return (
@@ -300,9 +415,9 @@ export function TravelPage() {
               {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" title="新建行程" onClick={createLedger}><Plus /></Button>
+          <Button variant="outline" size="icon" title="新建行程" onClick={openCreateLedger}><Plus /></Button>
           <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger}><Trash2 /></Button>
-          <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null) }}><TrendingUp /> 旅行报告</Button>
+          <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
         </div>
       </section>
@@ -416,12 +531,36 @@ export function TravelPage() {
         </DialogContent>
       </Dialog>
 
+      {/* 新建行程名称弹窗 */}
+      <Dialog open={ledgerDialog} onOpenChange={setLedgerDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>新建行程</DialogTitle>
+            <DialogDescription>为本次旅行创建一个账本，便于分类记录明细。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>行程名称 <span className="text-destructive">*</span></Label>
+              <Input value={ledgerName} onChange={(e) => setLedgerName(e.target.value)} placeholder="如 2026 国庆之旅" onKeyDown={(e) => e.key === 'Enter' && saveLedger()} />
+            </div>
+            <div className="space-y-1">
+              <Label>备注（可选）</Label>
+              <Textarea value={ledgerNote} onChange={(e) => setLedgerNote(e.target.value)} placeholder="目的地 / 同行人 等" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLedgerDialog(false)}>取消</Button>
+            <Button onClick={saveLedger} disabled={ledgerSaving}>{ledgerSaving && <Loader2 className="animate-spin" />}创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 旅行报告弹窗 */}
       <Dialog open={reportDialog} onOpenChange={(o) => { setReportDialog(o); if (!o) setReport(null) }}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>旅行报告</DialogTitle>
-            <DialogDescription>选择统计区间生成并导出当前或全部行程的报告。</DialogDescription>
+            <DialogDescription>生成并保存报告，可预览内容、导出 PDF，历史报告自动留存。</DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap items-center gap-3">
             <div className="space-y-1">
@@ -437,18 +576,65 @@ export function TravelPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={generateReport} disabled={reportLoading}>{reportLoading && <Loader2 className="animate-spin" />}生成报告</Button>
-            {report && <Button variant="outline" onClick={exportReport}><Download /> 导出 PDF</Button>}
+            <div className="space-y-1">
+              <Label>&nbsp;</Label>
+              <Button onClick={generateReport} disabled={reportLoading}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
+            </div>
           </div>
+
           {report && (
-            <div className="space-y-2 rounded-lg border p-4">
-              <h3 className="font-heading text-base font-semibold">{report.title}</h3>
-              <p className="text-sm text-muted-foreground">{report.summary}</p>
-              <div className="text-sm">
-                <p className="font-medium">共 {report.content.length} 个板块，请通过「导出 PDF」获取完整报告。</p>
+            <div className="space-y-2 rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setReportCollapsed((v) => !v)}>
+                  <div className="flex items-center gap-1">
+                    <ChevronDown className={`size-4 text-indigo-600 transition-transform ${reportCollapsed ? '-rotate-90' : ''}`} />
+                    <span className="font-medium">{report.title}</span>
+                  </div>
+                  {report.summary && <p className="mt-1 text-sm text-muted-foreground">{report.summary}</p>}
+                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => setReportCollapsed((v) => !v)} title={reportCollapsed ? '展开' : '收起'}>
+                    {reportCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => exportReport(report.id)} disabled={exportingId === report.id}>
+                    {exportingId === report.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                    导出 PDF
+                  </Button>
+                </div>
               </div>
+              {!reportCollapsed && <ReportContent content={report.content} />}
             </div>
           )}
+
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 text-sm font-medium">
+              <History className="size-4" /> 历史报告（{reportHistory.length}）
+            </div>
+            {reportHistory.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">暂无历史报告，先生成一份吧。</p>
+            ) : (
+              <div className="space-y-1.5">
+                {reportHistory.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                    <button type="button" className="min-w-0 flex-1 text-left" onClick={() => viewReport(r)}>
+                      <div className="truncate font-medium">{r.title}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {r.period_start && r.period_end ? `${r.period_start} ~ ${r.period_end}` : ''}
+                        {r.created_at ? ` · ${r.created_at}` : ''}
+                      </div>
+                    </button>
+                    <Button size="sm" variant="ghost" onClick={() => exportReport(r.id)} disabled={exportingId === r.id}>
+                      {exportingId === r.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => deleteReport(r.id)}>
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <DialogFooter>
             <Button onClick={() => { setReportDialog(false); setReport(null) }}>关闭</Button>
           </DialogFooter>

@@ -27,6 +27,8 @@ MODULE_NAMES = {
     "finance/travel/details": "行程明细",
     "finance/travel/ledgers": "行程账本",
     "finance/travel/reports": "旅行报告",
+    "finance/travel/report": "旅行报告",
+    "finance/travel/report/generate": "旅行报告",
     "finance/housing": "房租水电",
     "finance/utilities": "水电账单",
     "finance/subscriptions": "服务订阅",

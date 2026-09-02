@@ -341,8 +341,10 @@ export function ShoppingPage() {
       {stats && (
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Wallet} label="消费总额" value={fmt(stats.total)} />
-            <StatCard icon={Wallet} label="笔数" value={`${stats.count} 笔`} />
+            <StatCard icon={Wallet} label="消费总额" value={fmt(stats.total)} hint={`${stats.count} 笔记录`} />
+            <StatCard icon={Wallet} label="平均单笔" value={stats.count > 0 ? fmt(stats.total / stats.count) : '¥0.00'} hint="总消费 / 笔数" />
+            <StatCard icon={Wallet} label="涉及平台" value={`${stats.by_platform.length} 个`} hint={stats.by_platform[0] ? `最多 ${stats.by_platform[0].platform}` : '暂无消费平台'} />
+            <StatCard icon={Wallet} label="涉及账本" value={`${stats.by_ledger.length} 个`} hint={stats.by_ledger[0] ? `最多 ${stats.by_ledger[0].ledger}` : '暂无账本'} />
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
             <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: '#ef4444' }]} />
