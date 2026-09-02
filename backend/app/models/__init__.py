@@ -1,6 +1,7 @@
 from app.models.activity_log import ActivityLog
 from app.models.finance import (
     FinanceBill,
+    FinanceDebt,
     FinancePlan,
     FinancePurchase,
     FinanceReminder,
@@ -36,6 +37,7 @@ __all__ = [
     "FinanceBill",
     "FinanceReminder",
     "FinancePlan",
+    "FinanceDebt",
     "LifestyleItem",
     "LifestyleSimCard",
     "LifestyleTodo",

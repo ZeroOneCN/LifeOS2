@@ -81,6 +81,23 @@ class PlanRead(PlanCreate, ORMRead):
     pass
 
 
+class DebtCreate(BaseModel):
+    debt_date: date
+    name: str
+    direction: str = Field(pattern="^(lend|borrow)$")
+    counterparty: str | None = None
+    amount: float = Field(ge=0)
+    remaining: float | None = Field(None, ge=0)
+    interest_rate: float | None = Field(None, ge=0)
+    due_date: date | None = None
+    status: str = Field("active", pattern="^(active|settled)$")
+    note: str | None = None
+
+
+class DebtRead(DebtCreate, ORMRead):
+    pass
+
+
 class PageOut(BaseModel, Generic[T]):
     items: list[T]
     total: int

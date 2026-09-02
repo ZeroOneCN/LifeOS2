@@ -96,3 +96,21 @@ class FinancePlan(TimestampMixin, Base):
     saved_amount: Mapped[float | None] = mapped_column(Float)  # 已存金额
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/done/abandoned
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceDebt(TimestampMixin, Base):
+    """债务管理：借出/借入款项追踪。"""
+
+    __tablename__ = "finance_debts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    debt_date: Mapped[date] = mapped_column(Date, index=True)  # 借款/出借日期
+    name: Mapped[str] = mapped_column(String(128))  # 债务名称
+    direction: Mapped[str] = mapped_column(String(8), index=True)  # lend=借出 / borrow=借入
+    counterparty: Mapped[str | None] = mapped_column(String(64))  # 对方（借款人/债权人）
+    amount: Mapped[float] = mapped_column(Float)  # 总金额（本金）
+    remaining: Mapped[float | None] = mapped_column(Float)  # 剩余未还/未收金额
+    interest_rate: Mapped[float | None] = mapped_column(Float)  # 年利率（%）
+    due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active=进行中 / settled=已结清
+    note: Mapped[str | None] = mapped_column(Text)

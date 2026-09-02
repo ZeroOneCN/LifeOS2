@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes.finance import (
     bills,
+    debts,
     overview,
     planning,
     purchases,
@@ -17,5 +18,6 @@ for sub in (
     bills,
     reminders,
     planning,
+    debts,
 ):
     router.include_router(sub.router)

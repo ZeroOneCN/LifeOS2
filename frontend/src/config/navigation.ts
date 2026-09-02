@@ -8,6 +8,7 @@ import {
   Dumbbell,
   FileText,
   Footprints,
+  HandCoins,
   HeartPulse,
   History,
   Home,
@@ -73,6 +74,7 @@ export const navigation: NavSection[] = [
       { title: '账单管理', url: '/finance/bills', icon: Receipt },
       { title: '账单提醒', url: '/finance/reminders', icon: Bell },
       { title: '财务规划', url: '/finance/planning', icon: Target },
+      { title: '债务管理', url: '/finance/debts', icon: HandCoins },
     ],
   },
   {

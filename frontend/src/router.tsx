@@ -4,6 +4,7 @@ import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
 import { ActivityLogsPage } from '@/pages/activity-logs'
 import { BillsPage } from '@/pages/finance/bills'
+import { DebtsPage } from '@/pages/finance/debts'
 import { FinanceOverviewPage } from '@/pages/finance/overview'
 import { ForexPage } from '@/pages/investment/forex'
 import { PlanningPage } from '@/pages/finance/planning'
@@ -43,6 +44,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/finance/bills': <BillsPage />,
   '/finance/reminders': <RemindersPage />,
   '/finance/planning': <PlanningPage />,
+  '/finance/debts': <DebtsPage />,
   '/lifestyle/items': <ItemsPage />,
   '/lifestyle/sim-cards': <SimCardsPage />,
   '/lifestyle/todos': <TodosPage />,
