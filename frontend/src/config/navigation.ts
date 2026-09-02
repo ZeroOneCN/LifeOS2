@@ -69,7 +69,7 @@ export const navigation: NavSection[] = [
     icon: Wallet,
     children: [
       { title: '财务总览', url: '/finance/overview', icon: PieChart },
-      { title: '购买记录', url: '/finance/purchases', icon: ShoppingCart },
+      { title: '购物记录', url: '/finance/shopping', icon: ShoppingCart },
       { title: '旅行开支', url: '/finance/travel', icon: Plane },
       { title: '账单管理', url: '/finance/bills', icon: Receipt },
       { title: '账单提醒', url: '/finance/reminders', icon: Bell },

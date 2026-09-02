@@ -14,17 +14,35 @@ class ORMRead(BaseModel):
     updated_at: datetime
 
 
-class PurchaseCreate(BaseModel):
-    purchase_date: date
-    item_name: str
-    category: str
-    amount: float = Field(ge=0)
-    quantity: int | None = Field(None, ge=1)
-    store: str | None = None
+class ShoppingPlatformCreate(BaseModel):
+    name: str
+
+
+class ShoppingPlatformRead(ShoppingPlatformCreate, ORMRead):
+    pass
+
+
+class ShoppingLedgerCreate(BaseModel):
+    name: str
+
+
+class ShoppingLedgerRead(ShoppingLedgerCreate, ORMRead):
+    pass
+
+
+class ShoppingCreate(BaseModel):
+    record_date: date
+    platform_id: int | None = None
+    product_name: str
+    spec: str | None = None
+    total_price: float = Field(ge=0)
+    unit_price: float | None = Field(None, ge=0)
+    order_no: str | None = None
+    ledger_id: int | None = None
     note: str | None = None
 
 
-class PurchaseRead(PurchaseCreate, ORMRead):
+class ShoppingRead(ShoppingCreate, ORMRead):
     pass
 
 

@@ -26,18 +26,38 @@ class TimestampMixin:
     )
 
 
-class FinancePurchase(TimestampMixin, Base):
-    """购买记录：日常消费支出。"""
+class FinanceShoppingPlatform(TimestampMixin, Base):
+    """购物平台：可添加管理的电商平台（淘宝/京东等）。"""
 
-    __tablename__ = "finance_purchases"
+    __tablename__ = "finance_shopping_platforms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    purchase_date: Mapped[date] = mapped_column(Date, index=True)
-    item_name: Mapped[str] = mapped_column(String(128))  # 商品名称
-    category: Mapped[str] = mapped_column(String(32), index=True)  # 分类
-    amount: Mapped[float] = mapped_column(Float)  # 金额
-    quantity: Mapped[int | None] = mapped_column(Integer)  # 数量
-    store: Mapped[str | None] = mapped_column(String(64))  # 购买渠道
+    name: Mapped[str] = mapped_column(String(64), unique=True)  # 平台名称
+
+
+class FinanceShoppingLedger(TimestampMixin, Base):
+    """购物账本：用于分类管理不同场景的购物记录。"""
+
+    __tablename__ = "finance_shopping_ledgers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)  # 账本名称
+
+
+class FinanceShoppingRecord(TimestampMixin, Base):
+    """购物记录：具体的购物明细，支持多账本与 xlsx 批量导入。"""
+
+    __tablename__ = "finance_shopping_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    record_date: Mapped[date] = mapped_column(Date, index=True)  # 日期
+    platform_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 平台 id
+    product_name: Mapped[str] = mapped_column(String(128))  # 商品名称
+    spec: Mapped[str | None] = mapped_column(String(128))  # 规格
+    total_price: Mapped[float] = mapped_column(Float)  # 总价
+    unit_price: Mapped[float | None] = mapped_column(Float)  # 单价
+    order_no: Mapped[str | None] = mapped_column(String(64), index=True)  # 订单号
+    ledger_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 账本 id
     note: Mapped[str | None] = mapped_column(Text)
 
 

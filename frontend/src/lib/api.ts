@@ -25,6 +25,8 @@ export type ListParams = {
   page_size?: number
   start?: string
   end?: string
+  /** 额外的过滤参数（如账本 id、平台 id 等） */
+  extra?: Record<string, string | number | undefined>
 }
 
 export const api = {
@@ -34,6 +36,11 @@ export const api = {
     if (params?.page_size) qs.set('page_size', String(params.page_size))
     if (params?.start) qs.set('start', params.start)
     if (params?.end) qs.set('end', params.end)
+    if (params?.extra) {
+      for (const [k, v] of Object.entries(params.extra)) {
+        if (v !== undefined && v !== '') qs.set(k, String(v))
+      }
+    }
     const query = qs.toString()
     return request<PageResult<T>>(`${path}${query ? `?${query}` : ''}`)
   },
@@ -52,6 +59,14 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (path: string, id: number) =>
     request<void>(`${path}/${id}`, { method: 'DELETE' }),
+  upload: async <T>(path: string, formData: FormData) => {
+    const res = await fetch(`${BASE}${path}`, { method: 'POST', body: formData })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.detail ?? `上传失败（${res.status}）`)
+    }
+    return res.json() as Promise<T>
+  },
   stats: <T>(path: string, days = 30) =>
     request<T>(`${path}/stats?days=${days}`),
   download: async (path: string, fallbackName = 'download.pdf') => {

@@ -8,8 +8,8 @@ import { DebtsPage } from '@/pages/finance/debts'
 import { FinanceOverviewPage } from '@/pages/finance/overview'
 import { ForexPage } from '@/pages/investment/forex'
 import { PlanningPage } from '@/pages/finance/planning'
-import { PurchasesPage } from '@/pages/finance/purchases'
 import { RemindersPage } from '@/pages/finance/reminders'
+import { ShoppingPage } from '@/pages/finance/shopping'
 import { TravelPage } from '@/pages/finance/travel'
 import { HomePage } from '@/pages/home'
 import { CheckupPage } from '@/pages/health/checkup'
@@ -42,7 +42,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/health/reports': <ReportsPage />,
   '/health/medication': <MedicationPage />,
   '/finance/overview': <FinanceOverviewPage />,
-  '/finance/purchases': <PurchasesPage />,
+  '/finance/shopping': <ShoppingPage />,
   '/finance/travel': <TravelPage />,
   '/finance/bills': <BillsPage />,
   '/finance/reminders': <RemindersPage />,

@@ -9,8 +9,8 @@ from app.core.database import get_db
 from app.models import (
     FinanceBill,
     FinancePlan,
-    FinancePurchase,
     FinanceReminder,
+    FinanceShoppingRecord,
     FinanceTravel,
 )
 
@@ -24,7 +24,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
     week_ago = today - timedelta(days=6)
 
     month_purchases = db.scalars(
-        select(FinancePurchase).where(FinancePurchase.purchase_date >= month_start)
+        select(FinanceShoppingRecord).where(FinanceShoppingRecord.record_date >= month_start)
     ).all()
     month_travel = db.scalars(
         select(FinanceTravel).where(FinanceTravel.expense_date >= month_start)
@@ -55,8 +55,8 @@ def overview(db: Session = Depends(get_db)) -> dict:
     # 近 7 天支出趋势（购买 + 旅行 + 账单）
     week_rows: list[tuple[date, float]] = []
     for r in month_purchases:
-        if r.purchase_date >= week_ago:
-            week_rows.append((r.purchase_date, r.amount))
+        if r.record_date >= week_ago:
+            week_rows.append((r.record_date, r.total_price))
     for r in month_travel:
         if r.expense_date >= week_ago:
             week_rows.append((r.expense_date, r.amount))
