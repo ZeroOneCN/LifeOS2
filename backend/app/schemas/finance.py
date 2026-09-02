@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -46,15 +46,33 @@ class ShoppingRead(ShoppingCreate, ORMRead):
     pass
 
 
-class TravelCreate(BaseModel):
-    expense_date: date
-    trip_name: str
-    category: str
-    amount: float = Field(ge=0)
+class TravelLedgerCreate(BaseModel):
+    name: str
+    start_date: date | None = None
+    end_date: date | None = None
     note: str | None = None
 
 
-class TravelRead(TravelCreate, ORMRead):
+class TravelLedgerRead(TravelLedgerCreate, ORMRead):
+    pass
+
+
+class TravelDetailCreate(BaseModel):
+    ledger_id: int | None = None
+    detail_date: date
+    begin_time: time | None = None
+    end_time: time | None = None
+    category: str
+    item: str
+    original_price: float = Field(ge=0)
+    discount: float = Field(default=0, ge=0)
+    actual_price: float | None = Field(None, ge=0)
+    transport_info: str | None = None
+    payment_method: str | None = None
+    note: str | None = None
+
+
+class TravelDetailRead(TravelDetailCreate, ORMRead):
     pass
 
 

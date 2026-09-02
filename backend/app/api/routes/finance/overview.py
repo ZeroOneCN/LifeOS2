@@ -11,7 +11,7 @@ from app.models import (
     FinancePlan,
     FinanceReminder,
     FinanceShoppingRecord,
-    FinanceTravel,
+    FinanceTravelDetail,
 )
 
 router = APIRouter(prefix="/finance/overview", tags=["finance-overview"])
@@ -27,7 +27,7 @@ def overview(db: Session = Depends(get_db)) -> dict:
         select(FinanceShoppingRecord).where(FinanceShoppingRecord.record_date >= month_start)
     ).all()
     month_travel = db.scalars(
-        select(FinanceTravel).where(FinanceTravel.expense_date >= month_start)
+        select(FinanceTravelDetail).where(FinanceTravelDetail.detail_date >= month_start)
     ).all()
     month_bills = db.scalars(
         select(FinanceBill).where(FinanceBill.bill_date >= month_start)
@@ -58,8 +58,8 @@ def overview(db: Session = Depends(get_db)) -> dict:
         if r.record_date >= week_ago:
             week_rows.append((r.record_date, r.total_price))
     for r in month_travel:
-        if r.expense_date >= week_ago:
-            week_rows.append((r.expense_date, r.amount))
+        if r.detail_date >= week_ago:
+            week_rows.append((r.detail_date, r.actual_price))
     for r in month_bills:
         if r.bill_date >= week_ago:
             week_rows.append((r.bill_date, r.amount))
@@ -69,8 +69,8 @@ def overview(db: Session = Depends(get_db)) -> dict:
         daily[d] += amount
 
     month_expense = (
-        sum(r.amount for r in month_purchases)
-        + sum(r.amount for r in month_travel)
+        sum(r.total_price for r in month_purchases)
+        + sum(r.actual_price for r in month_travel)
         + sum(r.amount for r in month_bills)
     )
 

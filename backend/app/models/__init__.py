@@ -7,7 +7,8 @@ from app.models.finance import (
     FinanceShoppingLedger,
     FinanceShoppingPlatform,
     FinanceShoppingRecord,
-    FinanceTravel,
+    FinanceTravelDetail,
+    FinanceTravelLedger,
 )
 from app.models.health import (
     HealthBody,
@@ -53,7 +54,8 @@ __all__ = [
     "FinanceShoppingRecord",
     "FinanceShoppingPlatform",
     "FinanceShoppingLedger",
-    "FinanceTravel",
+    "FinanceTravelLedger",
+    "FinanceTravelDetail",
     "FinanceBill",
     "FinanceReminder",
     "FinancePlan",

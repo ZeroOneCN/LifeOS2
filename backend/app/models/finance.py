@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -61,16 +62,35 @@ class FinanceShoppingRecord(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceTravel(TimestampMixin, Base):
-    """旅行开支：旅行相关费用。"""
+class FinanceTravelLedger(TimestampMixin, Base):
+    """行程账本：一次旅行的总览（多账本，随时切换）。"""
 
-    __tablename__ = "finance_travel"
+    __tablename__ = "finance_travel_ledgers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    expense_date: Mapped[date] = mapped_column(Date, index=True)
-    trip_name: Mapped[str] = mapped_column(String(128))  # 行程名称
-    category: Mapped[str] = mapped_column(String(32), index=True)  # 交通/住宿/餐饮等
-    amount: Mapped[float] = mapped_column(Float)  # 金额
+    name: Mapped[str] = mapped_column(String(128))  # 行程名称
+    start_date: Mapped[date | None] = mapped_column(Date)  # 开始日期
+    end_date: Mapped[date | None] = mapped_column(Date)  # 结束日期
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceTravelDetail(TimestampMixin, Base):
+    """行程明细：一条旅行费用/日程，自动计算时长与实付。"""
+
+    __tablename__ = "finance_travel_details"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ledger_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 行程账本 id
+    detail_date: Mapped[date] = mapped_column(Date, index=True)  # 日期
+    begin_time: Mapped[Time | None] = mapped_column(Time)  # 开始时间
+    end_time: Mapped[Time | None] = mapped_column(Time)  # 结束时间
+    category: Mapped[str] = mapped_column(String(32), index=True)  # 分类：交通/住宿/餐饮/门票等
+    item: Mapped[str] = mapped_column(String(128))  # 项目
+    original_price: Mapped[float] = mapped_column(Float)  # 原价
+    discount: Mapped[float] = mapped_column(Float, default=0)  # 优惠
+    actual_price: Mapped[float] = mapped_column(Float)  # 实付 = 原价 - 优惠
+    transport_info: Mapped[str | None] = mapped_column(String(128))  # 交通信息（航班/车次等）
+    payment_method: Mapped[str | None] = mapped_column(String(32))  # 支付方式
     note: Mapped[str | None] = mapped_column(Text)
 
 
