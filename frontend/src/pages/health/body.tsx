@@ -185,17 +185,11 @@ export function BodyPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">健身-体重记录</h1>
-          <p className="text-sm text-muted-foreground">
-            录入身高体重自动计算 BMI，并记录体成分与身材参数（按性别）。
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={openCreate}>
           <Plus /> 新增体重记录
         </Button>
-      </section>
+      </div>
 
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">

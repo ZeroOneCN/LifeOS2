@@ -26,14 +26,13 @@ export function FitnessDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
 
   useEffect(() => {
-    api.query<DashboardData>('/health/fitness/dashboard').then(setData).catch(() => setData(null))
+    api.query<DashboardData>('/health/dashboard').then(setData).catch(() => setData(null))
   }, [])
 
   if (!data) {
     return (
       <div className="flex flex-col gap-4">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">健身-数据看板</h1>
-        <p className="text-sm text-muted-foreground">汇总饮食摄入与运动消耗、身材趋势分析。加载中...</p>
+        <div className="text-sm text-muted-foreground">数据看板加载中...</div>
       </div>
     )
   }
@@ -43,12 +42,6 @@ export function FitnessDashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">健身-数据看板</h1>
-        <p className="text-sm text-muted-foreground">
-          汇总饮食摄入与运动消耗，结合体重/体成分进行身材趋势分析。
-        </p>
-      </section>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

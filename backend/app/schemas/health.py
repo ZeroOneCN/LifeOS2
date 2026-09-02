@@ -317,6 +317,24 @@ class CheckupTemplateRead(CheckupTemplateCreate, ORMRead):
     pass
 
 
+class CheckupPanelItem(BaseModel):
+    item_name: str
+    unit: str | None = None
+    ref_low: float | None = None
+    ref_high: float | None = None
+    reference_range: str | None = None
+
+
+class CheckupPanelCreate(BaseModel):
+    panel_name: str
+    note: str | None = None
+    items: list[CheckupPanelItem] = []
+
+
+class CheckupPanelRead(CheckupPanelCreate, ORMRead):
+    items: list[CheckupPanelItem] = []
+
+
 class ReportCreate(BaseModel):
     report_date: date
     title: str

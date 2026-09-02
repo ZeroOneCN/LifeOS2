@@ -169,6 +169,30 @@ class HealthCheckup(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class HealthCheckupPanel(TimestampMixin, Base):
+    """体检组合模板（套餐/检查组）：一个组合包含多个体检指标。"""
+
+    __tablename__ = "health_checkup_panel"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    panel_name: Mapped[str] = mapped_column(String(64), index=True)  # 组合名
+    note: Mapped[str | None] = mapped_column(String(255))  # 说明
+
+
+class HealthCheckupPanelItem(TimestampMixin, Base):
+    """体检组合模板明细：组合内每一项指标定义。"""
+
+    __tablename__ = "health_checkup_panel_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    panel_id: Mapped[int] = mapped_column(Integer, index=True)  # 所属组合
+    item_name: Mapped[str] = mapped_column(String(64))  # 指标名
+    unit: Mapped[str | None] = mapped_column(String(32))  # 单位
+    ref_low: Mapped[float | None] = mapped_column(Float)  # 参考下限
+    ref_high: Mapped[float | None] = mapped_column(Float)  # 参考上限
+    reference_range: Mapped[str | None] = mapped_column(String(128))  # 参考范围(展示文本)
+
+
 class HealthReport(TimestampMixin, Base):
     """健康报告：汇总报告。"""
 

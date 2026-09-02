@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import HealthBody, HealthDiet, HealthFitness, HealthSteps
 
-router = APIRouter(prefix="/health/fitness/dashboard", tags=["health-fitness-dashboard"])
+router = APIRouter(prefix="/health/dashboard", tags=["health-fitness-dashboard"])
 
 
 @router.get("")

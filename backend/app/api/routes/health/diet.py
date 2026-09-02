@@ -59,6 +59,32 @@ def _diet_stats(db: Session, days: int) -> dict:
     }
 
 
+def _register_fixed(router) -> None:
+
+    @router.get("/foods")
+    def list_foods(q: str = Query("", max_length=32)):
+        """返回内置常见食物营养表（每100g），可按名称过滤。"""
+        items = []
+        for name, (cal, pro, carb, fat) in FOOD_NUTRITION.items():
+            if q and q not in name:
+                continue
+            items.append(
+                {
+                    "name": name,
+                    "calories": cal,
+                    "protein": pro,
+                    "carbs": carb,
+                    "fat": fat,
+                }
+            )
+        return {"items": items, "total": len(items)}
+
+    @router.get("/estimate")
+    def estimate(food_name: str = Query(..., max_length=64), weight_g: float = Query(100, gt=0)):
+        """根据食物名称与重量推算营养，供前端自动填写。"""
+        return estimate_nutrition(food_name, weight_g)
+
+
 router = crud_router(
     prefix="/health/diet",
     tag="health-diet",
@@ -68,29 +94,5 @@ router = crud_router(
     order_by=HealthDiet.record_date,
     date_column="record_date",
     stats_func=_diet_stats,
+    extra_routes=_register_fixed,
 )
-
-
-@router.get("/foods")
-def list_foods(q: str = Query("", max_length=32)):
-    """返回内置常见食物营养表（每100g），可按名称过滤。"""
-    items = []
-    for name, (cal, pro, carb, fat) in FOOD_NUTRITION.items():
-        if q and q not in name:
-            continue
-        items.append(
-            {
-                "name": name,
-                "calories": cal,
-                "protein": pro,
-                "carbs": carb,
-                "fat": fat,
-            }
-        )
-    return {"items": items, "total": len(items)}
-
-
-@router.get("/estimate")
-def estimate(food_name: str = Query(..., max_length=64), weight_g: float = Query(100, gt=0)):
-    """根据食物名称与重量推算营养，供前端自动填写。"""
-    return estimate_nutrition(food_name, weight_g)

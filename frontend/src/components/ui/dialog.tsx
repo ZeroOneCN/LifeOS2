@@ -51,10 +51,47 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeOnEscape = false,
+  onConfirmEnter = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  closeOnEscape?: boolean
+  onConfirmEnter?: boolean
 }) {
+  // 弹窗打开期间锁定页面滚动；卸载时恢复
+  React.useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [])
+
+  // 回车确认：命中「保存/确认/确定/生成」类主操作按钮
+  const onKeyDownCapture = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!onConfirmEnter || e.key !== 'Enter') return
+      const target = e.target as HTMLElement
+      if (target instanceof HTMLTextAreaElement) return
+      if (target instanceof HTMLButtonElement) return
+      if (target instanceof HTMLInputElement || target === e.currentTarget) {
+        const content = e.currentTarget as HTMLElement
+        const buttons = Array.from(
+          content.querySelectorAll<HTMLButtonElement>('button[data-slot="dialog-footer"] button, button[data-confirm-enter]')
+        )
+        const confirmBtn = buttons
+          .filter((b) => !b.closest('[data-close-cancel]'))
+          .find((b) => /保存|确认|确定|生成|提交|确定删除|删除/.test(b.textContent ?? ''))
+        if (confirmBtn) {
+          e.preventDefault()
+          confirmBtn.click()
+        }
+      }
+    },
+    [onConfirmEnter]
+  )
+
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -64,6 +101,11 @@ function DialogContent({
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={closeOnEscape ? undefined : (e) => e.preventDefault()}
+        onKeyDownCapture={onKeyDownCapture}
         {...props}
       >
         {children}

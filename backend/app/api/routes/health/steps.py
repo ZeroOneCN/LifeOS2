@@ -23,18 +23,37 @@ def _get_setting(db: Session) -> HealthStepSetting:
     return setting
 
 
-@router.get("/settings", response_model=StepSettingRead)
-def get_settings(db: Session = Depends(get_db)):
-    return _get_setting(db)
+def _register_fixed(router) -> None:
+    """注册固定静态路由，需在动态路由 /{item_id} 之前。"""
 
+    @router.get("/settings", response_model=StepSettingRead)
+    def get_settings(db: Session = Depends(get_db)):
+        return _get_setting(db)
 
-@router.put("/settings", response_model=StepSettingRead)
-def update_settings(payload: StepSettingCreate, db: Session = Depends(get_db)):
-    setting = _get_setting(db)
-    setting.stride_cm = payload.stride_cm
-    db.commit()
-    db.refresh(setting)
-    return setting
+    @router.put("/settings", response_model=StepSettingRead)
+    def update_settings(payload: StepSettingCreate, db: Session = Depends(get_db)):
+        setting = _get_setting(db)
+        setting.stride_cm = payload.stride_cm
+        db.commit()
+        db.refresh(setting)
+        return setting
+
+    @router.get("/monthly")
+    def monthly_stats(db: Session = Depends(get_db)):
+        """按自然月统计步数（近 12 个月）。"""
+        rows = db.scalars(select(HealthSteps).order_by(HealthSteps.record_date)).all()
+        by_month: dict[str, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "days": set()})
+        for r in rows:
+            key = r.record_date.strftime("%Y-%m")
+            by_month[key]["steps"] += r.steps
+            by_month[key]["distance_km"] += r.distance_km or 0
+            by_month[key]["days"].add(r.record_date)
+        return {
+            "months": [
+                {"month": k, "steps": v["steps"], "distance_km": round(v["distance_km"], 2), "days": len(v["days"])}
+                for k, v in sorted(by_month.items())[-12:]
+            ]
+        }
 
 
 def _steps_stats(db: Session, days: int) -> dict:
@@ -77,24 +96,6 @@ def _steps_stats(db: Session, days: int) -> dict:
     }
 
 
-@router.get("/monthly")
-def monthly_stats(db: Session = Depends(get_db)):
-    """按自然月统计步数（近 12 个月）。"""
-    rows = db.scalars(select(HealthSteps).order_by(HealthSteps.record_date)).all()
-    by_month: dict[str, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "days": set()})
-    for r in rows:
-        key = r.record_date.strftime("%Y-%m")
-        by_month[key]["steps"] += r.steps
-        by_month[key]["distance_km"] += r.distance_km or 0
-        by_month[key]["days"].add(r.record_date)
-    return {
-        "months": [
-            {"month": k, "steps": v["steps"], "distance_km": round(v["distance_km"], 2), "days": len(v["days"])}
-            for k, v in sorted(by_month.items())[-12:]
-        ]
-    }
-
-
 router = crud_router(
     prefix="/health/steps",
     tag="health-steps",
@@ -104,4 +105,5 @@ router = crud_router(
     order_by=HealthSteps.record_date,
     date_column="record_date",
     stats_func=_steps_stats,
+    extra_routes=_register_fixed,
 )

@@ -196,17 +196,11 @@ export function DietPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">健身-饮食记录</h1>
-          <p className="text-sm text-muted-foreground">
-            录入早/午/晚/加餐食物，自动识别重量与营养成分（热量、蛋白质、碳水、脂肪）。
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={openCreate}>
           <Plus /> 新增饮食记录
         </Button>
-      </section>
+      </div>
 
       {stats && (
         <div className="grid gap-4 md:grid-cols-4">

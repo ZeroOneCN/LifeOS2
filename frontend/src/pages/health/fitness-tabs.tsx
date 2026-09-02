@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Activity, Dumbbell, Scale, Utensils } from 'lucide-react'
 
 import { FitnessDashboardPage } from './fitness-dashboard'
@@ -16,36 +17,30 @@ const TABS = [
 type TabKey = (typeof TABS)[number]['key']
 
 export function FitnessTabsPage() {
-  const [tab, setTab] = useState<TabKey>('dashboard')
+  const [searchParams] = useSearchParams()
+  const initTab = (searchParams.get('tab') as TabKey) || 'dashboard'
+  const [tab, setTab] = useState<TabKey>(initTab)
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">健身运动</h1>
-          <p className="text-sm text-muted-foreground">
-            数据看板、饮食记录、运动记录与体重记录集中管理。
-          </p>
-        </div>
-        <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
-          {TABS.map((t) => {
-            const Icon = t.icon
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                  tab === t.key
-                    ? 'bg-background font-medium shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="size-4" />
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
+      <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+        {TABS.map((t) => {
+          const Icon = t.icon
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                tab === t.key
+                  ? 'bg-background font-medium shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Icon className="size-4" />
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {tab === 'dashboard' && <FitnessDashboardPage />}

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models import (
+    HealthBody,
     HealthCheckup,
     HealthFitness,
     HealthMedication,
@@ -48,6 +49,9 @@ def overview(db: Session = Depends(get_db)) -> dict:
     latest_vitals = db.scalars(
         select(HealthVitalsSleep).order_by(HealthVitalsSleep.record_date.desc()).limit(1)
     ).first()
+    latest_body = db.scalars(
+        select(HealthBody).order_by(HealthBody.record_date.desc()).limit(1)
+    ).first()
 
     today_meds = db.scalars(
         select(HealthMedication).where(HealthMedication.record_date == today)
@@ -88,6 +92,18 @@ def overview(db: Session = Depends(get_db)) -> dict:
             else None
         ),
         "latest_vitals": _serialize_vitals(latest_vitals),
+        "latest_body": (
+            {
+                "id": latest_body.id,
+                "record_date": latest_body.record_date,
+                "height_cm": latest_body.height_cm,
+                "weight_kg": latest_body.weight_kg,
+                "bmi": latest_body.bmi,
+                "body_fat_percent": latest_body.body_fat_percent,
+            }
+            if latest_body
+            else None
+        ),
         "today_medication": {
             "taken_count": len(taken_meds),
             "pending_count": len(today_meds) - len(taken_meds),

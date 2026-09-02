@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Library, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+  Library,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,7 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Textarea } from '@/components/ui/textarea'
 import { useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -62,30 +68,37 @@ type CheckupStats = {
 
 type Template = { id: number; item_name: string; category?: string; unit?: string; ref_low?: number; ref_high?: number }
 
+type PanelItem = { item_name: string; unit?: string; ref_low?: number | null; ref_high?: number | null; reference_range?: string }
+type Panel = { id: number; panel_name: string; note?: string; items: PanelItem[] }
+
+type RecordItemForm = {
+  item_name: string
+  value: string
+  unit?: string
+  ref_low?: number | null
+  ref_high?: number | null
+  reference_range?: string
+}
+
 const resultMeta: Record<string, { label: string; className: string }> = {
   normal: { label: '正常', className: 'bg-green-100 text-green-700' },
   high: { label: '偏高', className: 'bg-red-100 text-red-700' },
   low: { label: '偏低', className: 'bg-amber-100 text-amber-700' },
 }
 
-const EMPTY = {
-  check_date: new Date().toISOString().slice(0, 10),
-  template_id: '',
-  item_name: '',
-  value: '',
-  unit: '',
-  ref_low: '',
-  ref_high: '',
-  reference_range: '',
-  note: '',
-}
-
-function judge(value: string, lo: string, hi: string): string {
+function judge(value: string, lo?: number | null, hi?: number | null): string {
   const v = Number(value)
   if (Number.isNaN(v)) return ''
-  if (hi !== '' && v > Number(hi)) return 'high'
-  if (lo !== '' && v < Number(lo)) return 'low'
+  if (hi != null && v > hi) return 'high'
+  if (lo != null && v < lo) return 'low'
   return 'normal'
+}
+
+function fmtRange(lo?: number | null, hi?: number | null): string {
+  if (lo == null && hi == null) return ''
+  if (lo != null && hi != null) return `${lo}~${hi}`
+  if (lo != null) return `≥${lo}`
+  return `≤${hi}`
 }
 
 export function CheckupPage() {
@@ -96,13 +109,24 @@ export function CheckupPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<CheckupRecord | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState(EMPTY)
+  const [checkDate, setCheckDate] = useState(new Date().toISOString().slice(0, 10))
+  const [recordItems, setRecordItems] = useState<RecordItemForm[]>([])
   const [templates, setTemplates] = useState<Template[]>([])
+  const [panels, setPanels] = useState<Panel[]>([])
+  const [presets, setPresets] = useState<{ panel_name: string; note?: string; items: PanelItem[] }[]>([])
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [libTab, setLibTab] = useState<'single' | 'panel'>('single')
   const [templateFormOpen, setTemplateFormOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [tplForm, setTplForm] = useState({ item_name: '', category: '', unit: '', ref_low: '', ref_high: '' })
+  // 组合模板编辑
+  const [panelFormOpen, setPanelFormOpen] = useState(false)
+  const [editingPanel, setEditingPanel] = useState<Panel | null>(null)
+  const [savingPanel, setSavingPanel] = useState(false)
+  const [panelName, setPanelName] = useState('')
+  const [panelNote, setPanelNote] = useState('')
+  const [panelItems, setPanelItems] = useState<PanelItem[]>([])
   const { confirm, dialog: confirmDialog } = useConfirm({
     title: '确认删除',
     description: '确定删除这条体检记录吗？此操作不可恢复。',
@@ -111,7 +135,6 @@ export function CheckupPage() {
   const stats = useStats<CheckupStats>('/health/checkup')
   const PAGE_SIZE = 20
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const computedResult = judge(form.value, form.ref_low, form.ref_high)
 
   const load = async () => {
     setLoading(true)
@@ -129,72 +152,121 @@ export function CheckupPage() {
     setTemplates(res.items)
   }
 
+  const loadPanels = async () => {
+    setPanels(await api.query<Panel[]>('/health/checkup/panels').catch(() => []))
+  }
+
+  const loadPresets = async () => {
+    setPresets(await api.query<{ panel_name: string; note?: string; items: PanelItem[] }[]>('/health/checkup/panels/presets').catch(() => []))
+  }
+
   useEffect(() => {
     load()
     loadTemplates()
+    loadPanels()
+    loadPresets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
   const openCreate = () => {
     setEditing(null)
-    setForm(EMPTY)
+    setCheckDate(new Date().toISOString().slice(0, 10))
+    setRecordItems([])
     setDialogOpen(true)
   }
 
   const openEdit = (row: CheckupRecord) => {
     setEditing(row)
-    setForm({
-      check_date: row.check_date,
-      template_id: '',
-      item_name: row.item_name,
-      value: String(row.value ?? ''),
-      unit: row.unit ?? '',
-      ref_low: String(row.ref_low ?? ''),
-      ref_high: String(row.ref_high ?? ''),
-      reference_range: row.reference_range ?? '',
-      note: row.note ?? '',
-    })
+    setCheckDate(row.check_date)
+    setRecordItems([
+      {
+        item_name: row.item_name,
+        value: String(row.value ?? ''),
+        unit: row.unit ?? '',
+        ref_low: row.ref_low ?? null,
+        ref_high: row.ref_high ?? null,
+        reference_range: row.reference_range ?? fmtRange(row.ref_low ?? null, row.ref_high ?? null),
+      },
+    ])
     setDialogOpen(true)
   }
 
-  const set = (key: keyof typeof EMPTY | 'ref_low' | 'ref_high' | 'value', value: string) =>
-    setForm((f) => ({ ...f, [key]: value }))
+  // 选择套餐/组合：把组合内尚未添加的指标加入录入列表
+  const applyPanel = (panel: { panel_name: string; note?: string; items: PanelItem[] }) => {
+    setRecordItems((prev) => {
+      const names = new Set(prev.map((r) => r.item_name))
+      const added = panel.items
+        .filter((it) => it.item_name && !names.has(it.item_name))
+        .map((it) => ({
+          item_name: it.item_name,
+          value: '',
+          unit: it.unit ?? '',
+          ref_low: it.ref_low ?? null,
+          ref_high: it.ref_high ?? null,
+          reference_range: it.reference_range ?? fmtRange(it.ref_low ?? null, it.ref_high ?? null),
+        }))
+      return [...prev, ...added]
+    })
+  }
 
-  // 选择标准模板自动填充指标/单位/参考范围
-  const selectTemplate = (tplId: string) => {
-    const tpl = templates.find((t) => String(t.id) === tplId)
-    if (!tpl) return
-    setForm((f) => ({
-      ...f,
-      template_id: tplId,
-      item_name: tpl.item_name,
-      unit: tpl.unit ?? '',
-      ref_low: String(tpl.ref_low ?? ''),
-      ref_high: String(tpl.ref_high ?? ''),
-      reference_range: tpl.ref_low != null || tpl.ref_high != null
-        ? `${tpl.ref_low ?? ''}~${tpl.ref_high ?? ''}`
-        : '',
-    }))
+  // 自由组合：切换单个指标模板
+  const toggleTemplate = (tpl: Template) => {
+    setRecordItems((prev) => {
+      if (prev.some((r) => r.item_name === tpl.item_name)) {
+        return prev.filter((r) => r.item_name !== tpl.item_name)
+      }
+      return [
+        ...prev,
+        {
+          item_name: tpl.item_name,
+          value: '',
+          unit: tpl.unit ?? '',
+          ref_low: tpl.ref_low ?? null,
+          ref_high: tpl.ref_high ?? null,
+          reference_range: fmtRange(tpl.ref_low ?? null, tpl.ref_high ?? null),
+        },
+      ]
+    })
+  }
+
+  const updateRecordItem = (idx: number, patch: Partial<RecordItemForm>) => {
+    setRecordItems((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  }
+
+  const removeRecordItem = (idx: number) => {
+    setRecordItems((prev) => prev.filter((_, i) => i !== idx))
   }
 
   const submit = async () => {
-    const num = (v: string) => (v === '' ? null : Number(v))
-    const payload = {
-      check_date: form.check_date,
-      template_id: num(form.template_id),
-      item_name: form.item_name,
-      value: num(form.value),
-      unit: form.unit === '' ? null : form.unit,
-      ref_low: num(form.ref_low),
-      ref_high: num(form.ref_high),
-      reference_range: form.reference_range === '' ? null : form.reference_range,
-      result: computedResult || null,
-      note: form.note === '' ? null : form.note,
-    }
     setSaving(true)
     try {
-      if (editing) await api.update('/health/checkup', editing.id, payload)
-      else await api.create('/health/checkup', payload)
+      if (editing) {
+        const row = recordItems[0]
+        await api.update('/health/checkup', editing.id, {
+          check_date: checkDate,
+          item_name: row.item_name,
+          value: row.value === '' ? null : Number(row.value),
+          unit: row.unit === '' ? null : row.unit,
+          ref_low: row.ref_low ?? null,
+          ref_high: row.ref_high ?? null,
+          reference_range: row.reference_range === '' ? null : row.reference_range,
+          result: (row.value !== '' && judge(row.value, row.ref_low, row.ref_high)) || null,
+        })
+      } else {
+        const valid = recordItems.filter((r) => r.value !== '')
+        for (const r of valid) {
+          await api.create('/health/checkup', {
+            check_date: checkDate,
+            item_name: r.item_name,
+            value: Number(r.value),
+            unit: r.unit === '' ? null : r.unit,
+            ref_low: r.ref_low ?? null,
+            ref_high: r.ref_high ?? null,
+            reference_range: r.reference_range === '' ? null : r.reference_range,
+            result: judge(r.value, r.ref_low, r.ref_high) || null,
+          })
+        }
+      }
       setDialogOpen(false)
       setPage(1)
       await load()
@@ -210,16 +282,15 @@ export function CheckupPage() {
     else await load()
   }
 
+  // ---- 单指标模板 ----
   const openTemplateDialog = () => {
     setTemplateDialogOpen(true)
   }
-
   const openTemplateCreate = () => {
     setEditingTemplate(null)
     setTplForm({ item_name: '', category: '', unit: '', ref_low: '', ref_high: '' })
     setTemplateFormOpen(true)
   }
-
   const openTemplateEdit = (t: Template) => {
     setEditingTemplate(t)
     setTplForm({
@@ -231,9 +302,7 @@ export function CheckupPage() {
     })
     setTemplateFormOpen(true)
   }
-
   const setTpl = (key: keyof typeof tplForm, value: string) => setTplForm((f) => ({ ...f, [key]: value }))
-
   const saveTemplate = async () => {
     if (!tplForm.item_name.trim()) return
     const num = (v: string) => (v === '' ? null : Number(v))
@@ -254,21 +323,77 @@ export function CheckupPage() {
       setSavingTemplate(false)
     }
   }
-
   const removeTemplate = async (t: Template) => {
-    if (!(await confirm({ title: '确认删除模板', description: `确定删除模板「${t.item_name}」吗？` }))) return
+    if (!(await confirm({ title: '确认删除模板', description: `确定删除指标模板「${t.item_name}」吗？` }))) return
     await api.remove('/health/checkup/templates', t.id)
     await loadTemplates()
   }
 
+  // ---- 组合模板（套餐） ----
+  const openPanelCreate = () => {
+    setEditingPanel(null)
+    setPanelName('')
+    setPanelNote('')
+    setPanelItems([])
+    setPanelFormOpen(true)
+  }
+  const openPanelEdit = (p: Panel) => {
+    setEditingPanel(p)
+    setPanelName(p.panel_name)
+    setPanelNote(p.note ?? '')
+    setPanelItems(p.items.map((it) => ({ ...it })))
+    setPanelFormOpen(true)
+  }
+  const setPanelItem = (idx: number, patch: Partial<PanelItem>) => {
+    setPanelItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  }
+  const addPanelItem = () => {
+    setPanelItems((prev) => [...prev, { item_name: '' }])
+  }
+  const removePanelItem = (idx: number) => {
+    setPanelItems((prev) => prev.filter((_, i) => i !== idx))
+  }
+  const savePanel = async () => {
+    if (!panelName.trim()) return
+    const valid = panelItems
+      .filter((it) => it.item_name.trim())
+      .map((it) => ({
+        item_name: it.item_name.trim(),
+        unit: it.unit || null,
+        ref_low: it.ref_low ?? null,
+        ref_high: it.ref_high ?? null,
+        reference_range: it.reference_range ?? fmtRange(it.ref_low ?? null, it.ref_high ?? null),
+      }))
+    setSavingPanel(true)
+    try {
+      const payload = { panel_name: panelName.trim(), note: panelNote || null, items: valid }
+      if (editingPanel) await api.put('/health/checkup/panels/' + editingPanel.id, payload)
+      else await api.post('/health/checkup/panels', payload)
+      setPanelFormOpen(false)
+      await loadPanels()
+    } finally {
+      setSavingPanel(false)
+    }
+  }
+  const removePanel = async (p: Panel) => {
+    if (!(await confirm({ title: '确认删除组合', description: `确定删除组合「${p.panel_name}」吗？` }))) return
+    await api.remove('/health/checkup/panels', p.id)
+    await loadPanels()
+  }
+
   const sc = stats?.status_counts
+  const selectableTemplates = templates.filter((t) => t.item_name)
+  const mergedPanelOptions = [
+    ...presets.map((p, i) => ({ key: `preset-${i}`, panel_name: p.panel_name, items: p.items, builtIn: true as const })),
+    ...panels.map((p) => ({ key: `panel-${p.id}`, panel_name: p.panel_name, items: p.items, builtIn: false as const })),
+  ]
 
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">体检指标</h1>
-          <p className="text-sm text-muted-foreground">使用自建的指标模板录入，依据参考范围自动判断正常/异常，并提供分析。</p>
+          <p className="text-sm text-muted-foreground">使用组合模板或自由选择指标批量录入，依据参考范围自动判断正常/异常。</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openTemplateDialog}>
@@ -417,87 +542,145 @@ export function CheckupPage() {
         </div>
       </div>
 
+      {/* 新增/编辑体检记录：支持套餐批量录入与自由组合 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑体检记录' : '新增体检记录'}</DialogTitle>
-            <DialogDescription>选择标准模板或自定义，依据参考范围自动判断结果。</DialogDescription>
+            <DialogDescription>
+              选择组合（血常规/肝肾功能等）一键带入多个指标，或自由勾选单个指标，批量录入后自动判断结果。
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>
                 检查日期 <span className="text-destructive">*</span>
               </Label>
-              <Input type="date" value={form.check_date} onChange={(e) => set('check_date', e.target.value)} />
+              <Input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>模板库</Label>
-              <Select value={form.template_id} onValueChange={selectTemplate} disabled={!!editing}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择模板自动填充" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.length === 0 && (
-                    <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无模板，请在"模板库"中添加</div>
+
+            {!editing && (
+              <>
+                <div className="space-y-2">
+                  <Label>选择组合（套餐）</Label>
+                  <Select onValueChange={(v) => {
+                    const opt = mergedPanelOptions.find((o) => o.key === v)
+                    if (opt) applyPanel(opt)
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="点击选择组合，自动带入多个指标" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mergedPanelOptions.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">暂无组合，可在「模板库」中添加</div>
+                      )}
+                      {mergedPanelOptions.map((o) => (
+                        <SelectItem key={o.key} value={o.key}>
+                          {o.builtIn ? `[内置] ${o.panel_name}` : o.panel_name}
+                          <span className="text-muted-foreground">（{o.items.length} 项）</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>自由勾选指标（可多选）</Label>
+                  {selectableTemplates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">暂无单指标模板，可在「模板库」中添加或直接在下方手动录入。</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectableTemplates.map((t) => {
+                        const active = recordItems.some((r) => r.item_name === t.item_name)
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => toggleTemplate(t)}
+                            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                              active
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'hover:border-foreground/25 hover:bg-muted/50'
+                            }`}
+                          >
+                            {t.item_name}
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.category ? `[${t.category}] ` : ''}
-                      {t.item_name}
-                    </SelectItem>
+                </div>
+              </>
+            )}
+
+            <div className="space-y-2">
+              <Label>
+                待录入指标 <span className="text-destructive">*</span>
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {recordItems.length} 项{editing ? '' : '（未填数值的自动跳过）'}
+                </span>
+              </Label>
+              {recordItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+                  请选择组合或勾选指标，开始批量录入
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {recordItems.map((r, idx) => (
+                    <div key={r.item_name + idx} className="flex items-start gap-2 rounded-lg border p-2.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{r.item_name}</span>
+                          {!editing && (
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-destructive"
+                              onClick={() => removeRecordItem(idx)}
+                            >
+                              <X className="size-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={r.value}
+                            placeholder="数值"
+                            onChange={(e) => updateRecordItem(idx, { value: e.target.value })}
+                            className="h-8 w-28"
+                            disabled={!!editing}
+                          />
+                          {r.unit && <span className="text-xs text-muted-foreground">{r.unit}</span>}
+                          {r.reference_range && (
+                            <span className="text-xs text-muted-foreground">参考 {r.reference_range}</span>
+                          )}
+                          {r.value !== '' && judge(r.value, r.ref_low, r.ref_high) && (
+                            <Badge className={resultMeta[judge(r.value, r.ref_low, r.ref_high)]?.className}>
+                              {resultMeta[judge(r.value, r.ref_low, r.ref_high)]?.label}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label>
-                指标名称 <span className="text-destructive">*</span>
-              </Label>
-              <Input value={form.item_name} onChange={(e) => set('item_name', e.target.value)} disabled={!!editing} />
-            </div>
-            <div className="space-y-2">
-              <Label>
-                数值 <span className="text-destructive">*</span>
-              </Label>
-              <Input type="number" step="0.01" value={form.value} onChange={(e) => set('value', e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>单位</Label>
-              <Input value={form.unit} onChange={(e) => set('unit', e.target.value)} disabled={!!editing} />
-            </div>
-            <div className="space-y-2">
-              <Label>参考下限</Label>
-              <Input type="number" step="0.01" value={form.ref_low} onChange={(e) => set('ref_low', e.target.value)} disabled={!!editing} />
-            </div>
-            <div className="space-y-2">
-              <Label>参考上限</Label>
-              <Input type="number" step="0.01" value={form.ref_high} onChange={(e) => set('ref_high', e.target.value)} disabled={!!editing} />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label>结果（自动判断）</Label>
-              <div className="flex items-center gap-2 text-sm">
-                {computedResult ? (
-                  <>
-                    <Badge className={resultMeta[computedResult]?.className}>
-                      {resultMeta[computedResult]?.label}
-                    </Badge>
-                    <span className="text-muted-foreground">依据参考范围自动判断</span>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">输入数值与参考范围后自动判断</span>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label>备注</Label>
-              <Textarea value={form.note} onChange={(e) => set('note', e.target.value)} />
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={submit} disabled={saving || !form.check_date || !form.item_name || form.value === ''}>
+            <Button
+              onClick={submit}
+              disabled={
+                saving ||
+                !checkDate ||
+                recordItems.length === 0 ||
+                (!editing && recordItems.every((r) => r.value === ''))
+              }
+            >
               {saving && <Loader2 className="animate-spin" />}
               保存
             </Button>
@@ -505,55 +688,139 @@ export function CheckupPage() {
         </DialogContent>
       </Dialog>
 
+      {/* 模板库：单指标模板 + 组合模板 */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>指标模板库</DialogTitle>
-            <DialogDescription>配置常用体检指标的类别、单位与参考范围，便于快速录入。</DialogDescription>
+            <DialogDescription>
+              单指标模板用于自由勾选；组合模板（套餐）可一次带入多个指标（如血常规、肝肾功能）。
+            </DialogDescription>
           </DialogHeader>
-          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-            {templates.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">暂无模板，点击右上角"新增模板"开始添加。</div>
-            ) : (
-              templates.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{t.item_name}</span>
-                      {t.category && <Badge variant="secondary">{t.category}</Badge>}
-                    </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">
-                      参考范围 {t.ref_low != null || t.ref_high != null ? `${t.ref_low ?? ''}~${t.ref_high ?? ''}` : '—'}
-                      {t.unit ? ` · ${t.unit}` : ''}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openTemplateEdit(t)}>
-                      <Pencil />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTemplate(t)}>
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+            {(
+              [
+                ['single', '单指标'],
+                ['panel', '组合套餐'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setLibTab(key)}
+                className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                  libTab === key ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+
+          {libTab === 'single' ? (
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {templates.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">暂无单指标模板，点击"新增指标"开始添加。</div>
+              ) : (
+                templates.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{t.item_name}</span>
+                        {t.category && <Badge variant="secondary">{t.category}</Badge>}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        参考范围 {t.ref_low != null || t.ref_high != null ? fmtRange(t.ref_low ?? null, t.ref_high ?? null) : '—'}
+                        {t.unit ? ` · ${t.unit}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openTemplateEdit(t)}>
+                        <Pencil />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTemplate(t)}>
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+              {panels.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  暂无组合模板。可从右下角内置套餐参考，点击"新增组合"自由编排多个指标。
+                </div>
+              ) : (
+                panels.map((p) => (
+                  <div key={p.id} className="space-y-1 rounded-lg border p-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">{p.panel_name}</span>
+                          <Badge variant="secondary">{p.items.length} 项</Badge>
+                        </div>
+                        {p.note && <div className="mt-0.5 text-xs text-muted-foreground">{p.note}</div>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openPanelEdit(p)}>
+                          <Pencil />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePanel(p)}>
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {p.items.slice(0, 6).map((it) => (
+                        <span key={it.item_name} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                          {it.item_name}
+                        </span>
+                      ))}
+                      {p.items.length > 6 && (
+                        <span className="text-xs text-muted-foreground">+{p.items.length - 6}</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-muted-foreground">内置参考（血常规 / 肝肾功能 / 血脂 / 血糖）</div>
+            <div className="flex max-h-40 flex-col gap-1 overflow-y-auto pr-1">
+              {presets.map((p) => (
+                <div key={p.panel_name} className="flex items-center justify-between rounded-lg border px-2.5 py-2 text-sm">
+                  <span className="font-medium">{p.panel_name}</span>
+                  <span className="text-xs text-muted-foreground">{p.items.map((i) => i.item_name).join('、')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
               关闭
             </Button>
-            <Button onClick={openTemplateCreate}>
-              <Plus /> 新增模板
-            </Button>
+            {libTab === 'single' ? (
+              <Button onClick={openTemplateCreate}>
+                <Plus /> 新增指标
+              </Button>
+            ) : (
+              <Button onClick={openPanelCreate}>
+                <Plus /> 新增组合
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* 新增/编辑单指标模板 */}
       <Dialog open={templateFormOpen} onOpenChange={setTemplateFormOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingTemplate ? '编辑模板' : '新增模板'}</DialogTitle>
+            <DialogTitle>{editingTemplate ? '编辑指标模板' : '新增指标模板'}</DialogTitle>
             <DialogDescription>配置体检指标的类别、单位与参考范围，用于快速录入。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
@@ -586,6 +853,134 @@ export function CheckupPage() {
             </Button>
             <Button onClick={saveTemplate} disabled={savingTemplate || !tplForm.item_name.trim()}>
               {savingTemplate && <Loader2 className="animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新增/编辑组合模板（套餐） */}
+      <Dialog open={panelFormOpen} onOpenChange={setPanelFormOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{editingPanel ? '编辑组合模板' : '新增组合模板'}</DialogTitle>
+            <DialogDescription>
+              给组合命名，并编排它包含的多个体检指标（如血常规、肝肾功能）。可随手从上方单指标模板与内置套餐组合编排。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>
+                  组合名称 <span className="text-destructive">*</span>
+                </Label>
+                <Input value={panelName} onChange={(e) => setPanelName(e.target.value)} placeholder="如：血常规、肝肾功能" />
+              </div>
+              <div className="space-y-2">
+                <Label>说明</Label>
+                <Input value={panelNote} onChange={(e) => setPanelNote(e.target.value)} placeholder="可选" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>快速添加单指标模板</Label>
+              {templates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">暂无单指标模板，可直接在下方手动添加。</p>
+              ) : (
+                <Select onValueChange={(v) => {
+                  const id = Number(v)
+                  const t = templates.find((x) => x.id === id)
+                  if (t && !panelItems.some((it) => it.item_name === t.item_name)) {
+                    setPanelItems((prev) => [
+                      ...prev,
+                      {
+                        item_name: t.item_name,
+                        unit: t.unit ?? '',
+                        ref_low: t.ref_low ?? null,
+                        ref_high: t.ref_high ?? null,
+                        reference_range: fmtRange(t.ref_low ?? null, t.ref_high ?? null),
+                      },
+                    ])
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择模板加入组合" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.category ? `[${t.category}] ` : ''}
+                        {t.item_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>
+                  组合指标（{panelItems.length} 项）
+                </Label>
+                <Button variant="outline" size="sm" onClick={addPanelItem}>
+                  <Plus /> 手动添加
+                </Button>
+              </div>
+              {panelItems.length === 0 ? (
+                <p className="rounded-lg border border-dashed py-6 text-center text-sm text-muted-foreground">
+                  通过上方模板选择或"手动添加"来编排组合指标
+                </p>
+              ) : (
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {panelItems.map((it, idx) => (
+                    <div key={idx} className="flex items-center gap-2 rounded-lg border p-2">
+                      <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removePanelItem(idx)}>
+                        <X className="size-4" />
+                      </button>
+                      <Input
+                        value={it.item_name}
+                        placeholder="指标名"
+                        onChange={(e) => setPanelItem(idx, { item_name: e.target.value })}
+                        className="h-8 flex-1"
+                      />
+                      <Input
+                        value={it.unit ?? ''}
+                        placeholder="单位"
+                        onChange={(e) => setPanelItem(idx, { unit: e.target.value })}
+                        className="h-8 w-24"
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={it.ref_low ?? ''}
+                        placeholder="下限"
+                        onChange={(e) => setPanelItem(idx, { ref_low: e.target.value === '' ? null : Number(e.target.value) })}
+                        className="h-8 w-20"
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={it.ref_high ?? ''}
+                        placeholder="上限"
+                        onChange={(e) => setPanelItem(idx, { ref_high: e.target.value === '' ? null : Number(e.target.value) })}
+                        className="h-8 w-20"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPanelFormOpen(false)}>
+              取消
+            </Button>
+            <Button
+              onClick={savePanel}
+              disabled={savingPanel || !panelName.trim() || panelItems.length === 0}
+            >
+              {savingPanel && <Loader2 className="animate-spin" />}
               保存
             </Button>
           </DialogFooter>

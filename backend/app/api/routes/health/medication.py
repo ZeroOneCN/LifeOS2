@@ -84,6 +84,60 @@ def _medication_stats(db: Session, days: int) -> dict:
     }
 
 
+# ---- 药品库存（固定静态路由，需在动态 /{item_id} 之前注册） ----
+def _register_fixed(router) -> None:
+
+    @router.get("/stocks")
+    def list_stocks(db: Session = Depends(get_db)):
+        stocks = _get_stock_list(db)
+        return {
+            "items": stocks,
+            "total": len(stocks),
+            "low_count": sum(1 for s in stocks if s["is_low"]),
+        }
+
+    @router.post("/stocks", response_model=MedStockRead)
+    def upsert_stock(payload: MedStockCreate, db: Session = Depends(get_db)):
+        existing = db.scalar(
+            select(HealthMedStock).where(HealthMedStock.medicine_name == payload.medicine_name)
+        )
+        if existing:
+            for key, value in payload.model_dump().items():
+                setattr(existing, key, value)
+            db.commit()
+            db.refresh(existing)
+            return existing
+        obj = HealthMedStock(**payload.model_dump())
+        db.add(obj)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @router.put("/stocks/{stock_id}", response_model=MedStockRead)
+    def update_stock(stock_id: int, payload: MedStockCreate, db: Session = Depends(get_db)):
+        from fastapi import HTTPException
+
+        obj = db.get(HealthMedStock, stock_id)
+        if not obj:
+            raise HTTPException(status_code=404, detail="库存记录不存在")
+        for key, value in payload.model_dump().items():
+            setattr(obj, key, value)
+        db.commit()
+        db.refresh(obj)
+        return obj
+
+    @router.delete("/stocks/{stock_id}", status_code=204)
+    def delete_stock(stock_id: int, db: Session = Depends(get_db)):
+        from fastapi import HTTPException
+
+        obj = db.get(HealthMedStock, stock_id)
+        if not obj:
+            raise HTTPException(status_code=404, detail="库存记录不存在")
+        db.delete(obj)
+        db.commit()
+        return None
+
+
 # ---- 每日用药（分早/午/晚） ----
 router = crud_router(
     prefix="/health/medication",
@@ -94,6 +148,7 @@ router = crud_router(
     order_by=HealthMedication.record_date,
     date_column="record_date",
     stats_func=_medication_stats,
+    extra_routes=_register_fixed,
 )
 
 # ---- 购药记录 ----
@@ -162,58 +217,3 @@ def _get_stock_list(db: Session) -> list[dict]:
             }
         )
     return rows
-
-
-# ---- 药品库存 ----
-@router.get("/stocks")
-def list_stocks(db: Session = Depends(get_db)):
-    stocks = _get_stock_list(db)
-    return {
-        "items": stocks,
-        "total": len(stocks),
-        "low_count": sum(1 for s in stocks if s["is_low"]),
-    }
-
-
-@router.post("/stocks", response_model=MedStockRead)
-def upsert_stock(payload: MedStockCreate, db: Session = Depends(get_db)):
-    existing = db.scalar(
-        select(HealthMedStock).where(HealthMedStock.medicine_name == payload.medicine_name)
-    )
-    if existing:
-        for key, value in payload.model_dump().items():
-            setattr(existing, key, value)
-        db.commit()
-        db.refresh(existing)
-        return existing
-    obj = HealthMedStock(**payload.model_dump())
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-
-@router.put("/stocks/{stock_id}", response_model=MedStockRead)
-def update_stock(stock_id: int, payload: MedStockCreate, db: Session = Depends(get_db)):
-    obj = db.get(HealthMedStock, stock_id)
-    if not obj:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=404, detail="库存记录不存在")
-    for key, value in payload.model_dump().items():
-        setattr(obj, key, value)
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-
-@router.delete("/stocks/{stock_id}", status_code=204)
-def delete_stock(stock_id: int, db: Session = Depends(get_db)):
-    from fastapi import HTTPException
-
-    obj = db.get(HealthMedStock, stock_id)
-    if not obj:
-        raise HTTPException(status_code=404, detail="库存记录不存在")
-    db.delete(obj)
-    db.commit()
-    return None

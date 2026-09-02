@@ -14,6 +14,7 @@ from app.api.routes.health import (
 )
 
 router = APIRouter()
+# 固定子路由（template/panel）需在 checkup 的 /{item_id} 之前注册，否则会被捕获
 for sub in (
     overview,
     vitals_sleep,
@@ -22,8 +23,10 @@ for sub in (
     body,
     dashboard,
     steps,
+    checkup.template_router,
+    checkup.panel_router,
     checkup,
     reports,
     medication,
 ):
-    router.include_router(sub.router)
+    router.include_router(getattr(sub, "router", sub))

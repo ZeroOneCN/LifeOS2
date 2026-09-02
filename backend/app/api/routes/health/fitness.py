@@ -46,6 +46,22 @@ def _fitness_stats(db: Session, days: int) -> dict:
     }
 
 
+def _register_fixed(router) -> None:
+
+    @router.get("/estimate")
+    def estimate(exercise_type: str = Query(..., max_length=32), duration_min: int = Query(30, ge=1), weight_kg: float = Query(65, gt=0)):
+        """根据运动类型与时长(可选体重)估算消耗热量，供前端自动填写。"""
+        calories, matched_key = estimate_calories(exercise_type, duration_min, weight_kg)
+        return {
+            "exercise_type": exercise_type,
+            "duration_min": duration_min,
+            "weight_kg": weight_kg,
+            "calories": calories,
+            "matched": matched_key is not None,
+            "matched_key": matched_key,
+        }
+
+
 router = crud_router(
     prefix="/health/fitness",
     tag="health-fitness",
@@ -55,18 +71,5 @@ router = crud_router(
     order_by=HealthFitness.record_date,
     date_column="record_date",
     stats_func=_fitness_stats,
+    extra_routes=_register_fixed,
 )
-
-
-@router.get("/estimate")
-def estimate(exercise_type: str = Query(..., max_length=32), duration_min: int = Query(30, ge=1), weight_kg: float = Query(65, gt=0)):
-    """根据运动类型与时长(可选体重)估算消耗热量，供前端自动填写。"""
-    calories, matched_key = estimate_calories(exercise_type, duration_min, weight_kg)
-    return {
-        "exercise_type": exercise_type,
-        "duration_min": duration_min,
-        "weight_kg": weight_kg,
-        "calories": calories,
-        "matched": matched_key is not None,
-        "matched_key": matched_key,
-    }

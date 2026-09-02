@@ -20,8 +20,13 @@ def crud_router(
     order_by,
     date_column: str | None = None,
     stats_func: Callable[[Session, int], dict] | None = None,
+    extra_routes: Callable[[APIRouter], None] | None = None,
 ) -> APIRouter:
-    """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。"""
+    """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
+
+    extra_routes: 在动态路由 /{item_id} 之前注册的固定路由，用于 painless 增加
+                  /estimate、/settings、/monthly 等静态端点，避免与 /{item_id} 冲突。
+    """
 
     router = APIRouter(prefix=prefix, tags=[tag])
 
@@ -53,6 +58,10 @@ def crud_router(
         @router.get("/stats")
         def stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
             return stats_func(db, days)
+
+    # 固定静态路由（/estimate、/settings 等）必须在 /{item_id} 之前注册
+    if extra_routes:
+        extra_routes(router)
 
     @router.get("/{item_id}", response_model=read_schema)
     def get_item(item_id: int, db: Session = Depends(get_db)):
