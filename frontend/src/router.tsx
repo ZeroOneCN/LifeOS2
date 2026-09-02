@@ -16,6 +16,10 @@ import { HealthOverviewPage } from '@/pages/health/overview'
 import { ReportsPage } from '@/pages/health/reports'
 import { StepsPage } from '@/pages/health/steps'
 import { VitalsSleepPage } from '@/pages/health/vitals-sleep'
+import { ItemsPage } from '@/pages/lifestyle/items'
+import { SchedulePage } from '@/pages/lifestyle/schedule'
+import { SimCardsPage } from '@/pages/lifestyle/sim-cards'
+import { TodosPage } from '@/pages/lifestyle/todos'
 import { NotFoundPage } from '@/pages/not-found'
 import { PlaceholderPage } from '@/pages/placeholder'
 
@@ -34,6 +38,10 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/finance/bills': <BillsPage />,
   '/finance/reminders': <RemindersPage />,
   '/finance/planning': <PlanningPage />,
+  '/lifestyle/items': <ItemsPage />,
+  '/lifestyle/sim-cards': <SimCardsPage />,
+  '/lifestyle/todos': <TodosPage />,
+  '/lifestyle/schedule': <SchedulePage />,
 }
 
 const placeholderRoutes = navigation.flatMap((section) =>

@@ -13,6 +13,12 @@ from app.models.health import (
     HealthSteps,
     HealthVitalsSleep,
 )
+from app.models.lifestyle import (
+    LifestyleItem,
+    LifestyleSchedule,
+    LifestyleSimCard,
+    LifestyleTodo,
+)
 
 __all__ = [
     "HealthVitalsSleep",
@@ -26,4 +32,8 @@ __all__ = [
     "FinanceBill",
     "FinanceReminder",
     "FinancePlan",
+    "LifestyleItem",
+    "LifestyleSimCard",
+    "LifestyleTodo",
+    "LifestyleSchedule",
 ]
