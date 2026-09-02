@@ -1,14 +1,108 @@
 from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
-from app.models import FinanceReminder
+from app.api.routes.finance.subscriptions import _next_renewal
+from app.core.database import get_db
+from app.models import (
+    FinanceLoanBill,
+    FinanceReminder,
+    FinanceSubscription,
+    FinanceUtility,
+)
 from app.schemas.finance import ReminderCreate, ReminderRead
 
 router = APIRouter()
+
+
+@router.get("/finance/reminders/aggregate")
+def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
+    """聚合财务中心各模块的待办提醒，避免遗漏。"""
+    today = date.today()
+    items = []
+
+    # 服务订阅：即将续费
+    subs = db.scalars(
+        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+    ).all()
+    for s in subs:
+        next_renewal = _next_renewal(s.start_date, s.billing_cycle, today)
+        if (next_renewal - today).days <= s.remind_days:
+            items.append(
+                {
+                    "source": "订阅",
+                    "source_label": "服务订阅",
+                    "title": f"{s.name} 续费",
+                    "amount": s.amount,
+                    "due_date": next_renewal.isoformat(),
+                    "status": "overdue" if next_renewal < today else "pending",
+                }
+            )
+
+    # 水电账单：未缴费
+    utils = db.scalars(
+        select(FinanceUtility).where(FinanceUtility.paid.is_(False))
+    ).all()
+    for u in utils:
+        due = u.due_date or u.bill_month.replace(day=1)
+        items.append(
+            {
+                "source": "水电气",
+                "source_label": "水电账单",
+                "title": f"{u.fee_type}缴费（{u.bill_month.isoformat()}）",
+                "amount": u.amount,
+                "due_date": due.isoformat(),
+                "status": "overdue" if due < today else "pending",
+            }
+        )
+
+    # 网贷账单：待还（剩余>0）
+    bills = db.scalars(
+        select(FinanceLoanBill).where(FinanceLoanBill.status.in_(["pending", "partial"]))
+    ).all()
+    for b in bills:
+        remaining = b.amount - b.paid_amount
+        if remaining <= 0:
+            continue
+        due = b.due_date or b.bill_month.replace(day=1)
+        items.append(
+            {
+                "source": "网贷",
+                "source_label": "网贷账单",
+                "title": f"网贷还款（{b.bill_month.isoformat()}）",
+                "amount": round(remaining, 2),
+                "due_date": due.isoformat(),
+                "status": "overdue" if due < today else "pending",
+            }
+        )
+
+    # 手动提醒：待处理
+    manuals = db.scalars(
+        select(FinanceReminder).where(FinanceReminder.status == "pending")
+    ).all()
+    for m in manuals:
+        due = m.due_date or m.reminder_date
+        items.append(
+            {
+                "source": "手动",
+                "source_label": "手动提醒",
+                "title": m.title,
+                "amount": m.amount,
+                "due_date": due.isoformat(),
+                "status": "overdue" if due < today else "pending",
+            }
+        )
+
+    items.sort(key=lambda x: x["due_date"])
+    return {
+        "total": len(items),
+        "pending": sum(1 for i in items if i["status"] == "pending"),
+        "overdue": sum(1 for i in items if i["status"] == "overdue"),
+        "items": items,
+    }
 
 
 def _reminder_stats(db: Session, days: int) -> dict:
@@ -39,7 +133,8 @@ def _reminder_stats(db: Session, days: int) -> dict:
     }
 
 
-router = crud_router(
+router.include_router(
+    crud_router(
     prefix="/finance/reminders",
     tag="finance-reminders",
     model=FinanceReminder,
@@ -48,4 +143,5 @@ router = crud_router(
     order_by=FinanceReminder.reminder_date,
     date_column="reminder_date",
     stats_func=_reminder_stats,
+)
 )
