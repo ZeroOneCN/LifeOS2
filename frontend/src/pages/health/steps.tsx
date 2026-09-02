@@ -78,7 +78,6 @@ const EMPTY = {
   record_date: new Date().toISOString().slice(0, 10),
   period: 'full',
   steps: '',
-  calories: '',
 }
 
 export function StepsPage() {
@@ -137,7 +136,6 @@ export function StepsPage() {
       record_date: row.record_date,
       period: row.period,
       steps: String(row.steps),
-      calories: String(row.calories ?? ''),
     })
     setDialogOpen(true)
   }
@@ -149,7 +147,6 @@ export function StepsPage() {
       record_date: form.record_date,
       period: form.period,
       steps: Number(form.steps),
-      calories: form.calories === '' ? null : Number(form.calories),
     }
     setSaving(true)
     try {
@@ -444,7 +441,15 @@ export function StepsPage() {
             </div>
             <div className="space-y-2">
               <Label>消耗(kcal)</Label>
-              <Input type="number" step="0.1" value={form.calories} onChange={(e) => set('calories', e.target.value)} placeholder="自动≈步数*0.04" />
+              <Input
+                type="number"
+                min="0"
+                step="0.1"
+                value={((Number(form.steps) || 0) * 0.04).toFixed(1)}
+                readOnly
+                placeholder="自动≈步数*0.04"
+              />
+              <p className="text-xs text-muted-foreground">消耗随步数自动计算（步数×0.04），不可手动修改</p>
             </div>
           </div>
           <DialogFooter>
