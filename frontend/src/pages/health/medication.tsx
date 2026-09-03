@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -596,7 +597,7 @@ export function MedicationPage() {
               <>
                 <div className="space-y-2">
                   <Label>日期 <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={medForm.record_date} onChange={(e) => setMed('record_date', e.target.value)} />
+                  <DatePicker value={medForm.record_date} onChange={(v) => setMed('record_date', v)} />
                 </div>
                 <div className="space-y-2">
                   <Label>餐次</Label>
@@ -637,7 +638,7 @@ export function MedicationPage() {
               <>
                 <div className="space-y-2">
                   <Label>购药日期 <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={purForm.buy_date} onChange={(e) => setPur('buy_date', e.target.value)} />
+                  <DatePicker value={purForm.buy_date} onChange={(v) => setPur('buy_date', v)} />
                 </div>
                 <div className="space-y-2">
                   <Label>药品名称 <span className="text-destructive">*</span></Label>

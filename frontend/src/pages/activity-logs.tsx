@@ -20,7 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -247,11 +247,11 @@ export function ActivityLogsPage() {
           </div>
           <div className="space-y-2">
             <Label>开始日期</Label>
-            <Input type="date" value={start} onChange={(e) => { setStart(e.target.value); setPage(1) }} />
+            <DatePicker value={start} onChange={(v) => { setStart(v); setPage(1) }} />
           </div>
           <div className="space-y-2">
             <Label>结束日期</Label>
-            <Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); setPage(1) }} />
+            <DatePicker value={end} onChange={(v) => { setEnd(v); setPage(1) }} />
           </div>
         </CardContent>
       </Card>

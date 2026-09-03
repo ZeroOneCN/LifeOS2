@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -478,7 +479,7 @@ export function ShoppingPage() {
             <DialogDescription>{editing ? '修改并保存本条记录。' : '填写购物明细创建一条记录。'}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>日期 <span className="text-destructive">*</span></Label><Input type="date" value={form.record_date} onChange={(e) => setForm({ ...form, record_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>日期 <span className="text-destructive">*</span></Label><DatePicker value={form.record_date} onChange={(v) => setForm({ ...form, record_date: v })} /></div>
             <div className="space-y-2"><Label>平台</Label>
               <Select value={form.platform_id} onValueChange={(v) => setForm({ ...form, platform_id: v })}>
                 <SelectTrigger><SelectValue placeholder="选择平台" /></SelectTrigger>

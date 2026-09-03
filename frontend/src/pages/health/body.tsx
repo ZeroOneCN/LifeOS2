@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -317,7 +318,7 @@ export function BodyPage() {
               <Label>
                 日期 <span className="text-destructive">*</span>
               </Label>
-              <Input type="date" value={form.record_date} onChange={(e) => set('record_date', e.target.value)} />
+              <DatePicker value={form.record_date} onChange={(v) => set('record_date', v)} />
             </div>
             <div className="space-y-2">
               <Label>性别</Label>

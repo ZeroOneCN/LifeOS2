@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -777,7 +778,7 @@ function FundsSection() {
             </div>
             <div className="space-y-2">
               <Label>发生日期</Label>
-              <Input type="date" value={form.record_date} onChange={(e) => setForm((f) => ({ ...f, record_date: e.target.value }))} />
+              <DatePicker value={form.record_date} onChange={(v) => setForm((f) => ({ ...f, record_date: v }))} />
             </div>
             <div className="space-y-2">
               <Label>金额</Label>

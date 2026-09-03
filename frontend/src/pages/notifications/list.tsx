@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -339,7 +340,7 @@ export function NotificationList() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="notify_date">通知日期<span className="text-destructive"> *</span></Label>
-              <Input id="notify_date" type="date" value={form.notify_date ?? ''} onChange={(e) => setForm((f) => ({ ...f, notify_date: e.target.value }))} />
+              <DatePicker id="notify_date" value={form.notify_date ?? ''} onChange={(v) => setForm((f) => ({ ...f, notify_date: v }))} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="read">已读状态</Label>

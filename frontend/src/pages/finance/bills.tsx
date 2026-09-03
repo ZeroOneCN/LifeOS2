@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -335,8 +336,8 @@ function HousingTab() {
             <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
             <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
             <div className="space-y-2"><Label>租房渠道</Label><Input value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} placeholder="贝壳/自如/中介" /></div>
-            <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><Input type="date" value={form.move_in_date} onChange={(e) => setForm({ ...form, move_in_date: e.target.value })} /></div>
-            <div className="space-y-2"><Label>退租时间</Label><Input type="date" value={form.move_out_date} onChange={(e) => setForm({ ...form, move_out_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
+            <div className="space-y-2"><Label>退租时间</Label><DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} /></div>
             <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} /></div>
             <div className="space-y-2"><Label>缴纳方式</Label>
               <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
@@ -367,7 +368,7 @@ function HousingTab() {
             <DialogDescription>记录水、电、燃气等费用。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><Input type="date" value={form.bill_month} onChange={(e) => setForm({ ...form, bill_month: e.target.value })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><DatePicker value={form.bill_month} onChange={(v) => setForm({ ...form, bill_month: v })} /></div>
             <div className="space-y-2"><Label>关联住房</Label>
               <Select value={form.housing_id} onValueChange={(v) => setForm({ ...form, housing_id: v })}>
                 <SelectTrigger><SelectValue placeholder="选择住房" /></SelectTrigger>
@@ -384,7 +385,7 @@ function HousingTab() {
               </Select>
             </div>
             <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            <div className="space-y-2"><Label>到期日</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={form.paid} onValueChange={(v) => setForm({ ...form, paid: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -573,7 +574,7 @@ function SubscriptionTab() {
               </Select>
             </div>
             <div className="space-y-2"><Label>每期金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            <div className="space-y-2"><Label>起始时间 <span className="text-destructive">*</span></Label><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>起始时间 <span className="text-destructive">*</span></Label><DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} /></div>
             <div className="space-y-2"><Label>过期前提醒(天)</Label><Input type="number" min={0} value={form.remind_days} onChange={(e) => setForm({ ...form, remind_days: e.target.value })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
@@ -919,8 +920,8 @@ function LoanTab() {
                 <SelectContent>{platforms.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><Input type="date" value={billForm.bill_month} onChange={(e) => setBillForm({ ...billForm, bill_month: e.target.value })} /></div>
-            <div className="space-y-2"><Label>到期日</Label><Input type="date" value={billForm.due_date} onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><DatePicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={billForm.due_date} onChange={(v) => setBillForm({ ...billForm, due_date: v })} /></div>
             <div className="space-y-2"><Label>欠款(含利息) <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={billForm.status} onValueChange={(v) => setBillForm({ ...billForm, status: v })}>
@@ -947,7 +948,7 @@ function LoanTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><Input type="date" value={repayForm.repay_date} onChange={(e) => setRepayForm({ ...repayForm, repay_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
             <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} /></div>

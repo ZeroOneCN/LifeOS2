@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -546,7 +547,7 @@ export function CheckupPage() {
               <Label>
                 检查日期 <span className="text-destructive">*</span>
               </Label>
-              <Input type="date" value={checkDate} onChange={(e) => setCheckDate(e.target.value)} />
+              <DatePicker value={checkDate} onChange={(v) => setCheckDate(v)} />
             </div>
 
             {!editing && (

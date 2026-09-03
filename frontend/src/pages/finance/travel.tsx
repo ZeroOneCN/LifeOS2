@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -503,7 +504,7 @@ export function TravelPage() {
             <DialogDescription>{editing ? '修改并保存本条明细。' : '填写费用与日程信息创建明细。'}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>日期 <span className="text-destructive">*</span></Label><Input type="date" value={form.detail_date} onChange={(e) => setForm({ ...form, detail_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>日期 <span className="text-destructive">*</span></Label><DatePicker value={form.detail_date} onChange={(v) => setForm({ ...form, detail_date: v })} /></div>
             <div className="space-y-2"><Label>分类 <span className="text-destructive">*</span></Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>

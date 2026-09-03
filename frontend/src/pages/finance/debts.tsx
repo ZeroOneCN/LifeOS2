@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -278,7 +279,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             <DialogDescription>记参与民间借款，支持灵活还款。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>日期 *</Label><Input type="date" value={form.debt_date} onChange={(e) => setForm({ ...form, debt_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={form.debt_date} onChange={(v) => setForm({ ...form, debt_date: v })} /></div>
             <div className="space-y-2"><Label>债务名称 *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 朋友借款 / 房贷" /></div>
             <div className="space-y-2"><Label>方向 *</Label>
               <Select value={form.direction} onValueChange={(v) => setForm({ ...form, direction: v })}>
@@ -290,7 +291,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             <div className="space-y-2"><Label>额度使用(总额) *</Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>剩余债务</Label><Input type="number" min={0} step="0.01" value={form.remaining} onChange={(e) => setForm({ ...form, remaining: e.target.value })} /></div>
             <div className="space-y-2"><Label>年利率(%)</Label><Input type="number" step="0.01" min={0} value={form.interest_rate} onChange={(e) => setForm({ ...form, interest_rate: e.target.value })} /></div>
-            <div className="space-y-2"><Label>还款日</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款日</Label><DatePicker value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -316,7 +317,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>日期 *</Label><Input type="date" value={repayForm.repay_date} onChange={(e) => setRepayForm({ ...repayForm, repay_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
             <div className="space-y-2"><Label>金额 *</Label><Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} /></div>
           </div>
           <DialogFooter>
@@ -543,7 +544,7 @@ function MemoTab() {
           <div className="space-y-4">
             <div className="space-y-2"><Label>标题 *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
             <div className="space-y-2"><Label>内容</Label><Textarea className="min-h-[120px]" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="写下你的模糊记忆…" /></div>
-            <div className="space-y-2"><Label>日期</Label><Input type="date" value={form.memo_date} onChange={(e) => setForm({ ...form, memo_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>日期</Label><DatePicker value={form.memo_date} onChange={(v) => setForm({ ...form, memo_date: v })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>

@@ -1,5 +1,5 @@
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import {
   Select,
   SelectContent,
@@ -60,18 +60,18 @@ export function ReportPeriodPicker({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>开始日期</Label>
-            <Input
-              type="date"
+            <DatePicker
               value={value.start_date ?? ''}
-              onChange={(e) => onChange({ ...value, start_date: e.target.value })}
+              onChange={(v) => onChange({ ...value, start_date: v })}
+              placeholder="开始日期"
             />
           </div>
           <div className="space-y-1.5">
             <Label>结束日期</Label>
-            <Input
-              type="date"
+            <DatePicker
               value={value.end_date ?? ''}
-              onChange={(e) => onChange({ ...value, end_date: e.target.value })}
+              onChange={(v) => onChange({ ...value, end_date: v })}
+              placeholder="结束日期"
             />
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -304,10 +305,17 @@ export function RecordManager<T extends { id: number }>({
                     onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
                     placeholder={field.placeholder}
                   />
+                ) : field.type === 'date' ? (
+                  <DatePicker
+                    id={field.key}
+                    value={form[field.key] ?? ''}
+                    onChange={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
+                    placeholder={field.placeholder ?? '选择日期'}
+                  />
                 ) : (
                   <Input
                     id={field.key}
-                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : field.type === 'datetime' ? 'datetime-local' : 'text'}
+                    type={field.type === 'number' ? 'number' : field.type === 'time' ? 'time' : field.type === 'datetime' ? 'datetime-local' : 'text'}
                     step={field.step}
                     min={field.min}
                     value={form[field.key] ?? ''}
