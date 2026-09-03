@@ -212,7 +212,7 @@ export function FitnessPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-end gap-2">
         <StatsPeriodPicker
           value={days}
           onChange={(d) => {
