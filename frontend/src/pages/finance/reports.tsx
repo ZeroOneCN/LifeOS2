@@ -29,6 +29,7 @@ import {
   type ReportPeriod,
 } from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
+import { formatDateTime } from '@/lib/utils'
 
 type ReportItem = {
   id: number
@@ -312,7 +313,7 @@ export function FinanceReportsPage() {
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
                       {r.period_label}
-                      {r.created_at ? ` · ${r.created_at}` : ''}
+                      {r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">

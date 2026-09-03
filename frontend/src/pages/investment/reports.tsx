@@ -28,6 +28,7 @@ import {
   type ReportPeriod,
 } from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
+import { formatDateTime } from '@/lib/utils'
 
 type ReportItem = { id: number; title: string; period_label?: string; created_at?: string }
 type ReportDetail = ReportItem & { summary?: string; content?: unknown }
@@ -242,7 +243,7 @@ export function InvestmentReportsPage() {
                       <FileText className="size-4 shrink-0 text-indigo-600" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${r.created_at}` : ''}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}</div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button size="icon" variant="ghost" title="导出 PDF" onClick={() => handleExport(r.id)} disabled={exportingId === r.id}>

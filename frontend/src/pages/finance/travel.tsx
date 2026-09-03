@@ -52,6 +52,7 @@ import {
   type ReportPeriod,
 } from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
+import { formatDateTime } from '@/lib/utils'
 
 const PAGE_SIZE = 10
 
@@ -619,7 +620,7 @@ export function TravelPage() {
                       <div className="truncate font-medium">{r.title}</div>
                       <div className="text-xs text-muted-foreground">
                         {r.period_start && r.period_end ? `${r.period_start} ~ ${r.period_end}` : ''}
-                        {r.created_at ? ` · ${r.created_at}` : ''}
+                        {r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}
                       </div>
                     </button>
                     <Button size="sm" variant="ghost" onClick={() => exportReport(r.id)} disabled={exportingId === r.id}>
