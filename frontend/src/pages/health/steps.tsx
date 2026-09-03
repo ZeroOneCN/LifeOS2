@@ -54,6 +54,16 @@ type StepsStats = {
 
 type MonthlyStats = { months: { month: string; steps: number; distance_km: number; days: number }[] }
 
+type DaySummary = {
+  month: string
+  items: { record_date: string; steps: number; distance_km?: number; calories?: number }[]
+  total: number
+  page: number
+  page_size: number
+}
+
+const DAILY_PAGE_SIZE = 8
+
 // 逐小时时段：08-09 … 22-23，末段 23:59 为全天最终累计数据
 const PERIODS = [
   { value: '08-09', label: '08:00-09:00' },
@@ -102,6 +112,22 @@ export function StepsPage() {
   const stats = useStats<StepsStats>('/health/steps', 30, refresh)
   const [months, setMonths] = useState<MonthlyStats['months']>([])
   const [view, setView] = useState<'daily' | 'monthly'>('daily')
+  const [daySum, setDaySum] = useState<DaySummary | null>(null)
+  const [dailyPage, setDailyPage] = useState(1)
+
+  const DAILY_TOTAL_PAGES = Math.max(1, Math.ceil((daySum?.total ?? 0) / DAILY_PAGE_SIZE))
+
+  const loadDaySummary = async () => {
+    const res = await api.query<DaySummary>(
+      `/health/steps/daily-summary?page=${dailyPage}&page_size=${DAILY_PAGE_SIZE}`,
+    )
+    setDaySum(res)
+  }
+
+  useEffect(() => {
+    loadDaySummary()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh, dailyPage])
 
   useEffect(() => {
     api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
@@ -129,11 +155,6 @@ export function StepsPage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
-
-  useEffect(() => {
-    api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
-    api.query<MonthlyStats>('/health/steps/monthly').then((r) => setMonths(r.months))
-  }, [])
 
   const openCreate = () => {
     setEditing(null)
@@ -270,39 +291,39 @@ export function StepsPage() {
 
           <Card>
             <CardContent className="p-0">
-              <div className="px-4 pt-4 pb-1 text-sm font-medium">每日步数汇总</div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>日期</TableHead>
-                    <TableHead className="text-right">步数</TableHead>
-                    <TableHead className="text-right">距离</TableHead>
-                    <TableHead className="text-right">消耗</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stats.trend.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-16 text-center text-muted-foreground">
-                        暂无数据
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    stats.trend.map((d) => (
-                      <TableRow key={d.record_date}>
-                        <TableCell>{d.record_date}</TableCell>
-                        <TableCell className="text-right">{d.steps.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">
-                          {d.distance_km != null ? `${d.distance_km} km` : '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {d.calories != null ? `${d.calories} kcal` : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                <div className="text-sm font-medium">
+                  每日步数汇总{daySum?.month ? `（${daySum.month}）` : ''}
+                </div>
+              </div>
+              {daySum && daySum.items.length === 0 ? (
+                <div className="px-4 pb-4 text-center text-sm text-muted-foreground">本月暂无步数数据</div>
+              ) : (
+                <>
+                  <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {daySum?.items.map((d) => (
+                      <Card key={d.record_date} className="border-dashed">
+                        <CardContent className="py-3">
+                          <div className="text-sm font-medium text-foreground">{d.record_date}</div>
+                          <div className="mt-1 text-2xl font-semibold">{d.steps.toLocaleString()}</div>
+                          <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
+                            <span>距离 {d.distance_km != null ? `${d.distance_km} km` : '—'}</span>
+                            <span>消耗 {d.calories != null ? `${d.calories} kcal` : '—'}</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  <div className="px-4 pb-4">
+                    <PaginationBar
+                      page={dailyPage}
+                      totalPages={DAILY_TOTAL_PAGES}
+                      total={daySum?.total ?? 0}
+                      onPageChange={setDailyPage}
+                    />
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </>
@@ -320,29 +341,23 @@ export function StepsPage() {
 
           <Card>
             <CardContent className="p-0">
-              <div className="px-4 pt-4 pb-1 text-sm font-medium">每月步数汇总</div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>月份</TableHead>
-                    <TableHead className="text-right">步数</TableHead>
-                    <TableHead className="text-right">距离</TableHead>
-                    <TableHead className="text-right">天数</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[...months]
-                    .sort((a, b) => b.month.localeCompare(a.month))
-                    .map((m) => (
-                      <TableRow key={m.month}>
-                        <TableCell>{m.month}</TableCell>
-                        <TableCell className="text-right">{m.steps.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{m.distance_km} km</TableCell>
-                        <TableCell className="text-right">{m.days} 天</TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              <div className="px-4 pt-4 pb-2 text-sm font-medium">每月步数汇总</div>
+              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-3">
+                {[...months]
+                  .sort((a, b) => b.month.localeCompare(a.month))
+                  .map((m) => (
+                    <Card key={m.month} className="border-dashed">
+                      <CardContent className="py-3">
+                        <div className="text-sm font-medium text-foreground">{m.month}</div>
+                        <div className="mt-1 text-2xl font-semibold">{m.steps.toLocaleString()}</div>
+                        <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
+                          <span>距离 {m.distance_km} km</span>
+                          <span>活动 {m.days} 天</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
             </CardContent>
           </Card>
         </>
@@ -350,6 +365,7 @@ export function StepsPage() {
 
       <Card>
         <CardContent className="p-0">
+          <div className="px-4 pt-4 pb-1 text-sm font-medium">时间段明细（每时间段步数记录）</div>
           <Table>
             <TableHeader>
               <TableRow>

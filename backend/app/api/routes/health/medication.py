@@ -17,10 +17,29 @@ from app.schemas.health import (
     MedStockCreate,
     MedStockRead,
 )
+from app.services.med_stock import compute_med_stock_list
 
 router = APIRouter()
 
 MEAL_LABEL = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐"}
+MEAL_ORDER = ["breakfast", "lunch", "dinner"]
+
+
+def _record_pills(r) -> tuple[list[int], list[bool]]:
+    """返回该记录的 (三顿剂量粒数, 三顿是否已服)。"""
+    return (
+        [r.dose_breakfast or 0, r.dose_lunch or 0, r.dose_dinner or 0],
+        [r.taken_breakfast, r.taken_lunch, r.taken_dinner],
+    )
+
+
+def _pill_consumed(r) -> int:
+    """该记录已服用消耗的粒数。"""
+    total = 0
+    for dose, taken in zip(*_record_pills(r), strict=False):
+        if taken:
+            total += dose
+    return total
 
 
 def _medication_stats(db: Session, days: int, user_id: int) -> dict:
@@ -34,55 +53,64 @@ def _medication_stats(db: Session, days: int, user_id: int) -> dict:
 
     today = date.today()
     today_items = [r for r in rows if r.record_date == today]
-    taken = [r for r in today_items if r.taken]
 
+    def _serialize(r) -> dict:
+        return {
+            "id": r.id,
+            "medicine_name": r.medicine_name,
+            "dose_breakfast": r.dose_breakfast or 0,
+            "dose_lunch": r.dose_lunch or 0,
+            "dose_dinner": r.dose_dinner or 0,
+            "taken_breakfast": r.taken_breakfast,
+            "taken_lunch": r.taken_lunch,
+            "taken_dinner": r.taken_dinner,
+        }
+
+    by_slot: dict[str, dict] = {m: {"total": 0, "taken": 0} for m in MEAL_ORDER}
     by_day: dict[date, dict] = defaultdict(lambda: {"total": 0, "taken": 0})
-    by_slot: dict[str, dict] = defaultdict(lambda: {"total": 0, "taken": 0})
-    for r in rows:
-        by_day[r.record_date]["total"] += 1
-        by_slot[r.meal_slot]["total"] += 1
-        if r.taken:
-            by_day[r.record_date]["taken"] += 1
-            by_slot[r.meal_slot]["taken"] += 1
-
     by_med: dict[str, int] = defaultdict(int)
+    total_pills = 0
+    taken_pills = 0
     for r in rows:
+        doses, takens = _record_pills(r)
+        planned = sum(doses)
+        consumed = _pill_consumed(r)
+        total_pills += planned
+        taken_pills += consumed
         by_med[r.medicine_name] += 1
+        by_day[r.record_date]["total"] += planned
+        by_day[r.record_date]["taken"] += consumed
+        for i, meal in enumerate(MEAL_ORDER):
+            by_slot[meal]["total"] += doses[i]
+            if takens[i]:
+                by_slot[meal]["taken"] += doses[i]
 
-    total_records = len(rows)
-    taken_records = sum(1 for r in rows if r.taken)
+    today_taken = sum(_pill_consumed(r) for r in today_items)
+    today_planned = sum(sum(_record_pills(r)[0]) for r in today_items)
+
     return {
         "today": {
-            "taken_count": len(taken),
-            "pending_count": len(today_items) - len(taken),
-            "items": [
-                {
-                    "id": r.id,
-                    "medicine_name": r.medicine_name,
-                    "meal_slot": r.meal_slot,
-                    "meal_label": MEAL_LABEL.get(r.meal_slot, r.meal_slot),
-                    "dosage": r.dosage,
-                    "taken": r.taken,
-                }
-                for r in today_items
-            ],
+            "taken_count": today_taken,
+            "pending_count": max(0, today_planned - today_taken),
+            "items": [_serialize(r) for r in today_items],
         },
         "by_slot": [
-            {"meal_slot": k, "meal_label": MEAL_LABEL.get(k, k), **v}
-            for k, v in sorted(by_slot.items())
+            {"meal_slot": k, "meal_label": MEAL_LABEL[k], **by_slot[k]}
+            for k in MEAL_ORDER
         ],
         "by_medicine": [
             {"medicine_name": k, "count": v}
             for k, v in sorted(by_med.items(), key=lambda x: -x[1])
         ],
         "adherence_rate": (
-            round(taken_records / total_records * 100, 1) if total_records else None
+            round(taken_pills / total_pills * 100, 1) if total_pills else None
         ),
         "trend": [
             {"record_date": d, **v}
             for d, v in sorted(by_day.items())
         ],
-        "total_count": total_records,
+        "total_count": len(rows),
+        "total_pills": total_pills,
     }
 
 
@@ -200,63 +228,4 @@ router = crud_router(
 
 
 def _get_stock_list(db: Session, user_id: int) -> list[dict]:
-    """根据购药记录与用药记录自动计算库存并预测耗尽时间。"""
-    stock_rows = db.scalars(
-        select(HealthMedStock)
-        .where(HealthMedStock.user_id == user_id)
-        .order_by(HealthMedStock.medicine_name)
-    ).all()
-    purchases = db.scalars(
-        select(HealthMedPurchase).where(HealthMedPurchase.user_id == user_id)
-    ).all()
-    meds = db.scalars(
-        select(HealthMedication).where(HealthMedication.user_id == user_id)
-    ).all()
-
-    # 每种药品的累计购买量
-    bought: dict[str, float] = defaultdict(float)
-    for p in purchases:
-        bought[p.medicine_name] += p.quantity or 0
-
-    # 每种药品的已服用次数（用药记录 taken=True 计为一次消耗）
-    taken_dates: dict[str, list[date]] = defaultdict(list)
-    for m in meds:
-        if m.taken:
-            taken_dates[m.medicine_name].append(m.record_date)
-
-    today = date.today()
-    rows: list[dict] = []
-    for s in stock_rows:
-        name = s.medicine_name
-        consumed = len(taken_dates.get(name, []))
-        stock = max(0.0, round(bought.get(name, 0) - consumed, 2))
-
-        # 预测：按近 consumed 记录的实际区间推算日均消耗
-        dates = taken_dates.get(name, [])
-        avg_daily: float | None = None
-        days_left: float | None = None
-        predicted_date: date | None = None
-        if dates and stock > 0:
-            span_days = max(1, (today - min(dates)).days + 1)
-            avg_daily = round(consumed / span_days, 3)
-            if avg_daily > 0:
-                days_left = int(stock // avg_daily)
-                predicted_date = today + timedelta(days=days_left)
-
-        is_low = s.threshold is not None and s.threshold > 0 and stock <= s.threshold
-        rows.append(
-            {
-                "id": s.id,
-                "medicine_name": name,
-                "stock_qty": stock,
-                "threshold": s.threshold,
-                "unit": s.unit,
-                "is_low": is_low,
-                "purchased": round(bought.get(name, 0), 2),
-                "consumed": consumed,
-                "avg_daily": avg_daily,
-                "days_left": days_left,
-                "predicted_date": predicted_date.isoformat() if predicted_date else None,
-            }
-        )
-    return rows
+    return compute_med_stock_list(db, user_id)

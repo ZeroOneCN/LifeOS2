@@ -349,10 +349,13 @@ class ReportRead(ReportCreate, ORMRead):
 class MedicationCreate(BaseModel):
     record_date: date
     medicine_name: str
-    meal_slot: str = "breakfast"
-    dosage: str | None = None
+    dose_breakfast: int = Field(0, ge=0)  # 早餐剂量(粒)
+    dose_lunch: int = Field(0, ge=0)  # 午餐剂量(粒)
+    dose_dinner: int = Field(0, ge=0)  # 晚餐剂量(粒)
+    taken_breakfast: bool = False
+    taken_lunch: bool = False
+    taken_dinner: bool = False
     frequency: str | None = None
-    taken: bool = False
     note: str | None = None
 
 
@@ -365,7 +368,8 @@ class MedPurchaseCreate(BaseModel):
     medicine_name: str
     channel: str | None = None
     unit: str | None = None
-    quantity: float = Field(gt=0)
+    quantity: float = Field(gt=0)  # 盒/瓶数
+    pills_per_unit: float | None = Field(None, ge=0)  # 每盒/瓶粒数
     unit_price: float = Field(ge=0)
     total_price: float | None = Field(None, ge=0)
     note: str | None = None

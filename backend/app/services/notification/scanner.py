@@ -18,7 +18,7 @@ from app.models.finance import (
     FinanceSubscription,
     FinanceUtility,
 )
-from app.models.health import HealthMedStock
+from app.services.med_stock import compute_med_stock_list
 from app.models.lifestyle import (
     LifestyleBankCard,
     LifestyleItem,
@@ -359,22 +359,18 @@ def _scan_bankcard_due(db: Session, advance: int, user_id: int) -> list[dict]:
 
 
 def _scan_med_stock(db: Session, _advance: int, user_id: int) -> list[dict]:
-    rows = db.scalars(
-        select(HealthMedStock).where(
-            HealthMedStock.stock_qty <= HealthMedStock.threshold,
-            HealthMedStock.user_id == user_id,
-        )
-    ).all()
     out = []
-    for r in rows:
+    for r in compute_med_stock_list(db, user_id):
+        if not r["is_low"]:
+            continue
         out.append(
             {
-                "source_id": r.id,
-                "title_ctx": {"medicine_name": r.medicine_name},
+                "source_id": r["id"],
+                "title_ctx": {"medicine_name": r["medicine_name"]},
                 "content_ctx": {
-                    "medicine_name": r.medicine_name,
-                    "stock": r.stock_qty,
-                    "threshold": r.threshold,
+                    "medicine_name": r["medicine_name"],
+                    "stock": r["stock_qty"],
+                    "threshold": r["threshold"],
                 },
             }
         )

@@ -30,6 +30,19 @@ router = APIRouter()
 RESULT_LABEL = {"normal": "正常", "high": "偏高", "low": "偏低"}
 
 
+def _resolve_result(r) -> str | None:
+    """返回指标的判定结果。记录本身已存 result 时优先；否则按参考范围推断。"""
+    if r.result in ("normal", "high", "low"):
+        return r.result
+    if r.value is None:
+        return None
+    if r.ref_high is not None and r.value > r.ref_high:
+        return "high"
+    if r.ref_low is not None and r.value < r.ref_low:
+        return "low"
+    return "normal"
+
+
 def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
@@ -41,6 +54,7 @@ def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
 
     by_item: dict[str, dict] = {}
     for r in rows:
+        result = _resolve_result(r)
         bucket = by_item.setdefault(
             r.item_name,
             {
@@ -57,9 +71,9 @@ def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
         bucket["reference_range"] = r.reference_range or bucket["reference_range"]
         bucket["ref_low"] = r.ref_low if r.ref_low is not None else bucket["ref_low"]
         bucket["ref_high"] = r.ref_high if r.ref_high is not None else bucket["ref_high"]
-        bucket["trend"].append({"check_date": r.check_date, "value": r.value, "result": r.result})
+        bucket["trend"].append({"check_date": r.check_date, "value": r.value, "result": result})
         if bucket["latest"] is None or r.check_date > bucket["latest"]["check_date"]:
-            bucket["latest"] = {"check_date": r.check_date, "value": r.value, "result": r.result}
+            bucket["latest"] = {"check_date": r.check_date, "value": r.value, "result": result}
 
     abnormal_items = [
         v["latest"]
@@ -68,11 +82,12 @@ def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
     ]
     abnormal_count = len(abnormal_items)
 
-    # 状态分布
+    # 状态分布：只统计有明确判定结果的指标
     status_counts = {"normal": 0, "high": 0, "low": 0}
     for v in by_item.values():
-        if v["latest"] and v["latest"]["result"]:
-            status_counts[v["latest"]["result"]] += 1
+        res = v["latest"]["result"] if v["latest"] else None
+        if res in status_counts:
+            status_counts[res] += 1
 
     return {
         "items": [

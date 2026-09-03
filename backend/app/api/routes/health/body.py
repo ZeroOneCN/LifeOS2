@@ -31,13 +31,18 @@ def _latest(rows):
     if not rows:
         return None
     r = sorted(rows, key=lambda x: x.record_date, reverse=True)[0]
+    bmi = r.bmi
+    # 兼容历史数据：只有身高体重而无 BMI 时按公式补算
+    if bmi is None and r.height_cm and r.weight_kg:
+        h = r.height_cm / 100
+        bmi = round(r.weight_kg / (h * h), 1)
     return {
         "id": r.id,
         "record_date": r.record_date,
         "gender": r.gender,
         "height_cm": r.height_cm,
         "weight_kg": r.weight_kg,
-        "bmi": r.bmi,
+        "bmi": bmi,
         "body_fat_percent": r.body_fat_percent,
         "muscle_percent": r.muscle_percent,
     }

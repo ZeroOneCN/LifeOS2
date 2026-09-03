@@ -207,22 +207,25 @@ class HealthReport(TimestampMixin, UserOwned, Base):
 
 
 class HealthMedication(TimestampMixin, UserOwned, Base):
-    """用药跟踪：每日分早/午/晚用药记录。"""
+    """用药跟踪：每日按早/午/晚记录用药（同一药品同一天一行，剂量按粒计）。"""
 
     __tablename__ = "health_medication"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)
     medicine_name: Mapped[str] = mapped_column(String(64), index=True)
-    meal_slot: Mapped[str] = mapped_column(String(16), default="breakfast")  # breakfast/lunch/dinner
-    dosage: Mapped[str | None] = mapped_column(String(64))  # 剂量
+    dose_breakfast: Mapped[int] = mapped_column(Integer, default=0)  # 早餐剂量(粒)
+    dose_lunch: Mapped[int] = mapped_column(Integer, default=0)  # 午餐剂量(粒)
+    dose_dinner: Mapped[int] = mapped_column(Integer, default=0)  # 晚餐剂量(粒)
+    taken_breakfast: Mapped[bool] = mapped_column(Boolean, default=False)  # 早餐是否已服
+    taken_lunch: Mapped[bool] = mapped_column(Boolean, default=False)  # 午餐是否已服
+    taken_dinner: Mapped[bool] = mapped_column(Boolean, default=False)  # 晚餐是否已服
     frequency: Mapped[str | None] = mapped_column(String(64))  # 频次
-    taken: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否已服用
     note: Mapped[str | None] = mapped_column(Text)
 
 
 class HealthMedPurchase(TimestampMixin, UserOwned, Base):
-    """用药跟踪：购药记录。"""
+    """用药跟踪：购药记录（按粒累计库存）。"""
 
     __tablename__ = "health_med_purchase"
 
@@ -230,8 +233,9 @@ class HealthMedPurchase(TimestampMixin, UserOwned, Base):
     buy_date: Mapped[date] = mapped_column(Date, index=True)
     medicine_name: Mapped[str] = mapped_column(String(64), index=True)
     channel: Mapped[str | None] = mapped_column(String(64))  # 购买渠道
-    unit: Mapped[str | None] = mapped_column(String(32))  # 单位(盒/片)
-    quantity: Mapped[float] = mapped_column(Float)  # 数量
+    unit: Mapped[str | None] = mapped_column(String(32))  # 单位(盒/瓶)
+    quantity: Mapped[float] = mapped_column(Float)  # 数量(盒/瓶)
+    pills_per_unit: Mapped[float | None] = mapped_column(Float)  # 每盒/瓶粒数
     unit_price: Mapped[float] = mapped_column(Float)  # 单价
     total_price: Mapped[float | None] = mapped_column(Float)  # 总价
     note: Mapped[str | None] = mapped_column(Text)

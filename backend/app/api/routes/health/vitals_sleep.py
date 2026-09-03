@@ -37,6 +37,8 @@ def _vitals_stats(db: Session, days: int, user_id: int) -> dict:
                 "body_temp": r.body_temp,
                 "sleep_duration_min": r.sleep_duration_min,
                 "deep_sleep_min": r.deep_sleep_min,
+                "light_sleep_min": r.light_sleep_min,
+                "wake_count": r.wake_count,
                 "sleep_quality": r.sleep_quality,
             }
             for r in rows

@@ -3,6 +3,7 @@ import {
   LineChartCard,
   useStats,
 } from '@/components/health/charts'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   RecordManager,
   type ColumnDef,
@@ -34,12 +35,27 @@ type VitalsStats = {
     blood_pressure_high?: number
     blood_pressure_low?: number
     heart_rate?: number
+    blood_oxygen?: number
+    blood_glucose?: number
+    body_temp?: number
+    sleep_duration_min?: number
+    deep_sleep_min?: number
+    light_sleep_min?: number
+    wake_count?: number
+    sleep_quality?: number
+  }[]
+  avg?: {
+    blood_pressure_high?: number
+    blood_pressure_low?: number
+    heart_rate?: number
+    blood_oxygen?: number
     blood_glucose?: number
     body_temp?: number
     sleep_duration_min?: number
     deep_sleep_min?: number
     sleep_quality?: number
-  }[]
+  }
+  record_count?: number
 }
 
 const fields: FieldDef[] = [
@@ -111,6 +127,11 @@ const columns: ColumnDef<VitalsRecord>[] = [
 export function VitalsSleepPage() {
   const stats = useStats<VitalsStats>('/health/vitals-sleep')
   const trend = stats?.trend ?? []
+  const avg = stats?.avg
+
+  const fmtSleep = (m?: number) =>
+    m != null ? `${Math.floor(m / 60)}h${m % 60}m` : '—'
+  const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
 
   return (
     <RecordManager<VitalsRecord>
@@ -121,35 +142,113 @@ export function VitalsSleepPage() {
       columns={columns}
       extra={
         trend.length > 0 && (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <LineChartCard
-              title="血压趋势"
-              data={trend}
-              xKey="record_date"
-              series={[
-                { key: 'blood_pressure_high', name: '高压', color: '#ef4444' },
-                { key: 'blood_pressure_low', name: '低压', color: '#3b82f6' },
-              ]}
-            />
-            <LineChartCard
-              title="睡眠时长与质量"
-              data={trend}
-              xKey="record_date"
-              series={[
-                { key: 'sleep_duration_min', name: '时长(分钟)', color: '#8b5cf6' },
-                { key: 'sleep_quality', name: '质量(分)', color: '#10b981' },
-              ]}
-            />
-            <BarChartCard
-              title="深睡 / 浅睡时长"
-              data={trend}
-              xKey="record_date"
-              series={[
-                { key: 'deep_sleep_min', name: '深睡(分钟)', color: '#3b82f6' },
-                { key: 'light_sleep_min', name: '浅睡(分钟)', color: '#f59e0b' },
-              ]}
-            />
-          </div>
+          <>
+            <div className="grid gap-4 md:grid-cols-4">
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">统计天数</div>
+                  <div className="mt-1 text-2xl font-semibold">{stats?.record_count ?? 0} 天</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均睡眠</div>
+                  <div className="mt-1 text-2xl font-semibold">{fmtSleep(avg?.sleep_duration_min)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均心率</div>
+                  <div className="mt-1 text-2xl font-semibold text-rose-600">{fmt(avg?.heart_rate, ' bpm')}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均血氧</div>
+                  <div className="mt-1 text-2xl font-semibold text-emerald-600">{fmt(avg?.blood_oxygen, '%')}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均体温</div>
+                  <div className="mt-1 text-2xl font-semibold text-orange-600">{fmt(avg?.body_temp, '℃')}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均血糖</div>
+                  <div className="mt-1 text-2xl font-semibold text-sky-600">{fmt(avg?.blood_glucose, ' mmol/L')}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均血压</div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    {avg?.blood_pressure_high != null && avg.blood_pressure_low != null
+                      ? `${avg.blood_pressure_high}/${avg.blood_pressure_low}`
+                      : '—'}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="text-sm text-muted-foreground">平均睡眠质量</div>
+                  <div className="mt-1 text-2xl font-semibold text-violet-600">{fmt(avg?.sleep_quality, ' 分')}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <LineChartCard
+                title="血压趋势"
+                data={trend}
+                xKey="record_date"
+                series={[
+                  { key: 'blood_pressure_high', name: '高压', color: '#ef4444' },
+                  { key: 'blood_pressure_low', name: '低压', color: '#3b82f6' },
+                ]}
+              />
+              <LineChartCard
+                title="心率趋势"
+                data={trend}
+                xKey="record_date"
+                series={[{ key: 'heart_rate', name: '心率(bpm)', color: '#f43f5e' }]}
+              />
+              <LineChartCard
+                title="血氧 / 体温趋势"
+                data={trend}
+                xKey="record_date"
+                series={[
+                  { key: 'blood_oxygen', name: '血氧(%)', color: '#10b981' },
+                  { key: 'body_temp', name: '体温(℃)', color: '#f59e0b' },
+                ]}
+              />
+              <LineChartCard
+                title="血糖趋势"
+                data={trend}
+                xKey="record_date"
+                series={[{ key: 'blood_glucose', name: '血糖(mmol/L)', color: '#0ea5e9' }]}
+              />
+              <LineChartCard
+                title="睡眠时长与质量"
+                data={trend}
+                xKey="record_date"
+                series={[
+                  { key: 'sleep_duration_min', name: '时长(分钟)', color: '#8b5cf6' },
+                  { key: 'sleep_quality', name: '质量(分)', color: '#10b981' },
+                ]}
+              />
+              <BarChartCard
+                title="深睡 / 浅睡时长"
+                data={trend}
+                xKey="record_date"
+                series={[
+                  { key: 'deep_sleep_min', name: '深睡(分钟)', color: '#3b82f6' },
+                  { key: 'light_sleep_min', name: '浅睡(分钟)', color: '#f59e0b' },
+                ]}
+              />
+            </div>
+          </>
         )
       }
     />

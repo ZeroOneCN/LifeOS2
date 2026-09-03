@@ -15,6 +15,13 @@ import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -46,11 +53,21 @@ type FitnessStats = {
   total_calories: number
 }
 
-const EXERCISE_SUGGESTIONS = [
-  '跑步', '慢跑', '快走', '散步', '走路', '游泳', '骑行', '自行车',
-  '力量训练', '举重', '跳绳', '羽毛球', '乒乓球', '篮球', '足球', '网球',
-  '瑜伽', '普拉提', '舞蹈', '登山', '爬楼梯', '椭圆机', '划船机', '健身操', 'HIIT',
+// 常见运动类型（缩短下拉菜单，避免过长）
+const EXERCISE_OPTIONS = [
+  '跑步', '慢跑', '快走', '散步', '走路', '游泳', '骑行',
+  '跳绳', '力量训练', '举重', '篮球', '羽毛球', '乒乓球',
+  '网球', '瑜伽', '普拉提', '舞蹈', 'HIIT', '有氧运动',
 ]
+
+// 英文/别名运动类型 → 中文显示名（如 cardio → 有氧运动）
+const EXERCISE_LABELS: Record<string, string> = {
+  'cardio': '有氧运动',
+  '有氧运动': '有氧运动',
+  'aerobic': '有氧运动',
+  'running': '跑步',
+}
+const exerciseLabel = (t?: string | null) => (t ? EXERCISE_LABELS[t] ?? t : '—')
 
 const EMPTY = {
   record_date: new Date().toISOString().slice(0, 10),
@@ -71,6 +88,7 @@ export function FitnessPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [estimating, setEstimating] = useState(false)
+  const [error, setError] = useState('')
   const estTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { confirm, dialog: confirmDialog } = useConfirm({
     title: '确认删除',
@@ -100,6 +118,7 @@ export function FitnessPage() {
   const openCreate = () => {
     setEditing(null)
     setForm(EMPTY)
+    setError('')
     setDialogOpen(true)
   }
 
@@ -107,16 +126,20 @@ export function FitnessPage() {
     setEditing(row)
     setForm({
       record_date: row.record_date,
-      exercise_type: row.exercise_type,
+      exercise_type: exerciseLabel(row.exercise_type),
       duration_min: String(row.duration_min ?? ''),
       calories: String(row.calories ?? ''),
       distance_km: String(row.distance_km ?? ''),
       note: row.note ?? '',
     })
+    setError('')
     setDialogOpen(true)
   }
 
-  const set = (key: keyof typeof EMPTY, value: string) => setForm((f) => ({ ...f, [key]: value }))
+  const set = (key: keyof typeof EMPTY, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    if (error) setError('')
+  }
 
   // 运动热量估算：输入类型+时长后自动推算
   useEffect(() => {
@@ -144,10 +167,24 @@ export function FitnessPage() {
   }, [form.exercise_type, form.duration_min, editing])
 
   const submit = async () => {
+    // 必填校验：缺项时提示用户，不静默无效
+    if (!form.record_date) {
+      setError('请选择日期')
+      return
+    }
+    if (!form.exercise_type.trim()) {
+      setError('请选择或填写运动类型')
+      return
+    }
+    if (!form.duration_min || Number(form.duration_min) <= 0) {
+      setError('请填写运动时长（分钟，大于 0）')
+      return
+    }
+    setError('')
     const set = (v: string) => (v === '' ? null : Number(v))
     const payload = {
       record_date: form.record_date,
-      exercise_type: form.exercise_type,
+      exercise_type: form.exercise_type.trim(),
       duration_min: Number(form.duration_min),
       calories: set(form.calories),
       distance_km: set(form.distance_km),
@@ -215,7 +252,7 @@ export function FitnessPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <BarChartCard
             title="运动类型时长分布（近 30 天）"
-            data={stats.by_type.map((t) => ({ name: t.exercise_type, minutes: t.minutes }))}
+            data={stats.by_type.map((t) => ({ name: exerciseLabel(t.exercise_type), minutes: t.minutes }))}
             xKey="name"
             series={[{ key: 'minutes', name: '时长(分钟)', color: '#4f46e5' }]}
           />
@@ -260,7 +297,7 @@ export function FitnessPage() {
                 items.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>{row.record_date}</TableCell>
-                    <TableCell>{row.exercise_type}</TableCell>
+                    <TableCell>{exerciseLabel(row.exercise_type)}</TableCell>
                     <TableCell>{row.duration_min} 分钟</TableCell>
                     <TableCell>{row.calories != null ? `${row.calories} kcal` : '—'}</TableCell>
                     <TableCell>{row.distance_km != null ? `${row.distance_km} km` : '—'}</TableCell>
@@ -307,18 +344,22 @@ export function FitnessPage() {
               <Label>
                 运动类型 <span className="text-destructive">*</span>
               </Label>
-              <Input
-                list="exercise-list"
+              <Select
                 value={form.exercise_type}
-                onChange={(e) => set('exercise_type', e.target.value)}
-                placeholder="如：跑步、游泳、力量训练"
+                onValueChange={(v) => set('exercise_type', v)}
                 disabled={!!editing}
-              />
-              <datalist id="exercise-list">
-                {EXERCISE_SUGGESTIONS.map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择运动类型" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {EXERCISE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>消耗热量(kcal)</Label>
@@ -339,14 +380,16 @@ export function FitnessPage() {
               <Textarea value={form.note} onChange={(e) => set('note', e.target.value)} />
             </div>
           </div>
+          {error && (
+            <p className="mt-1 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button
-              onClick={submit}
-              disabled={saving || !form.record_date || !form.exercise_type || !form.duration_min}
-            >
+            <Button onClick={submit} disabled={saving}>
               {saving && <Loader2 className="animate-spin" />}
               保存
             </Button>

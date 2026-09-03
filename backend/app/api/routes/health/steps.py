@@ -1,8 +1,8 @@
 from collections import defaultdict
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
@@ -78,6 +78,51 @@ def _register_fixed(router) -> None:
                 {"month": k, "steps": v["steps"], "distance_km": round(v["distance_km"], 2), "days": len(v["days"])}
                 for k, v in sorted(by_month.items())[-12:]
             ]
+        }
+
+    @router.get("/daily-summary")
+    def daily_summary(
+        year: int | None = Query(None),
+        month: int | None = Query(None),
+        page: int = Query(1, ge=1),
+        page_size: int = Query(8, ge=1, le=31),
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """指定月份的每日步数汇总（按天累加所有时间段），默认当月，按页返回（默认每页 8 天）。"""
+        today = date.today()
+        y = year or today.year
+        m = month or today.month
+        rows = db.scalars(
+            select(HealthSteps)
+            .where(HealthSteps.user_id == user.id)
+            .where(func.month(HealthSteps.record_date) == m)
+            .where(func.year(HealthSteps.record_date) == y)
+            .order_by(HealthSteps.record_date)
+        ).all()
+        by_day: dict[date, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "calories": 0.0})
+        for r in rows:
+            by_day[r.record_date]["steps"] += r.steps
+            by_day[r.record_date]["distance_km"] += r.distance_km or 0
+            by_day[r.record_date]["calories"] += r.calories or 0
+        days = sorted(by_day.items(), key=lambda x: x[0], reverse=True)
+        total = len(days)
+        start = (page - 1) * page_size
+        current = days[start:start + page_size]
+        return {
+            "month": f"{y}-{m:02d}",
+            "items": [
+                {
+                    "record_date": d,
+                    "steps": v["steps"],
+                    "distance_km": round(v["distance_km"], 2),
+                    "calories": round(v["calories"], 1),
+                }
+                for d, v in current
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
         }
 
 
