@@ -97,6 +97,8 @@ def dashboard(
         for b in body_rows
     ][-30:]
 
+    latest_body = body_rows[-1] if body_rows else None
+
     return {
         "series": series,
         "nutrition": nutrition,
@@ -106,12 +108,12 @@ def dashboard(
         "step_total": step_total,
         "exercise_count": exercise_count,
         "body_trend": body_trend,
-        "latest_body": body_rows[-1]
+        "latest_body": latest_body
         and {
-            "record_date": body_rows[-1].record_date,
-            "height_cm": body_rows[-1].height_cm,
-            "weight_kg": body_rows[-1].weight_kg,
-            "bmi": body_rows[-1].bmi,
-            "body_fat_percent": body_rows[-1].body_fat_percent,
+            "record_date": latest_body.record_date,
+            "height_cm": latest_body.height_cm,
+            "weight_kg": latest_body.weight_kg,
+            "bmi": latest_body.bmi,
+            "body_fat_percent": latest_body.body_fat_percent,
         },
     }

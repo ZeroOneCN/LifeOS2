@@ -126,8 +126,16 @@
     }
   html {
     @apply font-sans;
-    /* 固定预留滚动条空间，避免内容高度变化时滚动条出现/消失引起水平抖动 */
+    /* 让 html 成为真正的滚动容器并固定预留滚动条空间：
+       内容高度变化或弹窗锁定 body 滚动时，滚动条宽度不再变化，避免页面水平抖动 */
+    overflow-y: auto;
     scrollbar-gutter: stable;
+    }
+  /* 中和 react-remove-scroll-bar 在弹窗打开时给 body 追加的 margin-right 补偿：
+     页面滚动条位于 html（已由上面 scrollbar-gutter 固定预留空间），
+     该补偿会与预留空间叠加，导致弹窗打开时内容区额外变窄 15px，故强制归零。 */
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
     }
   /* 页面切换淡入过渡 */
   .page-enter {

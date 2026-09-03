@@ -86,8 +86,24 @@ def _medication_stats(db: Session, days: int, user_id: int) -> dict:
     }
 
 
-# ---- 药品库存（固定静态路由，需在动态 /{item_id} 之前注册） ----
+# ---- 购药记录 ----
+# 相对前缀 /purchases：include 进 /health/medication 路由器后拼成 /health/medication/purchases，
+# 且必须在动态 /{item_id} 之前注册，否则 /purchases 会被当作 item_id 解析报 422
+purchase_router = crud_router(
+    prefix="/purchases",
+    tag="health-med-purchase",
+    model=HealthMedPurchase,
+    create_schema=MedPurchaseCreate,
+    read_schema=MedPurchaseRead,
+    order_by=HealthMedPurchase.buy_date,
+    date_column="buy_date",
+)
+
+
+# ---- 药品库存 / 购药记录（固定静态路由，需在动态 /{item_id} 之前注册） ----
 def _register_fixed(router) -> None:
+    # 购药记录路由必须注册在 /{item_id} 之前，否则 /purchases 会被当作 item_id 解析报 422
+    router.include_router(purchase_router)
 
     @router.get("/stocks")
     def list_stocks(
@@ -181,18 +197,6 @@ router = crud_router(
     stats_func=_medication_stats,
     extra_routes=_register_fixed,
 )
-
-# ---- 购药记录 ----
-purchase_router = crud_router(
-    prefix="/health/medication/purchases",
-    tag="health-med-purchase",
-    model=HealthMedPurchase,
-    create_schema=MedPurchaseCreate,
-    read_schema=MedPurchaseRead,
-    order_by=HealthMedPurchase.buy_date,
-    date_column="buy_date",
-)
-router.include_router(purchase_router)
 
 
 def _get_stock_list(db: Session, user_id: int) -> list[dict]:
