@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { AlertCircle, CheckCircle2, ListChecks } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { BarChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -107,7 +108,8 @@ function StatChip({
 }
 
 export function TodosPage() {
-  const stats = useStats<TodoStats>('/lifestyle/todos')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<TodoStats>('/lifestyle/todos', days)
   const byPriority = stats?.by_priority ?? []
 
   return (
@@ -118,42 +120,47 @@ export function TodosPage() {
       fields={fields}
       columns={columns}
       extra={
-        stats ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatChip icon={ListChecks} label="待办总数" value={String(stats.total)} />
+        <>
+          <div className="flex justify-end">
+            <StatsPeriodPicker
+              value={days}
+              onChange={(d) => {
+                setDays(d)
+                setGlobalStatsDays(d)
+              }}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatChip icon={ListChecks} label="待办总数" value={String(stats?.total ?? 0)} />
               <StatChip
                 icon={AlertCircle}
                 label="待处理"
-                value={String(stats.pending)}
+                value={String(stats?.pending ?? 0)}
                 className="text-amber-500"
               />
               <StatChip
                 icon={CheckCircle2}
                 label="已完成"
-                value={String(stats.done)}
+                value={String(stats?.done ?? 0)}
                 className="text-green-500"
               />
               <StatChip
                 icon={AlertCircle}
                 label="已逾期"
-                value={String(stats.overdue)}
+                value={String(stats?.overdue ?? 0)}
                 className="text-red-500"
               />
             </div>
-            {byPriority.length > 0 && (
-              <BarChartCard
-                title="优先级分布"
-                data={byPriority.map((p) => ({
-                  priority: priorityMeta[p.priority]?.label ?? p.priority,
-                  count: p.count,
-                }))}
-                xKey="priority"
-                series={[{ key: 'count', name: '数量', color: '#ec4899' }]}
-              />
-            )}
-          </>
-        ) : null
+            <BarChartCard
+              title="优先级分布"
+              data={byPriority.map((p) => ({
+                priority: priorityMeta[p.priority]?.label ?? p.priority,
+                count: p.count,
+              }))}
+              xKey="priority"
+              series={[{ key: 'count', name: '数量', color: '#ec4899' }]}
+            />
+        </>
       }
     />
   )

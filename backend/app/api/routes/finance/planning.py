@@ -1,10 +1,8 @@
-from datetime import date, timedelta
-
 from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.models import FinancePlan
 from app.schemas.finance import PlanCreate, PlanRead
 
@@ -12,13 +10,11 @@ router = APIRouter()
 
 
 def _plan_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
-    rows = db.scalars(
-        select(FinancePlan).where(
-            FinancePlan.user_id == user_id,
-            FinancePlan.plan_date >= since,
-        )
-    ).all()
+    since = days_since(days)
+    stmt = select(FinancePlan).where(FinancePlan.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(FinancePlan.plan_date >= since)
+    rows = db.scalars(stmt).all()
 
     active = [r for r in rows if r.status == "active"]
     done = [r for r in rows if r.status == "done"]

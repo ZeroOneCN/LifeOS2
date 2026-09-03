@@ -1,10 +1,10 @@
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.api.routes.finance.subscriptions import _next_renewal
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -123,13 +123,11 @@ def aggregate_reminders(
 
 
 def _reminder_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
-    rows = db.scalars(
-        select(FinanceReminder).where(
-            FinanceReminder.user_id == user_id,
-            FinanceReminder.reminder_date >= since,
-        )
-    ).all()
+    since = days_since(days)
+    stmt = select(FinanceReminder).where(FinanceReminder.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(FinanceReminder.reminder_date >= since)
+    rows = db.scalars(stmt).all()
 
     pending = [r for r in rows if r.status == "pending"]
     done = [r for r in rows if r.status == "done"]

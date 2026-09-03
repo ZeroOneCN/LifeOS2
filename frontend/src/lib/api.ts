@@ -89,8 +89,8 @@ export const api = {
     }
     return res.json() as Promise<T>
   },
-  stats: <T>(path: string, days = 30) =>
-    request<T>(`${path}/stats?days=${days}`),
+  stats: <T>(path: string, days: number | 'all' = 30) =>
+    request<T>(`${path}/stats?days=${days === 'all' ? 0 : days}`),
   download: async (path: string, fallbackName = 'download.pdf') => {
     const headers: Record<string, string> = {}
     const token = localStorage.getItem('lifeos_token')

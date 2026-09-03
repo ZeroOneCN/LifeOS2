@@ -47,7 +47,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { useStats } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
 type Currency = { id: number; currency: string; name?: string; rate_to_cny: number; symbol?: string }
@@ -89,7 +89,8 @@ type LoanSync = { total_remaining: number; platform_count: number; platforms: { 
 /* ---------------- 民间借贷 ---------------- */
 
 function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
-  const stats = useStats<DebtStats>('/finance/debts')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<DebtStats>('/finance/debts', days)
   const [items, setItems] = useState<DebtRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -172,24 +173,32 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {stats && (
-        <>
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+      <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Wallet} label="民间债务总数" value={String(stats.total)} />
-            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats.lend_total)} className="text-blue-500" />
-            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats.borrow_total)} className="text-amber-500" />
-            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats.outstanding)} className="text-indigo-500" />
+            <StatCard icon={Wallet} label="民间债务总数" value={String(stats?.total ?? 0)} />
+            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-blue-500" />
+            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-amber-500" />
+            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-indigo-500" />
           </section>
 
-          {stats.overdue > 0 && (
+          {(stats?.overdue ?? 0) > 0 && (
             <Card className="border-red-200 bg-red-50">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-700">
-                  <AlertTriangle className="size-4" /> 已逾期 {stats.overdue} 笔待处理
+                  <AlertTriangle className="size-4" /> 已逾期 {stats?.overdue ?? 0} 笔待处理
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm">
-                {stats.overdue_list.map((o, i) => (
+                {(stats?.overdue_list ?? []).map((o, i) => (
                   <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 px-3 py-1.5">
                     <span>{o.name}{o.counterparty ? `（${o.counterparty}）` : ''}<Badge className={`ml-2 ${directionMeta[o.direction]?.className}`}>{directionMeta[o.direction]?.label}</Badge></span>
                     <span className="text-muted-foreground">到期 {o.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmtMoney(o.remaining)}</span></span>
@@ -199,7 +208,6 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             </Card>
           )}
         </>
-      )}
 
       {/* 网贷只读同步 */}
       {loanSync && loanSync.platform_count > 0 && (

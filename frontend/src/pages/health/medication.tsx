@@ -27,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
 type MedRecord = {
@@ -152,7 +152,8 @@ export function MedicationPage() {
   const [formError, setFormError] = useState('')
   const { confirm, dialog: confirmDialog } = useConfirm()
 
-  const stats = useStats<MedStats>('/health/medication')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<MedStats>('/health/medication', days)
   const PAGE_SIZE = 10
   const medPages = Math.max(1, Math.ceil(medTotal / PAGE_SIZE))
   const purPages = Math.max(1, Math.ceil(purTotal / PAGE_SIZE))
@@ -417,24 +418,36 @@ export function MedicationPage() {
         ))}
       </div>
 
-      {tab === 'med' && stats && (
+      {tab === 'med' && (
+        <div className="flex justify-end">
+          <StatsPeriodPicker
+            value={days}
+            onChange={(d) => {
+              setDays(d)
+              setGlobalStatsDays(d)
+            }}
+          />
+        </div>
+      )}
+
+      {tab === 'med' && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日已服</div>
-              <div className="mt-1 text-2xl font-semibold text-green-600">{stats.today.taken_count} 粒</div>
+              <div className="mt-1 text-2xl font-semibold text-green-600">{stats?.today?.taken_count ?? 0} 粒</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日待服</div>
-              <div className="mt-1 text-2xl font-semibold text-amber-500">{stats.today.pending_count} 粒</div>
+              <div className="mt-1 text-2xl font-semibold text-amber-500">{stats?.today?.pending_count ?? 0} 粒</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">依从率</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.adherence_rate ?? '-'}%</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.adherence_rate ?? '-'}%</div>
             </CardContent>
           </Card>
           <Card>
@@ -446,11 +459,11 @@ export function MedicationPage() {
         </div>
       )}
 
-      {tab === 'med' && stats && (
+      {tab === 'med' && (
         <div className="grid gap-4 lg:grid-cols-2">
           <BarChartCard
             title="今日分餐用药"
-            data={stats.by_slot.map((s) => ({ ...s, label: s.meal_label }))}
+            data={(stats?.by_slot ?? []).map((s) => ({ ...s, label: s.meal_label }))}
             xKey="label"
             series={[
               { key: 'total', name: '计划(粒)', color: '#94a3b8' },
@@ -459,7 +472,7 @@ export function MedicationPage() {
           />
           <LineChartCard
             title="每日用药趋势"
-            data={stats.trend}
+            data={stats?.trend ?? []}
             xKey="record_date"
             series={[
               { key: 'total', name: '计划(粒)', color: '#94a3b8' },

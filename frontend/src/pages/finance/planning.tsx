@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { BarChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -96,7 +97,8 @@ const columns: ColumnDef<PlanRecord>[] = [
 ]
 
 export function PlanningPage() {
-  const stats = useStats<PlanStats>('/finance/planning')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<PlanStats>('/finance/planning', days)
   const byType = stats?.by_type ?? []
 
   return (
@@ -107,14 +109,23 @@ export function PlanningPage() {
       fields={fields}
       columns={columns}
       extra={
-        byType.length > 0 ? (
+        <>
+          <div className="flex justify-end">
+            <StatsPeriodPicker
+              value={days}
+              onChange={(d) => {
+                setDays(d)
+                setGlobalStatsDays(d)
+              }}
+            />
+          </div>
           <BarChartCard
             title={`各类型已存金额（已存合计 ${stats ? fmt(stats.saved_total) : ''}）`}
             data={byType}
             xKey="plan_type"
             series={[{ key: 'amount', name: '已存金额', color: '#10b981' }]}
           />
-        ) : null
+        </>
       }
     />
   )

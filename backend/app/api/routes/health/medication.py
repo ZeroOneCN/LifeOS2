@@ -1,11 +1,11 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import HealthMedPurchase, HealthMedStock, HealthMedication, UserProfile
@@ -43,12 +43,12 @@ def _pill_consumed(r) -> int:
 
 
 def _medication_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    stmt = select(HealthMedication).where(HealthMedication.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthMedication.record_date >= since)
     rows = db.scalars(
-        select(HealthMedication)
-        .where(HealthMedication.user_id == user_id)
-        .where(HealthMedication.record_date >= since)
-        .order_by(HealthMedication.record_date)
+        stmt.order_by(HealthMedication.record_date)
     ).all()
 
     today = date.today()

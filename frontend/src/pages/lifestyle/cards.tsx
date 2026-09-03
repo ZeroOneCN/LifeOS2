@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { BarChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -342,10 +342,11 @@ export function CardsPage() {
   const [phoneRefresh, setPhoneRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
 
-  const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', 30, phoneRefresh)
-  const bankStats = useStats<BankStats>('/lifestyle/bank-cards')
-  const billStats = useStats<BillStats>('/lifestyle/card-bills')
-  const itemStats = useStats<ItemStats>('/lifestyle/items')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
+  const bankStats = useStats<BankStats>('/lifestyle/bank-cards', days)
+  const billStats = useStats<BillStats>('/lifestyle/card-bills', days)
+  const itemStats = useStats<ItemStats>('/lifestyle/items', days)
 
   // 用于扣账账单中显示手机号
   const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
@@ -528,6 +529,15 @@ export function CardsPage() {
 
       {tab === 'analysis' && (
         <div className="flex flex-col gap-6">
+          <div className="flex justify-end">
+            <StatsPeriodPicker
+              value={days}
+              onChange={(d) => {
+                setDays(d)
+                setGlobalStatsDays(d)
+              }}
+            />
+          </div>
           {itemStats && (
             <section className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -576,13 +586,13 @@ export function CardsPage() {
             </section>
           )}
 
-          {billStats && billStats.by_month.length > 0 && (
+          {billStats && (
             <section className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <ListChecks className="size-4 text-red-500" />
                 <h3 className="text-base font-semibold">扣账账单</h3>
               </div>
-              <BarChartCard title="近几个月扣账趋势" data={billStats.by_month} xKey="bill_month" series={[{ key: 'amount', name: '扣账', color: '#dc2626' }]} />
+              <BarChartCard title="近几个月扣账趋势" data={billStats.by_month ?? []} xKey="bill_month" series={[{ key: 'amount', name: '扣账', color: '#dc2626' }]} />
             </section>
           )}
         </div>

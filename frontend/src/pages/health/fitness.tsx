@@ -30,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
@@ -95,7 +95,8 @@ export function FitnessPage() {
     description: '确定删除这条运动记录吗？此操作不可恢复。',
   })
 
-  const stats = useStats<FitnessStats>('/health/fitness')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<FitnessStats>('/health/fitness', days)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -217,53 +218,59 @@ export function FitnessPage() {
         </Button>
       </div>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">运动次数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.total_count} 次</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.total_count ?? 0} 次</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">运动时长</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.total_minutes} 分钟</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.total_minutes ?? 0} 分钟</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总消耗</div>
-              <div className="mt-1 text-2xl font-semibold text-emerald-500">{stats.total_calories} kcal</div>
+              <div className="mt-1 text-2xl font-semibold text-emerald-500">{stats?.total_calories ?? 0} kcal</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">平均每次消耗</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats.total_count ? Math.round(stats.total_calories / stats.total_count) : '-'} kcal
+                {stats?.total_count ? Math.round(stats.total_calories / stats.total_count) : '-'} kcal
               </div>
             </CardContent>
           </Card>
         </div>
-      )}
 
-      {stats && (
-        <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
           <BarChartCard
-            title="运动类型时长分布（近 30 天）"
-            data={stats.by_type.map((t) => ({ name: exerciseLabel(t.exercise_type), minutes: t.minutes }))}
+            title="运动类型时长分布"
+            data={(stats?.by_type ?? []).map((t) => ({ name: exerciseLabel(t.exercise_type), minutes: t.minutes }))}
             xKey="name"
             series={[{ key: 'minutes', name: '时长(分钟)', color: '#4f46e5' }]}
           />
           <LineChartCard
             title="每日运动消耗"
-            data={stats.trend}
+            data={stats?.trend ?? []}
             xKey="record_date"
             series={[{ key: 'calories', name: '消耗(kcal)', color: '#f59e0b' }]}
           />
         </div>
-      )}
 
       <Card>
         <CardContent className="p-0">

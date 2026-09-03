@@ -3,7 +3,7 @@ import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } 
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useStats } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import {
   RecordManager,
@@ -124,7 +124,8 @@ function StatChip({
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 export function RemindersPage() {
-  const stats = useStats<ReminderStats>('/finance/reminders')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<ReminderStats>('/finance/reminders', days)
   const [agg, setAgg] = useState<Aggregate | null>(null)
 
   useEffect(() => {
@@ -212,14 +213,23 @@ export function RemindersPage() {
         fields={fields}
         columns={columns}
         extra={
-          stats ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatChip icon={Inbox} label="手动提醒总数" value={String(stats.total)} />
-              <StatChip icon={Clock} label="手动待处理" value={String(stats.pending)} className="text-amber-500" />
-              <StatChip icon={AlertCircle} label="手动已逾期" value={String(stats.overdue)} className="text-red-500" />
-              <StatChip icon={CheckCircle2} label="手动已完成" value={String(stats.done)} className="text-green-500" />
+          <>
+            <div className="flex justify-end">
+              <StatsPeriodPicker
+                value={days}
+                onChange={(d) => {
+                  setDays(d)
+                  setGlobalStatsDays(d)
+                }}
+              />
             </div>
-          ) : null
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatChip icon={Inbox} label="手动提醒总数" value={String(stats?.total ?? 0)} />
+              <StatChip icon={Clock} label="手动待处理" value={String(stats?.pending ?? 0)} className="text-amber-500" />
+              <StatChip icon={AlertCircle} label="手动已逾期" value={String(stats?.overdue ?? 0)} className="text-red-500" />
+              <StatChip icon={CheckCircle2} label="手动已完成" value={String(stats?.done ?? 0)} className="text-green-500" />
+            </div>
+          </>
         }
       />
     </div>

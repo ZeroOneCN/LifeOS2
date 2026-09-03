@@ -32,7 +32,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
 type DietRecord = {
@@ -94,7 +94,8 @@ export function DietPage() {
     description: '确定删除这条饮食记录吗？此操作不可恢复。',
   })
 
-  const stats = useStats<DietStats>('/health/diet')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<DietStats>('/health/diet', days)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -204,53 +205,59 @@ export function DietPage() {
         </Button>
       </div>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总摄入热量</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.total_calories ?? 0} kcal</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.total_calories ?? 0} kcal</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总蛋白质</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.total_protein ?? 0} g</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.total_protein ?? 0} g</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">日均热量</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats.avg_calories_per_day ?? '-'} kcal
+                {stats?.avg_calories_per_day ?? '-'} kcal
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日记录数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.trend.length}</div>
+              <div className="mt-1 text-2xl font-semibold">{(stats?.trend ?? []).length}</div>
             </CardContent>
           </Card>
         </div>
-      )}
 
-      {stats && (
-        <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
           <LineChartCard
             title="每日热量摄入趋势"
-            data={stats.trend}
+            data={stats?.trend ?? []}
             xKey="record_date"
             series={[{ key: 'calories', name: '摄入(千卡)', color: '#f59e0b' }]}
           />
           <BarChartCard
             title="三餐热量分布"
-            data={stats.by_meal.map((m) => ({ ...m, label: MEAL_LABEL[m.meal_type] ?? m.meal_type }))}
+            data={(stats?.by_meal ?? []).map((m) => ({ ...m, label: MEAL_LABEL[m.meal_type] ?? m.meal_type }))}
             xKey="label"
             series={[{ key: 'calories', name: '热量(kcal)', color: '#0ea5e9' }]}
           />
         </div>
-      )}
 
       <Card>
         <CardContent className="p-0">

@@ -1,11 +1,11 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import HealthStepSetting, HealthSteps, UserProfile
@@ -127,12 +127,12 @@ def _register_fixed(router) -> None:
 
 
 def _steps_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    stmt = select(HealthSteps).where(HealthSteps.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthSteps.record_date >= since)
     rows = db.scalars(
-        select(HealthSteps)
-        .where(HealthSteps.user_id == user_id)
-        .where(HealthSteps.record_date >= since)
-        .order_by(HealthSteps.record_date, HealthSteps.id)
+        stmt.order_by(HealthSteps.record_date, HealthSteps.id)
     ).all()
 
     by_day: dict[date, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "calories": 0.0})

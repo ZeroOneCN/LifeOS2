@@ -1,7 +1,12 @@
+import { useState } from 'react'
 import {
   BarChartCard,
   LineChartCard,
+  StatsPeriodPicker,
+  getDefaultStatsDays,
+  setGlobalStatsDays,
   useStats,
+  type StatsDays,
 } from '@/components/health/charts'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -125,13 +130,26 @@ const columns: ColumnDef<VitalsRecord>[] = [
 ]
 
 export function VitalsSleepPage() {
-  const stats = useStats<VitalsStats>('/health/vitals-sleep')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<VitalsStats>('/health/vitals-sleep', days)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
 
   const fmtSleep = (m?: number) =>
     m != null ? `${Math.floor(m / 60)}h${m % 60}m` : '—'
   const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
+
+  const periodPicker = (
+    <div className="flex justify-end">
+      <StatsPeriodPicker
+        value={days}
+        onChange={(d) => {
+          setDays(d)
+          setGlobalStatsDays(d)
+        }}
+      />
+    </div>
+  )
 
   return (
     <RecordManager<VitalsRecord>
@@ -141,9 +159,9 @@ export function VitalsSleepPage() {
       fields={fields}
       columns={columns}
       extra={
-        trend.length > 0 && (
-          <>
-            <div className="grid gap-4 md:grid-cols-4">
+        <>
+          {periodPicker}
+          <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">统计天数</div>
@@ -248,8 +266,7 @@ export function VitalsSleepPage() {
                 ]}
               />
             </div>
-          </>
-        )
+        </>
       }
     />
   )

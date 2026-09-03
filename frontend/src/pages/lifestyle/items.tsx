@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { BarChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -162,7 +162,8 @@ const columns: ColumnDef<ItemRecord>[] = [
 export function ItemsPage() {
   // refresh 用于同步后重新拉取统计
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<ItemStats>('/lifestyle/items', 30, refresh)
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<ItemStats>('/lifestyle/items', days, refresh)
   const byCategory = stats?.by_category ?? []
   const byStatus = stats?.by_status ?? []
   const bySource = stats?.by_source ?? []
@@ -242,14 +243,21 @@ export function ItemsPage() {
         }
         extra={
           <>
-            {(byCategory.length > 0 || byStatus.length > 0) && (
+            <div className="flex justify-end">
+              <StatsPeriodPicker
+                value={days}
+                onChange={(d) => {
+                  setDays(d)
+                  setGlobalStatsDays(d)
+                }}
+              />
+            </div>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <MiniStat label="物品总数" value={String(chartStats.total)} />
                 <MiniStat label="使用中" value={String(chartStats.in_use)} />
                 <MiniStat label="过期/临期" value={`${chartStats.expired} 已过 / ${chartStats.expiring} 临期`} />
                 <MiniStat label="日均成本(有效)" value={chartStats.avg_daily_cost ? fmt(chartStats.avg_daily_cost) + '/天' : '—'} />
               </div>
-            )}
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
               <BarChartCard
                 title={`物品分类统计（共 ${stats?.total ?? 0} 件 · 总值 ${stats ? fmt(stats.total_value) : ''}）`}

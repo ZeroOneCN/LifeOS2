@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { LineChartCard, useStats } from '@/components/health/charts'
+import { LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
@@ -103,7 +103,8 @@ export function BodyPage() {
     description: '确定删除这条体重记录吗？此操作不可恢复。',
   })
 
-  const stats = useStats<BodyStats>('/health/body')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<BodyStats>('/health/body', days)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const gender = form.gender === 'female' ? 'female' : 'male'
@@ -193,25 +194,34 @@ export function BodyPage() {
         </Button>
       </div>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">当前体重</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.latest?.weight_kg ?? '-'} kg</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.latest?.weight_kg ?? '-'} kg</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">最新 BMI</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.latest?.bmi ?? '-'}</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.latest?.bmi ?? '-'}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">体脂率</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats.latest?.body_fat_percent != null ? `${stats.latest.body_fat_percent}%` : '-'}
+                {stats?.latest?.body_fat_percent != null ? `${stats.latest.body_fat_percent}%` : '-'}
               </div>
             </CardContent>
           </Card>
@@ -219,25 +229,23 @@ export function BodyPage() {
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">平均体重</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats.avg_weight ?? '-'} kg
-                <span className="ml-2 text-sm text-muted-foreground">({stats.min_weight ?? '-'} ~ {stats.max_weight ?? '-'})</span>
+                {stats?.avg_weight ?? '-'} kg
+                <span className="ml-2 text-sm text-muted-foreground">({stats?.min_weight ?? '-'} ~ {stats?.max_weight ?? '-'})</span>
               </div>
             </CardContent>
           </Card>
         </div>
-      )}
 
-      {stats && (
-        <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
           <LineChartCard
             title="体重趋势"
-            data={stats.trend}
+            data={stats?.trend ?? []}
             xKey="record_date"
             series={[{ key: 'weight_kg', name: '体重(kg)', color: '#6366f1' }]}
           />
           <LineChartCard
             title="BMI 与体脂率趋势"
-            data={stats.trend}
+            data={stats?.trend ?? []}
             xKey="record_date"
             series={[
               { key: 'bmi', name: 'BMI', color: '#10b981' },
@@ -245,7 +253,6 @@ export function BodyPage() {
             ]}
           />
         </div>
-      )}
 
       <Card>
         <CardContent className="p-0">

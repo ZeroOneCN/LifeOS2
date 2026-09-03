@@ -1,11 +1,11 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.api.knowledge.fitness import FOOD_NUTRITION, estimate_nutrition
 from app.models import HealthDiet
 from app.schemas.health import DietCreate, DietRead
@@ -14,12 +14,12 @@ router = APIRouter()
 
 
 def _diet_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    stmt = select(HealthDiet).where(HealthDiet.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthDiet.record_date >= since)
     rows = db.scalars(
-        select(HealthDiet)
-        .where(HealthDiet.user_id == user_id)
-        .where(HealthDiet.record_date >= since)
-        .order_by(HealthDiet.record_date)
+        stmt.order_by(HealthDiet.record_date)
     ).all()
 
     by_day: dict[date, dict] = defaultdict(

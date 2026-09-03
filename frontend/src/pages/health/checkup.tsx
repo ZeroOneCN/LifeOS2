@@ -37,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useStats } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -134,7 +134,8 @@ export function CheckupPage() {
     description: '确定删除这条体检记录吗？此操作不可恢复。',
   })
 
-  const stats = useStats<CheckupStats>('/health/checkup')
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<CheckupStats>('/health/checkup', days)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -407,12 +408,21 @@ export function CheckupPage() {
         </div>
       </section>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">异常指标</div>
-              <div className="mt-1 text-2xl font-semibold text-red-600">{stats.abnormal_count} 项</div>
+              <div className="mt-1 text-2xl font-semibold text-red-600">{stats?.abnormal_count ?? 0} 项</div>
             </CardContent>
           </Card>
           <Card>
@@ -434,14 +444,13 @@ export function CheckupPage() {
             </CardContent>
           </Card>
         </div>
-      )}
 
-      {stats && stats.items.length > 0 && (
+      {(stats?.items?.length ?? 0) > 0 && (
         <Card>
           <CardContent className="py-4">
             <div className="mb-2 text-sm font-medium text-muted-foreground">医院式分析</div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {stats.items.map((item) => (
+              {(stats?.items ?? []).map((item) => (
                 <div key={item.item_name} className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <div className="text-sm font-medium">{item.item_name}</div>

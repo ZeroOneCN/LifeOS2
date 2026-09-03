@@ -1,11 +1,10 @@
 from collections import defaultdict
-from datetime import date, timedelta
 
 from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.models import HealthBody
 from app.schemas.health import BodyCreate, BodyRead
 
@@ -49,12 +48,12 @@ def _latest(rows):
 
 
 def _body_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    stmt = select(HealthBody).where(HealthBody.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthBody.record_date >= since)
     rows = db.scalars(
-        select(HealthBody)
-        .where(HealthBody.user_id == user_id)
-        .where(HealthBody.record_date >= since)
-        .order_by(HealthBody.record_date)
+        stmt.order_by(HealthBody.record_date)
     ).all()
 
     trend = [{**{m: getattr(r, m) for m in METRIC_KEYS}, "record_date": r.record_date} for r in rows]

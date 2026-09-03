@@ -1,11 +1,11 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.api.knowledge.fitness import estimate_calories
 from app.models import HealthFitness
 from app.schemas.health import FitnessCreate, FitnessRead
@@ -14,12 +14,12 @@ router = APIRouter()
 
 
 def _fitness_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    stmt = select(HealthFitness).where(HealthFitness.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthFitness.record_date >= since)
     rows = db.scalars(
-        select(HealthFitness)
-        .where(HealthFitness.user_id == user_id)
-        .where(HealthFitness.record_date >= since)
-        .order_by(HealthFitness.record_date)
+        stmt.order_by(HealthFitness.record_date)
     ).all()
 
     by_type: dict[str, dict] = defaultdict(lambda: {"count": 0, "minutes": 0, "calories": 0.0})

@@ -29,7 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
+import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
@@ -109,7 +109,8 @@ export function StepsPage() {
   })
 
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<StepsStats>('/health/steps', 30, refresh)
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const stats = useStats<StepsStats>('/health/steps', days, refresh)
   const [months, setMonths] = useState<MonthlyStats['months']>([])
   const [view, setView] = useState<'daily' | 'monthly'>('daily')
   const [daySum, setDaySum] = useState<DaySummary | null>(null)
@@ -223,34 +224,42 @@ export function StepsPage() {
         </div>
       </section>
 
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总步数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.total_steps.toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{(stats?.total_steps ?? 0).toLocaleString()}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">日均步数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.avg_steps?.toLocaleString() ?? '-'}</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.avg_steps?.toLocaleString() ?? '-'}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">单日最高</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.max_steps?.toLocaleString() ?? '-'}</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.max_steps?.toLocaleString() ?? '-'}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">记录条数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats.record_count}</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.record_count ?? 0}</div>
             </CardContent>
           </Card>
         </div>
-      )}
 
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         {(
@@ -270,19 +279,19 @@ export function StepsPage() {
         ))}
       </div>
 
-      {view === 'daily' && stats && (
+      {view === 'daily' && (
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             <LineChartCard
               title="每日步数趋势"
-              data={stats.trend}
+              data={stats?.trend ?? []}
               xKey="record_date"
               series={[{ key: 'steps', name: '步数', color: '#10b981' }]}
               height={260}
             />
             <BarChartCard
               title="各时间段步数分布"
-              data={stats.by_period.map((p) => ({ ...p, label: periodLabel(p.period) }))}
+              data={(stats?.by_period ?? []).map((p) => ({ ...p, label: periodLabel(p.period) }))}
               xKey="label"
               series={[{ key: 'steps', name: '步数', color: '#3b82f6' }]}
               height={260}

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -50,7 +50,7 @@ def _item_stats(db: Session, days: int, user_id: int) -> dict:
             left = (r.expire_date - today).days
             if left < 0:
                 expired += 1
-            elif left <= days:
+            elif days > 0 and left <= days:
                 expiring += 1
         u = _usage_days(r)
         if (r.price or 0) > 0 and u > 0:

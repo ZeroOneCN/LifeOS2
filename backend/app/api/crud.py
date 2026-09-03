@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +17,11 @@ def _owned_get(db: Session, model, item_id: int, user_id: int):
     return db.scalars(
         select(model).where(model.id == item_id, model.user_id == user_id)
     ).first()
+
+
+def days_since(days: int):
+    """days>=1 返回近 N 天起始日；days<=0 返回 None（不过滤，即全部）。"""
+    return (date.today() - timedelta(days=days - 1)) if days and days > 0 else None
 
 
 def crud_router(
@@ -71,7 +76,7 @@ def crud_router(
 
         @router.get("/stats")
         def stats(
-            days: int = Query(30, ge=1, le=365),
+            days: int = Query(30, ge=0, le=365),
             db: Session = Depends(get_db),
             current_user: UserProfile = Depends(get_current_user),
         ):

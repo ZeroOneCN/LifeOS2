@@ -203,13 +203,11 @@ carrier_router = crud_router(
 # 扣账账单
 # --------------------------------------------------------------------------
 def _bill_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today().replace(day=1)
-    bills = db.scalars(
-        select(LifestyleCardBill).where(
-            LifestyleCardBill.bill_month >= since,
-            LifestyleCardBill.user_id == user_id,
-        )
-    ).all()
+    # days<=0 表示「全部」，不过滤；否则按当月起始过滤
+    stmt = select(LifestyleCardBill).where(LifestyleCardBill.user_id == user_id)
+    if days and days > 0:
+        stmt = stmt.where(LifestyleCardBill.bill_month >= date.today().replace(day=1))
+    bills = db.scalars(stmt).all()
     by_month: dict[str, float] = defaultdict(float)
     for b in bills:
         by_month[b.bill_month.strftime("%Y-%m")] += b.amount
