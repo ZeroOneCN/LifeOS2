@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -188,6 +188,14 @@ export function StepsPage() {
 
   const set = (key: keyof typeof EMPTY, value: string) => setForm((f) => ({ ...f, [key]: value }))
 
+  const stepsInputRef = useRef<HTMLInputElement>(null)
+
+  // 新增连续录入：对话框打开或时间段切换后聚焦步数输入框，便于直接输入
+  useEffect(() => {
+    if (dialogOpen && !editing) stepsInputRef.current?.focus()
+  }, [dialogOpen, editing, form.period])
+
+  // 新增录入时：保存当前条后自动跳到下一个时间段连续录入；最后一个时段保存后关闭
   const submit = async () => {
     const payload = {
       record_date: form.record_date,
@@ -196,9 +204,20 @@ export function StepsPage() {
     }
     setSaving(true)
     try {
-      if (editing) await api.update('/health/steps', editing.id, payload)
-      else await api.create('/health/steps', payload)
-      setDialogOpen(false)
+      if (editing) {
+        await api.update('/health/steps', editing.id, payload)
+        setDialogOpen(false)
+      } else {
+        await api.create('/health/steps', payload)
+        const idx = PERIODS.findIndex((p) => p.value === form.period)
+        const isLast = idx === PERIODS.length - 1
+        if (isLast) {
+          setDialogOpen(false)
+        } else {
+          // 跳到下一个时间段，清空步数，继续保持日期连续录入
+          setForm((f) => ({ ...f, period: PERIODS[idx + 1].value, steps: '' }))
+        }
+      }
       setPage(1)
       await load()
     } finally {
@@ -466,7 +485,11 @@ export function StepsPage() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑步数记录' : '新增步数记录'}</DialogTitle>
-            <DialogDescription>选择时间段录入步数，距离按步幅自动计算。</DialogDescription>
+            <DialogDescription>
+              {editing
+                ? '修改并保存本条记录。'
+                : '选择时间段录入步数，按 Enter 或点击保存后自动跳到下一时间段连续录入；录完最后时段自动关闭。'}
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -496,7 +519,19 @@ export function StepsPage() {
               <Label>
                 步数 <span className="text-destructive">*</span>
               </Label>
-              <Input type="number" min="0" value={form.steps} onChange={(e) => set('steps', e.target.value)} />
+              <Input
+                ref={stepsInputRef}
+                type="number"
+                min="0"
+                value={form.steps}
+                onChange={(e) => set('steps', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !saving && form.record_date && form.steps) {
+                    e.preventDefault()
+                    submit()
+                  }
+                }}
+              />
             </div>
             <div className="space-y-2">
               <Label>消耗(kcal)</Label>
