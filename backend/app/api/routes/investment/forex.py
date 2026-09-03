@@ -14,12 +14,6 @@ from app.schemas.health import PageOut
 
 router = APIRouter(prefix="/investment/forex", tags=["investment-forex"])
 
-_ORDER_MAP = {"日期时间": "trade_date", "交易品种": "symbol", "订单类型": "order_type",
-              "开仓价格": "open_price", "手数": "lot_size", "手续费": "commission",
-              "平仓价格": "close_price", "盈亏金额": "pnl", "隔夜费": "overnight_fee",
-              "开仓时间": "open_time", "平仓时间": "close_time", "持仓时间": "holding",
-              "备注": "note"}
-
 
 # --------------------------------------------------------------------------
 # 解析/计算辅助
@@ -83,6 +77,60 @@ def _holding_minutes(open_dt: datetime | None, close_dt: datetime | None) -> int
     return int(round((close_dt - open_dt).total_seconds() / 60))
 
 
+def _parse_time_only(value) -> time | None:
+    """把纯时间字符串 %H:%M:%S / %H:%M 解析成 time。"""
+    if value is None or str(value).strip() == "":
+        return None
+    if isinstance(value, datetime):
+        return value.time()
+    if isinstance(value, time):
+        return value
+    s = str(value).strip()
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(s, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_duration_minutes(value) -> int | None:
+    """把持仓时长 H:M:S / M:S 解析成分钟。"""
+    if value is None or str(value).strip() == "":
+        return None
+    s = str(value).strip()
+    parts = s.split(":")
+    try:
+        if len(parts) == 3:
+            return int(parts[0]) * 60 + int(parts[1]) + round(int(parts[2]) / 60)
+        if len(parts) == 2:
+            return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, TypeError):
+        pass
+    # 可能是浮点天数（Excel）或分钟数
+    try:
+        f = float(s)
+    except ValueError:
+        return None
+    if 0 < abs(f) < 1:
+        return int(round(f * 24 * 60))
+    return int(round(f))
+
+
+def _combine_open_close(day: date, open_t: str, close_t: str) -> tuple[datetime | None, datetime | None]:
+    ot = _parse_time_only(open_t)
+    ct = _parse_time_only(close_t)
+    if ot is None:
+        return None, None
+    open_dt = datetime.combine(day, ot)
+    if ct is None:
+        return open_dt, None
+    close_dt = datetime.combine(day, ct)
+    if close_dt < open_dt:  # 跨日平仓
+        close_dt += timedelta(days=1)
+    return open_dt, close_dt
+
+
 def _trade_net(t: InvestmentForex) -> float:
     """单笔净盈亏 = 盈亏 + 手续费 + 隔夜费（带符号）。"""
     return (t.pnl or 0) + (t.commission or 0) + (t.overnight_fee or 0)
@@ -129,14 +177,6 @@ def list_items(
         .limit(page_size)
     ).all()
     return PageOut(items=[_read(r) for r in rows], total=total, page=page, page_size=page_size)
-
-
-@router.get("/{item_id}", response_model=ForexRead)
-def get_item(item_id: int, db: Session = Depends(get_db)):
-    obj = db.get(InvestmentForex, item_id)
-    if not obj:
-        raise HTTPException(status_code=404, detail="记录不存在")
-    return _read(obj)
 
 
 def _apply_payload(obj: InvestmentForex, payload: ForexCreate):
@@ -369,9 +409,88 @@ def calendar(month: str | None = Query(None), db: Session = Depends(get_db)):
     }
 
 
+@router.get("/{item_id}", response_model=ForexRead)
+def get_item(item_id: int, db: Session = Depends(get_db)):
+    """置于 /stats /calendar 之后定义，避免 /stats 等字面路径被当作 item_id 捕获。"""
+    obj = db.get(InvestmentForex, item_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return _read(obj)
+
+
 # --------------------------------------------------------------------------
 # xlsx 导入（MT5 清洗后导出）
 # --------------------------------------------------------------------------
+_HEADER_MAP = {
+    "日期时间": "trade_date", "交易品种": "symbol", "订单类型": "order_type",
+    "开仓价格": "open_price", "手数": "lot_size", "手续费": "commission",
+    "平仓价格": "close_price", "盈亏金额": "pnl", "隔夜费": "overnight_fee",
+    "开仓时间": "open_time", "平仓时间": "close_time", "持仓时间": "holding",
+    "备注": "note",
+}
+
+
+def parse_trade_rows(rows) -> tuple[list[InvestmentForex], int]:
+    """把 MT5 清洗后的原始行解析为交易记录列表。返回 (records, skipped)。
+
+    表头：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注
+    （可含 ID 首列，自动忽略）
+    """
+    if not rows:
+        return [], 0
+    header = [str(c).strip() if c is not None else "" for c in rows[0]]
+    col_idx: dict[str, int] = {}
+    for i, h in enumerate(header):
+        if h in _HEADER_MAP:
+            col_idx[_HEADER_MAP[h]] = i
+
+    def get(raw, key):
+        i = col_idx.get(key)
+        if i is None or i >= len(raw):
+            return None
+        return raw[i]
+
+    records, skipped = [], 0
+    for raw in rows[1:]:
+        if raw is None or all(c is None or str(c).strip() == "" for c in raw):
+            continue
+        symbol = get(raw, "symbol")
+        day = _coerce_date(get(raw, "trade_date"))
+        open_dt, close_dt = _combine_open_close(day, get(raw, "open_time"), get(raw, "close_time"))
+        pnl = _num(get(raw, "pnl"))
+        if not symbol or (open_dt is None and not get(raw, "trade_date")):
+            skipped += 1
+            continue
+
+        order_type = str(get(raw, "order_type") or "").strip().lower()
+        order_type = "buy" if order_type and order_type.startswith("buy") else ("sell" if order_type else "buy")
+
+        close_price = _num(get(raw, "close_price"))
+        # MT5 导入的数据均为已平仓
+        status = "closed"
+
+        holding = _holding_minutes(open_dt, close_dt) or _parse_duration_minutes(get(raw, "holding"))
+        records.append(
+            InvestmentForex(
+                trade_date=day or (open_dt.date() if open_dt else date.today()),
+                symbol=str(symbol).strip(),
+                order_type=order_type,
+                open_price=_num(get(raw, "open_price"), 0) or 0,
+                lot_size=_num(get(raw, "lot_size"), 0) or 0,
+                commission=_num(get(raw, "commission"), 0) or 0,
+                close_price=close_price,
+                pnl=pnl,
+                overnight_fee=_num(get(raw, "overnight_fee"), 0) or 0,
+                open_time=open_dt,
+                close_time=close_dt,
+                holding=holding,
+                status=status,
+                note=str(get(raw, "note")).strip() if get(raw, "note") else None,
+            )
+        )
+    return records, skipped
+
+
 @router.post("/import")
 async def import_xlsx(
     mode: str = Query("append", pattern="^(append|replace)$"),
@@ -395,63 +514,7 @@ async def import_xlsx(
         raise HTTPException(status_code=400, detail=f"无法解析 Excel 文件：{exc}")
 
     rows = list(ws.iter_rows(values_only=True))
-    if not rows:
-        return {"imported": 0, "skipped": 0, "message": "文件中无数据"}
-
-    header = [str(c).strip() if c is not None else "" for c in rows[0]]
-    col_idx: dict[str, int] = {}
-    for i, h in enumerate(header):
-        if h in _ORDER_MAP:
-            col_idx[_ORDER_MAP[h]] = i
-
-    def get(raw, key):
-        i = col_idx.get(key)
-        if i is None or i >= len(raw):
-            return None
-        return raw[i]
-
-    records, skipped = [], 0
-    for raw in rows[1:]:
-        if raw is None or all(c is None or str(c).strip() == "" for c in raw):
-            continue
-        symbol = get(raw, "symbol")
-        open_time = _parse_dt(get(raw, "open_time"))
-        close_time = _parse_dt(get(raw, "close_time"))
-        pnl = _num(get(raw, "pnl"))
-        if not symbol or (open_time is None and not get(raw, "trade_date")):
-            skipped += 1
-            continue
-
-        order_type = str(get(raw, "order_type") or "").strip().lower()
-        if not order_type:
-            order_type = "buy"
-        order_type = "buy" if order_type.startswith("buy") else "sell"
-
-        trade_date = _coerce_date(get(raw, "trade_date") or (open_time.date() if open_time else date.today()))
-        close_price = _num(get(raw, "close_price"))
-        status = "closed" if close_time is not None else ("open" if close_price is None else "closed")
-        if status == "open" and close_time is None and close_price is not None:
-            status = "closed"
-
-        holding = _holding_minutes(open_time, close_time)
-        records.append(
-            InvestmentForex(
-                trade_date=trade_date,
-                symbol=str(symbol).strip(),
-                order_type=order_type,
-                open_price=_num(get(raw, "open_price"), 0) or 0,
-                lot_size=_num(get(raw, "lot_size"), 0) or 0,
-                commission=_num(get(raw, "commission"), 0) or 0,
-                close_price=close_price,
-                pnl=pnl,
-                overnight_fee=_num(get(raw, "overnight_fee"), 0) or 0,
-                open_time=open_time,
-                close_time=close_time,
-                holding=holding,
-                status=status,
-                note=str(get(raw, "note")).strip() if get(raw, "note") else None,
-            )
-        )
+    records, skipped = parse_trade_rows(rows)
 
     if records:
         if mode == "replace":

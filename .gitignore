@@ -1,0 +1,11 @@
+# 工具/数据目录（含敏感业务数据，不入库）
+.trae/
+
+# 数据库备份文件（保留本地归档，不入库）
+backend/backups/
+
+# Python / Node
+backend/.venv/
+frontend/node_modules/
+__pycache__/
+*.pyc
