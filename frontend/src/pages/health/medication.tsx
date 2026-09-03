@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Loader2, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -141,6 +141,7 @@ export function MedicationPage() {
   const [purItems, setPurItems] = useState<Purchase[]>([])
   const [purTotal, setPurTotal] = useState(0)
   const [purPage, setPurPage] = useState(1)
+  const [purStats, setPurStats] = useState<{ total_count: number; total_price: number } | null>(null)
   const [stocks, setStocks] = useState<Stock[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -167,6 +168,10 @@ export function MedicationPage() {
     const res = await api.list<Purchase>('/health/medication/purchases', { page: purPage, page_size: PAGE_SIZE })
     setPurItems(res.items)
     setPurTotal(res.total)
+    api
+      .stats<{ total_count: number; total_price: number }>('/health/medication/purchases', 'all')
+      .then(setPurStats)
+      .catch(() => {})
   }
   const loadStock = async () => {
     const r = await api.query<{ items: Stock[] }>('/health/medication/stocks')
@@ -370,7 +375,7 @@ export function MedicationPage() {
     setDialogOpen(true)
   }
 
-  const purchaseTotal = purItems.reduce((s, p) => s + (p.total_price || 0), 0)
+  const purchaseTotal = purStats?.total_price ?? 0
   const lowCount = stocks.filter((s) => s.is_low).length
 
   const tabs: { key: Tab; label: string }[] = [
@@ -497,6 +502,7 @@ export function MedicationPage() {
                   <TableHead>午餐</TableHead>
                   <TableHead>晚餐</TableHead>
                   <TableHead>服用状态</TableHead>
+                  <TableHead>备注</TableHead>
                   <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -504,13 +510,13 @@ export function MedicationPage() {
                 {medItems.length === 0 ? (
                   loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         <Loader2 className="mx-auto size-5 animate-spin" />
                       </TableCell>
                     </TableRow>
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         暂无用药记录
                       </TableCell>
                     </TableRow>
@@ -518,7 +524,14 @@ export function MedicationPage() {
                 ) : (
                   medItems.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>{row.record_date}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1">
+                          {row.record_date}
+                          {row.note && (
+                            <StickyNote className="size-3.5 text-amber-500" />
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell>{row.medicine_name}</TableCell>
                       {MEAL_ORDER.map((meal) => {
                         const dose = row[PILLS_KEY[meal]] as number
@@ -549,6 +562,18 @@ export function MedicationPage() {
                           })}
                           {row.dose_breakfast + row.dose_lunch + row.dose_dinner === 0 && <span className="text-xs text-muted-foreground">无剂量</span>}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {row.note ? (
+                          <span
+                            title={row.note}
+                            className="block max-w-64 truncate text-xs text-muted-foreground"
+                          >
+                            {row.note}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -586,7 +611,7 @@ export function MedicationPage() {
             <Card>
               <CardContent className="py-4">
                 <div className="text-sm text-muted-foreground">购药记录数</div>
-                <div className="mt-1 text-2xl font-semibold">{purTotal}</div>
+                <div className="mt-1 text-2xl font-semibold">{purStats?.total_count ?? purTotal}</div>
               </CardContent>
             </Card>
           </div>

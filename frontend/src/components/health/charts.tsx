@@ -3,6 +3,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
@@ -98,12 +99,15 @@ export function LineChartCard({
   xKey,
   series,
   height = 240,
+  intTick = false,
 }: {
   title: string
   data: Record<string, unknown>[]
   xKey: string
   series: Series[]
   height?: number
+  /** Y 轴使用整数刻度（步数等离散较大数值时避免小数刻度） */
+  intTick?: boolean
 }) {
   return (
     <Card>
@@ -112,10 +116,14 @@ export function LineChartCard({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+          <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              allowDecimals={!intTick}
+              tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
+            />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {series.map((s) => (
@@ -142,12 +150,21 @@ export function BarChartCard({
   xKey,
   series,
   height = 240,
+  intTick = false,
+  onBarClick,
+  selectedKey,
 }: {
   title: string
   data: Record<string, unknown>[]
   xKey: string
   series: Series[]
   height?: number
+  /** Y 轴使用整数刻度 */
+  intTick?: boolean
+  /** 点击柱状图触发（payload 为柱数据） */
+  onBarClick?: (payload: Record<string, unknown>) => void
+  /** 选中条目的 key 值（用于高亮该柱） */
+  selectedKey?: string
 }) {
   return (
     <Card>
@@ -156,14 +173,40 @@ export function BarChartCard({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
-          <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+          <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              allowDecimals={!intTick}
+              tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
+            />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {series.map((s) => (
-              <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color ?? '#4f46e5'} radius={[4, 4, 0, 0]} />
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                name={s.name}
+                fill={s.color ?? '#4f46e5'}
+                radius={[4, 4, 0, 0]}
+                style={onBarClick ? { cursor: 'pointer' } : undefined}
+                onClick={
+                  onBarClick
+                    ? (payload) => {
+                        onBarClick(payload?.payload ?? payload ?? {})
+                      }
+                    : undefined
+                }
+              >
+                {selectedKey &&
+                  data.map((d) => (
+                    <Cell
+                      key={`cell-${String(d[xKey])}`}
+                      fill={String(d[xKey]) === String(selectedKey) ? '#f59e0b' : (s.color ?? '#4f46e5')}
+                    />
+                  ))}
+              </Bar>
             ))}
           </BarChart>
         </ResponsiveContainer>

@@ -18,6 +18,18 @@ from app.models import (
 router = APIRouter(prefix="/health/dashboard", tags=["health-fitness-dashboard"])
 
 
+def _calc_bmi(b) -> float | None:
+    """返回身体记录的 BMI：已存值优先；否则按身高体重实时计算。"""
+    if b is None:
+        return None
+    if b.bmi is not None:
+        return b.bmi
+    if b.height_cm and b.weight_kg:
+        h = b.height_cm / 100
+        return round(b.weight_kg / (h * h), 1)
+    return None
+
+
 @router.get("")
 def dashboard(
     days: int = 30,
@@ -90,7 +102,7 @@ def dashboard(
         {
             "record_date": b.record_date.isoformat(),
             "weight_kg": b.weight_kg,
-            "bmi": b.bmi,
+            "bmi": _calc_bmi(b),
             "body_fat_percent": b.body_fat_percent,
             "muscle_percent": b.muscle_percent,
         }
@@ -113,7 +125,7 @@ def dashboard(
             "record_date": latest_body.record_date,
             "height_cm": latest_body.height_cm,
             "weight_kg": latest_body.weight_kg,
-            "bmi": latest_body.bmi,
+            "bmi": _calc_bmi(latest_body),
             "body_fat_percent": latest_body.body_fat_percent,
         },
     }

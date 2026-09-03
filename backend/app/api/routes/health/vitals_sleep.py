@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.models import HealthVitalsSleep
 from app.schemas.health import VitalsSleepCreate, VitalsSleepRead
 
@@ -12,11 +12,13 @@ router = APIRouter()
 
 
 def _vitals_stats(db: Session, days: int, user_id: int) -> dict:
-    # 体征统计按全部历史返回（不限制时间窗口），便于展示完整趋势
+    # 体征统计支持按近 N 天过滤（days=0 返回全部）
+    since = days_since(days)
+    stmt = select(HealthVitalsSleep).where(HealthVitalsSleep.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthVitalsSleep.record_date >= since)
     rows = db.scalars(
-        select(HealthVitalsSleep)
-        .where(HealthVitalsSleep.user_id == user_id)
-        .order_by(HealthVitalsSleep.record_date)
+        stmt.order_by(HealthVitalsSleep.record_date)
     ).all()
 
     def avg(attr: str) -> float | None:

@@ -3,7 +3,6 @@ import {
   BarChartCard,
   LineChartCard,
   StatsPeriodPicker,
-  getDefaultStatsDays,
   setGlobalStatsDays,
   useStats,
   type StatsDays,
@@ -90,10 +89,11 @@ const columns: ColumnDef<VitalsRecord>[] = [
   {
     key: 'sleep_duration_min',
     label: '睡眠',
-    render: (r) =>
-      r.sleep_duration_min != null
-        ? `${Math.floor(r.sleep_duration_min / 60)}h${r.sleep_duration_min % 60}m`
-        : '—',
+    render: (r) => {
+      if (r.sleep_duration_min == null) return '—'
+      const total = Math.round(r.sleep_duration_min)
+      return `${Math.floor(total / 60)}h${total % 60}m`
+    },
   },
   {
     key: 'bp',
@@ -130,13 +130,16 @@ const columns: ColumnDef<VitalsRecord>[] = [
 ]
 
 export function VitalsSleepPage() {
-  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const [days, setDays] = useState<StatsDays>(7)
   const stats = useStats<VitalsStats>('/health/vitals-sleep', days)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
 
-  const fmtSleep = (m?: number) =>
-    m != null ? `${Math.floor(m / 60)}h${m % 60}m` : '—'
+  const fmtSleep = (m?: number) => {
+    if (m == null) return '—'
+    const total = Math.round(m)
+    return `${Math.floor(total / 60)}h${total % 60}m`
+  }
   const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
 
   const periodPicker = (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
 type DashboardData = {
@@ -23,11 +23,13 @@ type DashboardData = {
 }
 
 export function FitnessDashboardPage() {
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [data, setData] = useState<DashboardData | null>(null)
 
   useEffect(() => {
-    api.query<DashboardData>('/health/dashboard').then(setData).catch(() => setData(null))
-  }, [])
+    const n = days === 'all' ? 0 : days
+    api.query<DashboardData>(`/health/dashboard?days=${n}`).then(setData).catch(() => setData(null))
+  }, [days])
 
   if (!data) {
     return (
@@ -42,6 +44,16 @@ export function FitnessDashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
+
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

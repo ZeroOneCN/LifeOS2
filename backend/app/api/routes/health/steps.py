@@ -61,21 +61,42 @@ def _register_fixed(router) -> None:
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
-        """按自然月统计步数（近 12 个月）。"""
+        """按自然月统计步数（近 12 个月）。每月 = 该月每天最大值之和。"""
         rows = db.scalars(
             select(HealthSteps)
             .where(HealthSteps.user_id == user.id)
             .order_by(HealthSteps.record_date)
         ).all()
-        by_month: dict[str, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "days": set()})
+        # 先按 (年-月, 日) 取每天最大值
+        day_max: dict[tuple[str, date], dict] = {}
         for r in rows:
-            key = r.record_date.strftime("%Y-%m")
-            by_month[key]["steps"] += r.steps
-            by_month[key]["distance_km"] += r.distance_km or 0
-            by_month[key]["days"].add(r.record_date)
+            key_month = r.record_date.strftime("%Y-%m")
+            dk = (key_month, r.record_date)
+            steps = r.steps or 0
+            cur = day_max.get(dk)
+            if cur is None or steps > cur["steps"]:
+                day_max[dk] = {
+                    "steps": steps,
+                    "distance_km": r.distance_km or 0,
+                    "calories": r.calories or 0,
+                }
+        by_month: dict[str, dict] = defaultdict(
+            lambda: {"steps": 0, "distance_km": 0.0, "calories": 0.0, "days": set()}
+        )
+        for (key_month, rd), dm in day_max.items():
+            by_month[key_month]["steps"] += dm["steps"]
+            by_month[key_month]["distance_km"] += dm["distance_km"]
+            by_month[key_month]["calories"] += dm["calories"]
+            by_month[key_month]["days"].add(rd)
         return {
             "months": [
-                {"month": k, "steps": v["steps"], "distance_km": round(v["distance_km"], 2), "days": len(v["days"])}
+                {
+                    "month": k,
+                    "steps": v["steps"],
+                    "distance_km": round(v["distance_km"], 2),
+                    "calories": round(v["calories"], 1),
+                    "days": len(v["days"]),
+                }
                 for k, v in sorted(by_month.items())[-12:]
             ]
         }
@@ -100,11 +121,17 @@ def _register_fixed(router) -> None:
             .where(func.year(HealthSteps.record_date) == y)
             .order_by(HealthSteps.record_date)
         ).all()
-        by_day: dict[date, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "calories": 0.0})
+        by_day: dict[date, dict] = {}
         for r in rows:
-            by_day[r.record_date]["steps"] += r.steps
-            by_day[r.record_date]["distance_km"] += r.distance_km or 0
-            by_day[r.record_date]["calories"] += r.calories or 0
+            steps = r.steps or 0
+            d = by_day.get(r.record_date)
+            # 每日取最大值（同天多个时间段是累计序列，取最大的即当天代表值）
+            if d is None or steps > d["steps"]:
+                by_day[r.record_date] = {
+                    "steps": steps,
+                    "distance_km": r.distance_km or 0,
+                    "calories": r.calories or 0,
+                }
         days = sorted(by_day.items(), key=lambda x: x[0], reverse=True)
         total = len(days)
         start = (page - 1) * page_size
@@ -125,6 +152,36 @@ def _register_fixed(router) -> None:
             "page_size": page_size,
         }
 
+    @router.get("/month-detail")
+    def month_detail(
+        year: int | None = Query(None),
+        month: int | None = Query(None),
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """返回指定月份的全部步数明细（每条含 record_date/period/steps），供前端聚合趋势/分布/对比。"""
+        today = date.today()
+        y = year or today.year
+        m = month or today.month
+        rows = db.scalars(
+            select(HealthSteps)
+            .where(HealthSteps.user_id == user.id)
+            .where(func.year(HealthSteps.record_date) == y)
+            .where(func.month(HealthSteps.record_date) == m)
+            .order_by(HealthSteps.record_date, HealthSteps.id)
+        ).all()
+        return {
+            "month": f"{y}-{m:02d}",
+            "days": [
+                {
+                    "record_date": r.record_date,
+                    "period": r.period,
+                    "steps": r.steps or 0,
+                }
+                for r in rows
+            ],
+        }
+
 
 def _steps_stats(db: Session, days: int, user_id: int) -> dict:
     since = days_since(days)
@@ -135,13 +192,19 @@ def _steps_stats(db: Session, days: int, user_id: int) -> dict:
         stmt.order_by(HealthSteps.record_date, HealthSteps.id)
     ).all()
 
-    by_day: dict[date, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "calories": 0.0})
+    by_day: dict[date, dict] = {}
     by_period: dict[str, int] = defaultdict(int)
     for r in rows:
-        by_day[r.record_date]["steps"] += r.steps
-        by_day[r.record_date]["distance_km"] += r.distance_km or 0
-        by_day[r.record_date]["calories"] += r.calories or 0
-        by_period[r.period] += r.steps
+        steps = r.steps or 0
+        d = by_day.get(r.record_date)
+        # 每日取最大值（同天多时段累计序列）
+        if d is None or steps > d["steps"]:
+            by_day[r.record_date] = {
+                "steps": steps,
+                "distance_km": r.distance_km or 0,
+                "calories": r.calories or 0,
+            }
+        by_period[r.period] += steps
 
     steps_list = [by_day[d]["steps"] for d in by_day]
     total_steps = sum(steps_list)

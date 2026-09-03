@@ -117,6 +117,19 @@ def _medication_stats(db: Session, days: int, user_id: int) -> dict:
 # ---- 购药记录 ----
 # 相对前缀 /purchases：include 进 /health/medication 路由器后拼成 /health/medication/purchases，
 # 且必须在动态 /{item_id} 之前注册，否则 /purchases 会被当作 item_id 解析报 422
+
+
+def _purchase_stats_func(db: Session, days: int, user_id: int) -> dict:
+    """购药记录全量统计（不受分页影响）。"""
+    rows = db.scalars(
+        select(HealthMedPurchase).where(HealthMedPurchase.user_id == user_id)
+    ).all()
+    return {
+        "total_count": len(rows),
+        "total_price": round(sum(r.total_price or 0 for r in rows), 2),
+    }
+
+
 purchase_router = crud_router(
     prefix="/purchases",
     tag="health-med-purchase",
@@ -125,10 +138,41 @@ purchase_router = crud_router(
     read_schema=MedPurchaseRead,
     order_by=HealthMedPurchase.buy_date,
     date_column="buy_date",
+    stats_func=_purchase_stats_func,
 )
 
 
 # ---- 药品库存 / 购药记录（固定静态路由，需在动态 /{item_id} 之前注册） ----
+def _ensure_stock_rows(db: Session, user_id: int) -> None:
+    """确保所有购过药的药品都有库存行，缺则自动创建（有购药即有库存提醒）。"""
+    purchased = set(
+        db.scalars(
+            select(HealthMedPurchase.medicine_name)
+            .where(HealthMedPurchase.user_id == user_id)
+            .distinct()
+        ).all()
+    )
+    existing = set(
+        db.scalars(
+            select(HealthMedStock.medicine_name)
+            .where(HealthMedStock.user_id == user_id)
+        ).all()
+    )
+    missing = purchased - existing
+    for name in missing:
+        db.add(
+            HealthMedStock(
+                user_id=user_id,
+                medicine_name=name,
+                stock_qty=0,
+                threshold=0,
+                unit="粒",
+            )
+        )
+    if missing:
+        db.commit()
+
+
 def _register_fixed(router) -> None:
     # 购药记录路由必须注册在 /{item_id} 之前，否则 /purchases 会被当作 item_id 解析报 422
     router.include_router(purchase_router)
@@ -138,6 +182,7 @@ def _register_fixed(router) -> None:
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
+        _ensure_stock_rows(db, user.id)
         stocks = _get_stock_list(db, user.id)
         return {
             "items": stocks,

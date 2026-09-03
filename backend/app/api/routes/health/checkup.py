@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.crud import crud_router
+from app.api.crud import crud_router, days_since
 from app.api.knowledge.checkup import PANEL_PRESETS
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -42,11 +42,13 @@ def _resolve_result(r) -> str | None:
 
 
 def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
-    # 体检统计按全部历史返回（不限制时间窗口），便于完整展示正常/偏高/偏低分布
+    # 体检统计按所选天数过滤（days=0 即全部历史）
+    since = days_since(days)
+    stmt = select(HealthCheckup).where(HealthCheckup.user_id == user_id)
+    if since is not None:
+        stmt = stmt.where(HealthCheckup.check_date >= since)
     rows = db.scalars(
-        select(HealthCheckup)
-        .where(HealthCheckup.user_id == user_id)
-        .order_by(HealthCheckup.check_date)
+        stmt.order_by(HealthCheckup.check_date)
     ).all()
 
     by_item: dict[str, dict] = {}
