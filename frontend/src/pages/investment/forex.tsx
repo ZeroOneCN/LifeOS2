@@ -24,6 +24,9 @@ import {
   HardHat,
   Loader2,
   Percent,
+  Plus,
+  RefreshCw,
+  Trash2,
   TrendingUp,
   Upload,
 } from 'lucide-react'
@@ -42,6 +45,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
@@ -158,60 +170,46 @@ const tradeFields: FieldDef[] = [
   { key: 'commission', label: '手续费', type: 'number', step: '0.01' },
   { key: 'overnight_fee', label: '隔夜费', type: 'number', step: '0.01' },
   { key: 'pnl', label: '盈亏金额', type: 'number', step: '0.01' },
-  {
-    key: 'status',
-    label: '状态',
-    type: 'select',
-    options: [
-      { value: 'closed', label: '已平仓' },
-      { value: 'open', label: '持仓中' },
-    ],
-  },
   { key: 'note', label: '备注', type: 'textarea', full: true },
 ]
 
 const tradeColumns: ColumnDef<ForexRecord>[] = [
-  { key: 'trade_date', label: '日期' },
-  { key: 'symbol', label: '品种' },
+  { key: 'trade_date', label: '日期时间' },
+  { key: 'symbol', label: '交易品种' },
   {
     key: 'order_type',
-    label: '方向',
+    label: '订单类型',
     render: (r) =>
       r.order_type === 'buy' ? (
-        <Badge className="bg-green-100 text-green-700">多</Badge>
+        <Badge className="bg-green-100 text-green-700">做多 Buy</Badge>
       ) : (
-        <Badge className="bg-red-100 text-red-700">空</Badge>
+        <Badge className="bg-red-100 text-red-700">做空 Sell</Badge>
       ),
   },
+  { key: 'open_price', label: '开仓价格' },
   { key: 'lot_size', label: '手数' },
-  {
-    key: 'price',
-    label: '开/平仓价',
-    render: (r) => `${r.open_price} → ${r.close_price ?? '—'}`,
-  },
+  { key: 'commission', label: '手续费' },
+  { key: 'close_price', label: '平仓价格', render: (r) => (r.close_price ?? '—') },
   {
     key: 'pnl',
-    label: '盈亏',
+    label: '盈亏金额',
     render: (r) => (r.pnl != null ? <span className={pnlCls(r.pnl)}>{fmtPnl(r.pnl)}</span> : '—'),
   },
-  { key: 'commission', label: '手续费' },
   { key: 'overnight_fee', label: '隔夜费' },
+  { key: 'open_time', label: '开仓时间', render: (r) => fmtDT(r.open_time) },
+  { key: 'close_time', label: '平仓时间', render: (r) => fmtDT(r.close_time) },
   {
     key: 'holding',
-    label: '持仓',
+    label: '持仓时间',
     render: (r) => <span className="text-muted-foreground">{fmtHolding(r.holding)}</span>,
   },
-  {
-    key: 'status',
-    label: '状态',
-    render: (r) =>
-      r.status === 'closed' ? (
-        <Badge className="bg-gray-100 text-gray-600">已平仓</Badge>
-      ) : (
-        <Badge className="bg-blue-100 text-blue-700">持仓中</Badge>
-      ),
-  },
+  { key: 'note', label: '备注' },
 ]
+
+const fmtDT = (v?: string) => {
+  if (!v) return '—'
+  return v.replace('T', ' ').slice(0, 19)
+}
 
 // ---------------------------------------------------------------------------
 // 收益曲线（红绿基线：绿涨红跌，0 为基线）
@@ -315,65 +313,288 @@ function TradingCalendar() {
 }
 
 // ---------------------------------------------------------------------------
-// 交易仓位计算
+// 仓位计算（多仓位杠杆并行：共同计算保证金，按保证金比例算爆仓价格）
 // ---------------------------------------------------------------------------
-function PositionCalculator() {
-  const [balance, setBalance] = useState('')
-  const [riskPct, setRiskPct] = useState('1')
-  const [stopPips, setStopPips] = useState('')
-  const [pipValue, setPipValue] = useState('10')
-  const [result, setResult] = useState<{ lots: number; riskAmount: number; perPip: number } | null>(null)
+type PositionRow = {
+  id: number
+  symbol: string
+  direction: 'buy' | 'sell'
+  open_price: string
+  lots: string
+  leverage: string
+}
 
-  const calc = () => {
-    const b = parseFloat(balance)
-    const r = parseFloat(riskPct)
-    const s = parseFloat(stopPips)
-    const pv = parseFloat(pipValue)
-    if (!b || !s || !pv) return
-    const riskAmount = (b * r) / 100
-    const lots = s > 0 ? riskAmount / (s * pv) : 0
-    setResult({ lots: lots, riskAmount, perPip: lots * pv })
-  }
+const NEW_ROW = (): PositionRow => ({
+  id: Date.now() + Math.floor(Math.random() * 100000),
+  symbol: '',
+  direction: 'buy',
+  open_price: '',
+  lots: '',
+  leverage: '100',
+})
+
+function PositionCalculator({ equity }: { equity?: number }) {
+  // 净值：默认注入实时净值，可手动变更；点「重置」恢复为实时净值
+  const [equityVal, setEquityVal] = useState(() => (equity != null ? String(equity) : ''))
+  const [contractSize, setContractSize] = useState('100000') // 每手合约规格（标准手=100000）
+  const [stopOutPct, setStopOutPct] = useState('100') // 爆仓保证金比例 %
+  const [warnPct, setWarnPct] = useState('150') // 预警保证金比例 %
+  const [rows, setRows] = useState<PositionRow[]>([NEW_ROW()])
+
+  useEffect(() => {
+    if (equity != null) setEquityVal(String(equity))
+  }, [equity])
+
+  const addRow = () => setRows((prev) => [...prev, NEW_ROW()])
+  const removeRow = (id: number) => setRows((prev) => prev.filter((r) => r.id !== id))
+  const updateRow = (id: number, patch: Partial<PositionRow>) =>
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+
+  const result = useMemo(() => {
+    const eq = parseFloat(equityVal)
+    const cs = parseFloat(contractSize) || 100000
+    const stopLevel = parseFloat(stopOutPct) > 0 ? parseFloat(stopOutPct) : 100
+    const warnLevel = parseFloat(warnPct) > 0 ? parseFloat(warnPct) : stopLevel
+    const positions = rows
+      .map((r) => ({
+        id: r.id,
+        symbol: r.symbol.trim(),
+        direction: r.direction,
+        open: parseFloat(r.open_price),
+        lots: parseFloat(r.lots),
+        lev: parseFloat(r.leverage) > 0 ? parseFloat(r.leverage) : 1,
+      }))
+      .filter((p) => p.symbol && p.open > 0 && p.lots > 0)
+    const hasEquity = !Number.isNaN(eq) && Number.isFinite(eq)
+    if (!hasEquity || positions.length === 0) return null
+
+    let totalNotional = 0
+    let totalMargin = 0
+    const list = positions.map((p) => {
+      const notional = p.open * p.lots * cs // 名义价值
+      const margin = notional / p.lev // 该仓位保证金 = 名义价值 / 杠杆
+      totalNotional += notional
+      totalMargin += margin
+      return { ...p, notional, margin }
+    })
+    const freeMargin = eq - totalMargin // 可用保证金
+    const marginLevel = totalMargin > 0 ? (eq / totalMargin) * 100 : null // 保证金比例 %
+
+    // 每一仓位的爆仓价格：假定其它仓位不变，仅此仓价格变动，使保证金比例跌至爆仓阈值
+    const liqList = list.map((p) => {
+      const neededPnl = (stopLevel / 100) * totalMargin - eq // 触发强平还需再亏损的金额
+      const perLot = p.lots * cs
+      let liqPrice: number | null = null
+      if (perLot > 0) {
+        liqPrice =
+          p.direction === 'buy' ? p.open + neededPnl / perLot : p.open - neededPnl / perLot
+      }
+      return { ...p, liqPrice }
+    })
+
+    let status: 'ok' | 'warn' | 'danger' | 'idle' = 'idle'
+    if (marginLevel != null && totalMargin > 0) {
+      if (marginLevel <= stopLevel) status = 'danger'
+      else if (marginLevel <= warnLevel) status = 'warn'
+      else status = 'ok'
+    }
+    return {
+      eq,
+      totalNotional: totalNotional || 0,
+      totalMargin,
+      freeMargin,
+      marginLevel: totalMargin > 0 ? marginLevel! : null,
+      stopLevel,
+      warnLevel,
+      list: liqList,
+      status,
+    }
+  }, [equityVal, contractSize, stopOutPct, warnPct, rows])
+
+  const statusBadge =
+    result == null
+      ? { text: '待输入', cls: 'bg-gray-100 text-gray-600' }
+      : result.status === 'danger'
+        ? { text: '已爆仓/强平', cls: 'bg-red-100 text-red-700' }
+        : result.status === 'warn'
+          ? { text: '预警', cls: 'bg-amber-100 text-amber-700' }
+          : { text: '正常', cls: 'bg-emerald-100 text-emerald-700' }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <HardHat className="size-4 text-amber-500" /> 交易仓位计算
-        </CardTitle>
-        <CardDescription>按风险比例与止损点数计算建议开仓手数</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="space-y-1">
-            <Label>账户余额</Label>
-            <Input type="number" value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="10000" />
-          </div>
-          <div className="space-y-1">
-            <Label>风险比例 %</Label>
-            <Input type="number" value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>止损点数(pips)</Label>
-            <Input type="number" value={stopPips} onChange={(e) => setStopPips(e.target.value)} placeholder="30" />
-          </div>
-          <div className="space-y-1">
-            <Label>每手每点价值</Label>
-            <Input type="number" value={pipValue} onChange={(e) => setPipValue(e.target.value)} />
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button onClick={calc}>计算手数</Button>
-          {result && (
-            <div className="flex flex-wrap gap-2 text-sm">
-              <Badge className="bg-emerald-100 text-emerald-700">建议手数 {result.lots.toFixed(2)}</Badge>
-              <Badge className="bg-amber-100 text-amber-700">风险金额 {fmtVal(result.riskAmount)}</Badge>
-              <Badge className="bg-sky-100 text-sky-700">每点价值 {fmtVal(result.perPip)}</Badge>
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <HardHat className="size-4 text-amber-500" /> 账户与爆仓参数
+          </CardTitle>
+          <CardDescription>基于实时净值（可手动变更）计算保证金比例与爆仓价格</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="space-y-1">
+              <Label>账户净值（可改）</Label>
+              <div className="flex gap-1">
+                <Input type="number" value={equityVal} onChange={(e) => setEquityVal(e.target.value)} placeholder="0" />
+                <Button variant="outline" size="icon" title="重置为实时净值" onClick={() => equity != null && setEquityVal(String(equity))}>
+                  <RefreshCw className="size-4" />
+                </Button>
+              </div>
             </div>
+            <div className="space-y-1">
+              <Label>每手合约规格</Label>
+              <Input type="number" value={contractSize} onChange={(e) => setContractSize(e.target.value)} placeholder="100000" />
+            </div>
+            <div className="space-y-1">
+              <Label>爆仓保证金比例 %</Label>
+              <Input type="number" value={stopOutPct} onChange={(e) => setStopOutPct(e.target.value)} placeholder="100" />
+            </div>
+            <div className="space-y-1">
+              <Label>预警保证金比例 %</Label>
+              <Input type="number" value={warnPct} onChange={(e) => setWarnPct(e.target.value)} placeholder="150" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Plus className="size-4 text-indigo-500" /> 持仓清单（多仓位并行）
+            </CardTitle>
+            <CardDescription>每个仓位独立杠杆，共同占用保证金，联动计算爆仓价格</CardDescription>
+          </div>
+          <Button size="sm" variant="outline" onClick={addRow}>
+            <Plus /> 添加仓位
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {rows.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">暂无仓位，点击「添加仓位」开始计算。</p>
+          ) : (
+            rows.map((row) => (
+              <div key={row.id} className="grid grid-cols-2 items-end gap-2 rounded-lg border p-2 sm:grid-cols-6">
+                <div className="space-y-1">
+                  <Label className="text-xs">交易品种</Label>
+                  <Input value={row.symbol} onChange={(e) => updateRow(row.id, { symbol: e.target.value })} placeholder="EUR/USD" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">方向</Label>
+                  <Select value={row.direction} onValueChange={(v) => updateRow(row.id, { direction: v as PositionRow['direction'] })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="buy">做多 Buy</SelectItem>
+                      <SelectItem value="sell">做空 Sell</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">开仓价</Label>
+                  <Input type="number" value={row.open_price} onChange={(e) => updateRow(row.id, { open_price: e.target.value })} placeholder="1.1000" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">手数</Label>
+                  <Input type="number" value={row.lots} onChange={(e) => updateRow(row.id, { lots: e.target.value })} placeholder="1.00" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">杠杆</Label>
+                  <Input type="number" value={row.leverage} onChange={(e) => updateRow(row.id, { leverage: e.target.value })} placeholder="100" />
+                </div>
+                <div className="flex justify-end">
+                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => removeRow(row.id)}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            ))
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <TrendingUp className="size-4 text-emerald-500" /> 计算结果
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!result ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              请至少填写净值并添加一个有效仓位（品种 + 开仓价 + 手数）。
+            </p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">账户净值</div>
+                  <div className="text-lg font-semibold">{fmtVal(result.eq)}</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">总名义价值</div>
+                  <div className="text-lg font-semibold">{fmtVal(result.totalNotional)}</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">总保证金</div>
+                  <div className="text-lg font-semibold text-indigo-600">{fmtVal(result.totalMargin)}</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">可用保证金</div>
+                  <div className="text-lg font-semibold">{fmtVal(result.freeMargin)}</div>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <div className="text-xs text-muted-foreground">保证金比例</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-semibold">{result.marginLevel != null ? `${result.marginLevel.toFixed(1)}%` : '—'}</span>
+                    <Badge className={statusBadge.cls}>{statusBadge.text}</Badge>
+                  </div>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>品种</TableHead>
+                    <TableHead>方向</TableHead>
+                    <TableHead>开仓价</TableHead>
+                    <TableHead>手数</TableHead>
+                    <TableHead>杠杆</TableHead>
+                    <TableHead className="text-right">名义价值</TableHead>
+                    <TableHead className="text-right">该仓保证金</TableHead>
+                    <TableHead className="text-right">爆仓价格</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {result.list.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.symbol}</TableCell>
+                      <TableCell>
+                        {p.direction === 'buy' ? (
+                          <Badge className="bg-green-100 text-green-700">多</Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-700">空</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{p.open}</TableCell>
+                      <TableCell>{p.lots}</TableCell>
+                      <TableCell>1:{p.lev}</TableCell>
+                      <TableCell className="text-right">{fmtVal(p.notional)}</TableCell>
+                      <TableCell className="text-right text-indigo-600">{fmtVal(p.margin)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {p.liqPrice != null && Number.isFinite(p.liqPrice) ? p.liqPrice.toFixed(p.open < 10 ? 4 : 2) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p className="text-xs text-muted-foreground">
+                爆仓价格：假定其余仓位不变，仅该仓位价格变动，使整体保证金比例跌至 {result.stopLevel}% 时对应的价格
+                （{result.warnLevel}% 为预警阈值）。
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -647,99 +868,126 @@ export function ForexPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <RecordManager<ForexRecord>
-        title="外汇交易"
-        description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
-        apiPath="/investment/forex"
-        fields={tradeFields}
-        columns={tradeColumns}
-        refreshKey={refresh}
-        headerExtra={<ImportButton onDone={onImported} />}
-        extra={
-          <>
-            {s && (
-              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
-                <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
-                <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
-                <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
-                <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
-                <StatCard icon={CalendarDays} label="隔夜费" value={fmtVal(s.total_overnight)} hint="库存/隔夜费合计" />
-                <StatCard icon={ArrowUpFromLine} label="入金" value={fmtVal(s.total_deposit)} hint={`出金 ${fmtVal(s.total_withdraw)}`} />
-                <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint="账户体验金" />
-              </section>
-            )}
+      <Tabs defaultValue="trades">
+        <TabsList>
+          <TabsTrigger value="trades">交易列表</TabsTrigger>
+          <TabsTrigger value="funds">资金动态</TabsTrigger>
+          <TabsTrigger value="position">仓位计算</TabsTrigger>
+        </TabsList>
 
-            <section className="grid gap-4 lg:grid-cols-2">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">收益曲线（累计净收益）</CardTitle>
-                  <CardDescription>绿色为盈利区、红色为亏损区，0 为基线</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <EquityChart data={stats?.equity_trend ?? []} />
-                </CardContent>
-              </Card>
-              <TradingCalendar />
-            </section>
+        <TabsContent value="trades">
+          <RecordManager<ForexRecord>
+            title="外汇交易"
+            description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
+            apiPath="/investment/forex"
+            fields={tradeFields}
+            columns={tradeColumns}
+            refreshKey={refresh}
+            headerExtra={<ImportButton onDone={onImported} />}
+            extra={
+              <>
+                {s && (
+                  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
+                    <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
+                    <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
+                    <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
+                    <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
+                    <StatCard icon={CalendarDays} label="隔夜费" value={fmtVal(s.total_overnight)} hint="库存/隔夜费合计" />
+                    <StatCard icon={ArrowUpFromLine} label="入金" value={fmtVal(s.total_deposit)} hint={`出金 ${fmtVal(s.total_withdraw)}`} />
+                    <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint="账户体验金" />
+                  </section>
+                )}
 
-            {stats && stats.by_symbol.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">交易品种盈亏</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
-                        {stats.by_symbol.map((d, i) => (
-                          <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
+                <section className="grid gap-4 lg:grid-cols-2">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">收益曲线（累计净收益）</CardTitle>
+                      <CardDescription>绿色为盈利区、红色为亏损区，0 为基线</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <EquityChart data={stats?.equity_trend ?? []} />
+                    </CardContent>
+                  </Card>
+                  <TradingCalendar />
+                </section>
 
-            {a && (
-              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
-                <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
-                <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${a.max_drawdown_pct}%`} />
-                <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
-              </section>
-            )}
+                {stats && stats.by_symbol.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">交易品种盈亏</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
+                            {stats.by_symbol.map((d, i) => (
+                              <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
 
-            {a && a.hour_dist.length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">开仓时段分布（数据分析·按小时）</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={a.hour_dist} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" name="开仓笔数" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            )}
+                {a && (
+                  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
+                    <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
+                    <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${a.max_drawdown_pct}%`} />
+                    <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
+                  </section>
+                )}
 
-            <PositionCalculator />
+                {a && a.hour_dist.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">开仓时段分布（数据分析·按小时）</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={a.hour_dist} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip />
+                          <Bar dataKey="count" name="开仓笔数" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="funds">
+          <div className="flex flex-col gap-4">
+            <div className="space-y-1">
+              <h1 className="font-heading text-2xl font-semibold tracking-tight">资金动态</h1>
+              <p className="text-sm text-muted-foreground">记录入金 / 出金 / 体验金，构成账户净值。</p>
+            </div>
             <FundsSection />
-          </>
-        }
-      />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="position">
+          <div className="flex flex-col gap-4">
+            <div className="space-y-1">
+              <h1 className="font-heading text-2xl font-semibold tracking-tight">仓位计算</h1>
+              <p className="text-sm text-muted-foreground">多仓位杠杆并行计算：共同占用保证金，按保证金比例推演爆仓价格。</p>
+            </div>
+            <PositionCalculator equity={s?.account_value} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
