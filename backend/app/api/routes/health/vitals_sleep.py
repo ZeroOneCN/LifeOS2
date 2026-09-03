@@ -1,4 +1,3 @@
-from datetime import date, timedelta
 from statistics import fmean
 
 from fastapi import APIRouter
@@ -13,11 +12,10 @@ router = APIRouter()
 
 
 def _vitals_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    # 体征统计按全部历史返回（不限制时间窗口），便于展示完整趋势
     rows = db.scalars(
         select(HealthVitalsSleep)
         .where(HealthVitalsSleep.user_id == user_id)
-        .where(HealthVitalsSleep.record_date >= since)
         .order_by(HealthVitalsSleep.record_date)
     ).all()
 

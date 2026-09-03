@@ -1,5 +1,3 @@
-from datetime import date, timedelta
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -44,11 +42,10 @@ def _resolve_result(r) -> str | None:
 
 
 def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
-    since = date.today() - timedelta(days=days - 1)
+    # 体检统计按全部历史返回（不限制时间窗口），便于完整展示正常/偏高/偏低分布
     rows = db.scalars(
         select(HealthCheckup)
         .where(HealthCheckup.user_id == user_id)
-        .where(HealthCheckup.check_date >= since)
         .order_by(HealthCheckup.check_date)
     ).all()
 
