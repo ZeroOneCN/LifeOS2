@@ -4,14 +4,17 @@ import { RouterProvider } from 'react-router-dom'
 
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AuthProvider } from '@/lib/auth'
 import { router } from '@/router'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <TooltipProvider>
-      <RouterProvider router={router} />
-      <Toaster />
+      <AuthProvider>
+        <RouterProvider router={router} />
+        <Toaster />
+      </AuthProvider>
     </TooltipProvider>
   </StrictMode>,
 )

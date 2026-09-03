@@ -1,10 +1,28 @@
 const BASE = '/api/v1'
 
+const AUTH_EXEMPT = ['/auth/login', '/auth/register']
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('lifeos_token')
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return { ...headers, ...(extra as Record<string, string>) }
+}
+
+function handleUnauthorized(path: string) {
+  localStorage.removeItem('lifeos_token')
+  const current = window.location.pathname
+  if (!AUTH_EXEMPT.some((p) => path.startsWith(p)) && !current.startsWith('/login') && !current.startsWith('/register')) {
+    window.location.href = '/login'
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(options?.headers),
     ...options,
   })
+  if (res.status === 401) handleUnauthorized(path)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.detail ?? `请求失败（${res.status}）`)
@@ -60,7 +78,11 @@ export const api = {
   remove: (path: string, id: number) =>
     request<void>(`${path}/${id}`, { method: 'DELETE' }),
   upload: async <T>(path: string, formData: FormData) => {
-    const res = await fetch(`${BASE}${path}`, { method: 'POST', body: formData })
+    const headers: Record<string, string> = {}
+    const token = localStorage.getItem('lifeos_token')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(`${BASE}${path}`, { method: 'POST', headers, body: formData })
+    if (res.status === 401) handleUnauthorized(path)
     if (!res.ok) {
       const body = await res.json().catch(() => null)
       throw new Error(body?.detail ?? `上传失败（${res.status}）`)
@@ -70,7 +92,11 @@ export const api = {
   stats: <T>(path: string, days = 30) =>
     request<T>(`${path}/stats?days=${days}`),
   download: async (path: string, fallbackName = 'download.pdf') => {
-    const res = await fetch(`${BASE}${path}`)
+    const headers: Record<string, string> = {}
+    const token = localStorage.getItem('lifeos_token')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(`${BASE}${path}`, { headers })
+    if (res.status === 401) handleUnauthorized(path)
     if (!res.ok) {
       const body = await res.json().catch(() => null)
       throw new Error(body?.detail ?? `下载失败（${res.status}）`)

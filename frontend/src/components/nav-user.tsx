@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BadgeCheck, LogOut, Settings } from 'lucide-react'
 
@@ -17,33 +17,26 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
-import { api } from '@/lib/api'
-
-type UserInfo = {
-  nickname: string
-  avatar: string | null
-  email: string | null
-}
+import { useAuth } from '@/lib/auth'
 
 export function NavUser() {
   const navigate = useNavigate()
-  const [user, setUser] = useState<UserInfo | null>(null)
-
-  useEffect(() => {
-    api
-      .query<UserInfo>('/user/profile')
-      .then(setUser)
-      .catch(() => setUser(null))
-  }, [])
+  const { user, logout } = useAuth()
+  const [open, setOpen] = useState(false)
 
   const nickname = user?.nickname?.trim() || '未命名用户'
   const email = user?.email ?? '未设置邮箱'
   const initial = nickname.charAt(0).toUpperCase()
 
+  const onLogout = () => {
+    setOpen(false)
+    logout()
+  }
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu open={open} onOpenChange={setOpen}>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
@@ -93,7 +86,7 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
+            <DropdownMenuItem onSelect={onLogout}>
               <LogOut />
               退出登录
             </DropdownMenuItem>

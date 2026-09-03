@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
+import { RequireAuth, GuestOnly } from '@/components/auth-guard'
 import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
 import { ActivityLogsPage } from '@/pages/activity-logs'
@@ -32,6 +33,8 @@ import { NotificationsPage } from '@/pages/notifications'
 import { PlaceholderPage } from '@/pages/placeholder'
 import { AccountSettingsPage } from '@/pages/account-settings'
 import { UserCenterPage } from '@/pages/user-center'
+import { LoginPage } from '@/pages/login'
+import { RegisterPage } from '@/pages/register'
 
 // 已实现具体功能的页面，其余菜单项统一使用占位页。
 const implementedPages: Record<string, React.ReactNode> = {
@@ -83,8 +86,14 @@ const placeholderRoutes = navigation.flatMap((section) =>
 )
 
 export const router = createBrowserRouter([
+  { path: '/login', element: <GuestOnly><LoginPage /></GuestOnly> },
+  { path: '/register', element: <GuestOnly><RegisterPage /></GuestOnly> },
   {
-    element: <AdminLayout />,
+    element: (
+      <RequireAuth>
+        <AdminLayout />
+      </RequireAuth>
+    ),
     children: [
       { path: '/', element: <Navigate to="/home" replace /> },
       { path: '/home', element: <HomePage /> },
