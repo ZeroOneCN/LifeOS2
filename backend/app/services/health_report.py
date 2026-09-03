@@ -327,7 +327,7 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
                 ["运动时长", f"{data['fitness_minutes']} 分钟"],
                 ["运动消耗", f"{data['fitness_calories']} 千卡"],
                 ["总步数", f"{data['steps_total'] or 0} 步"],
-                ["日均步数", f"{data['steps_avg_daily'] or 0} 步"],
+                ["日均步数", f"{data['steps_avg_daily'] or 0:.0f} 步"],
                 ["单日最高", f"{data['steps_max_daily'] or 0} 步"],
             ],
         }
