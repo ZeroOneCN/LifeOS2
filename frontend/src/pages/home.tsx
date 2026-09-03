@@ -5,25 +5,21 @@ import {
   CalendarClock,
   CaseSensitive,
   CircleDollarSign,
+  Coins,
+  CreditCard,
+  Flame,
   Footprints,
   HandCoins,
   HeartPulse,
   Package,
   Receipt,
+  Scale,
   ShoppingCart,
   Timer,
   TrendingUp,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
-import {
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -33,7 +29,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { LineChartCard } from '@/components/health/charts'
 import { navigation } from '@/config/navigation'
 import { api } from '@/lib/api'
 
@@ -65,6 +60,8 @@ type HealthDash = {
   series: { record_date: string; intake: number; expenditure: number; balance: number }[]
   step_total: number
   exercise_count: number
+  intake_total: number
+  expenditure_total: number
   latest_body: { height_cm?: number; weight_kg?: number; bmi?: number; body_fat_percent?: number } | null
 }
 
@@ -73,6 +70,10 @@ type LifeOverview = {
   todo_overdue: number
   item_expiring: number
   item_expired: number
+  item_value: number
+  month_deduct: number
+  phone_total: number
+  bank_total: number
   pending_todos: { id: number; title: string; category: string; due_date?: string; priority?: string }[]
   expiring_items: { id: number; item_name: string; category: string; expire_date?: string; days_left: number }[]
   latest_report: { id: number; title: string; period_label?: string; summary?: string } | null
@@ -200,10 +201,6 @@ export function HomePage() {
   const displayName = profile?.nickname || profile?.username || '主人'
 
   const outstanding = (fin?.outstanding_loans ?? 0) + (fin?.outstanding_debt ?? 0)
-  const spendingData = (fin?.week_trend ?? []).map((r) => ({ name: r.date, value: r.amount }))
-  const healthSeries = (health?.series ?? []).map((r) => ({ name: r.record_date.slice(5), 摄入: r.intake, 消耗: r.expenditure }))
-  const categoryData = (fin?.categories ?? []).map((c) => ({ name: c.label, value: c.amount }))
-  const DONUT_COLORS = ['#0f766e', '#ef4444', '#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981']
 
   const pendingCount =
     (fin?.pending_bills.length ?? 0) + (fin?.pending_utils.length ?? 0) + (fin?.pending_reminders.length ?? 0)
@@ -235,62 +232,14 @@ export function HomePage() {
         <StatCard icon={CircleDollarSign} label="投资胜率" value={`${inv?.summary.win_rate ?? 0}%`} hint={`共 ${inv?.summary.trade_count ?? 0} 笔交易`} />
         <StatCard icon={Footprints} label="近期步数" value={`${num(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
         <StatCard icon={Timer} label="近期运动" value={`${health?.exercise_count ?? 0} 次`} hint="近 30 天记录" />
+        <StatCard icon={Flame} label="膳食摄入" value={`${num(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
+        <StatCard icon={Flame} label="运动消耗" value={`${num(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
+        <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${health.latest_body.weight_kg} kg` : '—'} hint={health?.latest_body?.bmi ? `BMI ${health.latest_body.bmi}` : '暂无记录'} />
         <StatCard icon={CaseSensitive} label="待办事项" value={`${life?.todo_pending ?? 0} 项`} hint={life?.todo_overdue ? `其中 ${life.todo_overdue} 项已逾期` : '暂无逾期'} />
         <StatCard icon={Package} label="临期物品" value={`${life?.item_expiring ?? 0} 项`} hint={life?.item_expired ? `另有 ${life.item_expired} 项已过期` : '30 天内到期'} />
+        <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${life?.phone_total ?? 0} 张 · 银行卡 ${life?.bank_total ?? 0} 张`} />
+        <StatCard icon={CreditCard} label="本月扣款" value={fmt(life?.month_deduct ?? 0)} hint="生活卡片类月度支出" />
       </section>
-
-      {/* 图表区 */}
-      {!loading && (
-        <section className="grid gap-4 lg:grid-cols-3">
-          {spendingData.length > 0 && (
-            <LineChartCard
-              title="近 7 天支出趋势"
-              data={spendingData}
-              xKey="name"
-              series={[{ key: 'value', name: '支出', color: '#ef4444' }]}
-            />
-          )}
-          {healthSeries.length > 0 && (
-            <LineChartCard
-              title="近 30 天热量摄入 / 消耗"
-              data={healthSeries}
-              xKey="name"
-              series={[
-                { key: '摄入', name: '摄入', color: '#f59e0b' },
-                { key: '消耗', name: '消耗', color: '#10b981' },
-              ]}
-              height={240}
-            />
-          )}
-          {categoryData.length > 0 && (
-            <Card className="h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">本月支出构成</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[264px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={55}
-                      outerRadius={85}
-                      paddingAngle={2}
-                    >
-                      {categoryData.map((_, i) => (
-                        <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => fmt(Number(value))} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          )}
-        </section>
-      )}
 
       {/* 待办与提醒 */}
       <section className="grid gap-4 lg:grid-cols-3">
