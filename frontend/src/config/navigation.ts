@@ -1,6 +1,5 @@
 import {
   Bell,
-  Calendar,
   CandlestickChart,
   ClipboardList,
   Compass,
@@ -12,6 +11,7 @@ import {
   HeartPulse,
   History,
   Home,
+  LayoutDashboard,
   ListTodo,
   MoonStar,
   Package,
@@ -82,10 +82,11 @@ export const navigation: NavSection[] = [
     title: '生活中心',
     icon: Compass,
     children: [
+      { title: '生活总览', url: '/lifestyle/overview', icon: LayoutDashboard },
       { title: '物品追踪', url: '/lifestyle/items', icon: Package },
-      { title: '卡片管理', url: '/lifestyle/sim-cards', icon: CreditCard },
+      { title: '卡片管理', url: '/lifestyle/cards', icon: CreditCard },
       { title: '待办清单', url: '/lifestyle/todos', icon: ListTodo },
-      { title: '日程管理', url: '/lifestyle/schedule', icon: Calendar },
+      { title: '生活报告', url: '/lifestyle/reports', icon: FileText },
     ],
   },
   {

@@ -38,9 +38,12 @@ from app.models.health import (
 )
 from app.models.investment import InvestmentForex
 from app.models.lifestyle import (
+    LifestyleBankCard,
+    LifestyleCardBill,
+    LifestyleCarrier,
     LifestyleItem,
-    LifestyleSchedule,
-    LifestyleSimCard,
+    LifestyleLifeReport,
+    LifestylePhoneCard,
     LifestyleTodo,
 )
 from app.models.notification import Notification
@@ -81,9 +84,12 @@ __all__ = [
     "FinanceMemo",
     "FinanceCurrency",
     "LifestyleItem",
-    "LifestyleSimCard",
+    "LifestylePhoneCard",
+    "LifestyleBankCard",
+    "LifestyleCarrier",
+    "LifestyleCardBill",
+    "LifestyleLifeReport",
     "LifestyleTodo",
-    "LifestyleSchedule",
     "InvestmentForex",
     "Notification",
     "ActivityLog",

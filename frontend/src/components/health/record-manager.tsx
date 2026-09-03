@@ -62,6 +62,12 @@ type RecordManagerProps<T extends { id: number }> = {
   columns: ColumnDef<T>[]
   /** 列表上方附加内容（如统计图表） */
   extra?: ReactNode
+  /** 头部右侧、新增按钮旁的自定义内容（如同步入口） */
+  headerExtra?: ReactNode
+  /** 每行操作列中间的自定义行内操作（渲染在编辑之前） */
+  rowActions?: (row: T) => ReactNode
+  /** 变化时重新拉取列表（用于外部操作后刷新） */
+  refreshKey?: number
 }
 
 const PAGE_SIZE = 20
@@ -80,6 +86,9 @@ export function RecordManager<T extends { id: number }>({
   fields,
   columns,
   extra,
+  headerExtra,
+  rowActions,
+  refreshKey,
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -110,7 +119,7 @@ export function RecordManager<T extends { id: number }>({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, refreshKey])
 
   const openCreate = () => {
     setEditing(null)
@@ -170,9 +179,12 @@ export function RecordManager<T extends { id: number }>({
           </h1>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus /> 新增记录
-        </Button>
+        <div className="flex items-center gap-2">
+          {headerExtra}
+          <Button onClick={openCreate}>
+            <Plus /> 新增记录
+          </Button>
+        </div>
       </section>
 
       {extra}
@@ -219,6 +231,7 @@ export function RecordManager<T extends { id: number }>({
                     ))}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        {rowActions?.(row)}
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
                           <Pencil />
                         </Button>

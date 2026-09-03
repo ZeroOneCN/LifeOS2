@@ -21,8 +21,9 @@ import { ReportsPage } from '@/pages/health/reports'
 import { StepsPage } from '@/pages/health/steps'
 import { VitalsSleepPage } from '@/pages/health/vitals-sleep'
 import { ItemsPage } from '@/pages/lifestyle/items'
-import { SchedulePage } from '@/pages/lifestyle/schedule'
-import { SimCardsPage } from '@/pages/lifestyle/sim-cards'
+import { CardsPage } from '@/pages/lifestyle/cards'
+import { LifestyleOverviewPage } from '@/pages/lifestyle/overview'
+import { LifestyleReportsPage } from '@/pages/lifestyle/reports'
 import { TodosPage } from '@/pages/lifestyle/todos'
 import { NotFoundPage } from '@/pages/not-found'
 import { NotificationsPage } from '@/pages/notifications'
@@ -50,10 +51,11 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/finance/planning': <PlanningPage />,
   '/finance/debts': <DebtsPage />,
   '/finance/reports': <FinanceReportsPage />,
+  '/lifestyle/overview': <LifestyleOverviewPage />,
   '/lifestyle/items': <ItemsPage />,
-  '/lifestyle/sim-cards': <SimCardsPage />,
+  '/lifestyle/cards': <CardsPage />,
   '/lifestyle/todos': <TodosPage />,
-  '/lifestyle/schedule': <SchedulePage />,
+  '/lifestyle/reports': <LifestyleReportsPage />,
   '/investment/forex': <ForexPage />,
   '/notifications': <NotificationsPage />,
   '/activity-logs': <ActivityLogsPage />,

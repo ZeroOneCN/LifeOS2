@@ -1,10 +1,24 @@
+import { useState } from 'react'
+import { Loader2, RefreshCw, ShoppingCart } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { BarChartCard, useStats } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
   type FieldDef,
 } from '@/components/health/record-manager'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { api } from '@/lib/api'
 
 type ItemRecord = {
   id: number
@@ -14,16 +28,35 @@ type ItemRecord = {
   status: 'in_use' | 'lost' | 'loaned' | 'recycled'
   purchase_date?: string
   price?: number
+  expire_date?: string
+  end_date?: string
+  source: 'manual' | 'shopping'
+  shopping_record_id?: number
   note?: string
 }
 
 type ItemStats = {
   total: number
+  in_use: number
+  total_value: number
+  total_usage_days: number
+  avg_daily_cost: number
+  expiring: number
+  expired: number
   by_category: { category: string; count: number }[]
   by_status: { status: string; count: number }[]
+  by_source: { source: string; count: number }[]
 }
 
-const categories = ['电子', '服饰', '书籍', '家居', '数码配件', '其他']
+type SyncCandidate = {
+  id: number
+  record_date?: string
+  product_name: string
+  spec?: string
+  total_price: number
+}
+
+const categories = ['电子', '服饰', '书籍', '家居', '数码配件', '购物', '其他']
 
 const fields: FieldDef[] = [
   { key: 'item_name', label: '物品名称', type: 'text', required: true },
@@ -48,6 +81,17 @@ const fields: FieldDef[] = [
   },
   { key: 'purchase_date', label: '购买日期', type: 'date' },
   { key: 'price', label: '价格', type: 'number', step: '0.01', min: 0 },
+  { key: 'expire_date', label: '过期时间', type: 'date' },
+  { key: 'end_date', label: '使用结束日期', type: 'date' },
+  {
+    key: 'source',
+    label: '来源',
+    type: 'select',
+    options: [
+      { value: 'manual', label: '手动' },
+      { value: 'shopping', label: '购物同步' },
+    ],
+  },
   { key: 'note', label: '备注', type: 'textarea', full: true },
 ]
 
@@ -57,6 +101,22 @@ const statusMeta: Record<string, { label: string; className: string }> = {
   lost: { label: '丢失', className: 'bg-red-100 text-red-700' },
   recycled: { label: '已淘汰', className: 'bg-gray-100 text-gray-500' },
 }
+
+function usageDays(r: ItemRecord): number {
+  if (!r.purchase_date) return 0
+  const end = r.end_date ? new Date(r.end_date) : new Date()
+  const start = new Date(r.purchase_date)
+  const days = Math.floor((end.getTime() - start.getTime()) / 86400000)
+  return days > 0 ? days : 0
+}
+
+function dailyCost(r: ItemRecord): number | null {
+  const days = usageDays(r)
+  if ((r.price ?? 0) > 0 && days > 0) return r.price! / days
+  return null
+}
+
+const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 const columns: ColumnDef<ItemRecord>[] = [
   { key: 'item_name', label: '物品' },
@@ -69,45 +129,213 @@ const columns: ColumnDef<ItemRecord>[] = [
       <Badge className={statusMeta[r.status]?.className}>{statusMeta[r.status]?.label ?? r.status}</Badge>
     ),
   },
-  { key: 'purchase_date', label: '购买日期', render: (r) => r.purchase_date ?? '—' },
+  {
+    key: 'source',
+    label: '来源',
+    render: (r) =>
+      r.source === 'shopping' ? (
+        <Badge className="bg-purple-100 text-purple-700">购物同步</Badge>
+      ) : (
+        <Badge className="bg-slate-100 text-slate-600">手动</Badge>
+      ),
+  },
+  {
+    key: 'usage_days',
+    label: '已用天数',
+    render: (r) =>
+      r.purchase_date ? `${usageDays(r)} 天${r.end_date ? '（已使用完）' : ''}` : '—',
+  },
+  {
+    key: 'daily_cost',
+    label: '日均成本',
+    render: (r) => (dailyCost(r) != null ? fmt(dailyCost(r)!) + '/天' : '—'),
+  },
+  { key: 'expire_date', label: '过期时间', render: (r) => r.expire_date ?? '—' },
   {
     key: 'price',
     label: '价格',
-    render: (r) =>
-      r.price != null ? `¥${r.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—',
+    render: (r) => (r.price != null ? fmt(r.price) : '—'),
   },
 ]
 
 export function ItemsPage() {
-  const stats = useStats<ItemStats>('/lifestyle/items')
+  // refresh 用于同步后重新拉取统计
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<ItemStats>('/lifestyle/items', 30, refresh)
   const byCategory = stats?.by_category ?? []
   const byStatus = stats?.by_status ?? []
+  const bySource = stats?.by_source ?? []
+
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [candidates, setCandidates] = useState<SyncCandidate[]>([])
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [loadingSync, setLoadingSync] = useState(false)
+
+  const openSync = async () => {
+    setSyncOpen(true)
+    setSelected(new Set())
+    setLoadingSync(true)
+    try {
+      const res = await api.query<SyncCandidate[]>('/lifestyle/items/sync-candidates')
+      setCandidates(res)
+    } catch (e) {
+      toast.error('加载失败', { description: (e as Error).message })
+    } finally {
+      setLoadingSync(false)
+    }
+  }
+
+  const doSync = async () => {
+    if (selected.size === 0) return
+    setLoadingSync(true)
+    try {
+      const res = await api.create<{ created: number; skipped: number }>('/lifestyle/items/sync', {
+        record_ids: Array.from(selected),
+      })
+      toast.success(`已同步 ${res.created} 条物品`, { description: `跳过 ${res.skipped} 条重复记录` })
+      setSyncOpen(false)
+      setRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('同步失败', { description: (e as Error).message })
+    } finally {
+      setLoadingSync(false)
+    }
+  }
+
+  const toggle = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const chartStats =
+    stats ?? {
+      total: 0,
+      in_use: 0,
+      total_value: 0,
+      total_usage_days: 0,
+      avg_daily_cost: 0,
+      expiring: 0,
+      expired: 0,
+      by_category: [],
+      by_status: [],
+      by_source: [],
+    }
 
   return (
-    <RecordManager<ItemRecord>
-      title="物品追踪"
-      description="登记个人物品，记录存放位置与状态。"
-      apiPath="/lifestyle/items"
-      fields={fields}
-      columns={columns}
-      extra={
-        byCategory.length > 0 || byStatus.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <BarChartCard
-              title={`物品分类统计（共 ${stats?.total ?? 0} 件）`}
-              data={byCategory}
-              xKey="category"
-              series={[{ key: 'count', name: '数量', color: '#6366f1' }]}
-            />
-            <BarChartCard
-              title="物品状态分布"
-              data={byStatus}
-              xKey="status"
-              series={[{ key: 'count', name: '数量', color: '#f59e0b' }]}
-            />
-          </div>
-        ) : null
-      }
-    />
+    <>
+      <RecordManager<ItemRecord>
+        title="物品追踪"
+        description="登记个人物品，计算使用时长与分摊费用损耗，支持从购物记录同步。"
+        apiPath="/lifestyle/items"
+        fields={fields}
+        columns={columns}
+        headerExtra={
+          <Button variant="outline" onClick={openSync}>
+            <ShoppingCart className="size-4" />
+            同步购物记录
+          </Button>
+        }
+        extra={
+          <>
+            {(byCategory.length > 0 || byStatus.length > 0) && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <MiniStat label="物品总数" value={String(chartStats.total)} />
+                <MiniStat label="使用中" value={String(chartStats.in_use)} />
+                <MiniStat label="过期/临期" value={`${chartStats.expired} 已过 / ${chartStats.expiring} 临期`} />
+                <MiniStat label="日均成本(有效)" value={chartStats.avg_daily_cost ? fmt(chartStats.avg_daily_cost) + '/天' : '—'} />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
+              <BarChartCard
+                title={`物品分类统计（共 ${stats?.total ?? 0} 件 · 总值 ${stats ? fmt(stats.total_value) : ''}）`}
+                data={byCategory}
+                xKey="category"
+                series={[{ key: 'count', name: '数量', color: '#6366f1' }]}
+              />
+              <BarChartCard
+                title="物品状态分布"
+                data={byStatus}
+                xKey="status"
+                series={[{ key: 'count', name: '数量', color: '#f59e0b' }]}
+              />
+              <BarChartCard
+                title="来源分布"
+                data={bySource}
+                xKey="source"
+                series={[{ key: 'count', name: '数量', color: '#a855f7' }]}
+              />
+            </div>
+          </>
+        }
+      />
+
+      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>从购物记录同步物品</DialogTitle>
+            <DialogDescription>
+              勾选需要转为物品的购物记录，系统将以商品名称、购买日期、价格生成物品（已同步的会自动跳过）。
+            </DialogDescription>
+          </DialogHeader>
+          {loadingSync && !candidates.length ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          ) : candidates.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              没有可同步的购物记录，或已全部同步过。
+            </p>
+          ) : (
+            <div className="max-h-[50vh] space-y-2 overflow-y-auto">
+              {candidates.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 hover:bg-muted/40"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{c.product_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.spec ? `${c.spec} · ` : ''}
+                      {c.record_date ?? '—'}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-sm font-medium">{fmt(c.total_price)}</span>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c.id)}
+                      onChange={() => toggle(c.id)}
+                      className="size-4 accent-indigo-600"
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSyncOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={doSync} disabled={loadingSync || selected.size === 0}>
+              {loadingSync ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              同步（{selected.size}）
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
   )
 }
