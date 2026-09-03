@@ -143,15 +143,13 @@ export function VitalsSleepPage() {
   const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
 
   const periodPicker = (
-    <div className="flex justify-end">
-      <StatsPeriodPicker
-        value={days}
-        onChange={(d) => {
-          setDays(d)
-          setGlobalStatsDays(d)
-        }}
-      />
-    </div>
+    <StatsPeriodPicker
+      value={days}
+      onChange={(d) => {
+        setDays(d)
+        setGlobalStatsDays(d)
+      }}
+    />
   )
 
   return (
@@ -161,9 +159,9 @@ export function VitalsSleepPage() {
       apiPath="/health/vitals-sleep"
       fields={fields}
       columns={columns}
+      headerExtra={periodPicker}
       extra={
         <>
-          {periodPicker}
           <div className="grid gap-4 md:grid-cols-4">
               <Card>
                 <CardContent className="py-4">

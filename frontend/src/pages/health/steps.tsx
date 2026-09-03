@@ -80,6 +80,7 @@ const PERIODS = [
   { value: '20-21', label: '20:00-21:00' },
   { value: '21-22', label: '21:00-22:00' },
   { value: '22-23', label: '22:00-23:00' },
+  { value: '23-24', label: '23:00-23:59' },
   { value: 'full', label: '23:59（全天最终）' },
 ]
 
@@ -120,7 +121,7 @@ export function StepsPage() {
   const DAILY_TOTAL_PAGES = Math.max(1, Math.ceil((daySum?.total ?? 0) / DAILY_PAGE_SIZE))
 
   // 可用年份（从每月聚合数据派生）
-  const years = [...new Set(months.map((m) => Number(m.month.slice(0, 4)))), new Date().getFullYear()]
+  const years = [...new Set([...months.map((m) => Number(m.month.slice(0, 4))), new Date().getFullYear()])]
     .filter((v) => Number.isFinite(v))
     .sort((a, b) => b - a)
 

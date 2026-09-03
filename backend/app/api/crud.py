@@ -65,8 +65,9 @@ def crud_router(
             if end:
                 stmt = stmt.where(col <= end)
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+        sort_cols = order_by if isinstance(order_by, (list, tuple)) else [order_by]
         rows = db.scalars(
-            stmt.order_by(order_by.desc())
+            stmt.order_by(*[c.desc() for c in sort_cols])
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()

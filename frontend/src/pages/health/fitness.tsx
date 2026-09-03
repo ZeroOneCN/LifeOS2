@@ -212,13 +212,7 @@ export function FitnessPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <Button onClick={openCreate}>
-          <Plus /> 新增运动记录
-        </Button>
-      </div>
-
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
         <StatsPeriodPicker
           value={days}
           onChange={(d) => {
@@ -226,6 +220,9 @@ export function FitnessPage() {
             setGlobalStatsDays(d)
           }}
         />
+        <Button onClick={openCreate}>
+          <Plus /> 新增运动记录
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

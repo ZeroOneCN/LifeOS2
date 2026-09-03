@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.api.crud import days_since
 from app.models import (
     HealthBody,
     HealthDiet,
@@ -36,23 +37,24 @@ def dashboard(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    since = date.today() - timedelta(days=days - 1)
+    since = days_since(days)
+    has_window = since is not None
 
-    diet_rows = db.scalars(
-        select(HealthDiet)
-        .where(HealthDiet.user_id == user.id)
-        .where(HealthDiet.record_date >= since)
-    ).all()
-    ex_rows = db.scalars(
-        select(HealthFitness)
-        .where(HealthFitness.user_id == user.id)
-        .where(HealthFitness.record_date >= since)
-    ).all()
-    step_rows = db.scalars(
-        select(HealthSteps)
-        .where(HealthSteps.user_id == user.id)
-        .where(HealthSteps.record_date >= since)
-    ).all()
+    stmt_diet = select(HealthDiet).where(HealthDiet.user_id == user.id)
+    if has_window:
+        stmt_diet = stmt_diet.where(HealthDiet.record_date >= since)
+    diet_rows = db.scalars(stmt_diet).all()
+
+    stmt_ex = select(HealthFitness).where(HealthFitness.user_id == user.id)
+    if has_window:
+        stmt_ex = stmt_ex.where(HealthFitness.record_date >= since)
+    ex_rows = db.scalars(stmt_ex).all()
+
+    stmt_step = select(HealthSteps).where(HealthSteps.user_id == user.id)
+    if has_window:
+        stmt_step = stmt_step.where(HealthSteps.record_date >= since)
+    step_rows = db.scalars(stmt_step).all()
+
     body_rows = db.scalars(
         select(HealthBody)
         .where(HealthBody.user_id == user.id)
@@ -66,10 +68,16 @@ def dashboard(
     for r in ex_rows:
         cardio[r.record_date.isoformat()] += r.calories or 0
 
-    # 按日汇总摄入/消耗，补全天区间
+    # 按日汇总摄入/消耗，补全天区间（days>0 用窗口，否则用实际记录日期范围）
+    all_days = sorted(set(list(intake.keys()) + list(cardio.keys())))
+    if has_window:
+        day_keys = [(since + timedelta(days=d)).isoformat() for d in range(days)]
+    else:
+        day_keys = all_days
+        if not day_keys:
+            day_keys = [date.today().isoformat()]
     series = []
-    for d in range(days):
-        key = (since + timedelta(days=d)).isoformat()
+    for key in day_keys:
         series.append(
             {
                 "record_date": key,
@@ -94,7 +102,14 @@ def dashboard(
         {"record_date": d.isoformat(), "calories": round(v, 1)}
         for d, v in sorted(ex_by_day.items())
     ]
-    step_total = sum(r.steps for r in step_rows)
+    # 步数总数：每日取最大值后再求和（与步数页口径一致，避免同天多时段累计条目重复累加）
+    step_day_max: dict = {}
+    for r in step_rows:
+        steps = r.steps or 0
+        cur = step_day_max.get(r.record_date)
+        if cur is None or steps > cur:
+            step_day_max[r.record_date] = steps
+    step_total = sum(step_day_max.values())
     exercise_count = len(ex_rows)
 
     # 身体成分趋势（取有记录的最近 N 个）
