@@ -68,6 +68,8 @@ type RecordManagerProps<T extends { id: number }> = {
   rowActions?: (row: T) => ReactNode
   /** 变化时重新拉取列表（用于外部操作后刷新） */
   refreshKey?: number
+  /** 隐藏内置标题区（主标题已由页面统一在 Tab 上方展示），仅保留右侧操作按钮 */
+  hideHeader?: boolean
 }
 
 const PAGE_SIZE = 20
@@ -89,6 +91,7 @@ export function RecordManager<T extends { id: number }>({
   headerExtra,
   rowActions,
   refreshKey,
+  hideHeader,
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -172,13 +175,15 @@ export function RecordManager<T extends { id: number }>({
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            {title}
-          </h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
+      <section className={`flex flex-wrap items-end gap-3 ${hideHeader ? 'justify-end' : 'justify-between'}`}>
+        {!hideHeader && (
+          <div className="space-y-1">
+            <h1 className="font-heading text-2xl font-semibold tracking-tight">
+              {title}
+            </h1>
+            <p className="text-sm text-muted-foreground">{description}</p>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           {headerExtra}
           <Button onClick={openCreate}>

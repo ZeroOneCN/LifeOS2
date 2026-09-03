@@ -22,6 +22,7 @@ import {
   Download,
   Gift,
   HardHat,
+  ListOrdered,
   Loader2,
   Percent,
   Plus,
@@ -45,7 +46,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
   TableBody,
@@ -854,6 +854,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false }: { icon: ty
 export function ForexPage() {
   const [stats, setStats] = useState<ForexStats | null>(null)
   const [refresh, setRefresh] = useState(0)
+  const [tab, setTab] = useState<'trades' | 'funds' | 'position'>('trades')
 
   useEffect(() => {
     api
@@ -866,128 +867,110 @@ export function ForexPage() {
   const s = stats?.summary
   const a = stats?.analysis
 
+  const tabs: { key: 'trades' | 'funds' | 'position'; label: string; icon: typeof ListOrdered }[] = [
+    { key: 'trades', label: '交易列表', icon: ListOrdered },
+    { key: 'funds', label: '资金动态', icon: TrendingUp },
+    { key: 'position', label: '仓位计算', icon: HardHat },
+  ]
+
   return (
     <div className="flex flex-col gap-4">
-      <Tabs defaultValue="trades">
-        <TabsList>
-          <TabsTrigger value="trades">交易列表</TabsTrigger>
-          <TabsTrigger value="funds">资金动态</TabsTrigger>
-          <TabsTrigger value="position">仓位计算</TabsTrigger>
-        </TabsList>
+      <section className="space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">外汇交易</h1>
+        <p className="text-sm text-muted-foreground">MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。</p>
+      </section>
 
-        <TabsContent value="trades">
-          <RecordManager<ForexRecord>
-            title="外汇交易"
-            description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
-            apiPath="/investment/forex"
-            fields={tradeFields}
-            columns={tradeColumns}
-            refreshKey={refresh}
-            headerExtra={<ImportButton onDone={onImported} />}
-            extra={
-              <>
-                {s && (
-                  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
-                    <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
-                    <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
-                    <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
-                    <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
-                    <StatCard icon={CalendarDays} label="隔夜费" value={fmtVal(s.total_overnight)} hint="库存/隔夜费合计" />
-                    <StatCard icon={ArrowUpFromLine} label="入金" value={fmtVal(s.total_deposit)} hint={`出金 ${fmtVal(s.total_withdraw)}`} />
-                    <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint="账户体验金" />
-                  </section>
-                )}
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        {tabs.map((t) => (
+          <Button
+            key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="flex-1"
+            onClick={() => setTab(t.key)}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </Button>
+        ))}
+      </div>
 
-                <section className="grid gap-4 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">收益曲线（累计净收益）</CardTitle>
-                      <CardDescription>绿色为盈利区、红色为亏损区，0 为基线</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <EquityChart data={stats?.equity_trend ?? []} />
-                    </CardContent>
-                  </Card>
-                  <TradingCalendar />
+      {tab === 'trades' && (
+        <RecordManager<ForexRecord>
+          title="外汇交易"
+          description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
+          hideHeader
+          apiPath="/investment/forex"
+          fields={tradeFields}
+          columns={tradeColumns}
+          refreshKey={refresh}
+          headerExtra={<ImportButton onDone={onImported} />}
+          extra={
+            <>
+              {s && (
+                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
+                  <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
+                  <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
+                  <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
+                  <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
+                  <StatCard icon={CalendarDays} label="隔夜费" value={fmtVal(s.total_overnight)} hint="库存/隔夜费合计" />
+                  <StatCard icon={ArrowUpFromLine} label="入金" value={fmtVal(s.total_deposit)} hint={`出金 ${fmtVal(s.total_withdraw)}`} />
+                  <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint="账户体验金" />
                 </section>
+              )}
 
-                {stats && stats.by_symbol.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">交易品种盈亏</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
-                          <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
-                            {stats.by_symbol.map((d, i) => (
-                              <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
+              <section className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">收益曲线（累计净收益）</CardTitle>
+                    <CardDescription>绿色为盈利区、红色为亏损区，0 为基线</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EquityChart data={stats?.equity_trend ?? []} />
+                  </CardContent>
+                </Card>
+                <TradingCalendar />
+              </section>
 
-                {a && (
-                  <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
-                    <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
-                    <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${a.max_drawdown_pct}%`} />
-                    <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
-                  </section>
-                )}
+              {stats && stats.by_symbol.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">交易品种盈亏</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
+                          {stats.by_symbol.map((d, i) => (
+                            <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
 
-                {a && a.hour_dist.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium">开仓时段分布（数据分析·按小时）</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={a.hour_dist} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} tick={{ fontSize: 11 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip />
-                          <Bar dataKey="count" name="开仓笔数" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
-            }
-          />
-        </TabsContent>
+              {a && (
+                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
+                  <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
+                  <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${a.max_drawdown_pct}%`} />
+                  <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
+                </section>
+              )}
+            </>
+          }
+        />
+      )}
 
-        <TabsContent value="funds">
-          <div className="flex flex-col gap-4">
-            <div className="space-y-1">
-              <h1 className="font-heading text-2xl font-semibold tracking-tight">资金动态</h1>
-              <p className="text-sm text-muted-foreground">记录入金 / 出金 / 体验金，构成账户净值。</p>
-            </div>
-            <FundsSection />
-          </div>
-        </TabsContent>
+      {tab === 'funds' && <FundsSection />}
 
-        <TabsContent value="position">
-          <div className="flex flex-col gap-4">
-            <div className="space-y-1">
-              <h1 className="font-heading text-2xl font-semibold tracking-tight">仓位计算</h1>
-              <p className="text-sm text-muted-foreground">多仓位杠杆并行计算：共同占用保证金，按保证金比例推演爆仓价格。</p>
-            </div>
-            <PositionCalculator equity={s?.account_value} />
-          </div>
-        </TabsContent>
-      </Tabs>
+      {tab === 'position' && <PositionCalculator equity={s?.account_value} />}
     </div>
   )
 }
