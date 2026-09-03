@@ -19,7 +19,7 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const { register } = useAuth()
   const [account, setAccount] = useState('')
-  const [username, setUsername] = useState('')
+  const [nickname, setNickname] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,7 +42,7 @@ export function RegisterPage() {
     setLoading(true)
     setError('')
     try {
-      await register(account.trim(), username.trim(), password)
+      await register(account.trim(), nickname.trim(), password)
       navigate('/home')
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败')
@@ -80,13 +80,13 @@ export function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="reg_username">用户名</Label>
+              <Label htmlFor="reg_nickname">昵称</Label>
               <Input
-                id="reg_username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="显示名称（可修改）"
-                autoComplete="username"
+                id="reg_nickname"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="显示名称（可在个人资料修改）"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-2">

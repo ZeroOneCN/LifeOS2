@@ -16,7 +16,6 @@ import { api } from '@/lib/api'
 
 type Settings = {
   account: string
-  username: string | null
   has_password: boolean
   created_at: string
 }
@@ -33,8 +32,6 @@ function formatDate(iso: string) {
 
 export function AccountSettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
-  const [username, setUsername] = useState('')
-  const [savingUsername, setSavingUsername] = useState(false)
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
@@ -45,7 +42,6 @@ export function AccountSettingsPage() {
     try {
       const data = await api.query<Settings>('/user/settings')
       setSettings(data)
-      setUsername(data.username ?? '')
     } catch {
       setMessage({ type: 'error', text: '加载账号设置失败' })
     }
@@ -55,24 +51,6 @@ export function AccountSettingsPage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const saveUsername = async () => {
-    if (!username.trim()) {
-      setMessage({ type: 'error', text: '用户名不能为空' })
-      return
-    }
-    setSavingUsername(true)
-    setMessage(null)
-    try {
-      await api.put('/user/settings', { username })
-      setMessage({ type: 'success', text: '用户名已更新' })
-      await load()
-    } catch (err) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : '保存失败' })
-    } finally {
-      setSavingUsername(false)
-    }
-  }
 
   const savePassword = async () => {
     if (!newPwd) {
@@ -110,7 +88,7 @@ export function AccountSettingsPage() {
     <div className="flex flex-col gap-4">
       <section className="space-y-1">
         <h1 className="font-heading text-2xl font-semibold tracking-tight">账号设置</h1>
-        <p className="text-sm text-muted-foreground">管理登录用户名与密码。</p>
+        <p className="text-sm text-muted-foreground">管理登录账号与密码。</p>
       </section>
 
       {message && (
@@ -131,7 +109,7 @@ export function AccountSettingsPage() {
             <UserRound className="size-4 text-muted-foreground" />
             账号信息
           </CardTitle>
-          <CardDescription>账号（不可改）与用户名</CardDescription>
+          <CardDescription>账号（不可改）</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -145,25 +123,8 @@ export function AccountSettingsPage() {
                 className="bg-muted text-muted-foreground"
                 placeholder="登录账号不可修改"
               />
-              <p className="text-xs text-muted-foreground">登录账号，注册后不可更改</p>
+              <p className="text-xs text-muted-foreground">登录账号，注册后不可更改；昵称请在个人资料修改</p>
             </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-52 flex-1 space-y-2">
-              <Label htmlFor="username">
-                用户名<span className="text-destructive"> *</span>
-              </Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="显示名称（可修改）"
-              />
-            </div>
-            <Button onClick={saveUsername} disabled={savingUsername}>
-              {savingUsername ? <Loader2 className="animate-spin" /> : <Save />}
-              保存
-            </Button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>注册时间：{settings ? formatDate(settings.created_at) : '—'}</span>

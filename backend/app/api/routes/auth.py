@@ -45,7 +45,9 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     profile = UserProfile(
         account=account,
         username=payload.username.strip() if payload.username else account,
-        nickname=payload.nickname or "未命名用户",
+        nickname=payload.nickname.strip()
+        if payload.nickname
+        else (payload.username.strip() if payload.username else "未命名用户"),
         is_admin=is_first,
     )
     profile.password_salt, profile.password_hash = hash_password(payload.password)
