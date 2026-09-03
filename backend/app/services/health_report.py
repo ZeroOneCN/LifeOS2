@@ -15,12 +15,12 @@ from app.models import (
     HealthCheckup,
     HealthDiet,
     HealthFitness,
-    HealthMedStock,
     HealthReport,
     HealthSteps,
     HealthVitalsSleep,
 )
 from app.models.health import HealthMedication
+from app.services.med_stock import compute_med_stock_list
 
 MEAL_LABEL = {
     "breakfast": "早餐",
@@ -46,6 +46,18 @@ def _fmt_time(t) -> str:
 def _avg(values) -> float | None:
     vals = [v for v in values if v is not None]
     return round(sum(vals) / len(vals), 1) if vals else None
+
+
+def _calc_bmi(b) -> float | None:
+    """BMI：已存值优先，否则按身高体重现算。"""
+    if b is None:
+        return None
+    if b.bmi is not None:
+        return b.bmi
+    if b.height_cm and b.weight_kg:
+        h = b.height_cm / 100
+        return round(b.weight_kg / (h * h), 1)
+    return None
 
 
 def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict:
@@ -92,9 +104,12 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         .where(HealthSteps.user_id == user_id)
         .where(HealthSteps.record_date >= start)
     ).all()
-    step_by_day: dict[date, int] = defaultdict(int)
+    step_by_day: dict[date, int] = {}
     for s in steps:
-        step_by_day[s.record_date] += s.steps
+        # 每日取最大值（同天多时段是累计序列，累加会失真）
+        cur = step_by_day.get(s.record_date)
+        if cur is None or s.steps > cur:
+            step_by_day[s.record_date] = s.steps
     step_vals = list(step_by_day.values())
 
     # ---- 体检 ----
@@ -128,19 +143,22 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         .where(HealthMedication.record_date >= start)
     ).all()
     taken = [m for m in meds if m.taken_breakfast or m.taken_lunch or m.taken_dinner]
-    stocks = db.scalars(
-        select(HealthMedStock).where(HealthMedStock.user_id == user_id)
-    ).all()
-    low_stock = [
+    # 库存按粒实时计算（购药粒数 - 已服用粒数），low_stock 取真正偏低项
+    try:
+        stock_list = compute_med_stock_list(db, user_id)
+    except Exception:
+        stock_list = []
+    stock_rows = [
         {
-            "medicine_name": s.medicine_name,
-            "stock_qty": s.stock_qty,
-            "threshold": s.threshold,
-            "unit": s.unit,
+            "medicine_name": s["medicine_name"],
+            "stock_qty": s["stock_qty"],
+            "threshold": s["threshold"],
+            "unit": s.get("unit") or "粒",
+            "is_low": s.get("is_low", False),
         }
-        for s in stocks
-        if s.threshold is not None and s.stock_qty <= s.threshold
+        for s in stock_list
     ]
+    low_stock = [r for r in stock_rows if r["is_low"]]
 
     return {
         "period": {"start": start.isoformat(), "end": end.isoformat()},
@@ -183,7 +201,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
                 "record_date": body_in[-1].record_date.isoformat(),
                 "height_cm": body_in[-1].height_cm,
                 "weight_kg": body_in[-1].weight_kg,
-                "bmi": body_in[-1].bmi,
+                "bmi": _calc_bmi(body_in[-1]),
                 "body_fat_percent": body_in[-1].body_fat_percent,
                 "muscle_percent": body_in[-1].muscle_percent,
             }
@@ -216,6 +234,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         "med_total": len(meds),
         "med_taken": len(taken),
         "med_taken_rate": round(len(taken) / len(meds) * 100) if meds else None,
+        "stock_rows": stock_rows,
         "low_stock": low_stock,
     }
 
@@ -380,6 +399,22 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
     if data["med_taken_rate"] is not None:
         med_rows.append(["按时服用率", f"{data['med_taken_rate']}%（{data['med_taken']}/{data['med_total']}）"])
     content.append({"type": "kv", "rows": med_rows})
+    if data["stock_rows"]:
+        content.append(
+            {
+                "type": "table",
+                "name": "药品库存",
+                "header": ["药品", "当前库存", "状态"],
+                "rows": [
+                    [
+                        s["medicine_name"],
+                        f"{s['stock_qty']:g}{s['unit'] or ''}",
+                        "偏低" if s["is_low"] else "充足",
+                    ]
+                    for s in data["stock_rows"]
+                ],
+            }
+        )
     if data["low_stock"]:
         content.append(
             {
