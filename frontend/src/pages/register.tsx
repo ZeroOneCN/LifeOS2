@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth'
 export function RegisterPage() {
   const navigate = useNavigate()
   const { register } = useAuth()
+  const [account, setAccount] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
@@ -26,8 +27,8 @@ export function RegisterPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username.trim()) {
-      setError('请输入用户名')
+    if (!account.trim()) {
+      setError('请输入账号')
       return
     }
     if (password.length < 6) {
@@ -41,7 +42,7 @@ export function RegisterPage() {
     setLoading(true)
     setError('')
     try {
-      await register(username.trim(), password)
+      await register(account.trim(), username.trim(), password)
       navigate('/home')
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败')
@@ -68,14 +69,24 @@ export function RegisterPage() {
               </p>
             )}
             <div className="space-y-2">
+              <Label htmlFor="reg_account">账号</Label>
+              <Input
+                id="reg_account"
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="登录账号（注册后不可更改）"
+                autoComplete="off"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="reg_username">用户名</Label>
               <Input
                 id="reg_username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="请输入用户名"
+                placeholder="显示名称（可修改）"
                 autoComplete="username"
-                autoFocus
               />
             </div>
             <div className="space-y-2">

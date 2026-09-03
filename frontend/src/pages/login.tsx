@@ -18,21 +18,21 @@ import { useAuth } from '@/lib/auth'
 export function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
-  const [username, setUsername] = useState('')
+  const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username.trim() || !password) {
-      setError('请输入用户名和密码')
+    if (!account.trim() || !password) {
+      setError('请输入账号和密码')
       return
     }
     setLoading(true)
     setError('')
     try {
-      await login(username.trim(), password)
+      await login(account.trim(), password)
       navigate('/home')
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败')
@@ -59,12 +59,12 @@ export function LoginPage() {
               </p>
             )}
             <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="account">账号</Label>
               <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="请输入用户名"
+                id="account"
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="请输入账号"
                 autoComplete="username"
                 autoFocus
               />

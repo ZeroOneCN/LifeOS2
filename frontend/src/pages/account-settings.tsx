@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label'
 import { api } from '@/lib/api'
 
 type Settings = {
+  account: string
   username: string | null
   has_password: boolean
   created_at: string
@@ -130,9 +131,23 @@ export function AccountSettingsPage() {
             <UserRound className="size-4 text-muted-foreground" />
             账号信息
           </CardTitle>
-          <CardDescription>登录用户名与账号状态</CardDescription>
+          <CardDescription>账号（不可改）与用户名</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-52 flex-1 space-y-2">
+              <Label htmlFor="account">账号</Label>
+              <Input
+                id="account"
+                value={settings?.account ?? ''}
+                readOnly
+                disabled
+                className="bg-muted text-muted-foreground"
+                placeholder="登录账号不可修改"
+              />
+              <p className="text-xs text-muted-foreground">登录账号，注册后不可更改</p>
+            </div>
+          </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-52 flex-1 space-y-2">
               <Label htmlFor="username">
@@ -142,7 +157,7 @@ export function AccountSettingsPage() {
                 id="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="登录用户名"
+                placeholder="显示名称（可修改）"
               />
             </div>
             <Button onClick={saveUsername} disabled={savingUsername}>

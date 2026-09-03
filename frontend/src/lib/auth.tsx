@@ -13,8 +13,10 @@ const TOKEN_KEY = 'lifeos_token'
 
 export type AuthUser = {
   id: number
+  account: string
   username: string | null
   nickname: string
+  isAdmin: boolean
   avatar: string | null
   email: string | null
 }
@@ -31,8 +33,8 @@ export function setToken(token: string | null) {
 type AuthContextValue = {
   user: AuthUser | null
   isAuthed: boolean
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string, nickname?: string) => Promise<void>
+  login: (account: string, password: string) => Promise<void>
+  register: (account: string, username: string, password: string, nickname?: string) => Promise<void>
   logout: () => void
   refresh: () => Promise<void>
 }
@@ -59,9 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh()
   }, [refresh])
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (account: string, password: string) => {
     const data = await api.post<{ access_token: string; user: AuthUser }>('/auth/login', {
-      username,
+      account,
       password,
     })
     setToken(data.access_token)
@@ -69,10 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const register = useCallback(
-    async (username: string, password: string, nickname?: string) => {
+    async (account: string, username: string, password: string, nickname?: string) => {
       const data = await api.post<{ access_token: string; user: AuthUser }>(
         '/auth/register',
-        { username, password, nickname },
+        { account, username, password, nickname },
       )
       setToken(data.access_token)
       setUser(data.user)

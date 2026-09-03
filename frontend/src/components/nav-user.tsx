@@ -17,18 +17,29 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useAuth } from '@/lib/auth'
 
 export function NavUser() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
+  const { confirm, dialog } = useConfirm()
 
-  const nickname = user?.nickname?.trim() || '未命名用户'
+  const nickname = user?.nickname?.trim() || user?.username?.trim() || '未命名用户'
+  const account = user?.account ?? ''
   const email = user?.email ?? '未设置邮箱'
   const initial = nickname.charAt(0).toUpperCase()
 
-  const onLogout = () => {
+  const onLogout = async () => {
+    const ok = await confirm({
+      title: '退出登录',
+      description: '确定要退出当前账号吗？',
+      confirmText: '确认退出',
+      cancelText: '取消',
+      danger: true,
+    })
+    if (!ok) return
     setOpen(false)
     logout()
   }
@@ -49,7 +60,14 @@ export function NavUser() {
                 <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-medium">{nickname}</span>
+                <span className="flex items-center gap-1.5 truncate font-medium">
+                  {nickname}
+                  {user?.isAdmin ? (
+                    <span className="rounded bg-primary/10 px-1 py-px text-[10px] font-semibold text-primary">
+                      管理员
+                    </span>
+                  ) : null}
+                </span>
                 <span className="truncate text-xs text-muted-foreground">{email}</span>
               </div>
             </SidebarMenuButton>
@@ -69,8 +87,17 @@ export function NavUser() {
                   <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{nickname}</span>
-                  <span className="truncate text-xs text-muted-foreground">{email}</span>
+                  <span className="flex items-center gap-1.5 truncate font-medium">
+                    {nickname}
+                    {user?.isAdmin ? (
+                      <span className="rounded bg-primary/10 px-1 py-px text-[10px] font-semibold text-primary">
+                        管理员
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {account ? `账号：${account}` : email}
+                  </span>
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -93,6 +120,7 @@ export function NavUser() {
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
+      {dialog}
     </SidebarMenu>
   )
 }
