@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -413,12 +413,6 @@ def generate_and_save(db: Session, start: date, end: date, user_id: int) -> Heal
     db.commit()
     db.refresh(report)
     return report
-
-
-def get_period(days: int, end: date | None = None) -> tuple[date, date]:
-    end = end or date.today()
-    start = end - timedelta(days=days - 1)
-    return start, end
 
 
 # --------------------------------------------------------------------------

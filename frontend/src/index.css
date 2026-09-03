@@ -141,6 +141,12 @@
   .page-enter {
     animation: page-enter 0.25s ease-out;
     }
+  /* 移动端防溢出：grid/flex 子项默认 min-width:auto，会因内容固有宽度撑破视口。
+     统一允许子项收缩到内容最小宽度以下，图表与卡片即可按容器自适应。 */
+  .grid > *,
+  .flex > * {
+    min-width: 0;
+    }
   @keyframes page-enter {
     from {
       opacity: 0;

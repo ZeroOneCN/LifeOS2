@@ -280,7 +280,7 @@ class FinanceReport(TimestampMixin, UserOwned, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(128))  # 报告标题
-    period_label: Mapped[str] = mapped_column(String(16))  # 周期标签，如 2026-09
+    period_label: Mapped[str] = mapped_column(String(64))  # 周期标签，如 2026-08-01 ~ 2026-09-03
     period_start: Mapped[date] = mapped_column(Date)  # 统计起始
     period_end: Mapped[date] = mapped_column(Date)  # 统计结束
     summary: Mapped[str | None] = mapped_column(Text)  # 概览摘要

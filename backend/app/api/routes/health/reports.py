@@ -14,6 +14,7 @@ from app.core.security import get_current_user
 from app.models import HealthReport, UserProfile
 from app.schemas.health import ReportCreate, ReportRead
 from app.services import health_report
+from app.services.report_period import resolve_period
 
 
 def _reports_stats(db: Session, days: int, user_id: int) -> dict:
@@ -53,6 +54,7 @@ router = crud_router(
 
 class GenerateReq(BaseModel):
     days: int = 30
+    start_date: date | None = None
     end_date: date | None = None
 
 
@@ -62,9 +64,9 @@ def generate_report(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """自动汇总健康中心数据生成报告并落库。"""
+    """自动汇总健康中心数据生成报告并落库（支持近7/30/90天与自定义起止日期）。"""
     try:
-        start, end = health_report.get_period(payload.days, payload.end_date)
+        start, end, _label = resolve_period(payload.days, payload.start_date, payload.end_date)
     except OverflowError:
         raise HTTPException(status_code=400, detail="日期范围超出范围")
     report = health_report.generate_and_save(db, start, end, user.id)

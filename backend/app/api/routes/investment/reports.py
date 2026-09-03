@@ -1,8 +1,10 @@
 import json
+from datetime import date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,7 @@ from app.core.security import get_current_user
 from app.models import InvestmentReport, UserProfile
 from app.services.finance_report import build_pdf
 from app.services.investment_report import build_investment_report
+from app.services.report_period import resolve_period
 
 router = APIRouter(prefix="/investment/reports", tags=["investment-reports"])
 
@@ -42,22 +45,10 @@ def _to_read(r: InvestmentReport) -> dict:
     }
 
 
-def _period_from_month(month: str | None) -> tuple:
-    from datetime import date
-    import calendar
-
-    today = date.today()
-    if month:
-        try:
-            y, m = month.split("-")
-            y, m = int(y), int(m)
-        except (ValueError, AttributeError):
-            y, m = today.year, today.month
-    else:
-        y, m = today.year, today.month
-    start = date(y, m, 1)
-    end = date(y, m, calendar.monthrange(y, m)[1])
-    return start, end, f"{y}-{m:02d}"
+class GenerateReq(BaseModel):
+    days: int = 30
+    start_date: date | None = None
+    end_date: date | None = None
 
 
 @router.get("")
@@ -80,11 +71,11 @@ def list_reports(db: Session = Depends(get_db),
 
 
 @router.post("/generate")
-def generate_report(month: str | None = Query(None, description="YYYY-MM，默认当前月"),
+def generate_report(payload: GenerateReq,
                     db: Session = Depends(get_db),
                     current_user: UserProfile = Depends(get_current_user)):
-    start, end, label = _period_from_month(month)
-    title, summary, content = build_investment_report(db, month or label, current_user.id)
+    start, end, label = resolve_period(payload.days, payload.start_date, payload.end_date)
+    title, summary, content = build_investment_report(db, start, end, label, current_user.id)
     report = InvestmentReport(
         user_id=current_user.id,
         title=title,

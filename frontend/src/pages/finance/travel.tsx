@@ -46,6 +46,10 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import {
+  ReportPeriodPicker,
+  type ReportPeriod,
+} from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
 
 const PAGE_SIZE = 10
@@ -205,7 +209,7 @@ export function TravelPage() {
   const [saving, setSaving] = useState(false)
 
   const [reportDialog, setReportDialog] = useState(false)
-  const [reportDays, setReportDays] = useState('30')
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>({ days: 30 })
   const [reportLoading, setReportLoading] = useState(false)
   const [report, setReport] = useState<TravelReport | null>(null)
   const [reportCollapsed, setReportCollapsed] = useState(false)
@@ -362,7 +366,7 @@ export function TravelPage() {
     try {
       const res = await api.create<TravelReport>('/finance/travel/report/generate', {
         ledger_id: currentLedger ? Number(currentLedger) : null,
-        days: Number(reportDays),
+        ...reportPeriod,
       })
       setReport(res)
       setReportCollapsed(false)
@@ -557,10 +561,9 @@ export function TravelPage() {
             <DialogTitle>旅行报告</DialogTitle>
             <DialogDescription>生成并保存报告，可预览内容、导出 PDF，历史报告自动留存。</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="space-y-1">
-              <Label>统计天数</Label>
-              <Input className="w-24" type="number" min={1} value={reportDays} onChange={(e) => setReportDays(e.target.value)} />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-64">
+              <ReportPeriodPicker value={reportPeriod} onChange={setReportPeriod} />
             </div>
             <div className="space-y-1">
               <Label>行程</Label>

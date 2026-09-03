@@ -1,8 +1,10 @@
 import json
+from datetime import date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,7 @@ from app.core.security import get_current_user
 from app.models import LifestyleLifeReport, UserProfile
 from app.services.finance_report import build_pdf
 from app.services.lifestyle_report import build_lifestyle_report
+from app.services.report_period import resolve_period
 
 router = APIRouter(prefix="/lifestyle/reports", tags=["lifestyle-reports"])
 
@@ -54,14 +57,20 @@ def list_reports(
     ]
 
 
+class GenerateReq(BaseModel):
+    days: int = 30
+    start_date: date | None = None
+    end_date: date | None = None
+
+
 @router.post("/generate")
 def generate_report(
-    month: str | None = Query(None, description="YYYY-MM，默认当前月"),
+    payload: GenerateReq,
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    start, end, label = _period_from_month(month)
-    title, summary, content = build_lifestyle_report(db, month or label, user.id)
+    start, end, label = resolve_period(payload.days, payload.start_date, payload.end_date)
+    title, summary, content = build_lifestyle_report(db, start, end, label, user.id)
     report = LifestyleLifeReport(
         user_id=user.id,
         title=title,
@@ -137,23 +146,3 @@ def delete_report(
     db.delete(r)
     db.commit()
     return None
-
-
-def _period_from_month(month: str | None) -> tuple:
-    from datetime import date
-
-    today = date.today()
-    if month:
-        try:
-            y, m = month.split("-")
-            y, m = int(y), int(m)
-        except (ValueError, AttributeError):
-            y, m = today.year, today.month
-    else:
-        y, m = today.year, today.month
-    import calendar
-
-    start = date(y, m, 1)
-    end = date(y, m, calendar.monthrange(y, m)[1])
-    label = f"{y}-{m:02d}"
-    return start, end, label

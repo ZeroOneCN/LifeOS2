@@ -21,9 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import {
+  ReportPeriodPicker,
+  type ReportPeriod,
+} from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
 
 type ReportItem = { id: number; title: string; period_label?: string; created_at?: string }
@@ -107,7 +110,7 @@ export function InvestmentReportsPage() {
   const [items, setItems] = useState<ReportItem[]>([])
   const [loading, setLoading] = useState(true)
   const [genOpen, setGenOpen] = useState(false)
-  const [month, setMonth] = useState('')
+  const [period, setPeriod] = useState<ReportPeriod>({ days: 30 })
   const [generating, setGenerating] = useState(false)
   const [preview, setPreview] = useState<ReportDetail | null>(null)
   const [previewCollapsed, setPreviewCollapsed] = useState(false)
@@ -143,8 +146,7 @@ export function InvestmentReportsPage() {
   const handleGenerate = async () => {
     setGenerating(true)
     try {
-      const path = month ? `/investment/reports/generate?month=${encodeURIComponent(month)}` : '/investment/reports/generate'
-      const rep = await api.post<ReportDetail>(path)
+      const rep = await api.post<ReportDetail>('/investment/reports/generate', period)
       setGenOpen(false)
       toast.success('报告已生成', { description: rep.title })
       setPreview(rep)
@@ -186,7 +188,7 @@ export function InvestmentReportsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">投资报告</h1>
-          <p className="text-sm text-muted-foreground">自动汇总外汇交易与资金动态，生成月度投资报告并支持 PDF 导出。</p>
+          <p className="text-sm text-muted-foreground">自动汇总外汇交易与资金动态，支持近 7/30/90 天或自定义区间生成报告并导出 PDF。</p>
         </div>
         <Button onClick={() => setGenOpen(true)}>
           <Sparkles className="size-4" /> 生成报告
@@ -261,11 +263,10 @@ export function InvestmentReportsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>生成投资报告</DialogTitle>
-            <DialogDescription>选择统计月份（默认当前月），系统将自动汇总该月外汇交易与资金动态并生成报告。</DialogDescription>
+            <DialogDescription>选择统计区间（近 7/30/90 天或自定义起止日期），系统将自动汇总区间内外汇交易与资金动态并生成报告。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <div className="text-sm font-medium">统计月份（YYYY-MM，留空为当前月）</div>
-            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} placeholder="2026-09" />
+          <div className="py-2">
+            <ReportPeriodPicker value={period} onChange={setPeriod} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGenOpen(false)}>取消</Button>

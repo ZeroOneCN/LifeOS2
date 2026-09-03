@@ -228,28 +228,16 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
 
 
 # --------------------------------------------------------------------------
-# 财务月度报告内容构建
+# 财务报告内容构建
 # --------------------------------------------------------------------------
-def _month_range(month: str | None) -> tuple[date, date, str]:
-    today = date.today()
-    if month:
-        try:
-            y, m = month.split("-")
-            y, m = int(y), int(m)
-        except (ValueError, AttributeError):
-            y, m = today.year, today.month
-    else:
-        y, m = today.year, today.month
-    import calendar
-
-    start = date(y, m, 1)
-    end = date(y, m, calendar.monthrange(y, m)[1])
-    return start, end, f"{y}-{m:02d}"
-
-
-def build_finance_report(db: Session, month: str | None = None, user_id: int | None = None):
-    """聚合财务各模块数据生成月度财务报告内容。"""
-    start, end, label = _month_range(month)
+def build_finance_report(
+    db: Session,
+    start: date,
+    end: date,
+    label: str,
+    user_id: int | None = None,
+):
+    """聚合财务各模块数据生成财务报告内容（按给定起止区间）。"""
 
     # 购物
     shoppings = db.scalars(
@@ -358,7 +346,7 @@ def build_finance_report(db: Session, month: str | None = None, user_id: int | N
 
     title = f"{label} 财务报告"
     summary = (
-        f"统计区间 {start.isoformat()} ~ {end.isoformat()}，当月支出合计约 ¥{total_expense:,.2f}；"
+        f"统计区间 {start.isoformat()} ~ {end.isoformat()}，区间支出合计约 ¥{total_expense:,.2f}；"
         f"购物 {len(shoppings)} 笔、旅行 {len(travels)} 笔，累计网贷待还 ¥{outstanding_loans:,.2f}。"
     )
 
@@ -368,14 +356,14 @@ def build_finance_report(db: Session, month: str | None = None, user_id: int | N
             "type": "table",
             "header": ["指标", "金额（人民币）"],
             "rows": [
-                ["当月支出合计", f"¥{total_expense:,.2f}"],
+                ["区间支出合计", f"¥{total_expense:,.2f}"],
                 ["购物消费", f"¥{shopping_total:,.2f}（{len(shoppings)} 笔）"],
                 ["旅行开支", f"¥{travel_total:,.2f}（{len(travels)} 笔）"],
                 ["水电缴费", f"¥{utility_total:,.2f}"],
                 ["服务订阅（月均）", f"¥{sub_monthly:,.2f}"],
-                ["组合房租（当月折算）", f"¥{combined_rent:,.2f}"],
+                ["组合房租（区间折算）", f"¥{combined_rent:,.2f}"],
                 ["住房押金合计", f"¥{total_deposit:,.2f}"],
-                ["网贷当月账单", f"¥{loan_month:,.2f}（已还 ¥{loan_paid_month:,.2f}）"],
+                ["网贷区间账单", f"¥{loan_month:,.2f}（已还 ¥{loan_paid_month:,.2f}）"],
             ],
         },
         {"type": "h2", "text": "二、分类支出占比"},

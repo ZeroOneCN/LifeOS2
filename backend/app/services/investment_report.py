@@ -25,22 +25,15 @@ def _holding_minutes(t) -> int | None:
     return int(round((t.close_time - t.open_time).total_seconds() / 60))
 
 
-def build_investment_report(db: Session, month: str | None = None, user_id: int | None = None):
-    """按自然月聚合外汇交易与资金动态，生成投资报告内容。"""
+def build_investment_report(
+    db: Session,
+    start: date,
+    end: date,
+    label: str,
+    user_id: int | None = None,
+):
+    """按给定起止区间聚合外汇交易与资金动态，生成投资报告内容。"""
     today = date.today()
-    if month:
-        try:
-            y, m = month.split("-")
-            y, m = int(y), int(m)
-        except (ValueError, AttributeError):
-            y, m = today.year, today.month
-    else:
-        y, m = today.year, today.month
-    import calendar as _cal
-
-    start = date(y, m, 1)
-    end = date(y, m, _cal.monthrange(y, m)[1])
-    label = f"{y}-{m:02d}"
 
     trade_stmt = select(InvestmentForex).where(
         InvestmentForex.trade_date >= start,

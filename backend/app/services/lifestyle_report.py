@@ -1,4 +1,4 @@
-"""生活报告：按月聚合生活各模块数据生成报告内容，并复用财务报告的 PDF 渲染。"""
+"""生活报告：按起止区间聚合生活各模块数据生成报告内容，并复用财务报告的 PDF 渲染。"""
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -15,23 +15,6 @@ from app.models import (
 from app.services.finance_report import build_pdf  # 复用 PDF 渲染
 
 
-def _month_range(month: str | None) -> tuple[date, date, str]:
-    today = date.today()
-    if month:
-        try:
-            y, m = month.split("-")
-            y, m = int(y), int(m)
-        except (ValueError, AttributeError):
-            y, m = today.year, today.month
-    else:
-        y, m = today.year, today.month
-    import calendar
-
-    start = date(y, m, 1)
-    end = date(y, m, calendar.monthrange(y, m)[1])
-    return start, end, f"{y}-{m:02d}"
-
-
 def _usage_days(item: LifestyleItem) -> int:
     """已使用天数：从购买日到使用结束日（或今天）。"""
     purchase = item.purchase_date
@@ -43,9 +26,14 @@ def _usage_days(item: LifestyleItem) -> int:
     return max(0, (end - purchase).days)
 
 
-def build_lifestyle_report(db: Session, month: str | None = None, user_id: int | None = None):
-    """聚合生活各模块数据生成月度生活报告内容。"""
-    start, end, label = _month_range(month)
+def build_lifestyle_report(
+    db: Session,
+    start: date,
+    end: date,
+    label: str,
+    user_id: int | None = None,
+):
+    """聚合生活各模块数据生成生活报告内容（按给定起止区间）。"""
     today = date.today()
 
     # ---------- 物品 ----------
