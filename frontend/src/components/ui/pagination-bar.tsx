@@ -27,7 +27,7 @@ export function PaginationBar({ page, totalPages, onPageChange, total, className
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground ${className ?? ''}`}
+      className={`flex w-full flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground ${className ?? ''}`}
     >
       {total != null && <span>共 {total} 条记录</span>}
       <div className="flex flex-wrap items-center gap-1.5">
