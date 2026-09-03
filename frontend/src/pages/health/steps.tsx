@@ -234,12 +234,14 @@ export function StepsPage() {
     }
   }
 
-  // 时段分布：各时间段的"当日贡献"。由于同一时段在同一天有且只有一条，直接求和即可代表当月该时段累计
+  // 时段分布：各时段取当月最大值（每条时段记录本身已是准确值，非多天累计）
   const periodDist: PeriodPoint[] = []
   {
     const byPeriod = new Map<string, number>()
     for (const d of detail?.days ?? []) {
-      byPeriod.set(d.period, (byPeriod.get(d.period) ?? 0) + d.steps)
+      // 各时段取当月最大值（每条时段记录本身已是准确值，不对多天累计求和）
+      const cur = byPeriod.get(d.period)
+      if (cur === undefined || d.steps > cur) byPeriod.set(d.period, d.steps)
     }
     for (const p of PERIODS) {
       const v = byPeriod.get(p.value)
@@ -316,7 +318,7 @@ export function StepsPage() {
           intTick
         />
         <BarChartCard
-          title="时间段分布（当月累计）"
+          title="时间段分布（当月各时段最大值）"
           data={periodDist}
           xKey="label"
           series={[{ key: 'steps', name: '步数', color: '#3b82f6' }]}
