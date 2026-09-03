@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { BadgeCheck, Banknote, CreditCard, Landmark, ListChecks, Smartphone } from 'lucide-react'
+import { BadgeCheck, Banknote, CreditCard, Landmark, ListChecks, Package, Smartphone } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -84,6 +84,18 @@ type BankStats = {
 }
 
 type BillStats = { total: number; month_total: number; by_month: { bill_month: string; amount: number }[] }
+
+type ItemStats = {
+  total: number
+  in_use: number
+  total_value: number
+  avg_daily_cost: number
+  expiring: number
+  expired: number
+  by_category: { category: string; count: number }[]
+  by_status: { status: string; count: number }[]
+  by_source: { source: string; count: number }[]
+}
 
 const fmt = (n?: number | null) =>
   `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
@@ -333,6 +345,7 @@ export function CardsPage() {
   const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', 30, phoneRefresh)
   const bankStats = useStats<BankStats>('/lifestyle/bank-cards')
   const billStats = useStats<BillStats>('/lifestyle/card-bills')
+  const itemStats = useStats<ItemStats>('/lifestyle/items')
 
   // 用于扣账账单中显示手机号
   const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
@@ -514,23 +527,63 @@ export function CardsPage() {
       )}
 
       {tab === 'analysis' && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
+          {itemStats && (
+            <section className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Package className="size-4 text-indigo-500" />
+                <h3 className="text-base font-semibold">物品追踪</h3>
+              </div>
+              <StatRow>
+                <MiniStat icon={Package} label="物品总数" value={`${itemStats.total} 件`} />
+                <MiniStat icon={BadgeCheck} label="使用中" value={`${itemStats.in_use} 件`} />
+                <MiniStat icon={CreditCard} label="物品总值" value={fmt(itemStats.total_value)} />
+                <MiniStat icon={Banknote} label="临期/已过期" value={`${itemStats.expiring} 临期 / ${itemStats.expired} 已过`} />
+              </StatRow>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <BarChartCard title="物品 · 分类" data={itemStats.by_category} xKey="category" series={[{ key: 'count', name: '数量', color: '#6366f1' }]} />
+                <BarChartCard title="物品 · 状态" data={itemStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
+                <BarChartCard title="物品 · 来源" data={itemStats.by_source} xKey="source" series={[{ key: 'count', name: '数量', color: '#a855f7' }]} />
+              </div>
+            </section>
+          )}
+
           {phoneStats && (
-            <div className="grid gap-4 lg:grid-cols-3">
-              <BarChartCard title="手机卡 · 运营商" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
-              <BarChartCard title="手机卡 · 付费方式" data={phoneStats.billing_type} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
-              <BarChartCard title="手机卡 · 状态" data={phoneStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
-            </div>
+            <section className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Smartphone className="size-4 text-blue-500" />
+                <h3 className="text-base font-semibold">手机卡</h3>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <BarChartCard title="手机卡 · 运营商" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
+                <BarChartCard title="手机卡 · 付费方式" data={phoneStats.billing_type} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
+                <BarChartCard title="手机卡 · 状态" data={phoneStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
+              </div>
+            </section>
           )}
+
           {bankStats && (
-            <div className="grid gap-4 lg:grid-cols-3">
-              <BarChartCard title="银行卡 · 银行" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
-              <BarChartCard title="银行卡 · 类型" data={bankStats.by_category} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
-              <BarChartCard title="银行卡 · 状态" data={bankStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
-            </div>
+            <section className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Landmark className="size-4 text-cyan-600" />
+                <h3 className="text-base font-semibold">银行卡</h3>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-3">
+                <BarChartCard title="银行卡 · 银行" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
+                <BarChartCard title="银行卡 · 类型" data={bankStats.by_category} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
+                <BarChartCard title="银行卡 · 状态" data={bankStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
+              </div>
+            </section>
           )}
+
           {billStats && billStats.by_month.length > 0 && (
-            <BarChartCard title="近几个月扣账趋势" data={billStats.by_month} xKey="bill_month" series={[{ key: 'amount', name: '扣账', color: '#dc2626' }]} />
+            <section className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <ListChecks className="size-4 text-red-500" />
+                <h3 className="text-base font-semibold">扣账账单</h3>
+              </div>
+              <BarChartCard title="近几个月扣账趋势" data={billStats.by_month} xKey="bill_month" series={[{ key: 'amount', name: '扣账', color: '#dc2626' }]} />
+            </section>
           )}
         </div>
       )}
