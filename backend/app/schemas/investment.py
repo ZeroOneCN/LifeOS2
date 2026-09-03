@@ -16,17 +16,33 @@ class ORMRead(BaseModel):
 
 class ForexCreate(BaseModel):
     trade_date: date
-    pair: str
-    direction: str = Field(pattern="^(buy|sell)$")
+    symbol: str
+    order_type: str = Field(pattern="^(buy|sell)$")
     open_price: float = Field(ge=0)
-    close_price: float | None = Field(None, ge=0)
     lot_size: float = Field(ge=0)
+    commission: float = Field(0.0)
+    close_price: float | None = Field(None, ge=0)
     pnl: float | None = None
+    overnight_fee: float = Field(0.0)
+    open_time: datetime | None = None
+    close_time: datetime | None = None
+    holding: int | None = Field(None, ge=0, description="持仓时间（分钟，缺省自动计算）")
     status: str = Field("closed", pattern="^(open|closed)$")
     note: str | None = None
 
 
 class ForexRead(ForexCreate, ORMRead):
+    pass
+
+
+class FundCreate(BaseModel):
+    record_type: str = Field(pattern="^(deposit|withdraw|experience)$")
+    amount: float = Field(ge=0)
+    record_date: date
+    note: str | None = None
+
+
+class FundRead(FundCreate, ORMRead):
     pass
 
 

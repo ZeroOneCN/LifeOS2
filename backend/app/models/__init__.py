@@ -36,7 +36,11 @@ from app.models.health import (
     HealthSteps,
     HealthVitalsSleep,
 )
-from app.models.investment import InvestmentForex
+from app.models.investment import (
+    InvestmentForex,
+    InvestmentFundRecord,
+    InvestmentReport,
+)
 from app.models.lifestyle import (
     LifestyleBankCard,
     LifestyleCardBill,
@@ -91,6 +95,8 @@ __all__ = [
     "LifestyleLifeReport",
     "LifestyleTodo",
     "InvestmentForex",
+    "InvestmentFundRecord",
+    "InvestmentReport",
     "Notification",
     "ActivityLog",
     "UserProfile",
