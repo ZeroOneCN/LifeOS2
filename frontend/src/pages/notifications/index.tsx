@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Bell, Cable, Inbox, MailCheck, Send, SlidersHorizontal } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { NotificationList } from './list'
 import { ChannelsPanel } from './channels'
 import { EmailConfigPanel } from './email'
@@ -30,26 +30,17 @@ export function NotificationsPage() {
         </p>
       </section>
 
-      <div className="flex flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
-        {TABS.map((t) => {
-          const Icon = t.icon
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-                tab === t.key
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <Icon className="size-4" />
-              {t.label}
-            </button>
-          )
-        })}
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        {TABS.map((t) => (
+          <Button
+            key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="flex-1"
+            onClick={() => setTab(t.key)}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </Button>
+        ))}
       </div>
 
       {TABS.find((t) => t.key === tab)?.node}
