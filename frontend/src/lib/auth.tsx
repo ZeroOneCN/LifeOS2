@@ -30,6 +30,15 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+type UserMe = AuthUser & {
+  is_admin?: boolean
+}
+
+/** 后端 UserMe 返回 snake 字段 is_admin，映射为前端 AuthUser.isAdmin。 */
+function toAuthUser(u: UserMe): AuthUser {
+  return { ...u, isAdmin: Boolean(u.is_admin) }
+}
+
 type AuthContextValue = {
   user: AuthUser | null
   isAuthed: boolean
@@ -51,7 +60,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     try {
-      setUser(await api.query<AuthUser>('/auth/me'))
+      const me = await api.query<UserMe>('/auth/me')
+      setUser(toAuthUser(me))
     } catch {
       setUser(null)
     }
@@ -62,22 +72,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh])
 
   const login = useCallback(async (account: string, password: string) => {
-    const data = await api.post<{ access_token: string; user: AuthUser }>('/auth/login', {
+    const data = await api.post<{ access_token: string; user: UserMe }>('/auth/login', {
       account,
       password,
     })
     setToken(data.access_token)
-    setUser(data.user)
+    setUser(toAuthUser(data.user))
   }, [])
 
   const register = useCallback(
     async (account: string, nickname: string, password: string) => {
-      const data = await api.post<{ access_token: string; user: AuthUser }>(
+      const data = await api.post<{ access_token: string; user: UserMe }>(
         '/auth/register',
         { account, nickname, password },
       )
       setToken(data.access_token)
-      setUser(data.user)
+      setUser(toAuthUser(data.user))
     },
     [],
   )

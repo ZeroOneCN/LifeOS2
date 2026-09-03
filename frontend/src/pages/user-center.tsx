@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 
 type Profile = {
   id: number
@@ -79,6 +80,7 @@ function InfoRow({
 }
 
 export function UserCenterPage() {
+  const { refresh: refreshAuth } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -133,6 +135,7 @@ export function UserCenterPage() {
       await api.put('/user/profile', payload)
       setDialogOpen(false)
       await load()
+      await refreshAuth()
     } finally {
       setSaving(false)
     }
