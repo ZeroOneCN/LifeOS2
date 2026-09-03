@@ -144,7 +144,10 @@ export function TodosPage() {
             {byPriority.length > 0 && (
               <BarChartCard
                 title="优先级分布"
-                data={byPriority}
+                data={byPriority.map((p) => ({
+                  priority: priorityMeta[p.priority]?.label ?? p.priority,
+                  count: p.count,
+                }))}
                 xKey="priority"
                 series={[{ key: 'count', name: '数量', color: '#ec4899' }]}
               />

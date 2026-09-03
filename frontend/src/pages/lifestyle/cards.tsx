@@ -85,7 +85,8 @@ type BankStats = {
 
 type BillStats = { total: number; month_total: number; by_month: { bill_month: string; amount: number }[] }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = (n?: number | null) =>
+  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 const TAB_META = [
   { key: 'phone', label: '手机号', icon: Smartphone },

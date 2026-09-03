@@ -116,7 +116,8 @@ function dailyCost(r: ItemRecord): number | null {
   return null
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = (n?: number | null) =>
+  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 const columns: ColumnDef<ItemRecord>[] = [
   { key: 'item_name', label: '物品' },

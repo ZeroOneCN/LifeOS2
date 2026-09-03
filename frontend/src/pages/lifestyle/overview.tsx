@@ -41,7 +41,8 @@ type OverviewData = {
   latest_report: LatestReport | null
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = (n?: number | null) =>
+  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 function StatCard({
   icon: Icon,
