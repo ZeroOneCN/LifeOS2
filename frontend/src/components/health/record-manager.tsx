@@ -32,7 +32,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
-export type FieldType = 'date' | 'time' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
+export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
 
 export type FieldDef = {
   key: string
@@ -321,7 +321,7 @@ export function RecordManager<T extends { id: number }>({
                 ) : (
                   <Input
                     id={field.key}
-                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : 'text'}
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'time' ? 'time' : field.type === 'datetime' ? 'datetime-local' : 'text'}
                     step={field.step}
                     min={field.min}
                     value={form[field.key] ?? ''}

@@ -93,7 +93,9 @@ export const navigation: NavSection[] = [
     title: '投资中心',
     icon: TrendingUp,
     children: [
+      { title: '投资总览', url: '/investment/overview', icon: LayoutDashboard },
       { title: '外汇交易', url: '/investment/forex', icon: CandlestickChart },
+      { title: '投资报告', url: '/investment/reports', icon: FileText },
     ],
   },
 ]
