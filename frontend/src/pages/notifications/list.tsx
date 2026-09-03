@@ -76,13 +76,11 @@ function StatCard({
   icon: Icon,
   label,
   value,
-  hint,
   className,
 }: {
   icon: typeof Bell
   label: string
   value: string
-  hint?: string
   className?: string
 }) {
   return (
@@ -93,13 +91,12 @@ function StatCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
   )
 }
 
-export function NotificationsPage() {
+export function NotificationList() {
   const [items, setItems] = useState<NotificationRecord[]>([])
   const [stats, setStats] = useState<NotificationStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -132,8 +129,7 @@ export function NotificationsPage() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openCreate = () => {
     setEditing(null)
@@ -166,11 +162,8 @@ export function NotificationsPage() {
     }
     setSaving(true)
     try {
-      if (editing) {
-        await api.update('/notifications', editing.id, payload)
-      } else {
-        await api.create('/notifications', payload)
-      }
+      if (editing) await api.update('/notifications', editing.id, payload)
+      else await api.create('/notifications', payload)
       setDialogOpen(false)
       await load()
     } finally {
@@ -207,40 +200,19 @@ export function NotificationsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">通知中心</h1>
-          <p className="text-sm text-muted-foreground">查看与管理系统及业务通知消息。</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={readAll} disabled={!stats || stats.unread === 0}>
-            <CheckCheck /> 全部标为已读
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus /> 发布通知
-          </Button>
-        </div>
-      </section>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={readAll} disabled={!stats || stats.unread === 0}>
+          <CheckCheck /> 全部标为已读
+        </Button>
+        <Button onClick={openCreate}>
+          <Plus /> 发布通知
+        </Button>
+      </div>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          icon={Mail}
-          label="未读通知"
-          value={String(stats?.unread ?? '—')}
-          className="text-blue-500"
-        />
-        <StatCard
-          icon={Bell}
-          label="今日通知"
-          value={String(stats?.today ?? '—')}
-          className="text-amber-500"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label="通知总数"
-          value={String(stats?.total ?? '—')}
-          className="text-green-500"
-        />
+        <StatCard icon={Mail} label="未读通知" value={String(stats?.unread ?? '—')} className="text-blue-500" />
+        <StatCard icon={Bell} label="今日通知" value={String(stats?.today ?? '—')} className="text-amber-500" />
+        <StatCard icon={CheckCircle2} label="通知总数" value={String(stats?.total ?? '—')} className="text-green-500" />
       </section>
 
       {byCategory.length > 0 || trend.length > 0 ? (
@@ -313,23 +285,13 @@ export function NotificationsPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleRead(row)}
-                    title={row.read ? '标记为未读' : '标记为已读'}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => toggleRead(row)} title={row.read ? '标记为未读' : '标记为已读'}>
                     {row.read ? <Mail className="size-4" /> : <CheckCheck className="size-4" />}
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
                     <Pencil />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive"
-                    onClick={() => remove(row)}
-                  >
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(row)}>
                     <Trash2 />
                   </Button>
                 </div>
@@ -339,23 +301,13 @@ export function NotificationsPage() {
         </CardContent>
         {totalPages > 1 && (
           <CardFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
               上一页
             </Button>
             <span className="text-sm text-muted-foreground">
               {page} / {totalPages}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
+            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
               下一页
             </Button>
           </CardFooter>
@@ -366,68 +318,37 @@ export function NotificationsPage() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? '编辑通知' : '发布通知'}</DialogTitle>
-            <DialogDescription>
-              {editing ? '修改并保存本条通知。' : '填写信息创建一条新通知。'}
-            </DialogDescription>
+            <DialogDescription>{editing ? '修改并保存本条通知。' : '填写信息创建一条新通知。'}</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 space-y-2">
-              <Label htmlFor="title">
-                通知标题<span className="text-destructive"> *</span>
-              </Label>
-              <Input
-                id="title"
-                value={form.title ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="通知标题"
-              />
+              <Label htmlFor="title">通知标题<span className="text-destructive"> *</span></Label>
+              <Input id="title" value={form.title ?? ''} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="通知标题" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="category">
-                类型<span className="text-destructive"> *</span>
-              </Label>
-              <Select
-                value={form.category ?? ''}
-                onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
-              >
+              <Label htmlFor="category">类型<span className="text-destructive"> *</span></Label>
+              <Select value={form.category ?? ''} onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}>
                 <SelectTrigger id="category">
                   <SelectValue placeholder="请选择类型" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="source">来源模块</Label>
-              <Input
-                id="source"
-                value={form.source ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-                placeholder="如 健康中心"
-              />
+              <Input id="source" value={form.source ?? ''} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} placeholder="如 健康中心" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="notify_date">
-                通知日期<span className="text-destructive"> *</span>
-              </Label>
-              <Input
-                id="notify_date"
-                type="date"
-                value={form.notify_date ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, notify_date: e.target.value }))}
-              />
+              <Label htmlFor="notify_date">通知日期<span className="text-destructive"> *</span></Label>
+              <Input id="notify_date" type="date" value={form.notify_date ?? ''} onChange={(e) => setForm((f) => ({ ...f, notify_date: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="read">已读状态</Label>
-              <Select
-                value={form.read ?? 'false'}
-                onValueChange={(v) => setForm((f) => ({ ...f, read: v }))}
-              >
+              <Select value={form.read ?? 'false'} onValueChange={(v) => setForm((f) => ({ ...f, read: v }))}>
                 <SelectTrigger id="read">
                   <SelectValue />
                 </SelectTrigger>
@@ -439,18 +360,11 @@ export function NotificationsPage() {
             </div>
             <div className="col-span-2 space-y-2">
               <Label htmlFor="content">通知内容</Label>
-              <Textarea
-                id="content"
-                value={form.content ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-                placeholder="通知详细内容"
-              />
+              <Textarea id="content" value={form.content ?? ''} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))} placeholder="通知详细内容" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              取消
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>取消</Button>
             <Button onClick={submit} disabled={saving}>
               {saving && <Loader2 className="animate-spin" />}
               保存
