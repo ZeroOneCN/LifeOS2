@@ -8,3 +8,4 @@ cryptography
 reportlab
 openpyxl
 apscheduler
+PyJWT

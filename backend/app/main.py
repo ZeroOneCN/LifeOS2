@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
 from app.api.routes import (
     activity_log,
+    auth,
     finance,
     health,
     health_check,
@@ -59,6 +60,7 @@ app.include_router(investment.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
 app.include_router(user.router, prefix=settings.API_V1_PREFIX)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

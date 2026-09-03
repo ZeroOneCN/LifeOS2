@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     NOTIFICATION_ENC_KEY: str = ""
     # 每日提醒扫描时间（HH:MM）
     NOTIFY_SCAN_TIME: str = "08:30"
+    # JWT 签名密钥（生产环境务必修改为随机值）
+    JWT_SECRET_KEY: str = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
+    JWT_ALGORITHM: str = "HS256"
+    # 访问令牌有效期（分钟），默认 7 天
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
     model_config = SettingsConfigDict(
         env_file=".env",
