@@ -700,7 +700,7 @@ function FundsSection() {
         {itemsSorted.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">暂无资金记录，点击「记录资金」添加入金/出金/体验金。</p>
         ) : (
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2">
             {itemsSorted.map((r) => (
               <div key={r.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
                 <div className="flex items-center gap-3">
