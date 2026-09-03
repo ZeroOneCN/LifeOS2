@@ -29,7 +29,9 @@ export function ReportPeriodPicker({
   value: ReportPeriod
   onChange: (v: ReportPeriod) => void
 }) {
-  const mode = value.start_date ? 'custom' : String(value.days ?? 30)
+  // 只要显式传入过 start_date/end_date 即视为自定义（含空串，代表等待用户选日期）
+  const isCustom = value.start_date !== undefined || value.end_date !== undefined
+  const mode = isCustom ? 'custom' : String(value.days ?? 30)
   const setMode = (m: string) => {
     if (m === 'custom') {
       onChange({ start_date: value.start_date ?? '', end_date: value.end_date ?? '' })

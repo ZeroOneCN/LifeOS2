@@ -30,12 +30,12 @@ export function NotificationsPage() {
         </p>
       </section>
 
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((t) => (
           <Button
             key={t.key}
             variant={tab === t.key ? 'default' : 'ghost'}
-            className="flex-1"
+            className="min-w-max flex-1 whitespace-nowrap"
             onClick={() => setTab(t.key)}
           >
             <t.icon className="size-4" /> {t.label}
