@@ -5,6 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models import UserProfile
 from app.models.notification_center import NotificationSendLog
 
 router = APIRouter(prefix="/notifications/send-logs", tags=["notification-send-logs"])
@@ -17,9 +19,12 @@ def list_logs(
     status: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    stmt = select(NotificationSendLog)
+    stmt = select(NotificationSendLog).where(
+        NotificationSendLog.user_id == current_user.id
+    )
     if notification_id is not None:
         stmt = stmt.where(NotificationSendLog.notification_id == notification_id)
     if channel_type:
@@ -37,9 +42,15 @@ def list_logs(
 
 @router.get("/stats")
 def log_stats(
-    days: int = Query(7, ge=1, le=90), db: Session = Depends(get_db)
+    days: int = Query(7, ge=1, le=90),
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    rows = db.scalars(select(NotificationSendLog)).all()
+    rows = db.scalars(
+        select(NotificationSendLog).where(
+            NotificationSendLog.user_id == current_user.id
+        )
+    ).all()
     total = len(rows)
     ok = sum(1 for r in rows if r.status == "sent")
     fail = sum(1 for r in rows if r.status == "failed")

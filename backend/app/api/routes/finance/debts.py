@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.api.crud import crud_router
-from app.models import FinanceDebt, FinanceLoanBill, FinanceLoanPlatform
+from app.models import FinanceDebt, FinanceLoanBill, FinanceLoanPlatform, UserProfile
 from app.schemas.finance import (
     DebtCreate,
     DebtRead,
@@ -16,9 +17,11 @@ from app.schemas.finance import (
 router = APIRouter()
 
 
-def _debt_stats(db: Session, days: int) -> dict:
+def _debt_stats(db: Session, days: int, user_id: int) -> dict:
     """债务统计：方向/状态汇总与逾期情况。"""
-    rows = db.scalars(select(FinanceDebt)).all()
+    rows = db.scalars(
+        select(FinanceDebt).where(FinanceDebt.user_id == user_id)
+    ).all()
 
     total = len(rows)
     borrow_total = sum(r.amount for r in rows if r.direction == "borrow")
@@ -66,16 +69,24 @@ def _debt_stats(db: Session, days: int) -> dict:
 
 
 @router.get("/finance/debts/loan-sync")
-def loan_sync(db: Session = Depends(get_db)) -> dict:
+def loan_sync(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
     """网贷平台的欠款汇总（只读同步，来源为网贷借还模块）。"""
     platforms = db.scalars(
-        select(FinanceLoanPlatform).order_by(FinanceLoanPlatform.id)
+        select(FinanceLoanPlatform)
+        .where(FinanceLoanPlatform.user_id == user.id)
+        .order_by(FinanceLoanPlatform.id)
     ).all()
     detail = []
     total_remaining = 0.0
     for p in platforms:
         bills = db.scalars(
-            select(FinanceLoanBill).where(FinanceLoanBill.platform_id == p.id)
+            select(FinanceLoanBill).where(
+                FinanceLoanBill.platform_id == p.id,
+                FinanceLoanBill.user_id == user.id,
+            )
         ).all()
         remaining = round(sum(b.amount - b.paid_amount for b in bills), 2)
         total_remaining += remaining
@@ -98,10 +109,15 @@ def loan_sync(db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/finance/debts/{item_id}/repay")
-def repay_debt(item_id: int, payload: DebtRepayPayload, db: Session = Depends(get_db)):
+def repay_debt(
+    item_id: int,
+    payload: DebtRepayPayload,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清。"""
     debt = db.get(FinanceDebt, item_id)
-    if not debt:
+    if not debt or debt.user_id != user.id:
         raise HTTPException(status_code=404, detail="债务记录不存在")
     if debt.status == "settled":
         raise HTTPException(status_code=400, detail="该债务已结清，无需还款")

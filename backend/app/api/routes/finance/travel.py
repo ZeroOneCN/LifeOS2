@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import FinanceTravelDetail, FinanceTravelLedger, FinanceTravelReport
+from app.core.security import get_current_user
+from app.models import (
+    FinanceTravelDetail,
+    FinanceTravelLedger,
+    FinanceTravelReport,
+    UserProfile,
+)
 from app.schemas.health import PageOut
 from app.schemas.finance import TravelDetailCreate, TravelDetailRead, TravelLedgerCreate, TravelLedgerRead
 from app.services import finance_report
@@ -45,8 +51,9 @@ def list_details(
     end: date | None = None,
     ledger_id: int | None = None,
     db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
 ):
-    stmt = select(FinanceTravelDetail)
+    stmt = select(FinanceTravelDetail).where(FinanceTravelDetail.user_id == user.id)
     if start:
         stmt = stmt.where(FinanceTravelDetail.detail_date >= start)
     if end:
@@ -67,9 +74,13 @@ def details_stats(
     days: int = Query(90, ge=1, le=3650),
     ledger_id: int | None = None,
     db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
 ) -> dict:
     since = date.today() - timedelta(days=days - 1)
-    stmt = select(FinanceTravelDetail).where(FinanceTravelDetail.detail_date >= since)
+    stmt = select(FinanceTravelDetail).where(
+        FinanceTravelDetail.user_id == user.id,
+        FinanceTravelDetail.detail_date >= since,
+    )
     if ledger_id:
         stmt = stmt.where(FinanceTravelDetail.ledger_id == ledger_id)
     rows = db.scalars(stmt).all()
@@ -100,8 +111,14 @@ def details_stats(
 
 
 @details_router.post("", response_model=TravelDetailRead, status_code=201)
-def create_detail(payload: TravelDetailCreate, db: Session = Depends(get_db)):
-    obj = FinanceTravelDetail(** _compute_actual(payload))
+def create_detail(
+    payload: TravelDetailCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    data = _compute_actual(payload)
+    data["user_id"] = user.id
+    obj = FinanceTravelDetail(**data)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -109,9 +126,14 @@ def create_detail(payload: TravelDetailCreate, db: Session = Depends(get_db)):
 
 
 @details_router.put("/{item_id}", response_model=TravelDetailRead)
-def update_detail(item_id: int, payload: TravelDetailCreate, db: Session = Depends(get_db)):
+def update_detail(
+    item_id: int,
+    payload: TravelDetailCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceTravelDetail, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     for key, value in _compute_actual(payload).items():
         setattr(obj, key, value)
@@ -121,9 +143,13 @@ def update_detail(item_id: int, payload: TravelDetailCreate, db: Session = Depen
 
 
 @details_router.delete("/{item_id}", status_code=204)
-def delete_detail(item_id: int, db: Session = Depends(get_db)):
+def delete_detail(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceTravelDetail, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)
     db.commit()
@@ -165,8 +191,16 @@ def _to_read(r: FinanceTravelReport) -> dict:
 
 
 @report_router.get("/report")
-def travel_report_list(db: Session = Depends(get_db)):
-    rows = db.scalars(select(FinanceTravelReport).order_by(FinanceTravelReport.id.desc()).limit(50)).all()
+def travel_report_list(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    rows = db.scalars(
+        select(FinanceTravelReport)
+        .where(FinanceTravelReport.user_id == user.id)
+        .order_by(FinanceTravelReport.id.desc())
+        .limit(50)
+    ).all()
     return [
         {
             "id": r.id,
@@ -181,9 +215,13 @@ def travel_report_list(db: Session = Depends(get_db)):
 
 
 @report_router.post("/report/generate")
-def travel_report_generate(payload: ReportGenReq, db: Session = Depends(get_db)):
+def travel_report_generate(
+    payload: ReportGenReq,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     start, end = _resolve_period(payload.days, payload.end_date)
-    title, summary, content = finance_report.build_travel_report(db, start, end, payload.ledger_id)
+    title, summary, content = finance_report.build_travel_report(db, start, end, payload.ledger_id, user.id)
     report = FinanceTravelReport(
         title=title,
         ledger_id=payload.ledger_id,
@@ -191,6 +229,7 @@ def travel_report_generate(payload: ReportGenReq, db: Session = Depends(get_db))
         period_end=end,
         summary=summary,
         content=json.dumps(content, ensure_ascii=False),
+        user_id=user.id,
     )
     db.add(report)
     db.commit()
@@ -199,17 +238,25 @@ def travel_report_generate(payload: ReportGenReq, db: Session = Depends(get_db))
 
 
 @report_router.get("/report/{report_id}")
-def travel_report_get(report_id: int, db: Session = Depends(get_db)):
+def travel_report_get(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceTravelReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     return _to_read(r)
 
 
 @report_router.get("/report/{report_id}/export")
-def travel_report_export(report_id: int, db: Session = Depends(get_db)):
+def travel_report_export(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceTravelReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     content = json.loads(r.content or "[]")
     pdf = finance_report.build_pdf(title=r.title or "旅行开支报告", summary=r.summary or "", content=content)
@@ -226,9 +273,13 @@ def travel_report_export(report_id: int, db: Session = Depends(get_db)):
 
 
 @report_router.delete("/report/{report_id}", status_code=204)
-def travel_report_delete(report_id: int, db: Session = Depends(get_db)):
+def travel_report_delete(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceTravelReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     db.delete(r)
     db.commit()

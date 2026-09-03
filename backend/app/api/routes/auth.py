@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import (
+    account_exists,
     create_access_token,
-    first_profile_or_create,
     get_current_user,
     hash_password,
     username_exists,
@@ -13,6 +13,7 @@ from app.core.security import (
 )
 from app.models import UserProfile
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserMe
+from app.services.notification.seed import ensure_seed
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -27,50 +28,51 @@ def _build_token_response(profile: UserProfile) -> TokenResponse:
 
 @router.post("/register", response_model=TokenResponse)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """注册账号。首个注册接管默认管理员记录（保留其个人资料数据），后续创建新账号。"""
-    username = payload.username.strip()
-    if not username:
-        raise HTTPException(status_code=400, detail="用户名不能为空")
+    """注册账号。首个注册用户自动成为管理员。"""
+    account = payload.account.strip()
+    if not account:
+        raise HTTPException(status_code=400, detail="账号不能为空")
     if len(payload.password) < 6:
         raise HTTPException(status_code=400, detail="密码长度不能少于 6 位")
-
-    default = first_profile_or_create(db)
-    if not default.has_password:
-        # 首注接管 id=1，仅写入登录凭证，不覆盖既有个人资料
-        if username_exists(db, username, exclude_id=default.id):
-            raise HTTPException(status_code=400, detail="用户名已被占用")
-        default.username = username
-        default.password_salt, default.password_hash = hash_password(payload.password)
-        db.commit()
-        db.refresh(default)
-        return _build_token_response(default)
-
-    if username_exists(db, username):
+    if account_exists(db, account):
+        raise HTTPException(status_code=400, detail="账号已被占用")
+    if payload.username and username_exists(db, payload.username.strip()):
         raise HTTPException(status_code=400, detail="用户名已被占用")
+
+    is_first = (
+        db.scalar(select(func.count()).select_from(UserProfile)) or 0
+    ) == 0
     profile = UserProfile(
-        username=username,
+        account=account,
+        username=payload.username.strip() if payload.username else account,
         nickname=payload.nickname or "未命名用户",
+        is_admin=is_first,
     )
     profile.password_salt, profile.password_hash = hash_password(payload.password)
     db.add(profile)
     db.commit()
     db.refresh(profile)
+
+    # 为新用户预置通知模板与功能提醒开关
+    ensure_seed(db, profile.id)
+    db.commit()
+
     return _build_token_response(profile)
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """账号密码登录。"""
-    username = payload.username.strip()
+    account = payload.account.strip()
     profile = db.scalar(
-        select(UserProfile).where(UserProfile.username == username)
+        select(UserProfile).where(UserProfile.account == account)
     )
     if not profile or not profile.has_password or not verify_password(
         payload.password,
         profile.password_salt or "",
         profile.password_hash,
     ):
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        raise HTTPException(status_code=401, detail="账号或密码错误")
     return _build_token_response(profile)
 
 

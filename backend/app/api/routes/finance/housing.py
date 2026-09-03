@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import FinanceHousing, FinanceUtility
+from app.core.security import get_current_user
+from app.models import FinanceHousing, FinanceUtility, UserProfile
 from app.schemas.finance import HousingCreate, HousingRead, UtilityCreate, UtilityRead
 
 router = APIRouter()
@@ -24,7 +25,11 @@ housing_router = crud_router(
 
 
 @router.get("/finance/housing/stats")
-def housing_stats(month: str | None = Query(None, description="YYYY-MM，默认当前月"), db: Session = Depends(get_db)) -> dict:
+def housing_stats(
+    month: str | None = Query(None, description="YYYY-MM，默认当前月"),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
     """住房统计：组合月租（多套并租折算）、押金/杂费汇总、单日成本。"""
     target = _parse_month(month)
     year, mon = target.year, target.month
@@ -32,7 +37,11 @@ def housing_stats(month: str | None = Query(None, description="YYYY-MM，默认�
     m_start = date(year, mon, 1)
     m_end = date(year, mon, days_in_month)
 
-    houses = db.scalars(select(FinanceHousing).order_by(FinanceHousing.move_in_date)).all()
+    houses = db.scalars(
+        select(FinanceHousing)
+        .where(FinanceHousing.user_id == user.id)
+        .order_by(FinanceHousing.move_in_date)
+    ).all()
 
     detail = []
     combined = 0.0

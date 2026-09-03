@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     FinanceDebt,
     FinanceHousing,
@@ -17,13 +18,17 @@ from app.models import (
     FinanceSubscription,
     FinanceTravelDetail,
     FinanceUtility,
+    UserProfile,
 )
 
 router = APIRouter(prefix="/finance/overview", tags=["finance-overview"])
 
 
 @router.get("")
-def overview(db: Session = Depends(get_db)) -> dict:
+def overview(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
     today = date.today()
     month_start = today.replace(day=1)
     # 计算当月天数，用于组合房租按天折算
@@ -35,24 +40,38 @@ def overview(db: Session = Depends(get_db)) -> dict:
 
     # ---------- 本月数据 ----------
     month_shopping = db.scalars(
-        select(FinanceShoppingRecord).where(FinanceShoppingRecord.record_date >= month_start)
+        select(FinanceShoppingRecord).where(
+            FinanceShoppingRecord.user_id == user.id,
+            FinanceShoppingRecord.record_date >= month_start,
+        )
     ).all()
     month_travel = db.scalars(
-        select(FinanceTravelDetail).where(FinanceTravelDetail.detail_date >= month_start)
+        select(FinanceTravelDetail).where(
+            FinanceTravelDetail.user_id == user.id,
+            FinanceTravelDetail.detail_date >= month_start,
+        )
     ).all()
     month_utils = db.scalars(
-        select(FinanceUtility).where(FinanceUtility.bill_month >= month_start)
+        select(FinanceUtility).where(
+            FinanceUtility.user_id == user.id,
+            FinanceUtility.bill_month >= month_start,
+        )
     ).all()
     # 生效中的订阅 -> 折算月均
     active_subs = db.scalars(
-        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+        select(FinanceSubscription).where(
+            FinanceSubscription.user_id == user.id,
+            FinanceSubscription.status == "active",
+        )
     ).all()
     sub_monthly = sum(
         s.amount / {"month": 1, "quarter": 3, "year": 12}.get(s.billing_cycle, 1)
         for s in active_subs
     )
     # 组合房租（当月折算）
-    houses = db.scalars(select(FinanceHousing)).all()
+    houses = db.scalars(
+        select(FinanceHousing).where(FinanceHousing.user_id == user.id)
+    ).all()
     combined_rent = 0.0
     total_deposit = sum(h.deposit or 0 for h in houses)
     for h in houses:
@@ -61,7 +80,10 @@ def overview(db: Session = Depends(get_db)) -> dict:
         if hs <= month_end and he >= month_start and he > hs:
             combined_rent += base * ((he - hs).days + 1) / month_days
     month_loans = db.scalars(
-        select(FinanceLoanBill).where(FinanceLoanBill.bill_month >= month_start)
+        select(FinanceLoanBill).where(
+            FinanceLoanBill.user_id == user.id,
+            FinanceLoanBill.bill_month >= month_start,
+        )
     ).all()
 
     shopping_total = sum(r.total_price for r in month_shopping)
@@ -71,13 +93,17 @@ def overview(db: Session = Depends(get_db)) -> dict:
     loan_paid = sum(r.paid_amount for r in month_loans)
 
     # ---------- 全量快照 ----------
-    all_loans = db.scalars(select(FinanceLoanBill)).all()
+    all_loans = db.scalars(
+        select(FinanceLoanBill).where(FinanceLoanBill.user_id == user.id)
+    ).all()
     outstanding_loans = sum(
         (b.amount - b.paid_amount)
         for b in all_loans
         if (b.amount - b.paid_amount) > 0
     )
-    debts = db.scalars(select(FinanceDebt)).all()
+    debts = db.scalars(
+        select(FinanceDebt).where(FinanceDebt.user_id == user.id)
+    ).all()
     outstanding_debt = sum(
         (r.remaining if r.remaining is not None else r.amount)
         for r in debts
@@ -85,26 +111,37 @@ def overview(db: Session = Depends(get_db)) -> dict:
     )
     borrow_total = sum(r.amount for r in debts if r.direction == "borrow")
     lend_total = sum(r.amount for r in debts if r.direction == "lend")
-    investments = db.scalars(select(FinanceInvestment)).all()
+    investments = db.scalars(
+        select(FinanceInvestment).where(FinanceInvestment.user_id == user.id)
+    ).all()
     invest_pnl = sum(r.pnl for r in investments)
 
     # ---------- 待办 ----------
     pending_bills = db.scalars(
         select(FinanceLoanBill)
-        .where(FinanceLoanBill.status.in_(["pending", "partial"]))
+        .where(
+            FinanceLoanBill.user_id == user.id,
+            FinanceLoanBill.status.in_(["pending", "partial"]),
+        )
         .order_by(FinanceLoanBill.due_date)
         .limit(5)
     ).all()
     pending_reminders = db.scalars(
         select(FinanceReminder)
-        .where(FinanceReminder.status == "pending")
+        .where(
+            FinanceReminder.user_id == user.id,
+            FinanceReminder.status == "pending",
+        )
         .order_by(FinanceReminder.due_date)
         .limit(5)
     ).all()
     # 待缴水电
     unpaid_utils = db.scalars(
         select(FinanceUtility)
-        .where(FinanceUtility.paid == False)  # noqa: E712
+        .where(
+            FinanceUtility.user_id == user.id,
+            FinanceUtility.paid == False,  # noqa: E712
+        )
         .order_by(FinanceUtility.due_date)
         .limit(5)
     ).all()
@@ -116,7 +153,10 @@ def overview(db: Session = Depends(get_db)) -> dict:
     ][:5]
     active_plans = db.scalars(
         select(FinancePlan)
-        .where(FinancePlan.status == "active")
+        .where(
+            FinancePlan.user_id == user.id,
+            FinancePlan.status == "active",
+        )
         .order_by(FinancePlan.plan_date.desc())
         .limit(5)
     ).all()

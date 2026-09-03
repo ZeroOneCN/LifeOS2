@@ -4,9 +4,10 @@ from sqlalchemy import DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
-class ActivityLog(Base):
+class ActivityLog(UserOwned, Base):
     """活动日志：通过中间件自动记录各模块的新增/更新/删除操作。"""
 
     __tablename__ = "activity_logs"

@@ -3,7 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import FinanceCurrency
+from app.core.security import get_current_user
+from app.models import FinanceCurrency, UserProfile
 from app.schemas.finance import CurrencyCreate
 
 router = APIRouter(prefix="/finance/currencies", tags=["finance-currencies"])
@@ -15,18 +16,27 @@ DEFAULT_CURRENCIES = [
 ]
 
 
-def _ensure_defaults(db: Session) -> None:
-    if db.scalars(select(FinanceCurrency).limit(1)).first():
+def _ensure_defaults(db: Session, user_id: int) -> None:
+    if db.scalars(
+        select(FinanceCurrency).where(FinanceCurrency.user_id == user_id).limit(1)
+    ).first():
         return
     for data in DEFAULT_CURRENCIES:
-        db.add(FinanceCurrency(**data))
+        db.add(FinanceCurrency(**data, user_id=user_id))
     db.commit()
 
 
 @router.get("")
-def list_currencies(db: Session = Depends(get_db)):
-    _ensure_defaults(db)
-    rows = db.scalars(select(FinanceCurrency).order_by(FinanceCurrency.currency)).all()
+def list_currencies(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    _ensure_defaults(db, user.id)
+    rows = db.scalars(
+        select(FinanceCurrency)
+        .where(FinanceCurrency.user_id == user.id)
+        .order_by(FinanceCurrency.currency)
+    ).all()
     return [
         {
             "id": r.id,
@@ -40,9 +50,14 @@ def list_currencies(db: Session = Depends(get_db)):
 
 
 @router.put("/{item_id}")
-def update_currency(item_id: int, payload: CurrencyCreate, db: Session = Depends(get_db)):
+def update_currency(
+    item_id: int,
+    payload: CurrencyCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceCurrency, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="币种不存在")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
@@ -58,9 +73,13 @@ def update_currency(item_id: int, payload: CurrencyCreate, db: Session = Depends
 
 
 @router.delete("/{item_id}", status_code=204)
-def delete_currency(item_id: int, db: Session = Depends(get_db)):
+def delete_currency(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceCurrency, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="币种不存在")
     if obj.currency == "CNY":
         raise HTTPException(status_code=400, detail="人民币基准币种不可删除")

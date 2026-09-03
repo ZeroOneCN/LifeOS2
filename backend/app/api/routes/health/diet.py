@@ -13,10 +13,11 @@ from app.schemas.health import DietCreate, DietRead
 router = APIRouter()
 
 
-def _diet_stats(db: Session, days: int) -> dict:
+def _diet_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthDiet)
+        .where(HealthDiet.user_id == user_id)
         .where(HealthDiet.record_date >= since)
         .order_by(HealthDiet.record_date)
     ).all()

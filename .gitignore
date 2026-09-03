@@ -13,3 +13,7 @@ backend/.venv/
 frontend/node_modules/
 __pycache__/
 *.pyc
+
+# 本地临时 SQLite（测试/脚本残留，不入库）
+backend/_tmp_auth_test.db
+*.db

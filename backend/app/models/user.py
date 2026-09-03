@@ -1,18 +1,22 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 
 class UserProfile(Base):
-    """用户中心：个人基本资料 + 账号信息（单记录，id 固定为 1）。"""
+    """用户中心：登录账号 + 个人基本资料 + 账号信息。"""
 
     __tablename__ = "user_profile"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    username: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)  # 登录用户名
+    account: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )  # 登录账号，注册后不可改
+    username: Mapped[str | None] = mapped_column(String(64), index=True)  # 显示名/用户名（可改）
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # 管理员标记
     password_salt: Mapped[str | None] = mapped_column(String(64))  # 密码盐
     password_hash: Mapped[str | None] = mapped_column(String(128))  # 密码哈希
     nickname: Mapped[str] = mapped_column(String(64), default="未命名用户")  # 昵称

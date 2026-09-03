@@ -8,7 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import InvestmentForex, InvestmentFundRecord
+from app.core.security import get_current_user
+from app.models import InvestmentForex, InvestmentFundRecord, UserProfile
 from app.schemas.investment import ForexCreate, ForexRead
 from app.schemas.health import PageOut
 
@@ -160,8 +161,9 @@ def list_items(
     symbol: str | None = None,
     order_type: str | None = None,
     db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    stmt = select(InvestmentForex)
+    stmt = select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
     if start:
         stmt = stmt.where(InvestmentForex.trade_date >= start)
     if end:
@@ -189,8 +191,9 @@ def _apply_payload(obj: InvestmentForex, payload: ForexCreate):
 
 
 @router.post("", response_model=ForexRead, status_code=201)
-def create_item(payload: ForexCreate, db: Session = Depends(get_db)):
-    obj = InvestmentForex()
+def create_item(payload: ForexCreate, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = InvestmentForex(user_id=current_user.id)
     _apply_payload(obj, payload)
     db.add(obj)
     db.commit()
@@ -199,8 +202,14 @@ def create_item(payload: ForexCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{item_id}", response_model=ForexRead)
-def update_item(item_id: int, payload: ForexCreate, db: Session = Depends(get_db)):
-    obj = db.get(InvestmentForex, item_id)
+def update_item(item_id: int, payload: ForexCreate, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = db.scalar(
+        select(InvestmentForex).where(
+            InvestmentForex.id == item_id,
+            InvestmentForex.user_id == current_user.id,
+        )
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="记录不存在")
     _apply_payload(obj, payload)
@@ -210,8 +219,14 @@ def update_item(item_id: int, payload: ForexCreate, db: Session = Depends(get_db
 
 
 @router.delete("/{item_id}", status_code=204)
-def delete_item(item_id: int, db: Session = Depends(get_db)):
-    obj = db.get(InvestmentForex, item_id)
+def delete_item(item_id: int, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = db.scalar(
+        select(InvestmentForex).where(
+            InvestmentForex.id == item_id,
+            InvestmentForex.user_id == current_user.id,
+        )
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)
@@ -222,10 +237,15 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 # --------------------------------------------------------------------------
 # 统计 / 数据分析
 # --------------------------------------------------------------------------
-def compute_forex_stats(db: Session, days: int = 365) -> dict:
-    trades = db.scalars(select(InvestmentForex)).all()
+def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None) -> dict:
+    stat_trades = select(InvestmentForex)
+    stat_funds = select(InvestmentFundRecord)
+    if user_id is not None:
+        stat_trades = stat_trades.where(InvestmentForex.user_id == user_id)
+        stat_funds = stat_funds.where(InvestmentFundRecord.user_id == user_id)
+    trades = db.scalars(stat_trades).all()
     closed = [t for t in trades if t.status == "closed"]
-    funds = db.scalars(select(InvestmentFundRecord)).all()
+    funds = db.scalars(stat_funds).all()
     deposits = sum(f.amount for f in funds if f.record_type == "deposit")
     withdrawals = sum(f.amount for f in funds if f.record_type == "withdraw")
     experience = sum(f.amount for f in funds if f.record_type == "experience")
@@ -362,15 +382,17 @@ def compute_forex_stats(db: Session, days: int = 365) -> dict:
 
 
 @router.get("/stats")
-def stats(days: int = Query(365, ge=1, le=3650), db: Session = Depends(get_db)):
-    return compute_forex_stats(db, days)
+def stats(days: int = Query(365, ge=1, le=3650), db: Session = Depends(get_db),
+          current_user: UserProfile = Depends(get_current_user)):
+    return compute_forex_stats(db, days, current_user.id)
 
 
 # --------------------------------------------------------------------------
 # 交易日历（按月：哪些天有交易、盈亏、笔数）
 # --------------------------------------------------------------------------
 @router.get("/calendar")
-def calendar(month: str | None = Query(None), db: Session = Depends(get_db)):
+def calendar(month: str | None = Query(None), db: Session = Depends(get_db),
+             current_user: UserProfile = Depends(get_current_user)):
     today = date.today()
     if month:
         try:
@@ -386,6 +408,7 @@ def calendar(month: str | None = Query(None), db: Session = Depends(get_db)):
     end = date(y, m, _cal.monthrange(y, m)[1])
     trades = db.scalars(
         select(InvestmentForex).where(
+            InvestmentForex.user_id == current_user.id,
             InvestmentForex.trade_date >= start,
             InvestmentForex.trade_date <= end,
         )
@@ -410,9 +433,15 @@ def calendar(month: str | None = Query(None), db: Session = Depends(get_db)):
 
 
 @router.get("/{item_id}", response_model=ForexRead)
-def get_item(item_id: int, db: Session = Depends(get_db)):
+def get_item(item_id: int, db: Session = Depends(get_db),
+             current_user: UserProfile = Depends(get_current_user)):
     """置于 /stats /calendar 之后定义，避免 /stats 等字面路径被当作 item_id 捕获。"""
-    obj = db.get(InvestmentForex, item_id)
+    obj = db.scalar(
+        select(InvestmentForex).where(
+            InvestmentForex.id == item_id,
+            InvestmentForex.user_id == current_user.id,
+        )
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="记录不存在")
     return _read(obj)
@@ -496,6 +525,7 @@ async def import_xlsx(
     mode: str = Query("append", pattern="^(append|replace)$"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
 ):
     """导入 MT5 导出的 xlsx。表头：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注"""
     try:
@@ -515,10 +545,14 @@ async def import_xlsx(
 
     rows = list(ws.iter_rows(values_only=True))
     records, skipped = parse_trade_rows(rows)
+    for rec in records:
+        rec.user_id = current_user.id
 
     if records:
         if mode == "replace":
-            db.query(InvestmentForex).delete()
+            db.query(InvestmentForex).filter(
+                InvestmentForex.user_id == current_user.id
+            ).delete()
         db.add_all(records)
         db.commit()
     return {"imported": len(records), "skipped": skipped}

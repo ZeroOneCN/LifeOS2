@@ -11,6 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -24,7 +25,7 @@ class TimestampMixin:
     )
 
 
-class NotificationChannel(TimestampMixin, Base):
+class NotificationChannel(TimestampMixin, UserOwned, Base):
     """通知渠道配置：各类外发渠道（邮件/钉钉/飞书/企微/TGBot/Webhook）。"""
 
     __tablename__ = "notification_channels"
@@ -38,13 +39,13 @@ class NotificationChannel(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(String(255))
 
 
-class NotificationTemplate(TimestampMixin, Base):
+class NotificationTemplate(TimestampMixin, UserOwned, Base):
     """通知模板：按功能(source)配置的默认渲染模板，支持变量。"""
 
     __tablename__ = "notification_templates"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # 功能标识
+    source: Mapped[str] = mapped_column(String(64), index=True)  # 功能标识
     category: Mapped[str] = mapped_column(String(32), index=True)  # 财务/生活/健康/系统
     name: Mapped[str] = mapped_column(String(128))  # 模板名
     title_template: Mapped[str] = mapped_column(String(256))  # 标题模板
@@ -53,13 +54,13 @@ class NotificationTemplate(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(String(255))
 
 
-class FeatureReminderSetting(TimestampMixin, Base):
+class FeatureReminderSetting(TimestampMixin, UserOwned, Base):
     """功能提醒开关：各提醒功能是否触发/提前天数/下发渠道。"""
 
     __tablename__ = "feature_reminder_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    feature_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    feature_key: Mapped[str] = mapped_column(String(64), index=True)
     name: Mapped[str] = mapped_column(String(128))  # 显示名
     category: Mapped[str] = mapped_column(String(32), index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)  # 默认关闭
@@ -68,7 +69,7 @@ class FeatureReminderSetting(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(String(255))
 
 
-class NotificationSendLog(TimestampMixin, Base):
+class NotificationSendLog(TimestampMixin, UserOwned, Base):
     """发送日志：记录每次渠道外发的结果。"""
 
     __tablename__ = "notification_send_logs"

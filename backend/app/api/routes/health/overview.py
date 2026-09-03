@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     HealthBody,
     HealthCheckup,
@@ -13,6 +14,7 @@ from app.models import (
     HealthReport,
     HealthSteps,
     HealthVitalsSleep,
+    UserProfile,
 )
 
 router = APIRouter(prefix="/health/overview", tags=["health-overview"])
@@ -39,38 +41,63 @@ def _serialize_vitals(r: HealthVitalsSleep | None) -> dict | None:
 
 
 @router.get("")
-def overview(db: Session = Depends(get_db)) -> dict:
+def overview(
+    db: Session = Depends(get_db), user: UserProfile = Depends(get_current_user)
+) -> dict:
     today = date.today()
     week_ago = today - timedelta(days=6)
 
     latest_steps = db.scalars(
-        select(HealthSteps).order_by(HealthSteps.record_date.desc()).limit(1)
+        select(HealthSteps)
+        .where(HealthSteps.user_id == user.id)
+        .order_by(HealthSteps.record_date.desc())
+        .limit(1)
     ).first()
     latest_vitals = db.scalars(
-        select(HealthVitalsSleep).order_by(HealthVitalsSleep.record_date.desc()).limit(1)
+        select(HealthVitalsSleep)
+        .where(HealthVitalsSleep.user_id == user.id)
+        .order_by(HealthVitalsSleep.record_date.desc())
+        .limit(1)
     ).first()
     latest_body = db.scalars(
-        select(HealthBody).order_by(HealthBody.record_date.desc()).limit(1)
+        select(HealthBody)
+        .where(HealthBody.user_id == user.id)
+        .order_by(HealthBody.record_date.desc())
+        .limit(1)
     ).first()
 
     today_meds = db.scalars(
-        select(HealthMedication).where(HealthMedication.record_date == today)
+        select(HealthMedication)
+        .where(HealthMedication.user_id == user.id)
+        .where(HealthMedication.record_date == today)
     ).all()
     recent_checkup = db.scalars(
-        select(HealthCheckup).order_by(HealthCheckup.check_date.desc()).limit(5)
+        select(HealthCheckup)
+        .where(HealthCheckup.user_id == user.id)
+        .order_by(HealthCheckup.check_date.desc())
+        .limit(5)
     ).all()
     latest_report = db.scalars(
-        select(HealthReport).order_by(HealthReport.report_date.desc()).limit(1)
+        select(HealthReport)
+        .where(HealthReport.user_id == user.id)
+        .order_by(HealthReport.report_date.desc())
+        .limit(1)
     ).first()
 
     week_steps = db.scalars(
-        select(HealthSteps).where(HealthSteps.record_date >= week_ago)
+        select(HealthSteps)
+        .where(HealthSteps.user_id == user.id)
+        .where(HealthSteps.record_date >= week_ago)
     ).all()
     week_sleep = db.scalars(
-        select(HealthVitalsSleep).where(HealthVitalsSleep.record_date >= week_ago)
+        select(HealthVitalsSleep)
+        .where(HealthVitalsSleep.user_id == user.id)
+        .where(HealthVitalsSleep.record_date >= week_ago)
     ).all()
     week_fitness = db.scalars(
-        select(HealthFitness).where(HealthFitness.record_date >= week_ago)
+        select(HealthFitness)
+        .where(HealthFitness.user_id == user.id)
+        .where(HealthFitness.record_date >= week_ago)
     ).all()
 
     sleep_avg = None

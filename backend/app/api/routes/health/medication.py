@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import HealthMedPurchase, HealthMedStock, HealthMedication
+from app.core.security import get_current_user
+from app.models import HealthMedPurchase, HealthMedStock, HealthMedication, UserProfile
 from app.schemas.health import (
     MedicationCreate,
     MedicationRead,
@@ -22,10 +23,11 @@ router = APIRouter()
 MEAL_LABEL = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐"}
 
 
-def _medication_stats(db: Session, days: int) -> dict:
+def _medication_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthMedication)
+        .where(HealthMedication.user_id == user_id)
         .where(HealthMedication.record_date >= since)
         .order_by(HealthMedication.record_date)
     ).all()
@@ -88,8 +90,11 @@ def _medication_stats(db: Session, days: int) -> dict:
 def _register_fixed(router) -> None:
 
     @router.get("/stocks")
-    def list_stocks(db: Session = Depends(get_db)):
-        stocks = _get_stock_list(db)
+    def list_stocks(
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        stocks = _get_stock_list(db, user.id)
         return {
             "items": stocks,
             "total": len(stocks),
@@ -97,9 +102,16 @@ def _register_fixed(router) -> None:
         }
 
     @router.post("/stocks", response_model=MedStockRead)
-    def upsert_stock(payload: MedStockCreate, db: Session = Depends(get_db)):
+    def upsert_stock(
+        payload: MedStockCreate,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         existing = db.scalar(
-            select(HealthMedStock).where(HealthMedStock.medicine_name == payload.medicine_name)
+            select(HealthMedStock).where(
+                HealthMedStock.user_id == user.id,
+                HealthMedStock.medicine_name == payload.medicine_name,
+            )
         )
         if existing:
             for key, value in payload.model_dump().items():
@@ -107,17 +119,27 @@ def _register_fixed(router) -> None:
             db.commit()
             db.refresh(existing)
             return existing
-        obj = HealthMedStock(**payload.model_dump())
+        obj = HealthMedStock(**payload.model_dump(), user_id=user.id)
         db.add(obj)
         db.commit()
         db.refresh(obj)
         return obj
 
     @router.put("/stocks/{stock_id}", response_model=MedStockRead)
-    def update_stock(stock_id: int, payload: MedStockCreate, db: Session = Depends(get_db)):
+    def update_stock(
+        stock_id: int,
+        payload: MedStockCreate,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         from fastapi import HTTPException
 
-        obj = db.get(HealthMedStock, stock_id)
+        obj = db.scalar(
+            select(HealthMedStock).where(
+                HealthMedStock.id == stock_id,
+                HealthMedStock.user_id == user.id,
+            )
+        )
         if not obj:
             raise HTTPException(status_code=404, detail="库存记录不存在")
         for key, value in payload.model_dump().items():
@@ -127,10 +149,19 @@ def _register_fixed(router) -> None:
         return obj
 
     @router.delete("/stocks/{stock_id}", status_code=204)
-    def delete_stock(stock_id: int, db: Session = Depends(get_db)):
+    def delete_stock(
+        stock_id: int,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         from fastapi import HTTPException
 
-        obj = db.get(HealthMedStock, stock_id)
+        obj = db.scalar(
+            select(HealthMedStock).where(
+                HealthMedStock.id == stock_id,
+                HealthMedStock.user_id == user.id,
+            )
+        )
         if not obj:
             raise HTTPException(status_code=404, detail="库存记录不存在")
         db.delete(obj)
@@ -164,11 +195,19 @@ purchase_router = crud_router(
 router.include_router(purchase_router)
 
 
-def _get_stock_list(db: Session) -> list[dict]:
+def _get_stock_list(db: Session, user_id: int) -> list[dict]:
     """根据购药记录与用药记录自动计算库存并预测耗尽时间。"""
-    stock_rows = db.scalars(select(HealthMedStock).order_by(HealthMedStock.medicine_name)).all()
-    purchases = db.scalars(select(HealthMedPurchase)).all()
-    meds = db.scalars(select(HealthMedication)).all()
+    stock_rows = db.scalars(
+        select(HealthMedStock)
+        .where(HealthMedStock.user_id == user_id)
+        .order_by(HealthMedStock.medicine_name)
+    ).all()
+    purchases = db.scalars(
+        select(HealthMedPurchase).where(HealthMedPurchase.user_id == user_id)
+    ).all()
+    meds = db.scalars(
+        select(HealthMedication).where(HealthMedication.user_id == user_id)
+    ).all()
 
     # 每种药品的累计购买量
     bought: dict[str, float] = defaultdict(float)

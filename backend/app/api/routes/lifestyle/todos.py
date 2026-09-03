@@ -12,8 +12,10 @@ from app.schemas.lifestyle import TodoCreate, TodoRead
 router = APIRouter()
 
 
-def _todo_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(LifestyleTodo)).all()
+def _todo_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(LifestyleTodo).where(LifestyleTodo.user_id == user_id)
+    ).all()
 
     by_priority = {"high": 0, "medium": 0, "low": 0}
     for r in rows:

@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -26,7 +27,7 @@ class TimestampMixin:
     )
 
 
-class LifestyleItem(TimestampMixin, Base):
+class LifestyleItem(TimestampMixin, UserOwned, Base):
     """物品追踪：个人物品管理，支持从购物记录同步及使用时长/费用分摊分析。"""
 
     __tablename__ = "lifestyle_items"
@@ -49,13 +50,13 @@ class LifestyleItem(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class LifestylePhoneCard(TimestampMixin, Base):
+class LifestylePhoneCard(TimestampMixin, UserOwned, Base):
     """卡片管理-手机号卡：手机号、运营商、资费与扣账账单。"""
 
     __tablename__ = "lifestyle_phone_cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    phone_number: Mapped[str] = mapped_column(String(32), unique=True, index=True)  # 号码
+    phone_number: Mapped[str] = mapped_column(String(32), index=True)  # 号码
     operator: Mapped[str] = mapped_column(String(32), index=True)  # 运营商
     region: Mapped[str | None] = mapped_column(String(32))  # 归属地
     balance: Mapped[float | None] = mapped_column(Float, default=0)  # 余额
@@ -75,7 +76,7 @@ class LifestylePhoneCard(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class LifestyleBankCard(TimestampMixin, Base):
+class LifestyleBankCard(TimestampMixin, UserOwned, Base):
     """卡片管理-银行卡：储蓄卡/信用卡，实体/虚拟。"""
 
     __tablename__ = "lifestyle_bank_cards"
@@ -102,19 +103,19 @@ class LifestyleBankCard(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class LifestyleCarrier(TimestampMixin, Base):
+class LifestyleCarrier(TimestampMixin, UserOwned, Base):
     """卡片管理-运营商平台设置：可维护的运营商平台列表。"""
 
     __tablename__ = "lifestyle_carriers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)  # 平台名称
+    name: Mapped[str] = mapped_column(String(64), index=True)  # 平台名称
     website: Mapped[str | None] = mapped_column(String(128))  # 官网/链接
     contact: Mapped[str | None] = mapped_column(String(64))  # 客服电话
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class LifestyleCardBill(TimestampMixin, Base):
+class LifestyleCardBill(TimestampMixin, UserOwned, Base):
     """卡片管理-扣账账单：手机号卡按月的扣账/缴费记录。"""
 
     __tablename__ = "lifestyle_card_bills"
@@ -128,7 +129,7 @@ class LifestyleCardBill(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class LifestyleLifeReport(TimestampMixin, Base):
+class LifestyleLifeReport(TimestampMixin, UserOwned, Base):
     """生活报告：按月聚合各生活模块数据生成的报告，支持 PDF 导出。"""
 
     __tablename__ = "lifestyle_life_reports"
@@ -142,7 +143,7 @@ class LifestyleLifeReport(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text)  # JSON 结构内容
 
 
-class LifestyleTodo(TimestampMixin, Base):
+class LifestyleTodo(TimestampMixin, UserOwned, Base):
     """待办清单：待办事项。"""
 
     __tablename__ = "lifestyle_todos"

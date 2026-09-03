@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models import UserProfile
 from app.models.notification_center import (
     FeatureReminderSetting,
     NotificationChannel,
@@ -29,9 +31,12 @@ class SettingSearch:
     channels_labels: dict[int, str] = {}
 
 
-def _channels_map(db: Session) -> dict[int, str]:
+def _channels_map(db: Session, user_id: int) -> dict[int, str]:
     rows = db.scalars(
-        select(NotificationChannel).where(NotificationChannel.enabled.is_(True))
+        select(NotificationChannel).where(
+            NotificationChannel.enabled.is_(True),
+            NotificationChannel.user_id == user_id,
+        )
     ).all()
     return {c.id: c.name for c in rows}
 
@@ -41,7 +46,7 @@ def _to_dict(db: Session, s: FeatureReminderSetting) -> dict:
         ids = json.loads(s.channels or "[]")
     except Exception:
         ids = []
-    ch_map = _channels_map(db)
+    ch_map = _channels_map(db, s.user_id)
     return {
         "id": s.id,
         "feature_key": s.feature_key,
@@ -58,17 +63,28 @@ def _to_dict(db: Session, s: FeatureReminderSetting) -> dict:
 
 
 @router.get("")
-def list_settings(db: Session = Depends(get_db)):
+def list_settings(
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     rows = db.scalars(
-        select(FeatureReminderSetting).order_by(FeatureReminderSetting.id)
+        select(FeatureReminderSetting)
+        .where(FeatureReminderSetting.user_id == current_user.id)
+        .order_by(FeatureReminderSetting.id)
     ).all()
     return [_to_dict(db, s) for s in rows]
 
 
 @router.get("/channels")
-def enabled_channels(db: Session = Depends(get_db)):
+def enabled_channels(
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     rows = db.scalars(
-        select(NotificationChannel).where(NotificationChannel.enabled.is_(True))
+        select(NotificationChannel).where(
+            NotificationChannel.enabled.is_(True),
+            NotificationChannel.user_id == current_user.id,
+        )
     ).all()
     return [
         {"id": c.id, "name": c.name, "channel_type": c.channel_type} for c in rows
@@ -76,8 +92,18 @@ def enabled_channels(db: Session = Depends(get_db)):
 
 
 @router.put("/{item_id}")
-def update_setting(item_id: int, payload: SettingIn, db: Session = Depends(get_db)):
-    s = db.get(FeatureReminderSetting, item_id)
+def update_setting(
+    item_id: int,
+    payload: SettingIn,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    s = db.scalar(
+        select(FeatureReminderSetting).where(
+            FeatureReminderSetting.id == item_id,
+            FeatureReminderSetting.user_id == current_user.id,
+        )
+    )
     if not s:
         raise HTTPException(status_code=404, detail="开关不存在")
     s.name = payload.name

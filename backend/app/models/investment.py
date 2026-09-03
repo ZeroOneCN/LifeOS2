@@ -12,6 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -25,7 +26,7 @@ class TimestampMixin:
     )
 
 
-class InvestmentForex(TimestampMixin, Base):
+class InvestmentForex(TimestampMixin, UserOwned, Base):
     """外汇交易：MT5 交易记录（支持 xlsx 批量导入）。"""
 
     __tablename__ = "investment_forex"
@@ -49,7 +50,7 @@ class InvestmentForex(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class InvestmentFundRecord(TimestampMixin, Base):
+class InvestmentFundRecord(TimestampMixin, UserOwned, Base):
     """资金动态：入金 / 出金 / 体验金记录。"""
 
     __tablename__ = "investment_fund_records"
@@ -61,7 +62,7 @@ class InvestmentFundRecord(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class InvestmentReport(TimestampMixin, Base):
+class InvestmentReport(TimestampMixin, UserOwned, Base):
     """投资报告：周期性汇总的投资分析报告。"""
 
     __tablename__ = "investment_reports"

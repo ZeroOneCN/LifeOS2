@@ -12,6 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -25,7 +26,7 @@ class TimestampMixin:
     )
 
 
-class Notification(TimestampMixin, Base):
+class Notification(TimestampMixin, UserOwned, Base):
     """通知中心：系统与业务通知消息。"""
 
     __tablename__ = "notifications"

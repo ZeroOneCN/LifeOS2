@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -27,25 +28,25 @@ class TimestampMixin:
     )
 
 
-class FinanceShoppingPlatform(TimestampMixin, Base):
+class FinanceShoppingPlatform(TimestampMixin, UserOwned, Base):
     """购物平台：可添加管理的电商平台（淘宝/京东等）。"""
 
     __tablename__ = "finance_shopping_platforms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(64), unique=True)  # 平台名称
+    name: Mapped[str] = mapped_column(String(64), index=True)  # 平台名称
 
 
-class FinanceShoppingLedger(TimestampMixin, Base):
+class FinanceShoppingLedger(TimestampMixin, UserOwned, Base):
     """购物账本：用于分类管理不同场景的购物记录。"""
 
     __tablename__ = "finance_shopping_ledgers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(64), unique=True)  # 账本名称
+    name: Mapped[str] = mapped_column(String(64), index=True)  # 账本名称
 
 
-class FinanceShoppingRecord(TimestampMixin, Base):
+class FinanceShoppingRecord(TimestampMixin, UserOwned, Base):
     """购物记录：具体的购物明细，支持多账本与 xlsx 批量导入。"""
 
     __tablename__ = "finance_shopping_records"
@@ -62,7 +63,7 @@ class FinanceShoppingRecord(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceTravelLedger(TimestampMixin, Base):
+class FinanceTravelLedger(TimestampMixin, UserOwned, Base):
     """行程账本：一次旅行的总览（多账本，随时切换）。"""
 
     __tablename__ = "finance_travel_ledgers"
@@ -74,7 +75,7 @@ class FinanceTravelLedger(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceTravelDetail(TimestampMixin, Base):
+class FinanceTravelDetail(TimestampMixin, UserOwned, Base):
     """行程明细：一条旅行费用/日程，自动计算时长与实付。"""
 
     __tablename__ = "finance_travel_details"
@@ -94,7 +95,7 @@ class FinanceTravelDetail(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceHousing(TimestampMixin, Base):
+class FinanceHousing(TimestampMixin, UserOwned, Base):
     """住房信息：租房渠道/押金/杂费/租期等，用于组合月租分析。"""
 
     __tablename__ = "finance_housing"
@@ -116,7 +117,7 @@ class FinanceHousing(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceUtility(TimestampMixin, Base):
+class FinanceUtility(TimestampMixin, UserOwned, Base):
     """水电燃气/宽带费用账单。"""
 
     __tablename__ = "finance_utilities"
@@ -131,7 +132,7 @@ class FinanceUtility(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceSubscription(TimestampMixin, Base):
+class FinanceSubscription(TimestampMixin, UserOwned, Base):
     """服务订阅：会员/服务器等周期性付费订阅。"""
 
     __tablename__ = "finance_subscriptions"
@@ -147,7 +148,7 @@ class FinanceSubscription(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceLoanPlatform(TimestampMixin, Base):
+class FinanceLoanPlatform(TimestampMixin, UserOwned, Base):
     """借款平台：账单日/还款日/额度/累计欠款。"""
 
     __tablename__ = "finance_loan_platforms"
@@ -160,7 +161,7 @@ class FinanceLoanPlatform(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceLoanBill(TimestampMixin, Base):
+class FinanceLoanBill(TimestampMixin, UserOwned, Base):
     """网贷账单：按月分期的还款账单。"""
 
     __tablename__ = "finance_loan_bills"
@@ -175,7 +176,7 @@ class FinanceLoanBill(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceRepayment(TimestampMixin, Base):
+class FinanceRepayment(TimestampMixin, UserOwned, Base):
     """还款记录：网贷账单的还款明细。"""
 
     __tablename__ = "finance_repayments"
@@ -188,7 +189,7 @@ class FinanceRepayment(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceReminder(TimestampMixin, Base):
+class FinanceReminder(TimestampMixin, UserOwned, Base):
     """账单提醒：待办缴费/还款提醒。"""
 
     __tablename__ = "finance_reminders"
@@ -203,7 +204,7 @@ class FinanceReminder(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinancePlan(TimestampMixin, Base):
+class FinancePlan(TimestampMixin, UserOwned, Base):
     """财务规划：储蓄/预算/投资等目标。"""
 
     __tablename__ = "finance_planning"
@@ -218,7 +219,7 @@ class FinancePlan(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceDebt(TimestampMixin, Base):
+class FinanceDebt(TimestampMixin, UserOwned, Base):
     """债务管理：借出/借入款项追踪。"""
 
     __tablename__ = "finance_debts"
@@ -236,7 +237,7 @@ class FinanceDebt(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceInvestment(TimestampMixin, Base):
+class FinanceInvestment(TimestampMixin, UserOwned, Base):
     """投资记账：各投资平台的盈亏总额，无需过细。"""
 
     __tablename__ = "finance_investments"
@@ -249,7 +250,7 @@ class FinanceInvestment(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceMemo(TimestampMixin, Base):
+class FinanceMemo(TimestampMixin, UserOwned, Base):
     """备忘录：模糊记忆或有待处理事项。"""
 
     __tablename__ = "finance_memos"
@@ -260,19 +261,19 @@ class FinanceMemo(TimestampMixin, Base):
     memo_date: Mapped[date | None] = mapped_column(Date)  # 日期
 
 
-class FinanceCurrency(TimestampMixin, Base):
+class FinanceCurrency(TimestampMixin, UserOwned, Base):
     """汇率设置：按币种相对人民币的汇率，用于金额切换显示。"""
 
     __tablename__ = "finance_currencies"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    currency: Mapped[str] = mapped_column(String(8), unique=True, index=True)  # USD/HKD/CNY
+    currency: Mapped[str] = mapped_column(String(8), index=True)  # USD/HKD/CNY
     name: Mapped[str | None] = mapped_column(String(32))  # 币种名称
     rate_to_cny: Mapped[float] = mapped_column(Float)  # 1 单位该币种 = 多少人民币
     symbol: Mapped[str | None] = mapped_column(String(8))  # 符号，如 $ / HK$ / ¥
 
 
-class FinanceReport(TimestampMixin, Base):
+class FinanceReport(TimestampMixin, UserOwned, Base):
     """财务报告：按月聚合各财务模块数据生成的报告，支持 PDF 导出。"""
 
     __tablename__ = "finance_reports"
@@ -286,7 +287,7 @@ class FinanceReport(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text)  # JSON 结构内容
 
 
-class FinanceTravelReport(TimestampMixin, Base):
+class FinanceTravelReport(TimestampMixin, UserOwned, Base):
     """旅行报告：按行程明细汇总生成并保存的报告，支持预览与 PDF 导出。"""
 
     __tablename__ = "finance_travel_reports"

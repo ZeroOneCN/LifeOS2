@@ -6,26 +6,45 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import HealthBody, HealthDiet, HealthFitness, HealthSteps
+from app.core.security import get_current_user
+from app.models import (
+    HealthBody,
+    HealthDiet,
+    HealthFitness,
+    HealthSteps,
+    UserProfile,
+)
 
 router = APIRouter(prefix="/health/dashboard", tags=["health-fitness-dashboard"])
 
 
 @router.get("")
-def dashboard(days: int = 30, db: Session = Depends(get_db)):
+def dashboard(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     since = date.today() - timedelta(days=days - 1)
 
     diet_rows = db.scalars(
-        select(HealthDiet).where(HealthDiet.record_date >= since)
+        select(HealthDiet)
+        .where(HealthDiet.user_id == user.id)
+        .where(HealthDiet.record_date >= since)
     ).all()
     ex_rows = db.scalars(
-        select(HealthFitness).where(HealthFitness.record_date >= since)
+        select(HealthFitness)
+        .where(HealthFitness.user_id == user.id)
+        .where(HealthFitness.record_date >= since)
     ).all()
     step_rows = db.scalars(
-        select(HealthSteps).where(HealthSteps.record_date >= since)
+        select(HealthSteps)
+        .where(HealthSteps.user_id == user.id)
+        .where(HealthSteps.record_date >= since)
     ).all()
     body_rows = db.scalars(
-        select(HealthBody).order_by(HealthBody.record_date)
+        select(HealthBody)
+        .where(HealthBody.user_id == user.id)
+        .order_by(HealthBody.record_date)
     ).all()
 
     intake = defaultdict(float)

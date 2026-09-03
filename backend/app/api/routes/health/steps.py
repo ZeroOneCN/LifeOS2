@@ -7,16 +7,19 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import HealthStepSetting, HealthSteps
+from app.core.security import get_current_user
+from app.models import HealthStepSetting, HealthSteps, UserProfile
 from app.schemas.health import StepSettingCreate, StepSettingRead, StepsCreate, StepsRead
 
 router = APIRouter()
 
 
-def _get_setting(db: Session) -> HealthStepSetting:
-    setting = db.get(HealthStepSetting, 1)
+def _get_setting(db: Session, user_id: int) -> HealthStepSetting:
+    setting = db.scalar(
+        select(HealthStepSetting).where(HealthStepSetting.user_id == user_id)
+    )
     if not setting:
-        setting = HealthStepSetting(id=1, stride_cm=70.0)
+        setting = HealthStepSetting(stride_cm=70.0, user_id=user_id)
         db.add(setting)
         db.commit()
         db.refresh(setting)
@@ -27,15 +30,26 @@ def _register_fixed(router) -> None:
     """注册固定静态路由，需在动态路由 /{item_id} 之前。"""
 
     @router.get("/settings", response_model=StepSettingRead)
-    def get_settings(db: Session = Depends(get_db)):
-        return _get_setting(db)
+    def get_settings(
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        return _get_setting(db, user.id)
 
     @router.put("/settings", response_model=StepSettingRead)
-    def update_settings(payload: StepSettingCreate, db: Session = Depends(get_db)):
-        setting = _get_setting(db)
+    def update_settings(
+        payload: StepSettingCreate,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        setting = _get_setting(db, user.id)
         setting.stride_cm = payload.stride_cm
         # 步幅变更后，按新步幅实时重算所有记录的距离
-        rows = db.scalars(select(HealthSteps).where(HealthSteps.steps.isnot(None))).all()
+        rows = db.scalars(
+            select(HealthSteps)
+            .where(HealthSteps.user_id == user.id)
+            .where(HealthSteps.steps.isnot(None))
+        ).all()
         for r in rows:
             r.distance_km = round(r.steps * payload.stride_cm / 100000, 2)
         db.commit()
@@ -43,9 +57,16 @@ def _register_fixed(router) -> None:
         return setting
 
     @router.get("/monthly")
-    def monthly_stats(db: Session = Depends(get_db)):
+    def monthly_stats(
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         """按自然月统计步数（近 12 个月）。"""
-        rows = db.scalars(select(HealthSteps).order_by(HealthSteps.record_date)).all()
+        rows = db.scalars(
+            select(HealthSteps)
+            .where(HealthSteps.user_id == user.id)
+            .order_by(HealthSteps.record_date)
+        ).all()
         by_month: dict[str, dict] = defaultdict(lambda: {"steps": 0, "distance_km": 0.0, "days": set()})
         for r in rows:
             key = r.record_date.strftime("%Y-%m")
@@ -60,10 +81,11 @@ def _register_fixed(router) -> None:
         }
 
 
-def _steps_stats(db: Session, days: int) -> dict:
+def _steps_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthSteps)
+        .where(HealthSteps.user_id == user_id)
         .where(HealthSteps.record_date >= since)
         .order_by(HealthSteps.record_date, HealthSteps.id)
     ).all()

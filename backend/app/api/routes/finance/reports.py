@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import FinanceReport
+from app.core.security import get_current_user
+from app.models import FinanceReport, UserProfile
 from app.services.finance_report import build_finance_report, build_pdf
 
 router = APIRouter(prefix="/finance/reports", tags=["finance-reports"])
@@ -32,8 +33,15 @@ def _to_read(r: FinanceReport) -> dict:
 
 
 @router.get("")
-def list_reports(db: Session = Depends(get_db)):
-    rows = db.scalars(select(FinanceReport).order_by(FinanceReport.id.desc())).all()
+def list_reports(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    rows = db.scalars(
+        select(FinanceReport)
+        .where(FinanceReport.user_id == user.id)
+        .order_by(FinanceReport.id.desc())
+    ).all()
     return [
         {
             "id": r.id,
@@ -46,9 +54,13 @@ def list_reports(db: Session = Depends(get_db)):
 
 
 @router.post("/generate")
-def generate_report(month: str | None = Query(None, description="YYYY-MM，默认当前月"), db: Session = Depends(get_db)):
+def generate_report(
+    month: str | None = Query(None, description="YYYY-MM，默认当前月"),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     start, end, label = _period_from_month(month)
-    title, summary, content = build_finance_report(db, month or label)
+    title, summary, content = build_finance_report(db, month or label, user.id)
     report = FinanceReport(
         title=title,
         period_label=label,
@@ -56,6 +68,7 @@ def generate_report(month: str | None = Query(None, description="YYYY-MM，默�
         period_end=end,
         summary=summary,
         content=json.dumps(content, ensure_ascii=False),
+        user_id=user.id,
     )
     db.add(report)
     db.commit()
@@ -64,17 +77,25 @@ def generate_report(month: str | None = Query(None, description="YYYY-MM，默�
 
 
 @router.get("/{report_id}")
-def get_report(report_id: int, db: Session = Depends(get_db)):
+def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     return _to_read(r)
 
 
 @router.get("/{report_id}/export")
-def export_report(report_id: int, db: Session = Depends(get_db)):
+def export_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     content = json.loads(r.content or "[]")
     filename = r.title or f"finance-report-{report_id}"
@@ -89,9 +110,13 @@ def export_report(report_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{report_id}", status_code=204)
-def delete_report(report_id: int, db: Session = Depends(get_db)):
+def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     r = db.get(FinanceReport, report_id)
-    if not r:
+    if not r or r.user_id != user.id:
         raise HTTPException(status_code=404, detail="报告不存在")
     db.delete(r)
     db.commit()

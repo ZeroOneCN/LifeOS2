@@ -12,10 +12,11 @@ from app.schemas.health import VitalsSleepCreate, VitalsSleepRead
 router = APIRouter()
 
 
-def _vitals_stats(db: Session, days: int) -> dict:
+def _vitals_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthVitalsSleep)
+        .where(HealthVitalsSleep.user_id == user_id)
         .where(HealthVitalsSleep.record_date >= since)
         .order_by(HealthVitalsSleep.record_date)
     ).all()

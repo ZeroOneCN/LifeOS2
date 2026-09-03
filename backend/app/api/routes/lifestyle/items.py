@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import FinanceShoppingRecord, LifestyleItem
+from app.core.security import get_current_user
+from app.models import FinanceShoppingRecord, LifestyleItem, UserProfile
 from app.schemas.lifestyle import ItemCreate, ItemRead
 
 router = APIRouter()
@@ -25,8 +26,10 @@ def _usage_days(item: LifestyleItem) -> int:
     return max(0, (end - purchase).days)
 
 
-def _item_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(LifestyleItem)).all()
+def _item_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(LifestyleItem).where(LifestyleItem.user_id == user_id)
+    ).all()
 
     by_category: dict[str, int] = defaultdict(int)
     by_status: dict[str, int] = defaultdict(int)
@@ -85,11 +88,12 @@ class SyncReq(BaseModel):
     record_ids: list[int]
 
 
-def _sync_candidates(db: Session) -> list[dict]:
-    """返回尚未同步为物品的购物记录（按日期倒序，最多 100 条）。"""
+def _sync_candidates(db: Session, user_id: int) -> list[dict]:
+    """返回当前用户尚未同步为物品的购物记录（按日期倒序，最多 100 条）。"""
     existing = set(
         db.scalars(
             select(LifestyleItem.shopping_record_id).where(
+                LifestyleItem.user_id == user_id,
                 LifestyleItem.source == "shopping",
                 LifestyleItem.shopping_record_id.is_not(None),
             )
@@ -97,6 +101,7 @@ def _sync_candidates(db: Session) -> list[dict]:
     )
     records = db.scalars(
         select(FinanceShoppingRecord)
+        .where(FinanceShoppingRecord.user_id == user_id)
         .order_by(FinanceShoppingRecord.record_date.desc())
         .limit(200)
     ).all()
@@ -120,21 +125,30 @@ def _sync_candidates(db: Session) -> list[dict]:
 
 def _items_extra(api_router: APIRouter):
     @api_router.get("/sync-candidates")
-    def sync_candidates(db: Session = Depends(get_db)):
-        return _sync_candidates(db)
+    def sync_candidates(
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        return _sync_candidates(db, user.id)
 
     @api_router.post("/sync")
-    def sync_from_shopping(payload: SyncReq, db: Session = Depends(get_db)):
+    def sync_from_shopping(
+        payload: SyncReq,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         if not payload.record_ids:
             raise HTTPException(status_code=400, detail="请选择要同步的购物记录")
         records = db.scalars(
             select(FinanceShoppingRecord).where(
-                FinanceShoppingRecord.id.in_(payload.record_ids)
+                FinanceShoppingRecord.user_id == user.id,
+                FinanceShoppingRecord.id.in_(payload.record_ids),
             )
         ).all()
         existing = set(
             db.scalars(
                 select(LifestyleItem.shopping_record_id).where(
+                    LifestyleItem.user_id == user.id,
                     LifestyleItem.source == "shopping",
                     LifestyleItem.shopping_record_id.is_not(None),
                 )
@@ -153,6 +167,7 @@ def _items_extra(api_router: APIRouter):
                     price=r.total_price,
                     source="shopping",
                     shopping_record_id=r.id,
+                    user_id=user.id,
                     note=f"来自购物记录（{r.product_name}{' · ' + r.spec if r.spec else ''}）",
                 )
             )

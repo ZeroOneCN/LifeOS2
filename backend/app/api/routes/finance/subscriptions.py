@@ -34,9 +34,11 @@ def _next_renewal(start: date, cycle: str, ref: date) -> date:
     return n
 
 
-def _subs_stats(db: Session, days: int) -> dict:
+def _subs_stats(db: Session, days: int, user_id: int) -> dict:
     today = date.today()
-    rows = db.scalars(select(FinanceSubscription)).all()
+    rows = db.scalars(
+        select(FinanceSubscription).where(FinanceSubscription.user_id == user_id)
+    ).all()
     active = [r for r in rows if r.status == "active"]
 
     total_active = sum(r.amount for r in active)

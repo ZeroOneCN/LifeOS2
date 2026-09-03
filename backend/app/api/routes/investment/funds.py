@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import InvestmentFundRecord
+from app.core.security import get_current_user
+from app.models import InvestmentFundRecord, UserProfile
 from app.schemas.health import PageOut
 from app.schemas.investment import FundCreate, FundRead
 
@@ -25,8 +26,9 @@ class FundSummary(BaseModel):
 
 
 @router.get("/stats")
-def stats(start: date | None = None, end: date | None = None, db: Session = Depends(get_db)):
-    stmt = select(InvestmentFundRecord)
+def stats(start: date | None = None, end: date | None = None, db: Session = Depends(get_db),
+          current_user: UserProfile = Depends(get_current_user)):
+    stmt = select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
     if start:
         stmt = stmt.where(InvestmentFundRecord.record_date >= start)
     if end:
@@ -54,8 +56,9 @@ def list_items(
     page_size: int = Query(20, ge=1, le=100),
     record_type: str | None = None,
     db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
 ):
-    stmt = select(InvestmentFundRecord)
+    stmt = select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
     if record_type:
         stmt = stmt.where(InvestmentFundRecord.record_type == record_type)
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
@@ -68,8 +71,9 @@ def list_items(
 
 
 @router.post("", response_model=FundRead, status_code=201)
-def create_item(payload: FundCreate, db: Session = Depends(get_db)):
-    obj = InvestmentFundRecord(**payload.model_dump())
+def create_item(payload: FundCreate, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = InvestmentFundRecord(**payload.model_dump(), user_id=current_user.id)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -77,8 +81,14 @@ def create_item(payload: FundCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{item_id}", response_model=FundRead)
-def update_item(item_id: int, payload: FundCreate, db: Session = Depends(get_db)):
-    obj = db.get(InvestmentFundRecord, item_id)
+def update_item(item_id: int, payload: FundCreate, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = db.scalar(
+        select(InvestmentFundRecord).where(
+            InvestmentFundRecord.id == item_id,
+            InvestmentFundRecord.user_id == current_user.id,
+        )
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="记录不存在")
     for k, v in payload.model_dump().items():
@@ -89,8 +99,14 @@ def update_item(item_id: int, payload: FundCreate, db: Session = Depends(get_db)
 
 
 @router.delete("/{item_id}", status_code=204)
-def delete_item(item_id: int, db: Session = Depends(get_db)):
-    obj = db.get(InvestmentFundRecord, item_id)
+def delete_item(item_id: int, db: Session = Depends(get_db),
+                current_user: UserProfile = Depends(get_current_user)):
+    obj = db.scalar(
+        select(InvestmentFundRecord).where(
+            InvestmentFundRecord.id == item_id,
+            InvestmentFundRecord.user_id == current_user.id,
+        )
+    )
     if not obj:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)

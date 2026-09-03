@@ -43,7 +43,7 @@ def _usage_days(item: LifestyleItem) -> int:
     return max(0, (end - purchase).days)
 
 
-def build_lifestyle_report(db: Session, month: str | None = None):
+def build_lifestyle_report(db: Session, month: str | None = None, user_id: int | None = None):
     """聚合生活各模块数据生成月度生活报告内容。"""
     start, end, label = _month_range(month)
     today = date.today()
@@ -53,10 +53,15 @@ def build_lifestyle_report(db: Session, month: str | None = None):
         select(LifestyleItem).where(
             LifestyleItem.purchase_date >= start,
             LifestyleItem.purchase_date <= end,
+            (LifestyleItem.user_id == user_id) if user_id is not None else True,
         )
     ).all()
     month_spend = sum(r.price or 0 for r in month_items)
-    all_items = db.scalars(select(LifestyleItem)).all()
+    all_items = db.scalars(
+        select(LifestyleItem).where(
+            (LifestyleItem.user_id == user_id) if user_id is not None else True
+        )
+    ).all()
     total_value = sum(r.price or 0 for r in all_items)
     in_use = sum(1 for r in all_items if r.status == "in_use")
     expiring = sum(
@@ -70,7 +75,11 @@ def build_lifestyle_report(db: Session, month: str | None = None):
     avg_daily_total = sum(r.price / _usage_days(r) for r in cost_items)
 
     # ---------- 手机卡 ----------
-    phones = db.scalars(select(LifestylePhoneCard)).all()
+    phones = db.scalars(
+        select(LifestylePhoneCard).where(
+            (LifestylePhoneCard.user_id == user_id) if user_id is not None else True
+        )
+    ).all()
     phone_active = sum(1 for p in phones if p.status == "active")
     monthly_fee_total = sum(p.monthly_fee or 0 for p in phones)
     balance_total = sum(p.balance or 0 for p in phones)
@@ -80,18 +89,27 @@ def build_lifestyle_report(db: Session, month: str | None = None):
         select(LifestyleCardBill).where(
             LifestyleCardBill.bill_month >= start,
             LifestyleCardBill.bill_month <= end,
+            (LifestyleCardBill.user_id == user_id) if user_id is not None else True,
         )
     ).all()
     deduct_total = sum(b.amount for b in month_bills)
     deduct_count = len(month_bills)
 
     # ---------- 银行卡 ----------
-    banks = db.scalars(select(LifestyleBankCard)).all()
+    banks = db.scalars(
+        select(LifestyleBankCard).where(
+            (LifestyleBankCard.user_id == user_id) if user_id is not None else True
+        )
+    ).all()
     bank_active = sum(1 for b in banks if b.status == "active")
     bank_credit = sum(b.credit_limit or 0 for b in banks if b.card_category == "credit")
 
     # ---------- 待办 ----------
-    todos = db.scalars(select(LifestyleTodo)).all()
+    todos = db.scalars(
+        select(LifestyleTodo).where(
+            (LifestyleTodo.user_id == user_id) if user_id is not None else True
+        )
+    ).all()
     done_todos = sum(1 for t in todos if t.done)
     pending_todos = sum(1 for t in todos if not t.done)
     overdue_todos = sum(

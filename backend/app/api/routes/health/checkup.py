@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from app.api.crud import crud_router
 from app.api.knowledge.checkup import PANEL_PRESETS
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     HealthCheckup,
     HealthCheckupPanel,
     HealthCheckupPanelItem,
     HealthCheckupTemplate,
+    UserProfile,
 )
 from app.schemas.health import (  # noqa: F401
     CheckupCreate,
@@ -28,10 +30,11 @@ router = APIRouter()
 RESULT_LABEL = {"normal": "正常", "high": "偏高", "low": "偏低"}
 
 
-def _checkup_stats(db: Session, days: int) -> dict:
+def _checkup_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthCheckup)
+        .where(HealthCheckup.user_id == user_id)
         .where(HealthCheckup.check_date >= since)
         .order_by(HealthCheckup.check_date)
     ).all()
@@ -115,9 +118,10 @@ template_router = crud_router(
 
 
 # ---- 体检组合模板（套餐） ----
-def _panel_to_read(db: Session, panel: HealthCheckupPanel) -> dict:
+def _panel_to_read(db: Session, panel: HealthCheckupPanel, user_id: int) -> dict:
     items = db.scalars(
         select(HealthCheckupPanelItem)
+        .where(HealthCheckupPanelItem.user_id == user_id)
         .where(HealthCheckupPanelItem.panel_id == panel.id)
         .order_by(HealthCheckupPanelItem.item_name)
     ).all()
@@ -138,17 +142,24 @@ def _panel_to_read(db: Session, panel: HealthCheckupPanel) -> dict:
     }
 
 
-def _load_panels(db: Session) -> list[dict]:
-    panels = db.scalars(select(HealthCheckupPanel).order_by(HealthCheckupPanel.panel_name)).all()
-    return [_panel_to_read(db, p) for p in panels]
+def _load_panels(db: Session, user_id: int) -> list[dict]:
+    panels = db.scalars(
+        select(HealthCheckupPanel)
+        .where(HealthCheckupPanel.user_id == user_id)
+        .order_by(HealthCheckupPanel.panel_name)
+    ).all()
+    return [_panel_to_read(db, p, user_id) for p in panels]
 
 
 panel_router = APIRouter(prefix="/health/checkup/panels", tags=["health-checkup-panel"])
 
 
 @panel_router.get("")
-def list_panels(db: Session = Depends(get_db)):
-    return _load_panels(db)
+def list_panels(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    return _load_panels(db, user.id)
 
 
 @panel_router.get("/presets")
@@ -174,40 +185,75 @@ def _build_panel_items(payload) -> list[HealthCheckupPanelItem]:
 
 
 @panel_router.post("")
-def create_panel(payload: CheckupPanelCreate, db: Session = Depends(get_db)):
-    panel = HealthCheckupPanel(panel_name=payload.panel_name.strip(), note=payload.note)
+def create_panel(
+    payload: CheckupPanelCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    panel = HealthCheckupPanel(panel_name=payload.panel_name.strip(), note=payload.note, user_id=user.id)
     db.add(panel)
     db.flush()
     for it in _build_panel_items(payload):
         it.panel_id = panel.id
+        it.user_id = user.id
         db.add(it)
     db.commit()
-    return _panel_to_read(db, panel)
+    return _panel_to_read(db, panel, user.id)
 
 
 @panel_router.put("/{panel_id}")
-def update_panel(panel_id: int, payload: CheckupPanelCreate, db: Session = Depends(get_db)):
-    panel = db.get(HealthCheckupPanel, panel_id)
+def update_panel(
+    panel_id: int,
+    payload: CheckupPanelCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    panel = db.scalar(
+        select(HealthCheckupPanel).where(
+            HealthCheckupPanel.id == panel_id,
+            HealthCheckupPanel.user_id == user.id,
+        )
+    )
     if not panel:
         raise HTTPException(status_code=404, detail="组合不存在")
     panel.panel_name = payload.panel_name.strip()
     panel.note = payload.note
     # 重建明细（以提交为准）
-    for old in db.scalars(select(HealthCheckupPanelItem).where(HealthCheckupPanelItem.panel_id == panel_id)).all():
+    for old in db.scalars(
+        select(HealthCheckupPanelItem).where(
+            HealthCheckupPanelItem.user_id == user.id,
+            HealthCheckupPanelItem.panel_id == panel_id,
+        )
+    ).all():
         db.delete(old)
     for it in _build_panel_items(payload):
         it.panel_id = panel_id
+        it.user_id = user.id
         db.add(it)
     db.commit()
-    return _panel_to_read(db, panel)
+    return _panel_to_read(db, panel, user.id)
 
 
 @panel_router.delete("/{panel_id}")
-def delete_panel(panel_id: int, db: Session = Depends(get_db)):
-    panel = db.get(HealthCheckupPanel, panel_id)
+def delete_panel(
+    panel_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    panel = db.scalar(
+        select(HealthCheckupPanel).where(
+            HealthCheckupPanel.id == panel_id,
+            HealthCheckupPanel.user_id == user.id,
+        )
+    )
     if not panel:
         raise HTTPException(status_code=404, detail="组合不存在")
-    for old in db.scalars(select(HealthCheckupPanelItem).where(HealthCheckupPanelItem.panel_id == panel_id)).all():
+    for old in db.scalars(
+        select(HealthCheckupPanelItem).where(
+            HealthCheckupPanelItem.user_id == user.id,
+            HealthCheckupPanelItem.panel_id == panel_id,
+        )
+    ).all():
         db.delete(old)
     db.delete(panel)
     db.commit()

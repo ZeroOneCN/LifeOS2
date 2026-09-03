@@ -32,6 +32,7 @@ from app.models.notification_center import (
     NotificationSendLog,
     NotificationTemplate,
 )
+from app.models.user import UserProfile
 
 from .channels import send_to_channel
 from .templates import render
@@ -72,10 +73,13 @@ def _next_day_of_month(today: date, day: int) -> date:
 
 # ---------- 各功能扫描器 ----------
 
-def _scan_subscription(db: Session, advance: int) -> list[dict]:
+def _scan_subscription(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     rows = db.scalars(
-        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+        select(FinanceSubscription).where(
+            FinanceSubscription.status == "active",
+            FinanceSubscription.user_id == user_id,
+        )
     ).all()
     out = []
     for r in rows:
@@ -103,12 +107,13 @@ def _scan_subscription(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_utility(db: Session, advance: int) -> list[dict]:
+def _scan_utility(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(FinanceUtility).where(
             FinanceUtility.paid.is_(False),
+            FinanceUtility.user_id == user_id,
             FinanceUtility.due_date.isnot(None),
             FinanceUtility.due_date <= due,
         )
@@ -131,17 +136,22 @@ def _scan_utility(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_loan(db: Session, advance: int) -> list[dict]:
+def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(FinanceLoanBill).where(
             FinanceLoanBill.status.in_(["pending", "partial"]),
+            FinanceLoanBill.user_id == user_id,
             FinanceLoanBill.due_date.isnot(None),
             FinanceLoanBill.due_date <= due,
         )
     ).all()
-    platforms = {p.id: p.name for p in db.scalars(select(FinanceLoanPlatform)).all()}
+    platforms = {
+        p.id: p.name for p in db.scalars(
+            select(FinanceLoanPlatform).where(FinanceLoanPlatform.user_id == user_id)
+        ).all()
+    }
     out = []
     for r in rows:
         if r.due_date < today:
@@ -167,12 +177,13 @@ def _scan_loan(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_reminder(db: Session, advance: int) -> list[dict]:
+def _scan_reminder(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(FinanceReminder).where(
             FinanceReminder.status == "pending",
+            FinanceReminder.user_id == user_id,
             FinanceReminder.due_date.isnot(None),
             FinanceReminder.due_date <= due,
             FinanceReminder.due_date >= today,
@@ -196,12 +207,13 @@ def _scan_reminder(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_debt(db: Session, advance: int) -> list[dict]:
+def _scan_debt(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(FinanceDebt).where(
             FinanceDebt.status == "active",
+            FinanceDebt.user_id == user_id,
             FinanceDebt.due_date.isnot(None),
             FinanceDebt.due_date >= today,
             FinanceDebt.due_date <= due,
@@ -228,12 +240,13 @@ def _scan_debt(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_todo(db: Session, advance: int) -> list[dict]:
+def _scan_todo(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(LifestyleTodo).where(
             LifestyleTodo.done.is_(False),
+            LifestyleTodo.user_id == user_id,
             LifestyleTodo.due_date.isnot(None),
             LifestyleTodo.due_date >= today,
             LifestyleTodo.due_date <= due,
@@ -256,11 +269,12 @@ def _scan_todo(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_item_expire(db: Session, advance: int) -> list[dict]:
+def _scan_item_expire(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
         select(LifestyleItem).where(
+            LifestyleItem.user_id == user_id,
             LifestyleItem.expire_date.isnot(None),
             LifestyleItem.expire_date >= today,
             LifestyleItem.expire_date <= due,
@@ -283,11 +297,12 @@ def _scan_item_expire(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_phone_bill(db: Session, advance: int) -> list[dict]:
+def _scan_phone_bill(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     rows = db.scalars(
         select(LifestylePhoneCard).where(
             LifestylePhoneCard.status == "active",
+            LifestylePhoneCard.user_id == user_id,
             LifestylePhoneCard.bill_day.isnot(None),
             LifestylePhoneCard.bill_paid_this_month.is_(False),
         )
@@ -313,12 +328,13 @@ def _scan_phone_bill(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_bankcard_due(db: Session, advance: int) -> list[dict]:
+def _scan_bankcard_due(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     rows = db.scalars(
         select(LifestyleBankCard).where(
             LifestyleBankCard.card_category == "credit",
             LifestyleBankCard.status == "active",
+            LifestyleBankCard.user_id == user_id,
             LifestyleBankCard.due_day.isnot(None),
         )
     ).all()
@@ -342,9 +358,12 @@ def _scan_bankcard_due(db: Session, advance: int) -> list[dict]:
     return out
 
 
-def _scan_med_stock(db: Session, _advance: int) -> list[dict]:
+def _scan_med_stock(db: Session, _advance: int, user_id: int) -> list[dict]:
     rows = db.scalars(
-        select(HealthMedStock).where(HealthMedStock.stock_qty <= HealthMedStock.threshold)
+        select(HealthMedStock).where(
+            HealthMedStock.stock_qty <= HealthMedStock.threshold,
+            HealthMedStock.user_id == user_id,
+        )
     ).all()
     out = []
     for r in rows:
@@ -362,7 +381,7 @@ def _scan_med_stock(db: Session, _advance: int) -> list[dict]:
     return out
 
 
-SCANNERS: dict[str, Callable[[Session, int], list[dict]]] = {
+SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_subscription_due": _scan_subscription,
     "finance_utility_due": _scan_utility,
     "finance_loan_due": _scan_loan,
@@ -378,7 +397,7 @@ SCANNERS: dict[str, Callable[[Session, int], list[dict]]] = {
 
 # ---------- 主扫描逻辑 ----------
 
-def _resolve_channels(db: Session, setting: FeatureReminderSetting) -> list[NotificationChannel]:
+def _resolve_channels(db: Session, setting: FeatureReminderSetting, user_id: int) -> list[NotificationChannel]:
     try:
         import json
 
@@ -387,16 +406,38 @@ def _resolve_channels(db: Session, setting: FeatureReminderSetting) -> list[Noti
     except Exception:
         ids = []
     if ids:
-        return list(db.scalars(select(NotificationChannel).where(NotificationChannel.id.in_(ids))))
-    return list(db.scalars(select(NotificationChannel).where(NotificationChannel.enabled.is_(True))))
+        return list(
+            db.scalars(
+                select(NotificationChannel).where(
+                    NotificationChannel.id.in_(ids),
+                    NotificationChannel.user_id == user_id,
+                )
+            )
+        )
+    return list(
+        db.scalars(
+            select(NotificationChannel).where(
+                NotificationChannel.enabled.is_(True),
+                NotificationChannel.user_id == user_id,
+            )
+        )
+    )
 
 
-def scan_all(db: Session) -> dict:
-    """遍历启用中的功能开关，生成站内通知并下发配置渠道。"""
+def _scan_user(db: Session, user_id: int) -> dict:
+    """对单个用户执行提醒扫描：按该用户的开关/模板/渠道/数据生成并下发通知。"""
     today = date.today()
-    templates = {t.source: t for t in db.scalars(select(NotificationTemplate)).all()}
+    templates = {
+        t.source: t
+        for t in db.scalars(
+            select(NotificationTemplate).where(NotificationTemplate.user_id == user_id)
+        ).all()
+    }
     settings_rows = db.scalars(
-        select(FeatureReminderSetting).where(FeatureReminderSetting.enabled.is_(True))
+        select(FeatureReminderSetting).where(
+            FeatureReminderSetting.enabled.is_(True),
+            FeatureReminderSetting.user_id == user_id,
+        )
     ).all()
 
     summary = {"scanned": 0, "created": 0, "skipped": 0, "sent": 0, "failed": 0, "detail": []}
@@ -405,7 +446,7 @@ def scan_all(db: Session) -> dict:
         if not scanner:
             continue
         try:
-            rows = scanner(db, s.advance_days)
+            rows = scanner(db, s.advance_days, user_id)
         except Exception as exc:  # noqa: BLE001
             summary["detail"].append({"feature": s.feature_key, "error": str(exc)})
             continue
@@ -419,6 +460,7 @@ def scan_all(db: Session) -> dict:
                 select(Notification).where(
                     Notification.source == source_tag,
                     Notification.notify_date == today,
+                    Notification.user_id == user_id,
                 )
             )
             if exists:
@@ -426,6 +468,7 @@ def scan_all(db: Session) -> dict:
                 continue
             title, content = render(title_tpl, content_tpl, {**item["title_ctx"], **item["content_ctx"]})
             note = Notification(
+                user_id=user_id,
                 title=title,
                 content=content,
                 category=s.category,
@@ -437,7 +480,7 @@ def scan_all(db: Session) -> dict:
             db.flush()
 
             sent_c, failed_c = 0, 0
-            for ch in _resolve_channels(db, s):
+            for ch in _resolve_channels(db, s, user_id):
                 ok, result = send_to_channel(ch, title, content)
                 status = "sent" if ok else "failed"
                 if ok:
@@ -448,6 +491,7 @@ def scan_all(db: Session) -> dict:
                     summary["failed"] += 1
                 db.add(
                     NotificationSendLog(
+                        user_id=user_id,
                         notification_id=note.id,
                         channel_type=ch.channel_type,
                         channel_id=ch.id,
@@ -462,4 +506,32 @@ def scan_all(db: Session) -> dict:
                  "sent": sent_c, "failed": failed_c}
             )
     db.commit()
+    return summary
+
+
+def _merge_summaries(target: dict, src: dict) -> None:
+    for key in ("scanned", "created", "skipped", "sent", "failed"):
+        target[key] += src[key]
+    target["detail"].extend(src["detail"])
+
+
+def scan_all(db: Session, user_id: int | None = None) -> dict:
+    """遍历启用中的功能开关，生成站内通知并下发配置渠道。
+
+    - user_id 指定时：仅扫描该用户。
+    - user_id 为空时：扫描所有用户（向后兼容）。
+    """
+    if user_id is not None:
+        return _scan_user(db, user_id)
+    user_ids = db.scalars(select(UserProfile.id)).all()
+    summary = {
+        "scanned": 0,
+        "created": 0,
+        "skipped": 0,
+        "sent": 0,
+        "failed": 0,
+        "detail": [],
+    }
+    for uid in user_ids:
+        _merge_summaries(summary, _scan_user(db, uid))
     return summary

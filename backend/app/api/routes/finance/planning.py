@@ -11,10 +11,13 @@ from app.schemas.finance import PlanCreate, PlanRead
 router = APIRouter()
 
 
-def _plan_stats(db: Session, days: int) -> dict:
+def _plan_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
-        select(FinancePlan).where(FinancePlan.plan_date >= since)
+        select(FinancePlan).where(
+            FinancePlan.user_id == user_id,
+            FinancePlan.plan_date >= since,
+        )
     ).all()
 
     active = [r for r in rows if r.status == "active"]

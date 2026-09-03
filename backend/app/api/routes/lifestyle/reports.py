@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import LifestyleLifeReport
+from app.core.security import get_current_user
+from app.models import LifestyleLifeReport, UserProfile
 from app.services.finance_report import build_pdf
 from app.services.lifestyle_report import build_lifestyle_report
 
@@ -33,8 +34,15 @@ def _to_read(r: LifestyleLifeReport) -> dict:
 
 
 @router.get("")
-def list_reports(db: Session = Depends(get_db)):
-    rows = db.scalars(select(LifestyleLifeReport).order_by(LifestyleLifeReport.id.desc())).all()
+def list_reports(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    rows = db.scalars(
+        select(LifestyleLifeReport)
+        .where(LifestyleLifeReport.user_id == user.id)
+        .order_by(LifestyleLifeReport.id.desc())
+    ).all()
     return [
         {
             "id": r.id,
@@ -47,10 +55,15 @@ def list_reports(db: Session = Depends(get_db)):
 
 
 @router.post("/generate")
-def generate_report(month: str | None = Query(None, description="YYYY-MM，默认当前月"), db: Session = Depends(get_db)):
+def generate_report(
+    month: str | None = Query(None, description="YYYY-MM，默认当前月"),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     start, end, label = _period_from_month(month)
-    title, summary, content = build_lifestyle_report(db, month or label)
+    title, summary, content = build_lifestyle_report(db, month or label, user.id)
     report = LifestyleLifeReport(
+        user_id=user.id,
         title=title,
         period_label=label,
         period_start=start,
@@ -65,16 +78,34 @@ def generate_report(month: str | None = Query(None, description="YYYY-MM，默�
 
 
 @router.get("/{report_id}")
-def get_report(report_id: int, db: Session = Depends(get_db)):
-    r = db.get(LifestyleLifeReport, report_id)
+def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    r = db.scalars(
+        select(LifestyleLifeReport).where(
+            LifestyleLifeReport.id == report_id,
+            LifestyleLifeReport.user_id == user.id,
+        )
+    ).first()
     if not r:
         raise HTTPException(status_code=404, detail="报告不存在")
     return _to_read(r)
 
 
 @router.get("/{report_id}/export")
-def export_report(report_id: int, db: Session = Depends(get_db)):
-    r = db.get(LifestyleLifeReport, report_id)
+def export_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    r = db.scalars(
+        select(LifestyleLifeReport).where(
+            LifestyleLifeReport.id == report_id,
+            LifestyleLifeReport.user_id == user.id,
+        )
+    ).first()
     if not r:
         raise HTTPException(status_code=404, detail="报告不存在")
     content = json.loads(r.content or "[]")
@@ -90,8 +121,17 @@ def export_report(report_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{report_id}", status_code=204)
-def delete_report(report_id: int, db: Session = Depends(get_db)):
-    r = db.get(LifestyleLifeReport, report_id)
+def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    r = db.scalars(
+        select(LifestyleLifeReport).where(
+            LifestyleLifeReport.id == report_id,
+            LifestyleLifeReport.user_id == user.id,
+        )
+    ).first()
     if not r:
         raise HTTPException(status_code=404, detail="报告不存在")
     db.delete(r)

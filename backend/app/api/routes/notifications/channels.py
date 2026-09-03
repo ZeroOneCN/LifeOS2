@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models import UserProfile
 from app.models.notification_center import NotificationChannel
 from app.services.notification.channels import CHANNEL_LABELS
 from app.services.notification.crypto import (
@@ -48,15 +50,27 @@ def _to_dict(ch: NotificationChannel) -> dict:
 
 
 @router.get("")
-def list_channels(db: Session = Depends(get_db)):
-    rows = db.scalars(select(NotificationChannel).order_by(NotificationChannel.id)).all()
+def list_channels(
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.scalars(
+        select(NotificationChannel)
+        .where(NotificationChannel.user_id == current_user.id)
+        .order_by(NotificationChannel.id)
+    ).all()
     return [_to_dict(c) for c in rows]
 
 
 @router.post("", status_code=201)
-def create_channel(payload: ChannelIn, db: Session = Depends(get_db)):
+def create_channel(
+    payload: ChannelIn,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     config = encrypt_config(payload.channel_type, dict(payload.config))
     ch = NotificationChannel(
+        user_id=current_user.id,
         channel_type=payload.channel_type,
         name=payload.name,
         enabled=payload.enabled,
@@ -71,8 +85,18 @@ def create_channel(payload: ChannelIn, db: Session = Depends(get_db)):
 
 
 @router.put("/{item_id}")
-def update_channel(item_id: int, payload: ChannelIn, db: Session = Depends(get_db)):
-    ch = db.get(NotificationChannel, item_id)
+def update_channel(
+    item_id: int,
+    payload: ChannelIn,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ch = db.scalar(
+        select(NotificationChannel).where(
+            NotificationChannel.id == item_id,
+            NotificationChannel.user_id == current_user.id,
+        )
+    )
     if not ch:
         raise HTTPException(status_code=404, detail="渠道不存在")
     try:
@@ -98,8 +122,17 @@ def update_channel(item_id: int, payload: ChannelIn, db: Session = Depends(get_d
 
 
 @router.delete("/{item_id}", status_code=204)
-def delete_channel(item_id: int, db: Session = Depends(get_db)):
-    ch = db.get(NotificationChannel, item_id)
+def delete_channel(
+    item_id: int,
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ch = db.scalar(
+        select(NotificationChannel).where(
+            NotificationChannel.id == item_id,
+            NotificationChannel.user_id == current_user.id,
+        )
+    )
     if not ch:
         raise HTTPException(status_code=404, detail="渠道不存在")
     db.delete(ch)

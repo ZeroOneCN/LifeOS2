@@ -25,7 +25,7 @@ def _holding_minutes(t) -> int | None:
     return int(round((t.close_time - t.open_time).total_seconds() / 60))
 
 
-def build_investment_report(db: Session, month: str | None = None):
+def build_investment_report(db: Session, month: str | None = None, user_id: int | None = None):
     """按自然月聚合外汇交易与资金动态，生成投资报告内容。"""
     today = date.today()
     if month:
@@ -42,19 +42,20 @@ def build_investment_report(db: Session, month: str | None = None):
     end = date(y, m, _cal.monthrange(y, m)[1])
     label = f"{y}-{m:02d}"
 
-    trades = db.scalars(
-        select(InvestmentForex).where(
-            InvestmentForex.trade_date >= start,
-            InvestmentForex.trade_date <= end,
-        )
-    ).all()
+    trade_stmt = select(InvestmentForex).where(
+        InvestmentForex.trade_date >= start,
+        InvestmentForex.trade_date <= end,
+    )
+    fund_stmt = select(InvestmentFundRecord).where(
+        InvestmentFundRecord.record_date >= start,
+        InvestmentFundRecord.record_date <= end,
+    )
+    if user_id is not None:
+        trade_stmt = trade_stmt.where(InvestmentForex.user_id == user_id)
+        fund_stmt = fund_stmt.where(InvestmentFundRecord.user_id == user_id)
+    trades = db.scalars(trade_stmt).all()
     closed = [t for t in trades if t.status == "closed"]
-    funds = db.scalars(
-        select(InvestmentFundRecord).where(
-            InvestmentFundRecord.record_date >= start,
-            InvestmentFundRecord.record_date <= end,
-        )
-    ).all()
+    funds = db.scalars(fund_stmt).all()
 
     deposit = sum(f.amount for f in funds if f.record_type == "deposit")
     withdraw = sum(f.amount for f in funds if f.record_type == "withdraw")

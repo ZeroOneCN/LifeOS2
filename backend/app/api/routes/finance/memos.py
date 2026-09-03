@@ -7,8 +7,10 @@ from app.models import FinanceMemo
 from app.schemas.finance import MemoCreate, MemoRead
 
 
-def _memo_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(FinanceMemo)).all()
+def _memo_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(FinanceMemo).where(FinanceMemo.user_id == user_id)
+    ).all()
     return {
         "count": len(rows),
         "recent": [

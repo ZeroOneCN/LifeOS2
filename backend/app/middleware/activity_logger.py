@@ -4,6 +4,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.security import decode_token_user_id
 from app.models import ActivityLog
 
 API_PREFIX = settings.API_V1_PREFIX
@@ -111,6 +112,15 @@ class ActivityLoggerMiddleware:
         if client and client[0]:
             ip = client[0]
 
+        # 从 Authorization 头解析当前用户，写入归属
+        user_id = None
+        for name, value in scope.get("headers", []):
+            if name.lower() == b"authorization":
+                token = value.decode("utf-8", "ignore")
+                if token.lower().startswith("bearer "):
+                    user_id = decode_token_user_id(token[7:].strip())
+                break
+
         req_data = self._parse_json(body)
         resp_data = self._parse_json(resp_body)
 
@@ -147,6 +157,7 @@ class ActivityLoggerMiddleware:
         try:
             db.add(
                 ActivityLog(
+                    user_id=user_id,
                     action=action,
                     module=module,
                     resource_type=resource_type,

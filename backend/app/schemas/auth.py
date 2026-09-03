@@ -6,15 +6,16 @@ from pydantic import BaseModel, ConfigDict
 class RegisterRequest(BaseModel):
     """注册请求。"""
 
-    username: str
+    account: str
     password: str
+    username: str | None = None
     nickname: str | None = None
 
 
 class LoginRequest(BaseModel):
     """登录请求。"""
 
-    username: str
+    account: str
     password: str
 
 
@@ -24,7 +25,9 @@ class UserMe(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    account: str
     username: str | None
+    is_admin: bool
     nickname: str
     avatar: str | None
     email: str | None

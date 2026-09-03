@@ -115,15 +115,20 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
 ]
 
 
-def seed_templates(db: Session) -> int:
-    """表为空时写入内置默认模板。返回插入条数。"""
-    count = db.scalar(select(NotificationTemplate).limit(1))
+def seed_templates(db: Session, user_id: int) -> int:
+    """为指定用户写入内置默认模板（该用户已存在种子则跳过）。返回插入条数。"""
+    count = db.scalar(
+        select(NotificationTemplate).where(
+            NotificationTemplate.user_id == user_id
+        ).limit(1)
+    )
     if count is not None:
         return 0
     inserted = 0
     for source, category, name, title_tpl, content_tpl, note in DEFAULT_TEMPLATES:
         db.add(
             NotificationTemplate(
+                user_id=user_id,
                 source=source,
                 category=category,
                 name=name,

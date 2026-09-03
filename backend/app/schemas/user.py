@@ -41,6 +41,7 @@ class UserSettingsRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    account: str
     username: str | None
     has_password: bool
     created_at: datetime

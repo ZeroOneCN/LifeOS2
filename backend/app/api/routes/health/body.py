@@ -43,10 +43,11 @@ def _latest(rows):
     }
 
 
-def _body_stats(db: Session, days: int) -> dict:
+def _body_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(HealthBody)
+        .where(HealthBody.user_id == user_id)
         .where(HealthBody.record_date >= since)
         .order_by(HealthBody.record_date)
     ).all()

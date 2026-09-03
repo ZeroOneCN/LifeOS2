@@ -7,8 +7,10 @@ from app.models import FinanceInvestment
 from app.schemas.finance import InvestmentCreate, InvestmentRead
 
 
-def _inv_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(FinanceInvestment)).all()
+def _inv_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(FinanceInvestment).where(FinanceInvestment.user_id == user_id)
+    ).all()
     total_pnl = sum(r.pnl for r in rows)
     by_category: dict[str, float] = {}
     by_platform: dict[str, float] = {}

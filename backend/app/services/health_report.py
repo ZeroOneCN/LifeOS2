@@ -48,11 +48,12 @@ def _avg(values) -> float | None:
     return round(sum(vals) / len(vals), 1) if vals else None
 
 
-def build_report_data(db: Session, start: date, end: date) -> dict:
+def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict:
     """聚合健康中心各模块在 [start, end] 期间的数据。"""
     # ---- 睡眠与体征 ----
     vitals = db.scalars(
         select(HealthVitalsSleep)
+        .where(HealthVitalsSleep.user_id == user_id)
         .where(HealthVitalsSleep.record_date >= start)
         .order_by(HealthVitalsSleep.record_date)
     ).all()
@@ -62,12 +63,16 @@ def build_report_data(db: Session, start: date, end: date) -> dict:
 
     # ---- 健身运动 ----
     fitness = db.scalars(
-        select(HealthFitness).where(HealthFitness.record_date >= start)
+        select(HealthFitness)
+        .where(HealthFitness.user_id == user_id)
+        .where(HealthFitness.record_date >= start)
     ).all()
 
     # ---- 饮食 ----
     diets = db.scalars(
-        select(HealthDiet).where(HealthDiet.record_date >= start)
+        select(HealthDiet)
+        .where(HealthDiet.user_id == user_id)
+        .where(HealthDiet.record_date >= start)
     ).all()
     diet_by_type: dict[str, int] = defaultdict(int)
     for d in diets:
@@ -75,13 +80,17 @@ def build_report_data(db: Session, start: date, end: date) -> dict:
 
     # ---- 体重与体成分 ----
     body = db.scalars(
-        select(HealthBody).order_by(HealthBody.record_date)
+        select(HealthBody)
+        .where(HealthBody.user_id == user_id)
+        .order_by(HealthBody.record_date)
     ).all()
     body_in = [b for b in body if start <= b.record_date <= end]
 
     # ---- 步数 ----
     steps = db.scalars(
-        select(HealthSteps).where(HealthSteps.record_date >= start)
+        select(HealthSteps)
+        .where(HealthSteps.user_id == user_id)
+        .where(HealthSteps.record_date >= start)
     ).all()
     step_by_day: dict[date, int] = defaultdict(int)
     for s in steps:
@@ -90,7 +99,9 @@ def build_report_data(db: Session, start: date, end: date) -> dict:
 
     # ---- 体检 ----
     checkups = db.scalars(
-        select(HealthCheckup).where(HealthCheckup.check_date >= start)
+        select(HealthCheckup)
+        .where(HealthCheckup.user_id == user_id)
+        .where(HealthCheckup.check_date >= start)
     ).all()
     status_counts = {"normal": 0, "high": 0, "low": 0}
     abnormal = []
@@ -112,10 +123,14 @@ def build_report_data(db: Session, start: date, end: date) -> dict:
 
     # ---- 用药 ----
     meds = db.scalars(
-        select(HealthMedication).where(HealthMedication.record_date >= start)
+        select(HealthMedication)
+        .where(HealthMedication.user_id == user_id)
+        .where(HealthMedication.record_date >= start)
     ).all()
     taken = [m for m in meds if m.taken]
-    stocks = db.scalars(select(HealthMedStock)).all()
+    stocks = db.scalars(
+        select(HealthMedStock).where(HealthMedStock.user_id == user_id)
+    ).all()
     low_stock = [
         {
             "medicine_name": s.medicine_name,
@@ -383,15 +398,16 @@ def build_content_json(data: dict) -> tuple[str, str, list]:
     return title, summary, content
 
 
-def generate_and_save(db: Session, start: date, end: date) -> HealthReport:
+def generate_and_save(db: Session, start: date, end: date, user_id: int) -> HealthReport:
     """聚合数据并落库，返回报告记录。"""
-    data = build_report_data(db, start, end)
+    data = build_report_data(db, start, end, user_id)
     title, summary, content = build_content_json(data)
     report = HealthReport(
         report_date=end,
         title=title,
         summary=summary,
         content=json.dumps(content, ensure_ascii=False),
+        user_id=user_id,
     )
     db.add(report)
     db.commit()

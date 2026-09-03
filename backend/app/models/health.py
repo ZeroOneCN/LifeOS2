@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.mixins import UserOwned
 
 
 class TimestampMixin:
@@ -27,7 +28,7 @@ class TimestampMixin:
     )
 
 
-class HealthVitalsSleep(TimestampMixin, Base):
+class HealthVitalsSleep(TimestampMixin, UserOwned, Base):
     """睡眠体征：每日生命体征与睡眠质量记录。"""
 
     __tablename__ = "health_vitals_sleep"
@@ -50,7 +51,7 @@ class HealthVitalsSleep(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthFitness(TimestampMixin, Base):
+class HealthFitness(TimestampMixin, UserOwned, Base):
     """健身运动：运动(热量消耗)记录。"""
 
     __tablename__ = "health_fitness"
@@ -64,7 +65,7 @@ class HealthFitness(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthDiet(TimestampMixin, Base):
+class HealthDiet(TimestampMixin, UserOwned, Base):
     """饮食记录：三餐与加餐营养摄入。"""
 
     __tablename__ = "health_diet"
@@ -81,7 +82,7 @@ class HealthDiet(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthBody(TimestampMixin, Base):
+class HealthBody(TimestampMixin, UserOwned, Base):
     """体重记录：身体成分与身材参数。"""
 
     __tablename__ = "health_body"
@@ -115,7 +116,7 @@ class HealthBody(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthSteps(TimestampMixin, Base):
+class HealthSteps(TimestampMixin, UserOwned, Base):
     """步数统计：按时间段录入每日步数。"""
 
     __tablename__ = "health_steps"
@@ -129,7 +130,7 @@ class HealthSteps(TimestampMixin, Base):
     calories: Mapped[float | None] = mapped_column(Float)
 
 
-class HealthStepSetting(TimestampMixin, Base):
+class HealthStepSetting(TimestampMixin, UserOwned, Base):
     """步数设置：每步步幅（固定单行 id=1）。"""
 
     __tablename__ = "health_step_setting"
@@ -138,7 +139,7 @@ class HealthStepSetting(TimestampMixin, Base):
     stride_cm: Mapped[float] = mapped_column(Float, default=70.0)  # 每步步幅 cm
 
 
-class HealthCheckupTemplate(TimestampMixin, Base):
+class HealthCheckupTemplate(TimestampMixin, UserOwned, Base):
     """体检指标标准模板。"""
 
     __tablename__ = "health_checkup_template"
@@ -151,7 +152,7 @@ class HealthCheckupTemplate(TimestampMixin, Base):
     ref_high: Mapped[float | None] = mapped_column(Float)  # 参考上限
 
 
-class HealthCheckup(TimestampMixin, Base):
+class HealthCheckup(TimestampMixin, UserOwned, Base):
     """体检指标：各项体检数据。"""
 
     __tablename__ = "health_checkup"
@@ -169,7 +170,7 @@ class HealthCheckup(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthCheckupPanel(TimestampMixin, Base):
+class HealthCheckupPanel(TimestampMixin, UserOwned, Base):
     """体检组合模板（套餐/检查组）：一个组合包含多个体检指标。"""
 
     __tablename__ = "health_checkup_panel"
@@ -179,7 +180,7 @@ class HealthCheckupPanel(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(String(255))  # 说明
 
 
-class HealthCheckupPanelItem(TimestampMixin, Base):
+class HealthCheckupPanelItem(TimestampMixin, UserOwned, Base):
     """体检组合模板明细：组合内每一项指标定义。"""
 
     __tablename__ = "health_checkup_panel_item"
@@ -193,7 +194,7 @@ class HealthCheckupPanelItem(TimestampMixin, Base):
     reference_range: Mapped[str | None] = mapped_column(String(128))  # 参考范围(展示文本)
 
 
-class HealthReport(TimestampMixin, Base):
+class HealthReport(TimestampMixin, UserOwned, Base):
     """健康报告：汇总报告。"""
 
     __tablename__ = "health_reports"
@@ -205,7 +206,7 @@ class HealthReport(TimestampMixin, Base):
     content: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthMedication(TimestampMixin, Base):
+class HealthMedication(TimestampMixin, UserOwned, Base):
     """用药跟踪：每日分早/午/晚用药记录。"""
 
     __tablename__ = "health_medication"
@@ -220,7 +221,7 @@ class HealthMedication(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthMedPurchase(TimestampMixin, Base):
+class HealthMedPurchase(TimestampMixin, UserOwned, Base):
     """用药跟踪：购药记录。"""
 
     __tablename__ = "health_med_purchase"
@@ -236,13 +237,13 @@ class HealthMedPurchase(TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class HealthMedStock(TimestampMixin, Base):
+class HealthMedStock(TimestampMixin, UserOwned, Base):
     """用药跟踪：药品库存与低库存阈值。"""
 
     __tablename__ = "health_med_stock"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    medicine_name: Mapped[str] = mapped_column(String(64), index=True, unique=True)
+    medicine_name: Mapped[str] = mapped_column(String(64), index=True)
     stock_qty: Mapped[float] = mapped_column(Float)  # 当前库存
     threshold: Mapped[float | None] = mapped_column(Float)  # 低库存阈值
     unit: Mapped[str | None] = mapped_column(String(32))  # 单位

@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     LifestyleBankCard,
     LifestyleCardBill,
@@ -12,6 +13,7 @@ from app.models import (
     LifestyleLifeReport,
     LifestylePhoneCard,
     LifestyleTodo,
+    UserProfile,
 )
 
 router = APIRouter(prefix="/lifestyle/overview", tags=["lifestyle-overview"])
@@ -28,12 +30,17 @@ def _usage_days(item: LifestyleItem) -> int:
 
 
 @router.get("")
-def overview(db: Session = Depends(get_db)) -> dict:
+def overview(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
     today = date.today()
     month_start = today.replace(day=1)
 
     # ---------- 物品 ----------
-    items = db.scalars(select(LifestyleItem)).all()
+    items = db.scalars(
+        select(LifestyleItem).where(LifestyleItem.user_id == user.id)
+    ).all()
     in_use_items = [r for r in items if r.status == "in_use"]
     total_value = sum(r.price or 0 for r in items)
     expiring = [
@@ -50,22 +57,32 @@ def overview(db: Session = Depends(get_db)) -> dict:
     )
 
     # ---------- 卡片 ----------
-    phones = db.scalars(select(LifestylePhoneCard)).all()
-    banks = db.scalars(select(LifestyleBankCard)).all()
+    phones = db.scalars(
+        select(LifestylePhoneCard).where(LifestylePhoneCard.user_id == user.id)
+    ).all()
+    banks = db.scalars(
+        select(LifestyleBankCard).where(LifestyleBankCard.user_id == user.id)
+    ).all()
     month_bills = db.scalars(
-        select(LifestyleCardBill).where(LifestyleCardBill.bill_month >= month_start)
+        select(LifestyleCardBill).where(
+            LifestyleCardBill.bill_month >= month_start,
+            LifestyleCardBill.user_id == user.id,
+        )
     ).all()
     month_deduct = sum(b.amount for b in month_bills)
     unpaid_this_month = sum(1 for p in phones if not p.bill_paid_this_month)
 
     # ---------- 待办 ----------
-    todos = db.scalars(select(LifestyleTodo)).all()
+    todos = db.scalars(
+        select(LifestyleTodo).where(LifestyleTodo.user_id == user.id)
+    ).all()
     pending = [t for t in todos if not t.done]
     overdue = [t for t in pending if t.due_date and t.due_date < today]
 
     latest_report = None
     rep = db.scalars(
         select(LifestyleLifeReport)
+        .where(LifestyleLifeReport.user_id == user.id)
         .order_by(LifestyleLifeReport.id.desc())
         .limit(1)
     ).first()

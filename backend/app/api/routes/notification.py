@@ -7,17 +7,21 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import Notification
+from app.core.security import get_current_user
+from app.models import Notification, UserProfile
 from app.schemas.notification import NotificationCreate, NotificationRead
 
 router = APIRouter()
 
 
-def _notify_stats(db: Session, days: int) -> dict:
+def _notify_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
         select(Notification)
-        .where(Notification.notify_date >= since)
+        .where(
+            Notification.notify_date >= since,
+            Notification.user_id == user_id,
+        )
         .order_by(Notification.notify_date)
     ).all()
 
@@ -56,11 +60,14 @@ router = crud_router(
 
 
 @router.post("/read-all")
-def read_all(db: Session = Depends(get_db)) -> dict:
-    """将所有未读通知标记为已读。"""
+def read_all(
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+) -> dict:
+    """将当前用户所有未读通知标记为已读。"""
     result = db.execute(
         update(Notification)
-        .where(Notification.read.is_(False))
+        .where(Notification.read.is_(False), Notification.user_id == current_user.id)
         .values(read=True)
     )
     db.commit()

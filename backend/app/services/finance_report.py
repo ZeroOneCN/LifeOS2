@@ -139,9 +139,10 @@ def _duration_hours(begin: time | None, end: time | None) -> float:
     return round((end_dt - begin_dt).total_seconds() / 3600, 2)
 
 
-def build_travel_report(db: Session, start: date, end: date, ledger_id: int | None):
+def build_travel_report(db: Session, start: date, end: date, ledger_id: int | None, user_id: int):
     """聚合行程明细生成旅行报告内容。"""
     stmt = select(FinanceTravelDetail).where(
+        FinanceTravelDetail.user_id == user_id,
         FinanceTravelDetail.detail_date >= start,
         FinanceTravelDetail.detail_date <= end,
     )
@@ -152,7 +153,8 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
     ledger_name = "全部行程"
     if ledger_id:
         led = db.get(FinanceTravelLedger, ledger_id)
-        ledger_name = led.name if led else ledger_name
+        if led and led.user_id == user_id:
+            ledger_name = led.name
 
     total_actual = sum(r.actual_price for r in rows)
     total_original = sum(r.original_price for r in rows)
@@ -245,13 +247,14 @@ def _month_range(month: str | None) -> tuple[date, date, str]:
     return start, end, f"{y}-{m:02d}"
 
 
-def build_finance_report(db: Session, month: str | None = None):
+def build_finance_report(db: Session, month: str | None = None, user_id: int | None = None):
     """聚合财务各模块数据生成月度财务报告内容。"""
     start, end, label = _month_range(month)
 
     # 购物
     shoppings = db.scalars(
         select(FinanceShoppingRecord).where(
+            FinanceShoppingRecord.user_id == user_id,
             FinanceShoppingRecord.record_date >= start,
             FinanceShoppingRecord.record_date <= end,
         )
@@ -261,6 +264,7 @@ def build_finance_report(db: Session, month: str | None = None):
     # 旅行
     travels = db.scalars(
         select(FinanceTravelDetail).where(
+            FinanceTravelDetail.user_id == user_id,
             FinanceTravelDetail.detail_date >= start,
             FinanceTravelDetail.detail_date <= end,
         )
@@ -270,6 +274,7 @@ def build_finance_report(db: Session, month: str | None = None):
     # 水电
     utils = db.scalars(
         select(FinanceUtility).where(
+            FinanceUtility.user_id == user_id,
             FinanceUtility.bill_month >= start,
             FinanceUtility.bill_month <= end,
         )
@@ -278,7 +283,10 @@ def build_finance_report(db: Session, month: str | None = None):
 
     # 服务订阅（生效中月均）
     subs = db.scalars(
-        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+        select(FinanceSubscription).where(
+            FinanceSubscription.user_id == user_id,
+            FinanceSubscription.status == "active",
+        )
     ).all()
     sub_monthly = sum(
         s.amount / {"month": 1, "quarter": 3, "year": 12}.get(s.billing_cycle, 1)
@@ -286,7 +294,9 @@ def build_finance_report(db: Session, month: str | None = None):
     )
 
     # 组合月租（当月）
-    houses = db.scalars(select(FinanceHousing)).all()
+    houses = db.scalars(
+        select(FinanceHousing).where(FinanceHousing.user_id == user_id)
+    ).all()
     days_in_month = (end - start).days + 1
     combined_rent = 0.0
     total_deposit = sum(h.deposit or 0 for h in houses)
@@ -299,6 +309,7 @@ def build_finance_report(db: Session, month: str | None = None):
     # 网贷（当月账单 + 累计待还）
     loan_bills = db.scalars(
         select(FinanceLoanBill).where(
+            FinanceLoanBill.user_id == user_id,
             FinanceLoanBill.bill_month >= start,
             FinanceLoanBill.bill_month <= end,
         )
@@ -307,12 +318,16 @@ def build_finance_report(db: Session, month: str | None = None):
     loan_paid_month = sum(r.paid_amount for r in loan_bills)
     outstanding_loans = sum(
         b.amount - b.paid_amount
-        for b in db.scalars(select(FinanceLoanBill)).all()
+        for b in db.scalars(
+            select(FinanceLoanBill).where(FinanceLoanBill.user_id == user_id)
+        ).all()
         if (b.amount - b.paid_amount) > 0
     )
 
     # 债务快照
-    debts = db.scalars(select(FinanceDebt)).all()
+    debts = db.scalars(
+        select(FinanceDebt).where(FinanceDebt.user_id == user_id)
+    ).all()
     outstanding_debt = sum(
         (r.remaining if r.remaining is not None else r.amount)
         for r in debts
@@ -322,7 +337,9 @@ def build_finance_report(db: Session, month: str | None = None):
     lend_total = sum(r.amount for r in debts if r.direction == "lend")
 
     # 投资快照
-    investments = db.scalars(select(FinanceInvestment)).all()
+    investments = db.scalars(
+        select(FinanceInvestment).where(FinanceInvestment.user_id == user_id)
+    ).all()
     invest_pnl = sum(r.pnl for r in investments)
 
     total_expense = shopping_total + travel_total + utility_total + sub_monthly + combined_rent + loan_paid_month

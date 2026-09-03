@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import LifestyleBankCard, LifestyleCardBill, LifestyleCarrier, LifestylePhoneCard
+from app.core.security import get_current_user
+from app.models import (
+    LifestyleBankCard,
+    LifestyleCardBill,
+    LifestyleCarrier,
+    LifestylePhoneCard,
+    UserProfile,
+)
 from app.schemas.lifestyle import (
     BankCardCreate,
     BankCardRead,
@@ -25,12 +32,17 @@ router = APIRouter()
 # --------------------------------------------------------------------------
 # 手机卡统计与扣账
 # --------------------------------------------------------------------------
-def _phone_stats(db: Session, days: int) -> dict:
+def _phone_stats(db: Session, days: int, user_id: int) -> dict:
     today = date.today()
     month_start = today.replace(day=1)
-    rows = db.scalars(select(LifestylePhoneCard)).all()
+    rows = db.scalars(
+        select(LifestylePhoneCard).where(LifestylePhoneCard.user_id == user_id)
+    ).all()
     bills = db.scalars(
-        select(LifestyleCardBill).where(LifestyleCardBill.bill_month >= month_start)
+        select(LifestyleCardBill).where(
+            LifestyleCardBill.bill_month >= month_start,
+            LifestyleCardBill.user_id == user_id,
+        )
     ).all()
 
     by_operator: dict[str, int] = defaultdict(int)
@@ -66,9 +78,18 @@ def _phone_stats(db: Session, days: int) -> dict:
 
 def _phone_extra(api_router: APIRouter):
     @api_router.post("/{item_id}/deduct")
-    def deduct_monthly(item_id: int, db: Session = Depends(get_db)):
+    def deduct_monthly(
+        item_id: int,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
         """记录一次当月扣账：生成一条扣账账单流水，并标记本月已扣账。"""
-        card = db.get(LifestylePhoneCard, item_id)
+        card = db.scalars(
+            select(LifestylePhoneCard).where(
+                LifestylePhoneCard.id == item_id,
+                LifestylePhoneCard.user_id == user.id,
+            )
+        ).first()
         if not card:
             raise HTTPException(status_code=404, detail="手机卡不存在")
         fee = card.monthly_fee or 0
@@ -76,6 +97,7 @@ def _phone_extra(api_router: APIRouter):
         bill_month = today.replace(day=1)
         exists = db.scalar(
             select(LifestyleCardBill).where(
+                LifestyleCardBill.user_id == user.id,
                 LifestyleCardBill.phone_card_id == item_id,
                 LifestyleCardBill.bill_month == bill_month,
             )
@@ -84,6 +106,7 @@ def _phone_extra(api_router: APIRouter):
             db.add(
                 LifestyleCardBill(
                     phone_card_id=item_id,
+                    user_id=user.id,
                     bill_month=bill_month,
                     amount=fee,
                     deducted_date=today,
@@ -112,8 +135,10 @@ phone_router = crud_router(
 # --------------------------------------------------------------------------
 # 银行卡统计
 # --------------------------------------------------------------------------
-def _bank_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(LifestyleBankCard)).all()
+def _bank_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(LifestyleBankCard).where(LifestyleBankCard.user_id == user_id)
+    ).all()
 
     by_bank: dict[str, int] = defaultdict(int)
     by_category: dict[str, int] = defaultdict(int)
@@ -156,8 +181,10 @@ bank_router = crud_router(
 # --------------------------------------------------------------------------
 # 运营商平台设置
 # --------------------------------------------------------------------------
-def _carrier_stats(db: Session, days: int) -> dict:
-    rows = db.scalars(select(LifestyleCarrier)).all()
+def _carrier_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(LifestyleCarrier).where(LifestyleCarrier.user_id == user_id)
+    ).all()
     return {"total": len(rows)}
 
 
@@ -175,10 +202,13 @@ carrier_router = crud_router(
 # --------------------------------------------------------------------------
 # 扣账账单
 # --------------------------------------------------------------------------
-def _bill_stats(db: Session, days: int) -> dict:
+def _bill_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today().replace(day=1)
     bills = db.scalars(
-        select(LifestyleCardBill).where(LifestyleCardBill.bill_month >= since)
+        select(LifestyleCardBill).where(
+            LifestyleCardBill.bill_month >= since,
+            LifestyleCardBill.user_id == user_id,
+        )
     ).all()
     by_month: dict[str, float] = defaultdict(float)
     for b in bills:

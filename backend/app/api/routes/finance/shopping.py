@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     FinanceShoppingLedger,
     FinanceShoppingPlatform,
     FinanceShoppingRecord,
+    UserProfile,
 )
 from app.schemas.finance import (
     ShoppingCreate,
@@ -55,8 +57,9 @@ def list_records(
     end: date | None = None,
     ledger_id: int | None = None,
     db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
 ):
-    stmt = select(FinanceShoppingRecord)
+    stmt = select(FinanceShoppingRecord).where(FinanceShoppingRecord.user_id == user.id)
     if start:
         stmt = stmt.where(FinanceShoppingRecord.record_date >= start)
     if end:
@@ -77,11 +80,13 @@ def records_stats(
     days: int = Query(90, ge=1, le=3650),
     ledger_id: int | None = None,
     db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
 ) -> dict:
     """购物统计：消费总额、按平台、按账本、月度趋势。"""
     since = date.today() - timedelta(days=days - 1)
     stmt = select(FinanceShoppingRecord).where(
-        FinanceShoppingRecord.record_date >= since
+        FinanceShoppingRecord.user_id == user.id,
+        FinanceShoppingRecord.record_date >= since,
     )
     if ledger_id:
         stmt = stmt.where(FinanceShoppingRecord.ledger_id == ledger_id)
@@ -93,10 +98,16 @@ def records_stats(
     by_ledger: dict[int, float] = defaultdict(float)
 
     platform_names = {
-        p.id: p.name for p in db.scalars(select(FinanceShoppingPlatform)).all()
+        p.id: p.name
+        for p in db.scalars(
+            select(FinanceShoppingPlatform).where(FinanceShoppingPlatform.user_id == user.id)
+        ).all()
     }
     ledger_names = {
-        l.id: l.name for l in db.scalars(select(FinanceShoppingLedger)).all()
+        l.id: l.name
+        for l in db.scalars(
+            select(FinanceShoppingLedger).where(FinanceShoppingLedger.user_id == user.id)
+        ).all()
     }
 
     for r in rows:
@@ -124,8 +135,12 @@ def records_stats(
 
 
 @records_router.post("", response_model=ShoppingRead, status_code=201)
-def create_record(payload: ShoppingCreate, db: Session = Depends(get_db)):
-    obj = FinanceShoppingRecord(**payload.model_dump())
+def create_record(
+    payload: ShoppingCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    obj = FinanceShoppingRecord(**payload.model_dump(), user_id=user.id)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -133,9 +148,14 @@ def create_record(payload: ShoppingCreate, db: Session = Depends(get_db)):
 
 
 @records_router.put("/{item_id}", response_model=ShoppingRead)
-def update_record(item_id: int, payload: ShoppingCreate, db: Session = Depends(get_db)):
+def update_record(
+    item_id: int,
+    payload: ShoppingCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceShoppingRecord, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
@@ -145,9 +165,13 @@ def update_record(item_id: int, payload: ShoppingCreate, db: Session = Depends(g
 
 
 @records_router.delete("/{item_id}", status_code=204)
-def delete_record(item_id: int, db: Session = Depends(get_db)):
+def delete_record(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceShoppingRecord, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)
     db.commit()
@@ -169,12 +193,12 @@ _HEADER_MAP = {
 }
 
 
-def _resolve_name(name: str, cache: dict[str, int], model, attr: str, db: Session) -> int | None:
+def _resolve_name(name: str, cache: dict[str, int], model, attr: str, db: Session, user_id: int) -> int | None:
     """按名称解析 id，未收录则自动创建记录。"""
     if not name:
         return None
     if name not in cache:
-        obj = model(**{attr: name})
+        obj = model(**{attr: name}, user_id=user_id)
         db.add(obj)
         db.flush()
         cache[name] = obj.id
@@ -200,7 +224,11 @@ def _coerce_date(value) -> date:
 
 
 @import_router.post("/import")
-async def import_xlsx(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def import_xlsx(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     """导入 xlsx 购物记录。表头：日期/平台/商品名称/规格/总价/单价/订单号/账本。"""
     try:
         from openpyxl import load_workbook
@@ -217,8 +245,18 @@ async def import_xlsx(file: UploadFile = File(...), db: Session = Depends(get_db
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"无法解析 Excel 文件：{exc}")
 
-    platform_cache = {p.name: p.id for p in db.scalars(select(FinanceShoppingPlatform)).all()}
-    ledger_cache = {l.name: l.id for l in db.scalars(select(FinanceShoppingLedger)).all()}
+    platform_cache = {
+        p.name: p.id
+        for p in db.scalars(
+            select(FinanceShoppingPlatform).where(FinanceShoppingPlatform.user_id == user.id)
+        ).all()
+    }
+    ledger_cache = {
+        l.name: l.id
+        for l in db.scalars(
+            select(FinanceShoppingLedger).where(FinanceShoppingLedger.user_id == user.id)
+        ).all()
+    }
 
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
@@ -257,14 +295,15 @@ async def import_xlsx(file: UploadFile = File(...), db: Session = Depends(get_db
         records.append(
             FinanceShoppingRecord(
                 record_date=_coerce_date(rec_date),
-                platform_id=_resolve_name(platform_name, platform_cache, FinanceShoppingPlatform, "name", db),
+                platform_id=_resolve_name(platform_name, platform_cache, FinanceShoppingPlatform, "name", db, user.id),
                 product_name=str(product).strip(),
                 spec=spec,
                 total_price=float(total_cost),
                 unit_price=float(unit) if unit is not None else None,
                 order_no=order_no,
-                ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db),
+                ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db, user.id),
                 note=None,
+                user_id=user.id,
             )
         )
 

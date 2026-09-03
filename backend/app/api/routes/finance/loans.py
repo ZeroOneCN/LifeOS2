@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
 from app.core.database import get_db
-from app.models import FinanceLoanBill, FinanceLoanPlatform, FinanceRepayment
+from app.core.security import get_current_user
+from app.models import (
+    FinanceLoanBill,
+    FinanceLoanPlatform,
+    FinanceRepayment,
+    UserProfile,
+)
 from app.schemas.finance import (
     LoanBillCreate,
     LoanBillRead,
@@ -19,12 +25,19 @@ from app.schemas.finance import (
 router = APIRouter()
 
 
-def _platforms_stats(db: Session, days: int) -> dict:
-    platforms = db.scalars(select(FinanceLoanPlatform).order_by(FinanceLoanPlatform.id)).all()
+def _platforms_stats(db: Session, days: int, user_id: int) -> dict:
+    platforms = db.scalars(
+        select(FinanceLoanPlatform)
+        .where(FinanceLoanPlatform.user_id == user_id)
+        .order_by(FinanceLoanPlatform.id)
+    ).all()
     detail = []
     for p in platforms:
         bills = db.scalars(
-            select(FinanceLoanBill).where(FinanceLoanBill.platform_id == p.id)
+            select(FinanceLoanBill).where(
+                FinanceLoanBill.platform_id == p.id,
+                FinanceLoanBill.user_id == user_id,
+            )
         ).all()
         total_owed = sum(b.amount for b in bills)
         total_paid = sum(b.paid_amount for b in bills)
@@ -49,9 +62,11 @@ def _platforms_stats(db: Session, days: int) -> dict:
     }
 
 
-def _bills_stats(db: Session, days: int) -> dict:
+def _bills_stats(db: Session, days: int, user_id: int) -> dict:
     today = date.today()
-    rows = db.scalars(select(FinanceLoanBill)).all()
+    rows = db.scalars(
+        select(FinanceLoanBill).where(FinanceLoanBill.user_id == user_id)
+    ).all()
     total = sum(r.amount for r in rows)
     paid = sum(r.paid_amount for r in rows)
 
@@ -117,14 +132,17 @@ loan_bills_router = crud_router(
 router.include_router(loan_bills_router)
 
 
-def _sync_bill(db: Session, bill_id: int | None) -> None:
+def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
     if not bill_id:
         return
     bill = db.get(FinanceLoanBill, bill_id)
-    if not bill:
+    if not bill or bill.user_id != user_id:
         return
     reps = db.scalars(
-        select(FinanceRepayment).where(FinanceRepayment.bill_id == bill_id)
+        select(FinanceRepayment).where(
+            FinanceRepayment.bill_id == bill_id,
+            FinanceRepayment.user_id == user_id,
+        )
     ).all()
     bill.paid_amount = sum(r.amount for r in reps)
     if bill.amount - bill.paid_amount <= 1e-6:
@@ -142,36 +160,52 @@ repayments_router = APIRouter(prefix="/finance/repayments", tags=["finance-repay
 def list_repayments(
     bill_id: int | None = None,
     db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
 ):
-    stmt = select(FinanceRepayment).order_by(FinanceRepayment.repay_date.desc())
+    stmt = (
+        select(FinanceRepayment)
+        .where(FinanceRepayment.user_id == user.id)
+        .order_by(FinanceRepayment.repay_date.desc())
+    )
     if bill_id:
         stmt = stmt.where(FinanceRepayment.bill_id == bill_id)
     return db.scalars(stmt).all()
 
 
 @repayments_router.post("", response_model=RepaymentRead, status_code=201)
-def create_repayment(payload: RepaymentCreate, db: Session = Depends(get_db)):
+def create_repayment(
+    payload: RepaymentCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     if not payload.bill_id:
         raise HTTPException(status_code=400, detail="还款必须关联账单")
     bill = db.get(FinanceLoanBill, payload.bill_id)
-    if not bill:
+    if not bill or bill.user_id != user.id:
         raise HTTPException(status_code=404, detail="账单不存在")
     remaining = bill.amount - bill.paid_amount
     if payload.amount > remaining + 1e-6:
         raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余欠款 {remaining:.2f}")
-    obj = FinanceRepayment(**payload.model_dump())
+    obj = FinanceRepayment(**payload.model_dump(), user_id=user.id)
     db.add(obj)
-    _sync_bill(db, payload.bill_id)
+    _sync_bill(db, payload.bill_id, user.id)
     db.commit()
     db.refresh(obj)
     return obj
 
 
 @repayments_router.get("/stats")
-def repayment_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+def repayment_stats(
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
-        select(FinanceRepayment).where(FinanceRepayment.repay_date >= since)
+        select(FinanceRepayment).where(
+            FinanceRepayment.user_id == user.id,
+            FinanceRepayment.repay_date >= since,
+        )
     ).all()
     by_month: dict[str, float] = {}
     for r in rows:
@@ -189,19 +223,25 @@ def repayment_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(g
 
 
 @repayments_router.put("/{item_id}", response_model=RepaymentRead)
-def update_repayment(item_id: int, payload: RepaymentCreate, db: Session = Depends(get_db)):
+def update_repayment(
+    item_id: int,
+    payload: RepaymentCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceRepayment, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     if not payload.bill_id:
         raise HTTPException(status_code=400, detail="还款必须关联账单")
     bill = db.get(FinanceLoanBill, payload.bill_id)
-    if not bill:
+    if not bill or bill.user_id != user.id:
         raise HTTPException(status_code=404, detail="账单不存在")
     others = db.scalars(
         select(FinanceRepayment).where(
             FinanceRepayment.bill_id == obj.bill_id,
             FinanceRepayment.id != item_id,
+            FinanceRepayment.user_id == user.id,
         )
     ).all()
     other_sum = sum(o.amount for o in others)
@@ -209,19 +249,23 @@ def update_repayment(item_id: int, payload: RepaymentCreate, db: Session = Depen
         raise HTTPException(status_code=400, detail="还款金额不能超过剩余欠款")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
-    _sync_bill(db, obj.bill_id)
+    _sync_bill(db, obj.bill_id, user.id)
     db.commit()
     db.refresh(obj)
     return obj
 
 
 @repayments_router.delete("/{item_id}", status_code=204)
-def delete_repayment(item_id: int, db: Session = Depends(get_db)):
+def delete_repayment(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
     obj = db.get(FinanceRepayment, item_id)
-    if not obj:
+    if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)
-    _sync_bill(db, obj.bill_id)
+    _sync_bill(db, obj.bill_id, user.id)
     db.commit()
     return None
 

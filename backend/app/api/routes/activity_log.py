@@ -6,7 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models import ActivityLog
+from app.core.security import get_current_user
+from app.models import ActivityLog, UserProfile
 from app.schemas.activity_log import ActivityLogRead
 from app.schemas.health import PageOut
 
@@ -22,9 +23,10 @@ def list_logs(
     start: date | None = None,
     end: date | None = None,
     db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
 ):
     """分页查询活动日志，支持按操作类型、模块、日期范围过滤。"""
-    stmt = select(ActivityLog)
+    stmt = select(ActivityLog).where(ActivityLog.user_id == current_user.id)
     if action:
         stmt = stmt.where(ActivityLog.action == action)
     if module:
@@ -47,11 +49,18 @@ def list_logs(
 
 
 @router.get("/stats")
-def stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+def stats(
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
     """统计近 N 天活动日志：总数/今日/按操作类型/按模块/按日趋势。"""
     since = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
     rows = db.scalars(
-        select(ActivityLog).where(ActivityLog.created_at >= since)
+        select(ActivityLog).where(
+            ActivityLog.created_at >= since,
+            ActivityLog.user_id == current_user.id,
+        )
     ).all()
 
     daily: dict[date, int] = defaultdict(int)

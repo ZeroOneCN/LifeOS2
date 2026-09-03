@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 from app.api.crud import crud_router
 from app.api.routes.finance.subscriptions import _next_renewal
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models import (
     FinanceLoanBill,
     FinanceReminder,
     FinanceSubscription,
     FinanceUtility,
+    UserProfile,
 )
 from app.schemas.finance import ReminderCreate, ReminderRead
 
@@ -19,14 +21,20 @@ router = APIRouter()
 
 
 @router.get("/finance/reminders/aggregate")
-def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
+def aggregate_reminders(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> dict:
     """聚合财务中心各模块的待办提醒，避免遗漏。"""
     today = date.today()
     items = []
 
     # 服务订阅：即将续费
     subs = db.scalars(
-        select(FinanceSubscription).where(FinanceSubscription.status == "active")
+        select(FinanceSubscription).where(
+            FinanceSubscription.user_id == user.id,
+            FinanceSubscription.status == "active",
+        )
     ).all()
     for s in subs:
         next_renewal = _next_renewal(s.start_date, s.billing_cycle, today)
@@ -44,7 +52,10 @@ def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
 
     # 水电账单：未缴费
     utils = db.scalars(
-        select(FinanceUtility).where(FinanceUtility.paid.is_(False))
+        select(FinanceUtility).where(
+            FinanceUtility.user_id == user.id,
+            FinanceUtility.paid.is_(False),
+        )
     ).all()
     for u in utils:
         due = u.due_date or u.bill_month.replace(day=1)
@@ -61,7 +72,10 @@ def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
 
     # 网贷账单：待还（剩余>0）
     bills = db.scalars(
-        select(FinanceLoanBill).where(FinanceLoanBill.status.in_(["pending", "partial"]))
+        select(FinanceLoanBill).where(
+            FinanceLoanBill.user_id == user.id,
+            FinanceLoanBill.status.in_(["pending", "partial"]),
+        )
     ).all()
     for b in bills:
         remaining = b.amount - b.paid_amount
@@ -81,7 +95,10 @@ def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
 
     # 手动提醒：待处理
     manuals = db.scalars(
-        select(FinanceReminder).where(FinanceReminder.status == "pending")
+        select(FinanceReminder).where(
+            FinanceReminder.user_id == user.id,
+            FinanceReminder.status == "pending",
+        )
     ).all()
     for m in manuals:
         due = m.due_date or m.reminder_date
@@ -105,10 +122,13 @@ def aggregate_reminders(db: Session = Depends(get_db)) -> dict:
     }
 
 
-def _reminder_stats(db: Session, days: int) -> dict:
+def _reminder_stats(db: Session, days: int, user_id: int) -> dict:
     since = date.today() - timedelta(days=days - 1)
     rows = db.scalars(
-        select(FinanceReminder).where(FinanceReminder.reminder_date >= since)
+        select(FinanceReminder).where(
+            FinanceReminder.user_id == user_id,
+            FinanceReminder.reminder_date >= since,
+        )
     ).all()
 
     pending = [r for r in rows if r.status == "pending"]
