@@ -100,12 +100,12 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
-  const totalPages = Math.max(1, Math.ceil(total / 20))
+  const totalPages = Math.max(1, Math.ceil(total / 10))
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await api.list<DebtRecord>('/finance/debts', { page, page_size: 20 })
+      const res = await api.list<DebtRecord>('/finance/debts', { page, page_size: 10 })
       setItems(res.items)
       setTotal(res.total)
     } finally {

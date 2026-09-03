@@ -43,7 +43,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 type Ledger = { id: number; name: string }
 type Platform = { id: number; name: string }

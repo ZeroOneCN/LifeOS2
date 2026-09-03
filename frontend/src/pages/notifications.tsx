@@ -16,6 +16,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -102,6 +103,9 @@ export function NotificationsPage() {
   const [items, setItems] = useState<NotificationRecord[]>([])
   const [stats, setStats] = useState<NotificationStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(total / 10))
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<NotificationRecord | null>(null)
   const [saving, setSaving] = useState(false)
@@ -115,10 +119,11 @@ export function NotificationsPage() {
     setLoading(true)
     try {
       const [listRes, statsRes] = await Promise.all([
-        api.list<NotificationRecord>('/notifications', { page: 1, page_size: 50 }),
+        api.list<NotificationRecord>('/notifications', { page, page_size: 10 }),
         api.query<NotificationStats>('/notifications/stats?days=30'),
       ])
       setItems(listRes.items)
+      setTotal(listRes.total)
       setStats(statsRes)
     } finally {
       setLoading(false)
@@ -128,7 +133,7 @@ export function NotificationsPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [page])
 
   const openCreate = () => {
     setEditing(null)
@@ -193,7 +198,8 @@ export function NotificationsPage() {
   const remove = async (row: NotificationRecord) => {
     if (!(await confirm())) return
     await api.remove('/notifications', row.id)
-    await load()
+    if (items.length === 1 && page > 1) setPage(page - 1)
+    else await load()
   }
 
   const byCategory = stats?.by_category ?? []
@@ -331,6 +337,29 @@ export function NotificationsPage() {
             ))
           )}
         </CardContent>
+        {totalPages > 1 && (
+          <CardFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              上一页
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+            </Button>
+          </CardFooter>
+        )}
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

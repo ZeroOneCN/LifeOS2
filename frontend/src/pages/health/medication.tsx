@@ -118,7 +118,7 @@ export function MedicationPage() {
   const { confirm, dialog: confirmDialog } = useConfirm()
 
   const stats = useStats<MedStats>('/health/medication')
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 10
   const medPages = Math.max(1, Math.ceil(medTotal / PAGE_SIZE))
 
   const loadMed = async () => {

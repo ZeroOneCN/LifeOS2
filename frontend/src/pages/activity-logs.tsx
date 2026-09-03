@@ -16,6 +16,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -120,19 +121,23 @@ export function ActivityLogsPage() {
   const [module, setModule] = useState('all')
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(total / 10))
 
   const loadList = async () => {
     setLoading(true)
     try {
       const qs = new URLSearchParams()
-      qs.set('page', '1')
-      qs.set('page_size', '100')
+      qs.set('page', String(page))
+      qs.set('page_size', '10')
       if (action !== 'all') qs.set('action', action)
       if (module !== 'all') qs.set('module', module)
       if (start) qs.set('start', start)
       if (end) qs.set('end', end)
       const res = await api.query<PageResult<ActivityRecord>>(`/activity-logs?${qs}`)
       setItems(res.items)
+      setTotal(res.total)
     } finally {
       setLoading(false)
     }
@@ -145,7 +150,7 @@ export function ActivityLogsPage() {
   useEffect(() => {
     loadList()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [action, module, start, end])
+  }, [page, action, module, start, end])
 
   const byAction = stats?.by_action ?? []
   const byModule = stats?.by_module ?? []
@@ -211,7 +216,7 @@ export function ActivityLogsPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
             <Label>操作类型</Label>
-            <Select value={action} onValueChange={setAction}>
+            <Select value={action} onValueChange={(v) => { setAction(v); setPage(1) }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -225,7 +230,7 @@ export function ActivityLogsPage() {
           </div>
           <div className="space-y-2">
             <Label>模块</Label>
-            <Select value={module} onValueChange={setModule}>
+            <Select value={module} onValueChange={(v) => { setModule(v); setPage(1) }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -241,11 +246,11 @@ export function ActivityLogsPage() {
           </div>
           <div className="space-y-2">
             <Label>开始日期</Label>
-            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+            <Input type="date" value={start} onChange={(e) => { setStart(e.target.value); setPage(1) }} />
           </div>
           <div className="space-y-2">
             <Label>结束日期</Label>
-            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+            <Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); setPage(1) }} />
           </div>
         </CardContent>
       </Card>
@@ -303,6 +308,29 @@ export function ActivityLogsPage() {
             </ol>
           )}
         </CardContent>
+        {totalPages > 1 && (
+          <CardFooter className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              上一页
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+            </Button>
+          </CardFooter>
+        )}
       </Card>
     </div>
   )

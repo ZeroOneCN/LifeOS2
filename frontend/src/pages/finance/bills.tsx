@@ -45,7 +45,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-const PAGE_SIZE = 50
+const PAGE_SIZE = 10
 
 type TabKey = 'housing' | 'subscription' | 'loan'
 

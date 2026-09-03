@@ -93,7 +93,7 @@ export function DietPage() {
   })
 
   const stats = useStats<DietStats>('/health/diet')
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const load = async () => {

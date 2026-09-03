@@ -72,7 +72,7 @@ type RecordManagerProps<T extends { id: number }> = {
   hideHeader?: boolean
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 function toFormValue(field: FieldDef, value: unknown): string {
   if (value === null || value === undefined) return ''

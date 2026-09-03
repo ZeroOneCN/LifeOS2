@@ -133,7 +133,7 @@ export function CheckupPage() {
   })
 
   const stats = useStats<CheckupStats>('/health/checkup')
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const load = async () => {

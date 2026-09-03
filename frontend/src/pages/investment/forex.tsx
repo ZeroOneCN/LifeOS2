@@ -613,21 +613,26 @@ function FundsSection() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<FundRecord | null>(null)
   const [form, setForm] = useState({ record_type: 'deposit', amount: '', record_date: new Date().toISOString().slice(0, 10), note: '' })
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(total / 10))
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条资金记录吗？' })
 
   const load = async () => {
     try {
       const s = await api.query<FundStats>('/investment/funds/stats')
       setStats(s)
-      const list = await api.list<FundRecord>('/investment/funds', { page: 1, page_size: 50 })
+      const list = await api.list<FundRecord>('/investment/funds', { page, page_size: 10 })
       setItems(list.items)
+      setTotal(list.total)
     } catch {
       setStats(null)
     }
   }
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page])
 
   const openCreate = () => {
     setEditing(null)
@@ -653,7 +658,8 @@ function FundsSection() {
   const remove = async (r: FundRecord) => {
     if (!(await confirm())) return
     await api.remove('/investment/funds', r.id)
-    await load()
+    if (items.length === 1 && page > 1) setPage(page - 1)
+    else await load()
   }
 
   const itemsSorted = [...items].sort((a, b) => (a.record_date < b.record_date ? 1 : -1))
@@ -725,6 +731,30 @@ function FundsSection() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              上一页
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+            </Button>
           </div>
         )}
 
