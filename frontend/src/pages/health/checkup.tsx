@@ -39,6 +39,7 @@ import {
 import { useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 
 type CheckupRecord = {
   id: number
@@ -529,20 +530,7 @@ export function CheckupPage() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {total} 条记录</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            上一页
-          </Button>
-          <span>
-            {page} / {totalPages}
-          </span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-            下一页
-          </Button>
-        </div>
-      </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
 
       {/* 新增/编辑体检记录：支持套餐批量录入与自由组合 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

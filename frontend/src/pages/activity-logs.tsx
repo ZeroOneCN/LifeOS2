@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { api, type PageResult } from '@/lib/api'
 
@@ -311,26 +312,8 @@ export function ActivityLogsPage() {
           )}
         </CardContent>
         {totalPages > 1 && (
-          <CardFooter className="flex items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              上一页
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              下一页
-            </Button>
+          <CardFooter>
+            <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
           </CardFooter>
         )}
       </Card>

@@ -55,6 +55,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
 
@@ -735,27 +736,7 @@ function FundsSection() {
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              上一页
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              下一页
-            </Button>
-          </div>
+          <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
         )}
 
         {itemsSorted.length > 0 && stats && stats.by_date.length > 0 && (

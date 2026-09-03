@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
   Dialog,
   DialogContent,
@@ -267,14 +268,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {total} 条记录</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</Button>
-          <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>下一页</Button>
-        </div>
-      </div>
+      <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>

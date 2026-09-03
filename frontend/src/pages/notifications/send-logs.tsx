@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api, type PageResult } from '@/lib/api'
 
 type Log = {
@@ -31,7 +32,7 @@ export function SendLogPanel() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [type, setType] = useState('')
-  const pageSize = 50
+  const pageSize = 10
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -137,21 +138,8 @@ export function SendLogPanel() {
           )}
         </CardContent>
         {totalPages > 1 && (
-          <div className="flex items-center justify-end gap-2 border-t px-4 py-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              上一页
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {page} / {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              下一页
-            </Button>
+          <div className="border-t px-4 py-2">
+            <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
           </div>
         )}
       </Card>

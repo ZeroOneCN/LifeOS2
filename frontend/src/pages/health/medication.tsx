@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { BarChartCard, LineChartCard, useStats } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
@@ -434,13 +435,8 @@ export function MedicationPage() {
               </TableBody>
             </Table>
             {medTotal > 0 && (
-              <div className="flex items-center justify-between p-3 text-sm text-muted-foreground">
-                <span>共 {medTotal} 条</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={medPage <= 1} onClick={() => setMedPage(medPage - 1)}>上一页</Button>
-                  <span>{medPage}/{medPages}</span>
-                  <Button variant="outline" size="sm" disabled={medPage >= medPages} onClick={() => setMedPage(medPage + 1)}>下一页</Button>
-                </div>
+              <div className="p-3">
+                <PaginationBar page={medPage} totalPages={medPages} total={medTotal} onPageChange={setMedPage} />
               </div>
             )}
           </CardContent>

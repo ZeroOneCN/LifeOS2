@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
 
 type ReportRecord = {
@@ -353,26 +354,8 @@ export function ReportsPage() {
             </div>
           )}
           {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                上一页
-              </Button>
-              <span className="text-muted-foreground">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                下一页
-              </Button>
+            <div className="mt-4">
+              <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
             </div>
           )}
         </CardContent>
