@@ -260,15 +260,17 @@ export function ActivityLogsPage() {
           <CardTitle className="text-sm font-medium">操作记录</CardTitle>
           <CardDescription>共 {items.length} 条，按时间倒序排列</CardDescription>
         </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : items.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              暂无活动日志，在各模块执行新增/编辑/删除操作后将自动记录。
-            </p>
+        <CardContent className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+          {items.length === 0 ? (
+            loading ? (
+              <div className="flex justify-center py-12 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                暂无活动日志，在各模块执行新增/编辑/删除操作后将自动记录。
+              </p>
+            )
           ) : (
             <ol className="space-y-3">
               {items.map((row) => {

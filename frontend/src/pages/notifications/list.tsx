@@ -237,15 +237,17 @@ export function NotificationList() {
           <CardTitle className="text-sm font-medium">通知列表</CardTitle>
           <CardDescription>未读通知以蓝色圆点标记</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {loading ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : items.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
-              暂无通知，点击"发布通知"创建第一条
-            </p>
+        <CardContent className={`space-y-2 transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+          {items.length === 0 ? (
+            loading ? (
+              <div className="flex justify-center py-12 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                暂无通知，点击"发布通知"创建第一条
+              </p>
+            )
           ) : (
             items.map((row) => (
               <div

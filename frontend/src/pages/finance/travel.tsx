@@ -454,11 +454,13 @@ export function TravelPage() {
                 <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
-              ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground">暂无行程明细，点击"新增明细"添加</TableCell></TableRow>
+            <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+              {items.length === 0 ? (
+                loading ? (
+                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                ) : (
+                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground">暂无行程明细，点击"新增明细"添加</TableCell></TableRow>
+                )
               ) : (
                 items.map((row) => (
                   <TableRow key={row.id}>

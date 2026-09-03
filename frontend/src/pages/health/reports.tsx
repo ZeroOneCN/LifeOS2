@@ -287,19 +287,21 @@ export function ReportsPage() {
           <CardTitle className="text-sm font-medium">历史报告（{total}）</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <FileText className="size-10 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">暂无报告，点击右上角“生成报告”开始。</p>
-            </div>
+          {items.length === 0 ? (
+            loading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <FileText className="size-10 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">暂无报告，点击右上角“生成报告”开始。</p>
+              </div>
+            )
           ) : (
-            <div className="space-y-2">
+            <div className={`space-y-2 transition-opacity duration-200 ${loading ? 'pointer-events-none opacity-60' : ''}`}>
               {items.map((r) => (
                 <div
                   key={r.id}
@@ -350,7 +352,7 @@ export function ReportsPage() {
               ))}
             </div>
           )}
-          {!loading && totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="mt-4 flex items-center justify-between text-sm">
               <Button
                 variant="outline"

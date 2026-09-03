@@ -109,6 +109,7 @@ export function RecordManager<T extends { id: number }>({
   })
 
   const load = async () => {
+    // 翻页/刷新时保留旧数据渲染（仅首载显示加载占位），避免高度变化引起抖动
     setLoading(true)
     try {
       const res = await api.list<T>(apiPath, { page, page_size: PAGE_SIZE })
@@ -207,25 +208,29 @@ export function RecordManager<T extends { id: number }>({
                 <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length + 1}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    <Loader2 className="mx-auto size-5 animate-spin" />
-                  </TableCell>
-                </TableRow>
-              ) : items.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length + 1}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    暂无记录，点击"新增记录"添加第一条数据
-                  </TableCell>
-                </TableRow>
+            <TableBody
+              className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}
+            >
+              {items.length === 0 ? (
+                loading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length + 1}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      <Loader2 className="mx-auto size-5 animate-spin" />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length + 1}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      暂无记录，点击"新增记录"添加第一条数据
+                    </TableCell>
+                  </TableRow>
+                )
               ) : (
                 items.map((row) => (
                   <TableRow key={row.id}>

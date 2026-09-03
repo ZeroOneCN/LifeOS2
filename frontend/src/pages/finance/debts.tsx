@@ -233,11 +233,13 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 <TableHead className="text-right">额度</TableHead><TableHead className="text-right">剩余</TableHead><TableHead>利率</TableHead><TableHead>还款日</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
-              ) : items.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
+            <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+              {items.length === 0 ? (
+                loading ? (
+                  <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                ) : (
+                  <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
+                )
               ) : items.map((d) => (
                 <TableRow key={d.id}>
                   <TableCell>{d.debt_date}</TableCell>

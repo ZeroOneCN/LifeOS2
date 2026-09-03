@@ -95,13 +95,15 @@ export function SendLogPanel() {
           <CardTitle className="text-sm font-medium">发送记录</CardTitle>
           <CardDescription>各渠道外发的历史记录与失败原因</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {loading ? (
-            <div className="flex justify-center py-12 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : logs.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">暂无发送记录</p>
+        <CardContent className={`space-y-2 transition-opacity duration-200 ${loading && logs.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+          {logs.length === 0 ? (
+            loading ? (
+              <div className="flex justify-center py-12 text-muted-foreground">
+                <Loader2 className="size-5 animate-spin" />
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">暂无发送记录</p>
+            )
           ) : (
             logs.map((log) => (
               <div key={log.id} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2">

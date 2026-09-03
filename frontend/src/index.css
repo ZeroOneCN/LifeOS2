@@ -129,4 +129,18 @@
     /* 固定预留滚动条空间，避免内容高度变化时滚动条出现/消失引起水平抖动 */
     scrollbar-gutter: stable;
     }
+  /* 页面切换淡入过渡 */
+  .page-enter {
+    animation: page-enter 0.25s ease-out;
+    }
+  @keyframes page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+      }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      }
+    }
 }
