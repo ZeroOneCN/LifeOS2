@@ -12,18 +12,29 @@ from app.api.routes import (
     investment,
     lifestyle,
     notification,
+    notifications,
     user,
 )
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, SessionLocal, engine
 from app.middleware.activity_logger import ActivityLoggerMiddleware
+from app.services.notification.scheduler import start_scheduler, stop_scheduler
+from app.services.notification.seed import ensure_seed
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时自动创建数据库表（若不存在）。"""
+    """启动时自动创建数据库表（若不存在）并启动提醒调度器。"""
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        ensure_seed(db)
+        db.commit()
+    finally:
+        db.close()
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
@@ -44,6 +55,7 @@ app.include_router(finance.router, prefix=settings.API_V1_PREFIX)
 app.include_router(lifestyle.router, prefix=settings.API_V1_PREFIX)
 app.include_router(investment.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 
 

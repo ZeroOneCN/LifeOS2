@@ -51,6 +51,12 @@ from app.models.lifestyle import (
     LifestyleTodo,
 )
 from app.models.notification import Notification
+from app.models.notification_center import (
+    FeatureReminderSetting,
+    NotificationChannel,
+    NotificationSendLog,
+    NotificationTemplate,
+)
 from app.models.user import UserProfile
 
 __all__ = [
@@ -98,6 +104,10 @@ __all__ = [
     "InvestmentFundRecord",
     "InvestmentReport",
     "Notification",
+    "NotificationChannel",
+    "NotificationTemplate",
+    "FeatureReminderSetting",
+    "NotificationSendLog",
     "ActivityLog",
     "UserProfile",
 ]
