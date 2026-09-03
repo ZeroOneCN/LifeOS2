@@ -127,7 +127,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         .where(HealthMedication.user_id == user_id)
         .where(HealthMedication.record_date >= start)
     ).all()
-    taken = [m for m in meds if m.taken]
+    taken = [m for m in meds if m.taken_breakfast or m.taken_lunch or m.taken_dinner]
     stocks = db.scalars(
         select(HealthMedStock).where(HealthMedStock.user_id == user_id)
     ).all()
