@@ -183,6 +183,21 @@ function HousingTab() {
 
   const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
 
+  // 住房居住天数与总成本（不含押金）口径：居住天数=入住~退租（含退租日）；成本=月租/30×天数+杂费
+  const hDays = (h: Housing): number => {
+    if (!h.move_in_date) return 0
+    const a = new Date(h.move_in_date).getTime()
+    const b = h.move_out_date ? new Date(h.move_out_date).getTime() : Date.now()
+    if (b < a) return 0
+    return Math.floor((b - a) / 86400000) + 1
+  }
+  const hCost = (h: Housing): number => {
+    const days = hDays(h)
+    const m = h.actual_monthly_rent || 0
+    const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
+    return (m / 30) * days + fees
+  }
+
   const openCreate = () => {
     setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
     setDialog({})
@@ -260,12 +275,20 @@ function HousingTab() {
     <div className="flex flex-col gap-4">
       {stats && (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Home} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint={`${stats.month} · ${stats.house_count} 套`} className="text-indigo-500" />
-            <StatCard icon={Building} label="押金合计" value={fmt(stats.total_deposit)} className="text-blue-500" />
-            <StatCard icon={Wallet} label="杂费合计" value={fmt(stats.total_fees)} hint="中介/保洁/服务/洗衣" className="text-amber-500" />
-            <StatCard icon={Wallet} label="全部月租之和" value={fmt(stats.houses.reduce((s, h) => s + h.actual_monthly_rent, 0))} hint={`${stats.houses.length} 套在租`} className="text-emerald-500" />
-          </section>
+          {(stats?.houses.length ?? 0) > 0 && (() => {
+            const days = stats.houses.reduce((s, h) => s + hDays(h), 0)
+            const cost = stats.houses.reduce((s, h) => s + hCost(h), 0)
+            const avgMonth = stats.houses.length ? stats.houses.reduce((s, h) => s + h.actual_monthly_rent, 0) / stats.houses.length : 0
+            return (
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <StatCard icon={Home} label="住房数" value={`${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
+                <StatCard icon={Building} label="总居住天数" value={`${days} 天`} className="text-blue-500" />
+                <StatCard icon={Wallet} label="平均月租" value={fmt(avgMonth)} hint="租金均值" className="text-emerald-500" />
+                <StatCard icon={Wallet} label="总成本(不含押金)" value={fmt(cost)} hint="月租折算 + 杂费" className="text-amber-500" />
+                <StatCard icon={Wallet} label="平均单日成本" value={fmt(days ? cost / days : 0)} hint={`${days} 天均摊`} className="text-red-500" />
+              </section>
+            )
+          })()}
           {sortedHouses.length > 0 && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
