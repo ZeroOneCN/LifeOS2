@@ -410,7 +410,7 @@ function HousingTab() {
   }
 
   const openUCreate = () => {
-    setUtilityForm({ housing_id: dialog?.editing ? String(dialog.editing.id) : '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'false', note: '' })
+    setUtilityForm({ housing_id: dialog?.editing ? String(dialog.editing.id) : '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'true', note: '' })
     setUDialog({})
   }
   const openUEdit = (u: Utility) => {
@@ -811,12 +811,12 @@ function HousingTab() {
                     </div>
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       {myUtils.map((u) => (
-                        <div key={u.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
-                          <div className="min-w-0">
+                        <div key={u.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
+                          <div className="min-w-0 truncate">
                             <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
                             <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
-                            {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
                           </div>
+                          {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700">待缴</Badge>}
                         </div>
                       ))}
                     </div>
