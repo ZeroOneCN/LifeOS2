@@ -921,8 +921,17 @@ function LoanTab() {
     api.stats<LoanPlatformStats>('/finance/loan-platforms').then(setPlatformStats).catch(() => null)
   }
   const loadBills = async () => {
-    const res = await api.list<LoanBill>('/finance/loan-bills', { page_size: 100 })
-    setBills(res.items)
+    // 数据量可能超过单页上限(100)，翻页拉取全量以便按账单月翻页时能访问到历史月份
+    const all: LoanBill[] = []
+    let page = 1
+    let total = 0
+    do {
+      const res = await api.list<LoanBill>('/finance/loan-bills', { page, page_size: 100 })
+      all.push(...res.items)
+      total = res.total
+      page += 1
+    } while (all.length < total)
+    setBills(all)
     api.stats<LoanBillStats>('/finance/loan-bills').then(setBillStats).catch(() => null)
   }
   const loadRepayments = async (billId: number | null) => {
