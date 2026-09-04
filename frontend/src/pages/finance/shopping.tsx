@@ -44,6 +44,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 
 const PAGE_SIZE = 10
 
@@ -72,7 +73,7 @@ type Stats = {
   by_ledger: { ledger_id: number; ledger: string; amount: number }[]
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 type RecordForm = {
   record_date: string
@@ -291,10 +292,14 @@ export function ShoppingPage() {
   const importXlsx = async (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
-    const res = await api.upload<{ imported: number; skipped: number }>('/finance/shopping/import', fd)
-    setPage(1)
-    setCurrentLedger(currentLedger || '')
-    window.alert(`导入成功：${res.imported} 条，跳过 ${res.skipped} 条`)
+    try {
+      const res = await api.upload<{ imported: number; skipped: number }>('/finance/shopping/import', fd)
+      setPage(1)
+      setCurrentLedger(currentLedger || '')
+      toast.success('导入成功', { description: `共导入 ${res.imported} 条，跳过 ${res.skipped} 条` })
+    } catch (e) {
+      toast.error('导入失败', { description: (e as Error).message })
+    }
   }
 
   const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '未分类'
