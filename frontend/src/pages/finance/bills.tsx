@@ -518,7 +518,7 @@ function HousingTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>朝向</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
-                <TableHead className="text-right">已交租金</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead className="text-right">已发生成本</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -528,7 +528,7 @@ function HousingTab() {
                 const inD = h.move_in_date ? new Date(h.move_in_date) : null
                 const outD = h.move_out_date ? new Date(h.move_out_date) : (inD ? new Date() : null)
                 const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
-                const paidTerms = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                const incurredCost = houseIncurred(h)
                 return (
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{h.name}</TableCell>
@@ -536,7 +536,7 @@ function HousingTab() {
                   <TableCell className="text-muted-foreground">{h.orientation ?? '—'}</TableCell>
                   <TableCell>{h.channel ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : '（在住）'}</TableCell>
-                  <TableCell className="text-right font-medium">{paidTerms > 0 ? fmt(paidTerms) : '—'}</TableCell>
+                  <TableCell className="text-right font-medium">{incurredCost > 0 ? fmt(incurredCost) : '—'}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -707,23 +707,27 @@ function HousingTab() {
                     <span className="text-sm font-medium">水电燃气</span>
                     <Button size="sm" onClick={() => openUCreate()}><Plus /> 新增账单</Button>
                   </div>
-                  <div className="space-y-1.5">
-                    {utils.length === 0 ? (
-                      <p className="py-4 text-center text-sm text-muted-foreground">暂无账单记录，点「新增账单」添加</p>
-                    ) : utils.map((u) => (
-                      <div key={u.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
-                        <div className="min-w-0">
-                          <span className="font-medium">{u.fee_type}</span>
-                          <span className="ml-2 text-muted-foreground">{u.bill_month.slice(0, 7)} · {fmt(u.amount)}</span>
-                          {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
+                  {utils.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">暂无账单记录，点「新增账单」添加</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {utils.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</div>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span className="font-medium">{fmt(u.amount)}</span>
+                              {u.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -748,16 +752,10 @@ function HousingTab() {
             const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
             const months = Math.max(1, Math.ceil(days / 30))
             const rent = viewH.actual_monthly_rent || 0
-            const monthlyRent = rent / (viewH.rent_term === 'quarterly' ? 3 : 1) // 折算月租（按季付摊到月）
-            const fees = (viewH.agent_fee || 0) + (viewH.clean_fee || 0) + (viewH.service_fee || 0) + (viewH.laundry_fee || 0)
             const myUtils = utilities.filter((u) => u.housing_id === viewH.id)
               .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
             const utilTotal = myUtils.reduce((s, u) => s + u.amount, 0)
             const utilPaid = myUtils.filter((u) => u.paid).reduce((s, u) => s + u.amount, 0)
-            const avgUtil = months > 0 ? utilTotal / months : 0
-            const rentDaysCost = days > 0 ? (monthlyRent / 30) * days : (monthlyRent * months)
-            const total = rentDaysCost + fees + utilTotal // 居住总成本（含水电、杂费）
-            const avgFees = months > 0 ? fees / months : 0 // 月均杂费
             const incurred = houseIncurred(viewH)
             const daily = houseDaily(viewH)
             const rows: [string, string][] = [
@@ -767,7 +765,7 @@ function HousingTab() {
               ['入住时间', viewH.move_in_date],
               ['退租时间', viewH.move_out_date || '—'],
               ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : viewH.rent_term === 'one_time' ? '一次性' : '按月付'],
-              ['签约月租', fmt(rent)],
+              ['实际月租', fmt(rent)],
               ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
               ['已退押金', viewH.deposit_refunded ? fmt(viewH.deposit_refunded) : '—'],
               ['未退押金', viewH.deposit ? fmt(Math.max(0, (viewH.deposit || 0) - (viewH.deposit_refunded || 0))) : '—'],
@@ -777,15 +775,11 @@ function HousingTab() {
               ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
               ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
               ['居住月数', `${months} 个月（${days} 天）`],
+            ]
+            const costRows: [string, string][] = [
               ['已发生成本(不含押金)', incurred > 0 ? fmt(incurred) : '—'],
               ['平均单日成本', daily > 0 ? fmt(daily) : '—'],
               ['折算月租(单日×30)', daily > 0 ? fmt(daily * 30) : '—'],
-              ['水电合计', fmt(utilTotal)],
-              ['月均水电', fmt(avgUtil)],
-              ['杂费合计', fmt(fees)],
-              ['月均杂费', fmt(avgFees)],
-              ['综合月成本(含水电+杂费)', fmt(monthlyRent + avgUtil + avgFees)],
-              ['居住总成本(含水电+杂费)', fmt(total)],
             ]
             return (
               <>
@@ -797,6 +791,17 @@ function HousingTab() {
                     </div>
                   ))}
                 </dl>
+                <div className="mt-3">
+                  <div className="mb-1.5 text-sm font-medium">成本概览</div>
+                  <dl className="gap-x-4 gap-y-1 text-sm">
+                    {costRows.map(([k, v]) => (
+                      <div key={k} className="flex justify-between gap-2 border-b py-1">
+                        <dt className="text-muted-foreground">{k}</dt>
+                        <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
                 {myUtils.length > 0 && (
                   <div className="mt-3">
                     <div className="mb-1.5 flex items-center justify-between">
