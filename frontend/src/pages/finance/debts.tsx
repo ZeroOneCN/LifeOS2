@@ -565,7 +565,7 @@ function MemoTab() {
             <CardTitle className="text-lg font-medium">备忘录（模糊记忆）</CardTitle>
             <Button onClick={openCreate}><Plus /> 新增备忘</Button>
           </CardHeader>
-          <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 p-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {items.length === 0 ? (
               <p className="col-span-full py-6 text-center text-sm text-muted-foreground">暂无备忘，记录那些有点印象却容易忘的事</p>
             ) : items.map((m) => (
