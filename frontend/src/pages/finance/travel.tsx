@@ -703,12 +703,16 @@ export function TravelPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label>选择行程 <span className="text-destructive">*</span></Label>
-              <Select value={reportLedger} onValueChange={(v) => { setReportLedger(v); setReport(null) }}>
-                <SelectTrigger className="w-56"><SelectValue placeholder="选择一个行程生成报告" /></SelectTrigger>
-                <SelectContent>
-                  {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-1.5">
+                {ledgers.map((l) => (
+                  <Button key={l.id} type="button" size="sm"
+                    variant={reportLedger === String(l.id) ? 'default' : 'outline'}
+                    onClick={() => { setReportLedger(String(l.id)); setReport(null) }}>
+                    {l.name}
+                  </Button>
+                ))}
+                {ledgers.length === 0 && <span className="text-sm text-muted-foreground">暂无行程，请先在页面新建行程</span>}
+              </div>
             </div>
             <div className="space-y-1">
               <Label>&nbsp;</Label>
