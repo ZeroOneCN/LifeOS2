@@ -502,48 +502,56 @@ function HousingTab() {
                 const incurred = houseIncurred(h)
                 const days = houseDays(h)
                 const daily = days ? incurred / days : 0
+                const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
                 return (
-                  <div key={h.id} className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate font-medium">{h.short_name || h.name}</span>
-                      <Badge variant="outline" className="shrink-0">{h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'}</Badge>
+                  <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
+                    {/* 头部：名称 + 状态 */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-foreground">{h.short_name || h.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">{h.name}</div>
+                      </div>
+                      <Badge variant={h.move_out_date ? 'secondary' : 'default'} className="shrink-0">
+                        {h.move_out_date ? '已退租' : '在住'}
+                      </Badge>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">{h.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {h.channel ? `${h.channel} · ` : ''}入住 {h.move_in_date}
-                      {h.move_out_date ? ` · 退租 ${h.move_out_date}` : ' · 在住'}
-                      {h.orientation ? ` · ${h.orientation}` : ''}
+
+                    {/* 主视觉：单日成本 */}
+                    <div className="mt-3 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 p-3">
+                      <div className="flex items-baseline justify-between">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">平均单日成本</p>
+                        <p className="text-[11px] font-medium text-violet-500">{termLabel} · {days} 天</p>
+                      </div>
+                      <p className="mt-1 text-2xl font-bold leading-none text-red-600">
+                        {daily > 0 ? fmt(daily) : '—'}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        折算月租 <span className="font-semibold text-foreground">{daily > 0 ? fmt(daily * 30) : '—'}</span>
+                      </p>
                     </div>
-                    <div className="space-y-1 rounded-md bg-muted/60 p-2">
-                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                        <span>租金 · {days} 天</span>
-                        <span>{daily > 0 ? `单日 ${fmt(daily)}` : ''}{daily > 0 ? ` · 月计 ${fmt(daily * 30)}` : ''}</span>
+
+                    {/* 已发生成本汇总 */}
+                    <div className="mt-3 flex items-center justify-between border-b pb-2">
+                      <span className="text-muted-foreground">已发生成本</span>
+                      <span className="text-lg font-semibold text-amber-600">{fmt(incurred)}</span>
+                    </div>
+
+                    {/* 构成明细 */}
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">租金（已交期次）</span>
+                        <span className="text-sm font-medium">{tPaid > 0 ? fmt(tPaid) : '—'}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">已交租金</span>
-                        <b>{tPaid > 0 ? fmt(tPaid) : '—'}</b>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">约定月租</span>
-                        <span>{fmt(h.actual_monthly_rent)}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1 rounded-md bg-muted/60 p-2">
-                      <div className="text-xs font-medium text-muted-foreground">水电燃气</div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">已缴水电燃气</span>
-                        <b>{uPaid > 0 ? fmt(uPaid) : '—'}</b>
+                        <span className="text-xs text-muted-foreground">水电燃气（已缴）</span>
+                        <span className="text-sm font-medium">{uPaid > 0 ? fmt(uPaid) : '—'}</span>
                       </div>
                       {fees > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">杂费</span>
-                          <span>{fmt(fees)}</span>
+                          <span className="text-xs text-muted-foreground">杂费</span>
+                          <span className="text-sm font-medium">{fmt(fees)}</span>
                         </div>
                       )}
-                    </div>
-                    <div className="flex items-center justify-between border-t pt-1.5 font-medium">
-                      <span>已发生成本</span>
-                      <span className="text-amber-600">{fmt(incurred)}</span>
                     </div>
                   </div>
                 )
