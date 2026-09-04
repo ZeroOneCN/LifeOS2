@@ -129,6 +129,7 @@ function HousingTab() {
   const [uGroup, setUGroup] = useState<null | { housing_id?: number; bill_month: string; ids: number[] }>(null)
   const [viewH, setViewH] = useState<null | Housing>(null)
   const [housePage, setHousePage] = useState(1)
+  const [houseTablePage, setHouseTablePage] = useState(1)
   const [utilityPage, setUtilityPage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
   const [channels, setChannels] = useState<RentChannel[]>([])
@@ -301,6 +302,11 @@ function HousingTab() {
   const houseTotalPages = Math.max(1, Math.ceil(sortedHouses.length / HOUSING_PAGE_SIZE))
   const pagedHouses = sortedHouses.slice((housePage - 1) * HOUSING_PAGE_SIZE, housePage * HOUSING_PAGE_SIZE)
 
+  // 住房信息表格前端分页
+  const HOUSE_TABLE_PAGE_SIZE = 8
+  const houseTableTotalPages = Math.max(1, Math.ceil(houses.length / HOUSE_TABLE_PAGE_SIZE))
+  const pagedTableHouses = houses.slice((houseTablePage - 1) * HOUSE_TABLE_PAGE_SIZE, houseTablePage * HOUSE_TABLE_PAGE_SIZE)
+
   useEffect(() => {
     loadHouses().then((list) => { if (list.length) list.forEach((h) => loadTermsForHouse(h.id)) })
     loadStats()
@@ -318,6 +324,12 @@ function HousingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [houseTotalPages])
 
+  useEffect(() => {
+    if (houseTablePage > houseTableTotalPages) setHouseTablePage(houseTableTotalPages)
+    if (houseTablePage < 1) setHouseTablePage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [houseTableTotalPages])
+
   const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
   const houseShort = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
 
@@ -334,11 +346,9 @@ function HousingTab() {
   const houseDays = (h: Housing): number => hDays(h)
   // 服务费已含在付款期次金额里不再计入；中介费为单另费用、保洁/洗衣一并计入成本
   const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
-  const houseIncurred = (h: Housing): number => {
-    const termsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
-    const utilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
-    return termsPaid + utilsPaid + houseFees(h)
-  }
+  const houseTermsPaid = (h: Housing): number => (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+  const houseUtilsPaid = (h: Housing): number => utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
+  const houseIncurred = (h: Housing): number => houseTermsPaid(h) + houseUtilsPaid(h) + houseFees(h)
   const houseDaily = (h: Housing): number => {
     const d = houseDays(h)
     return d ? houseIncurred(h) / d : 0
@@ -485,25 +495,59 @@ function HousingTab() {
                 </div>
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {pagedHouses.map((h) => (
-                  <div key={h.id} className="rounded-lg border p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{h.short_name || h.name}</span>
-                      <Badge variant="outline">{h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'}</Badge>
+                {pagedHouses.map((h) => {
+                const tPaid = houseTermsPaid(h)
+                const uPaid = houseUtilsPaid(h)
+                const fees = houseFees(h)
+                const incurred = houseIncurred(h)
+                const days = houseDays(h)
+                const daily = days ? incurred / days : 0
+                return (
+                  <div key={h.id} className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate font-medium">{h.short_name || h.name}</span>
+                      <Badge variant="outline" className="shrink-0">{h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'}</Badge>
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{h.name}</div>
-                    <div className="mt-1 text-muted-foreground">
+                    <div className="truncate text-xs text-muted-foreground">{h.name}</div>
+                    <div className="text-xs text-muted-foreground">
                       {h.channel ? `${h.channel} · ` : ''}入住 {h.move_in_date}
                       {h.move_out_date ? ` · 退租 ${h.move_out_date}` : ' · 在住'}
                       {h.orientation ? ` · ${h.orientation}` : ''}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                      <span>月租 <b>{fmt(h.actual_monthly_rent)}</b></span>
-                      <span>单日 <b>{houseIncurred(h) > 0 ? fmt(houseDaily(h)) : '—'}</b></span>
-                      <span>月计 <b>{houseIncurred(h) > 0 ? fmt(houseDaily(h) * 30) : '—'}</b></span>
+                    <div className="space-y-1 rounded-md bg-muted/60 p-2">
+                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                        <span>租金 · {days} 天</span>
+                        <span>{daily > 0 ? `单日 ${fmt(daily)}` : ''}{daily > 0 ? ` · 月计 ${fmt(daily * 30)}` : ''}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">已交租金</span>
+                        <b>{tPaid > 0 ? fmt(tPaid) : '—'}</b>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">约定月租</span>
+                        <span>{fmt(h.actual_monthly_rent)}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 rounded-md bg-muted/60 p-2">
+                      <div className="text-xs font-medium text-muted-foreground">水电燃气</div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">已缴水电燃气</span>
+                        <b>{uPaid > 0 ? fmt(uPaid) : '—'}</b>
+                      </div>
+                      {fees > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">杂费</span>
+                          <span>{fmt(fees)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between border-t pt-1.5 font-medium">
+                      <span>已发生成本</span>
+                      <span className="text-amber-600">{fmt(incurred)}</span>
                     </div>
                   </div>
-                ))}
+                )
+              })}
               </CardContent>
             </Card>
           )}
@@ -529,7 +573,7 @@ function HousingTab() {
             <TableBody>
               {houses.length === 0 ? (
                 <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
-              ) : houses.map((h) => {
+              ) : pagedTableHouses.map((h) => {
                 const inD = h.move_in_date ? new Date(h.move_in_date) : null
                 const outD = h.move_out_date ? new Date(h.move_out_date) : (inD ? new Date() : null)
                 const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
@@ -555,6 +599,11 @@ function HousingTab() {
               })}
             </TableBody>
           </Table>
+          {houses.length > HOUSE_TABLE_PAGE_SIZE && (
+            <div className="border-t p-3">
+              <PaginationBar page={houseTablePage} totalPages={houseTableTotalPages} total={houses.length} onPageChange={setHouseTablePage} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
