@@ -249,7 +249,18 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
 // ---------------------------------------------------------------------------
 // 交易日历
 // ---------------------------------------------------------------------------
-type CalendarData = { year: number; month: number; days: { day: number; pnl: number; count: number; win: number; position: boolean }[] }
+type CalendarData = {
+  year: number
+  month: number
+  days: { day: number; pnl: number; count: number; win: number; loss: number; position: boolean }[]
+  summary?: {
+    month_pnl: number
+    trading_days: number
+    win_days: number
+    loss_days: number
+    return_rate: number
+  }
+}
 
 function TradingCalendar() {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
@@ -302,6 +313,26 @@ function TradingCalendar() {
         </Select>
       </CardHeader>
       <CardContent>
+        {data?.summary && (
+          <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg border bg-muted/40 px-2 py-2">
+              <div className="text-[11px] text-muted-foreground">月盈亏</div>
+              <div className={`text-sm font-semibold ${pnlCls(data.summary.month_pnl)}`}>{fmtPnl(data.summary.month_pnl)}</div>
+            </div>
+            <div className="rounded-lg border bg-muted/40 px-2 py-2">
+              <div className="text-[11px] text-muted-foreground">交易日（盈/亏）</div>
+              <div className="text-sm font-semibold">
+                {data.summary.trading_days}日
+                <span className="ml-1 text-emerald-600">+{data.summary.win_days}</span>
+                <span className="text-red-600">-{data.summary.loss_days}</span>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-muted/40 px-2 py-2">
+              <div className="text-[11px] text-muted-foreground">月收益率</div>
+              <div className={`text-sm font-semibold ${pnlCls(data.summary.return_rate)}`}>{data.summary.return_rate}%</div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-7 gap-1 text-center text-xs">
           {['日', '一', '二', '三', '四', '五', '六'].map((w) => (
             <div key={w} className="py-1 font-medium text-muted-foreground">{w}</div>

@@ -432,21 +432,51 @@ def calendar(month: str | None = Query(None), db: Session = Depends(get_db),
         )
     ).all()
     by_day: dict[int, dict] = {
-        d: {"day": d, "pnl": 0.0, "count": 0, "win": 0, "position": False}
+        d: {"day": d, "pnl": 0.0, "count": 0, "win": 0, "loss": 0, "position": False}
         for d in range(1, end.day + 1)
     }
+    month_pnl = 0.0
+    trading_days = 0
     for t in trades:
-        b = by_day.setdefault(t.trade_date.day, {"day": t.trade_date.day, "pnl": 0.0, "count": 0, "win": 0, "position": False})
+        b = by_day.setdefault(t.trade_date.day, {"day": t.trade_date.day, "pnl": 0.0, "count": 0, "win": 0, "loss": 0, "position": False, })
         b["count"] += 1
-        b["pnl"] = round(b["pnl"] + _trade_net(t), 2)
-        if _trade_net(t) > 0:
+        net = _trade_net(t)
+        b["pnl"] = round(b["pnl"] + net, 2)
+        month_pnl += net
+        if net > 0:
             b["win"] += 1
+        elif net < 0:
+            b["loss"] += 1
         if t.status == "open":
             b["position"] = True
+
+    # 月汇总：月盈亏、交易日数、盈利/亏损天数、月收益率
+    month_pnl = round(month_pnl, 2)
+    trading_days = sum(1 for d in by_day.values() if d["count"] > 0)
+    win_days = sum(1 for d in by_day.values() if d["pnl"] > 0)
+    loss_days = sum(1 for d in by_day.values() if d["pnl"] < 0)
+    # 月收益率 = 本月净盈亏 / 累计净投入本金（入金+赠金-亏损-出金），该值也可由其余明细调整
+    fund_rows = db.scalars(
+        select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
+    ).all()
+    net_capital = sum(f.amount for f in fund_rows if f.record_type == "deposit")
+    net_capital += sum(max(0, f.amount) for f in fund_rows if f.record_type == "experience")
+    net_capital -= sum(f.amount for f in fund_rows if f.record_type == "withdraw")
+    net_capital -= sum(-f.amount for f in fund_rows if f.record_type == "experience" and f.amount < 0 and not (f.note and "bns807" in f.note))
+    base = net_capital if net_capital and net_capital != 0 else 1.0
+    return_rate = round(month_pnl / base * 100, 2) if base else 0.0
+
     return {
         "year": y,
         "month": m,
         "days": sorted(by_day.values(), key=lambda x: x["day"]),
+        "summary": {
+            "month_pnl": month_pnl,
+            "trading_days": trading_days,
+            "win_days": win_days,
+            "loss_days": loss_days,
+            "return_rate": return_rate,
+        },
     }
 
 
@@ -477,11 +507,38 @@ _HEADER_MAP = {
 }
 
 
-def parse_trade_rows(rows) -> tuple[list[InvestmentForex], int]:
+def _trade_unique_key(rec: InvestmentForex):
+    """交易唯一键：优先按 MT5 订单号（备注中的 ID:xxx）判定，其次回退到业务字段。"""
+    if rec.note:
+        # 提取备注中的 ID:数字 —— 订单号是去重依据（不同订单可能业务字段相同）
+        import re as _re
+        m = _re.search(r"ID[:：]\s*([0-9]+)", rec.note)
+        if m:
+            return ("id", m.group(1))
+    close_price = rec.close_price if rec.close_price is not None else ""
+    pnl = rec.pnl if rec.pnl is not None else ""
+    return (
+        "biz",
+        rec.trade_date,
+        rec.symbol,
+        rec.order_type,
+        rec.open_price,
+        rec.lot_size,
+        close_price,
+        pnl,
+        rec.commission,
+        rec.overnight_fee,
+    )
+
+
+def parse_trade_rows(rows, seen_keys: set | None = None) -> tuple[list[InvestmentForex], int]:
     """把 MT5 清洗后的原始行解析为交易记录列表。返回 (records, skipped)。
 
     表头：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注
     （可含 ID 首列，自动忽略）
+
+    支持去重：传入 seen_keys (set of unique keys) 时会跳过其中已存在的记录并计入 skipped；
+    若不传，则只做文件内去重（同一文件内重复行）。
     """
     if not rows:
         return [], 0
@@ -497,6 +554,7 @@ def parse_trade_rows(rows) -> tuple[list[InvestmentForex], int]:
             return None
         return raw[i]
 
+    seen = set() if seen_keys is None else set(seen_keys)
     records, skipped = [], 0
     for raw in rows[1:]:
         if raw is None or all(c is None or str(c).strip() == "" for c in raw):
@@ -517,24 +575,28 @@ def parse_trade_rows(rows) -> tuple[list[InvestmentForex], int]:
         status = "closed"
 
         holding = _holding_minutes(open_dt, close_dt) or _parse_duration_minutes(get(raw, "holding"))
-        records.append(
-            InvestmentForex(
-                trade_date=day or (open_dt.date() if open_dt else date.today()),
-                symbol=str(symbol).strip(),
-                order_type=order_type,
-                open_price=_num(get(raw, "open_price"), 0) or 0,
-                lot_size=_num(get(raw, "lot_size"), 0) or 0,
-                commission=_num(get(raw, "commission"), 0) or 0,
-                close_price=close_price,
-                pnl=pnl,
-                overnight_fee=_num(get(raw, "overnight_fee"), 0) or 0,
-                open_time=open_dt,
-                close_time=close_dt,
-                holding=holding,
-                status=status,
-                note=str(get(raw, "note")).strip() if get(raw, "note") else None,
-            )
+        rec = InvestmentForex(
+            trade_date=day or (open_dt.date() if open_dt else date.today()),
+            symbol=str(symbol).strip(),
+            order_type=order_type,
+            open_price=_num(get(raw, "open_price"), 0) or 0,
+            lot_size=_num(get(raw, "lot_size"), 0) or 0,
+            commission=_num(get(raw, "commission"), 0) or 0,
+            close_price=close_price,
+            pnl=pnl,
+            overnight_fee=_num(get(raw, "overnight_fee"), 0) or 0,
+            open_time=open_dt,
+            close_time=close_dt,
+            holding=holding,
+            status=status,
+            note=str(get(raw, "note")).strip() if get(raw, "note") else None,
         )
+        key = _trade_unique_key(rec)
+        if key in seen:
+            skipped += 1
+            continue
+        seen.add(key)
+        records.append(rec)
     return records, skipped
 
 
@@ -562,7 +624,12 @@ async def import_xlsx(
         raise HTTPException(status_code=400, detail=f"无法解析 Excel 文件：{exc}")
 
     rows = list(ws.iter_rows(values_only=True))
-    records, skipped = parse_trade_rows(rows)
+    # 已入库记录的唯一键集合：用于跨文件去重（防止重复导入）
+    existing_recs = db.scalars(
+        select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
+    ).all()
+    existing_keys = {_trade_unique_key(r) for r in existing_recs}
+    records, skipped = parse_trade_rows(rows, seen_keys=existing_keys)
     for rec in records:
         rec.user_id = current_user.id
 
