@@ -21,6 +21,7 @@ from app.models import (
     FinanceUtility,
     UserProfile,
 )
+from app.models.notification_center import FeatureReminderSetting
 
 router = APIRouter(prefix="/finance/overview", tags=["finance-overview"])
 
@@ -150,11 +151,19 @@ def overview(
         .order_by(FinanceUtility.due_date)
         .limit(5)
     ).all()
-    # 临近到期的有效订阅
+    # 临近到期的有效订阅（窗口与通知中心"订阅续费提醒"开关一致）
+    advance = db.scalar(
+        select(FeatureReminderSetting.advance_days).where(
+            FeatureReminderSetting.user_id == user.id,
+            FeatureReminderSetting.feature_key == "finance_subscription_due",
+        )
+    )
+    if advance is None:
+        advance = 30
     upcoming_subs = [
         s
         for s in active_subs
-        if s.remind_days and 0 <= (expiry_of(s) - today).days <= s.remind_days
+        if 0 <= (expiry_of(s) - today).days <= advance
     ][:5]
     active_plans = db.scalars(
         select(FinancePlan)

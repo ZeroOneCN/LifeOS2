@@ -15,6 +15,7 @@ from app.models import (
     FinanceUtility,
     UserProfile,
 )
+from app.models.notification_center import FeatureReminderSetting
 from app.schemas.finance import ReminderCreate, ReminderRead
 
 router = APIRouter()
@@ -36,9 +37,17 @@ def aggregate_reminders(
             FinanceSubscription.status == "active",
         )
     ).all()
+    advance = db.scalar(
+        select(FeatureReminderSetting.advance_days).where(
+            FeatureReminderSetting.user_id == user.id,
+            FeatureReminderSetting.feature_key == "finance_subscription_due",
+        )
+    )
+    if advance is None:
+        advance = 30
     for s in subs:
         next_renewal = _next_renewal(s.start_date, s.billing_cycle, today)
-        if (next_renewal - today).days <= s.remind_days:
+        if (next_renewal - today).days <= advance:
             items.append(
                 {
                     "source": "订阅",
