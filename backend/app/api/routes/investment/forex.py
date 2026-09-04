@@ -248,14 +248,32 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     funds = db.scalars(stat_funds).all()
     deposits = sum(f.amount for f in funds if f.record_type == "deposit")
     withdrawals = sum(f.amount for f in funds if f.record_type == "withdraw")
-    experience = sum(f.amount for f in funds if f.record_type == "experience")
+
+    # 体验金拆三类（遵循 bonus 语义）：
+    #   赠金发放 = experience 正数；bonus_loss / bonus_expired = experience 负数（按 remark 前缀区分）
+    #   net_capital = deposit + bonus - bonus_loss - withdrawal（bonus_expired 不进净值）
+    #   remaining_bonus = max(0, bonus - bonus_loss - bonus_expired)  仅做体验金余额截断
+    bonus_credit = 0.0
+    bonus_loss = 0.0
+    bonus_expired = 0.0
+    for f in funds:
+        if f.record_type != "experience":
+            continue
+        if f.amount >= 0:
+            bonus_credit += f.amount
+        elif f.note and "bns807" in f.note:  # 体验金失效
+            bonus_expired += -f.amount
+        else:  # 体验金亏损
+            bonus_loss += -f.amount
+    net_capital = deposits - withdrawals + bonus_credit - bonus_loss
+    remaining_bonus = max(0.0, bonus_credit - bonus_loss - bonus_expired)
 
     nets = {t.id: _trade_net(t) for t in closed}
     gross_pnl = sum(t.pnl or 0 for t in closed)
     total_commission = round(sum(t.commission or 0 for t in closed), 2)
     total_overnight = round(sum(t.overnight_fee or 0 for t in closed), 2)
     net_profit = round(sum(nets.values()), 2)
-    account_value = round(deposits - withdrawals + experience + net_profit, 2)
+    account_value = round(net_capital + remaining_bonus + net_profit, 2)
 
     wins = [n for n in nets.values() if n > 0]
     losses = [n for n in nets.values() if n < 0]
@@ -358,7 +376,7 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
             "profit_factor": profit_factor,
             "total_deposit": round(deposits, 2),
             "total_withdraw": round(withdrawals, 2),
-            "total_experience": round(experience, 2),
+            "total_experience": round(remaining_bonus, 2),
             "symbol_count": len(active_symbols),
         },
         "equity_trend": curve,
