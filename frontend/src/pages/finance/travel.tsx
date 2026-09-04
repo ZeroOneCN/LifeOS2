@@ -230,6 +230,28 @@ export function TravelPage() {
   const [payChannels, setPayChannels] = useState<PayChannel[]>([])
   const [payDialog, setPayDialog] = useState(false)
   const [newPay, setNewPay] = useState('')
+  const [paySaving, setPaySaving] = useState(false)
+
+  // 行程总结编辑
+  const [summaryEdit, setSummaryEdit] = useState<Ledger | null>(null)
+  const [summaryText, setSummaryText] = useState('')
+
+  const saveSummary = async () => {
+    if (!summaryEdit) return
+    try {
+      await api.update('/finance/travel/ledgers', summaryEdit.id, {
+        name: summaryEdit.name,
+        start_date: summaryEdit.start_date ?? null,
+        end_date: summaryEdit.end_date ?? null,
+        note: summaryText.trim() || null,
+      })
+      await loadLedgers()
+      setSummaryEdit(null)
+      toast.success('行程总结已保存')
+    } catch (e) {
+      toast.error('保存失败', { description: (e as Error).message })
+    }
+  }
 
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -245,14 +267,27 @@ export function TravelPage() {
   const addPayChannel = async () => {
     const name = newPay.trim()
     if (!name) return
-    const item = await api.create<PayChannel>('/finance/travel/payment-channels', { name })
-    setPayChannels((p) => [...p, item])
-    setNewPay('')
+    setPaySaving(true)
+    try {
+      const item = await api.create<PayChannel>('/finance/travel/payment-channels', { name })
+      setPayChannels((p) => [...p, item])
+      setNewPay('')
+      toast.success('支付方式已添加')
+    } catch (e) {
+      toast.error('添加失败', { description: (e as Error).message })
+    } finally {
+      setPaySaving(false)
+    }
   }
   const removePayChannel = async (id: number) => {
     if (!(await confirm())) return
-    await api.remove('/finance/travel/payment-channels', id)
-    await loadPayChannels()
+    try {
+      await api.remove('/finance/travel/payment-channels', id)
+      await loadPayChannels()
+      toast.success('支付方式已删除')
+    } catch (e) {
+      toast.error('删除失败', { description: (e as Error).message })
+    }
   }
 
   useEffect(() => {
@@ -476,16 +511,23 @@ export function TravelPage() {
 
       {(() => {
         const cur = ledgers.find((l) => l.id === Number(currentLedger))
-        if (!cur?.note) return null
+        if (!cur) return null
         return (
           <Card className="border-indigo-200 bg-indigo-50/50">
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700">
                 <TrendingUp className="size-4" /> 行程总结 · {cur.name}
               </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => { setSummaryText(cur.note ?? ''); setSummaryEdit(cur) }}>
+                <Pencil /> {cur.note ? '编辑' : '添加'}
+              </Button>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cur.note}</p>
+              {cur.note ? (
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cur.note}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">暂无总结，点击「添加」填写本次行程的回顾与花销复盘。</p>
+              )}
             </CardContent>
           </Card>
         )
@@ -557,7 +599,7 @@ export function TravelPage() {
           <div className="space-y-3">
             <div className="flex gap-2">
               <Input value={newPay} onChange={(e) => setNewPay(e.target.value)} placeholder="输入支付方式" onKeyDown={(e) => e.key === 'Enter' && addPayChannel()} />
-              <Button onClick={addPayChannel}><Plus /> 添加</Button>
+              <Button onClick={addPayChannel} disabled={paySaving}>{paySaving && <Loader2 className="size-4 animate-spin" />}添加</Button>
             </div>
             <div className="space-y-1.5">
               {payChannels.map((p) => (
@@ -570,6 +612,21 @@ export function TravelPage() {
             </div>
           </div>
           <DialogFooter><Button onClick={() => setPayDialog(false)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 行程总结编辑弹窗 */}
+      <Dialog open={summaryEdit !== null} onOpenChange={(o) => !o && setSummaryEdit(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{summaryEdit ? `行程总结 · ${summaryEdit.name}` : '行程总结'}</DialogTitle>
+            <DialogDescription>填写本次行程的回顾与花销复盘，会展示在行程页顶部。</DialogDescription>
+          </DialogHeader>
+          <Textarea className="min-h-[220px]" value={summaryText} onChange={(e) => setSummaryText(e.target.value)} placeholder="行程体会 / 花销复盘 / 经验教训…" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSummaryEdit(null)}>取消</Button>
+            <Button onClick={saveSummary}>保存</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -662,6 +719,33 @@ export function TravelPage() {
             <div className="space-y-1">
               <Label>&nbsp;</Label>
               <Button onClick={generateReport} disabled={reportLoading}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-medium">当前数据概览</span>
+              <span className="text-xs text-muted-foreground">
+                {currentLedger ? (ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '该行程') : '全部行程'} · 实时统计
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="text-xs text-muted-foreground">实付合计</div>
+                <div className="text-lg font-semibold">{stats ? fmt(stats.total_actual) : '…'}</div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="text-xs text-muted-foreground">原价合计</div>
+                <div className="text-lg font-semibold">{stats ? fmt(stats.total_original) : '…'}</div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="text-xs text-muted-foreground">优惠</div>
+                <div className="text-lg font-semibold text-green-600">{stats ? fmt(stats.total_discount) : '…'}</div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <div className="text-xs text-muted-foreground">笔数</div>
+                <div className="text-lg font-semibold">{stats ? `${stats.count} 笔` : '…'}</div>
+              </div>
             </div>
           </div>
 
