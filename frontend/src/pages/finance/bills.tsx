@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote,
   Building,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
   Home,
   Layers,
   Loader2,
@@ -45,8 +48,9 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { api } from '@/lib/api'
+import { toast } from 'sonner'
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const PAGE_SIZE = 10
 
 type TabKey = 'housing' | 'subscription' | 'loan'
@@ -115,6 +119,8 @@ function HousingTab() {
   const [utilities, setUtilities] = useState<Utility[]>([])
   const [dialog, setDialog] = useState<null | { editing?: Housing }>(null)
   const [uDialog, setUDialog] = useState<null | { editing?: Utility }>(null)
+  const [viewH, setViewH] = useState<null | Housing>(null)
+  const [housePage, setHousePage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
@@ -148,6 +154,16 @@ function HousingTab() {
     return Object.values(map).sort((a, b) => a.bill_month.localeCompare(b.bill_month))
   }, [utilities])
 
+  // 住房清单卡片：按入住时间（最新在前）排序 + 每页 6 条分页
+  const HOUSING_PAGE_SIZE = 6
+  const sortedHouses = useMemo(() => {
+    const list = [...(stats?.houses ?? [])]
+    list.sort((a, b) => (b.move_in_date || '').localeCompare(a.move_in_date || ''))
+    return list
+  }, [stats])
+  const houseTotalPages = Math.max(1, Math.ceil(sortedHouses.length / HOUSING_PAGE_SIZE))
+  const pagedHouses = sortedHouses.slice((housePage - 1) * HOUSING_PAGE_SIZE, housePage * HOUSING_PAGE_SIZE)
+
   useEffect(() => {
     loadHouses()
     loadStats()
@@ -158,7 +174,13 @@ function HousingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
+  useEffect(() => {
+    if (housePage > houseTotalPages) setHousePage(houseTotalPages)
+    if (housePage < 1) setHousePage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [houseTotalPages])
+
+  const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
 
   const openCreate = () => {
     setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
@@ -223,11 +245,6 @@ function HousingTab() {
       setSaving(false)
     }
   }
-  const removeUtility = async (u: Utility) => {
-    if (!(await confirm())) return
-    await api.remove('/finance/utilities', u.id)
-    await loadUtilities()
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -239,11 +256,18 @@ function HousingTab() {
             <StatCard icon={Wallet} label="杂费合计" value={fmt(stats.total_fees)} hint="中介/保洁/服务/洗衣" className="text-amber-500" />
             <StatCard icon={Wallet} label="全部月租之和" value={fmt(stats.houses.reduce((s, h) => s + h.actual_monthly_rent, 0))} hint={`${stats.houses.length} 套在租`} className="text-emerald-500" />
           </section>
-          {stats.houses.length > 0 && (
+          {sortedHouses.length > 0 && (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">住房清单 · 折算单日成本</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">住房清单 · 折算单日成本</CardTitle>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button>
+                </div>
+              </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {stats.houses.map((h) => (
+                {pagedHouses.map((h) => (
                   <div key={h.id} className="rounded-lg border p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{h.short_name || h.name}</span>
@@ -302,6 +326,7 @@ function HousingTab() {
                   <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" title="查看详情" onClick={() => setViewH(h)}><Eye /></Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeHousing(h)}><Trash2 /></Button>
                     </div>
@@ -332,7 +357,7 @@ function HousingTab() {
               ) : utilityGroups.map((g) => (
                 <TableRow key={g.key}>
                   <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
-                  <TableCell>{houseName(g.housing_id)}</TableCell>
+                  <TableCell className="max-w-[180px] truncate text-muted-foreground" title={houseName(g.housing_id)}>{houseName(g.housing_id)}</TableCell>
                   <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
@@ -385,6 +410,54 @@ function HousingTab() {
         </DialogContent>
       </Dialog>
 
+      {/* 住房查看弹窗 */}
+      <Dialog open={viewH !== null} onOpenChange={(o) => !o && setViewH(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{viewH?.name}</DialogTitle>
+            <DialogDescription>住房详细信息（只读）。</DialogDescription>
+          </DialogHeader>
+          {viewH && (() => {
+            const inD = viewH.move_in_date ? new Date(viewH.move_in_date) : null
+            const outD = viewH.move_out_date ? new Date(viewH.move_out_date) : (inD ? new Date() : null)
+            const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
+            const rent = viewH.actual_monthly_rent || 0
+            const fees = (viewH.agent_fee || 0) + (viewH.clean_fee || 0) + (viewH.service_fee || 0) + (viewH.laundry_fee || 0)
+            const total = days > 0 ? (rent / 30) * days + fees : rent || 0
+            const rows: [string, string][] = [
+              ['小区名', viewH.short_name || '—'],
+              ['租房渠道', viewH.channel || '—'],
+              ['房屋朝向', viewH.orientation || '—'],
+              ['入住时间', viewH.move_in_date],
+              ['退租时间', viewH.move_out_date || '—'],
+              ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : '按月付'],
+              ['实际月租', fmt(rent)],
+              ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
+              ['中介费', viewH.agent_fee ? fmt(viewH.agent_fee) : '—'],
+              ['保洁费', viewH.clean_fee ? fmt(viewH.clean_fee) : '—'],
+              ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
+              ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
+              ['居住天数', days > 0 ? `${days} 天` : '—'],
+              ['居住总成本', fmt(total)],
+            ]
+            return (
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                {rows.map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2 border-b py-1">
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            )
+          })()}
+          <DialogFooter>
+            {viewH && <Button variant="outline" onClick={() => { openEdit(viewH); setViewH(null) }}>编辑</Button>}
+            <Button onClick={() => setViewH(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 账单弹窗 */}
       <Dialog open={uDialog !== null} onOpenChange={(o) => !o && setUDialog(null)}>
         <DialogContent className="sm:max-w-md">
@@ -398,9 +471,9 @@ function HousingTab() {
               <Select value={form.housing_id} onValueChange={(v) => setForm({ ...form, housing_id: v })}>
                 <SelectTrigger className="max-w-full truncate"><SelectValue placeholder="选择住房" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">不关联</SelectItem>
-                  {houses.map((h) => <SelectItem key={h.id} value={String(h.id)} className="text-xs">{h.short_name || h.name}</SelectItem>)}
-                </SelectContent>
+                    <SelectItem value="">不关联</SelectItem>
+                    {houses.map((h) => <SelectItem key={h.id} value={String(h.id)} className="text-xs truncate">{h.name}</SelectItem>)}
+                  </SelectContent>
               </Select>
             </div>
             <div className="space-y-2"><Label>类型 <span className="text-destructive">*</span></Label>
@@ -747,6 +820,9 @@ function LoanTab() {
 
   const [pfDialog, setPfDialog] = useState(false)
   const [newPf, setNewPf] = useState<Record<string, string>>({})
+  const [pfEdit, setPfEdit] = useState<null | LoanPlatform>(null)
+  const [pfEditForm, setPfEditForm] = useState<Record<string, string>>({})
+  const [repStats, setRepStats] = useState<{ total_paid: number; total_discount: number; count: number; by_month: { month: string; amount: number }[] } | null>(null)
   const [billDialog, setBillDialog] = useState<null | { editing?: LoanBill }>(null)
   const [billForm, setBillForm] = useState<Record<string, string>>({})
   const [repayDialog, setRepayDialog] = useState<null | LoanBill>(null)
@@ -768,10 +844,14 @@ function LoanTab() {
     if (!billId) { setRepayments([]); return }
     api.query<Repayment[]>(`/finance/repayments?bill_id=${billId}`).then(setRepayments).catch(() => setRepayments([]))
   }
+  const loadRepStats = () => {
+    api.query<{ total_paid: number; total_discount: number; count: number; by_month: { month: string; amount: number }[] }>('/finance/repayments/stats?days=3650').then(setRepStats).catch(() => setRepStats(null))
+  }
 
   useEffect(() => {
     loadPlatforms()
     loadBills()
+    loadRepStats()
   }, [])
   useEffect(() => {
     loadRepayments(selectedBill)
@@ -781,6 +861,7 @@ function LoanTab() {
   const refresh = async () => {
     await loadBills()
     await loadPlatforms()
+    loadRepStats()
     if (selectedBill) await loadRepayments(selectedBill)
   }
 
@@ -788,13 +869,37 @@ function LoanTab() {
   const addPlatform = async () => {
     const name = newPf.name?.trim()
     if (!name) return
-    await api.create('/finance/loan-platforms', {
-      name, bill_day: newPf.bill_day ? Number(newPf.bill_day) : null,
-      due_day: newPf.due_day ? Number(newPf.due_day) : null,
-      credit_limit: newPf.credit_limit ? Number(newPf.credit_limit) : null,
-      note: newPf.note || null,
-    })
+    try {
+      await api.create('/finance/loan-platforms', {
+        name, bill_day: newPf.bill_day ? Number(newPf.bill_day) : null,
+        due_day: newPf.due_day ? Number(newPf.due_day) : null,
+        credit_limit: newPf.credit_limit ? Number(newPf.credit_limit) : null,
+        note: newPf.note || null,
+      })
+      toast.success('平台已添加')
+    } catch (e) {
+      toast.error('添加失败', { description: (e as Error).message })
+    }
     setNewPf({})
+    await loadPlatforms()
+  }
+  const openPfEdit = (p: LoanPlatform) => {
+    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '' })
+    setPfEdit(p)
+  }
+  const savePfEdit = async () => {
+    if (!pfEdit) return
+    try {
+      await api.update('/finance/loan-platforms', pfEdit.id, {
+        name: pfEditForm.name, bill_day: pfEditForm.bill_day ? Number(pfEditForm.bill_day) : null,
+        due_day: pfEditForm.due_day ? Number(pfEditForm.due_day) : null,
+        credit_limit: pfEditForm.credit_limit ? Number(pfEditForm.credit_limit) : null,
+      })
+      toast.success('平台已更新')
+      setPfEdit(null)
+    } catch (e) {
+      toast.error('更新失败', { description: (e as Error).message })
+    }
     await loadPlatforms()
   }
   const removePlatform = async (id: number) => {
@@ -803,8 +908,20 @@ function LoanTab() {
     await loadPlatforms()
   }
 
+  const dueFor = (platformId: string, billMonth: string) => {
+    const pf = platforms.find((p) => p.id === Number(platformId))
+    const day = pf?.due_day
+    if (!day || !billMonth) return ''
+    const [y, m] = billMonth.split('-').map(Number)
+    if (!y || !m) return ''
+    const last = new Date(y, m, 0).getDate()
+    const dd = Math.min(day, last)
+    return `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+  }
   const openBillCreate = () => {
-    setBillForm({ platform_id: platforms[0] ? String(platforms[0].id) : '', bill_month: new Date().toISOString().slice(0, 10), due_date: '', amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
+    const pfId = platforms[0] ? String(platforms[0].id) : ''
+    const month = new Date().toISOString().slice(0, 10)
+    setBillForm({ platform_id: pfId, bill_month: month, due_date: dueFor(pfId, month), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
     setBillDialog({})
   }
   const saveBill = async () => {
@@ -817,10 +934,12 @@ function LoanTab() {
     }
     setSaving(true)
     try {
-      if (billDialog?.editing) await api.update('/finance/loan-bills', billDialog.editing.id, payload)
-      else await api.create('/finance/loan-bills', payload)
+      if (billDialog?.editing) { await api.update('/finance/loan-bills', billDialog.editing.id, payload); toast.success('账单已更新') }
+      else { await api.create('/finance/loan-bills', payload); toast.success('账单已新增') }
       setBillDialog(null)
       await refresh()
+    } catch (e) {
+      toast.error('保存失败', { description: (e as Error).message })
     } finally {
       setSaving(false)
     }
@@ -864,10 +983,12 @@ function LoanTab() {
   return (
     <div className="flex flex-col gap-4">
       {platformStats && (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
-          <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} />
+          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600" />
+          <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
+          <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
           <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
         </section>
       )}
@@ -878,12 +999,15 @@ function LoanTab() {
           <CardTitle className="text-lg font-medium">借款平台</CardTitle>
           <Button size="sm" variant="outline" onClick={() => setPfDialog(true)}><Plus /> 管理平台</Button>
         </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {platformStats?.platforms.map((p) => (
             <div key={p.id} className="rounded-lg border p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{p.name}</span>
-                <Badge variant="outline">额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant="outline">额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</Badge>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" title="编辑平台" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button>
+                </div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 账单日 {p.bill_day ?? '—'} · 还款日 {p.due_day ?? '—'} · {p.bill_count} 笔账单
@@ -1036,13 +1160,13 @@ function LoanTab() {
           <DialogHeader><DialogTitle>{billDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle><DialogDescription>填写应交欠款总额，若有差异可单列利息用于展示。</DialogDescription></DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>平台 <span className="text-destructive">*</span></Label>
-              <Select value={billForm.platform_id} onValueChange={(v) => setBillForm({ ...billForm, platform_id: v })}>
+              <Select value={billForm.platform_id} onValueChange={(v) => setBillForm({ ...billForm, platform_id: v, due_date: dueFor(v, billForm.bill_month) })}>
                 <SelectTrigger><SelectValue placeholder="选择平台" /></SelectTrigger>
                 <SelectContent>{platforms.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v })} /></div>
-            <div className="space-y-2"><Label>到期日</Label><DatePicker value={billForm.due_date} onChange={(v) => setBillForm({ ...billForm, due_date: v })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v, due_date: dueFor(billForm.platform_id, v) })} /></div>
+            <div className="space-y-2"><Label>到期日 <span className="text-muted-foreground">(按平台还款日自动算)</span></Label><DatePicker value={billForm.due_date} onChange={(v) => setBillForm({ ...billForm, due_date: v })} /></div>
             <div className="space-y-2"><Label>应付欠款(含利息) <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>其中利息</Label><Input type="number" min={0} step="0.01" value={billForm.interest} onChange={(e) => setBillForm({ ...billForm, interest: e.target.value })} placeholder="无则为 0" /></div>
             <div className="space-y-2"><Label>状态</Label>
@@ -1088,6 +1212,23 @@ function LoanTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRepayDialog(null)}>取消</Button>
             <Button onClick={submitRepay} disabled={saving}>{saving && <Loader2 className="animate-spin" />}确认还款</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 平台编辑弹窗 */}
+      <Dialog open={pfEdit !== null} onOpenChange={(o) => !o && setPfEdit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>编辑借款平台</DialogTitle><DialogDescription>修改平台名称、账单日与还款日。</DialogDescription></DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-2"><Label>平台名称</Label><Input value={pfEditForm.name} onChange={(e) => setPfEditForm({ ...pfEditForm, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>账单日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.bill_day} onChange={(e) => setPfEditForm({ ...pfEditForm, bill_day: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.due_day} onChange={(e) => setPfEditForm({ ...pfEditForm, due_day: e.target.value })} /></div>
+            <div className="col-span-2 space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={pfEditForm.credit_limit} onChange={(e) => setPfEditForm({ ...pfEditForm, credit_limit: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
+            <Button onClick={savePfEdit} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

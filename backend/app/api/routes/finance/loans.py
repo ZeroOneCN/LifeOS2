@@ -216,9 +216,14 @@ def repayment_stats(
     for r in rows:
         key = r.repay_date.isoformat()[:7]
         by_month[key] = by_month.get(key, 0.0) + r.amount
+    # 还款总额（实付，不含优惠）+ 优惠合计，用于分析
+    total_paid = sum(r.amount or 0 for r in rows)
+    total_discount = sum(r.discount or 0 for r in rows)
     return {
         "days": days,
-        "total_repaid": round(sum(by_month.values()), 2),
+        "total_repaid": round(total_paid, 2),
+        "total_paid": round(total_paid, 2),
+        "total_discount": round(total_discount, 2),
         "count": len(rows),
         "by_month": [
             {"month": m, "amount": round(a, 2)}
