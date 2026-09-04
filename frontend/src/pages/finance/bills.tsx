@@ -641,7 +641,8 @@ function HousingTab() {
             const utilPaid = myUtils.filter((u) => u.paid).reduce((s, u) => s + u.amount, 0)
             const avgUtil = months > 0 ? utilTotal / months : 0
             const rentDaysCost = days > 0 ? (monthlyRent / 30) * days : (monthlyRent * months)
-            const total = rentDaysCost + fees + utilTotal // 居住总成本（含水电）
+            const total = rentDaysCost + fees + utilTotal // 居住总成本（含水电、杂费）
+            const avgFees = months > 0 ? fees / months : 0 // 月均杂费
             const rows: [string, string][] = [
               ['小区名', viewH.short_name || '—'],
               ['租房渠道', viewH.channel || '—'],
@@ -662,8 +663,10 @@ function HousingTab() {
               ['居住月数', `${months} 个月（${days} 天）`],
               ['水电合计', fmt(utilTotal)],
               ['月均水电', fmt(avgUtil)],
-              ['综合月成本(含水电)', fmt(monthlyRent + avgUtil)],
-              ['居住总成本(含水电)', fmt(total)],
+              ['杂费合计', fmt(fees)],
+              ['月均杂费', fmt(avgFees)],
+              ['综合月成本(含水电+杂费)', fmt(monthlyRent + avgUtil + avgFees)],
+              ['居住总成本(含水电+杂费)', fmt(total)],
             ]
             return (
               <>
