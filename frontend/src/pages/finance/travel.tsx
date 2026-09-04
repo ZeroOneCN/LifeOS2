@@ -464,9 +464,14 @@ export function TravelPage() {
       toast.error('删除失败', { description: (e as Error).message })
     }
   }
-  const viewReport = (r: TravelReport) => {
-    setReport(r)
-    setReportCollapsed(false)
+  const viewReport = async (r: TravelReport) => {
+    try {
+      const full = await api.get<TravelReport>('/finance/travel/report', r.id)
+      setReport(full)
+      setReportCollapsed(false)
+    } catch (e) {
+      toast.error('加载报告失败', { description: (e as Error).message })
+    }
   }
 
   return (
