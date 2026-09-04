@@ -8,9 +8,22 @@ import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
 function Dialog({
+  open,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  // 受控弹窗打开时锁定页面滚动（背景不动），关闭恢复
+  React.useEffect(() => {
+    if (!open) return
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
+    }
+  }, [open])
+  return <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />
 }
 
 function DialogTrigger({
