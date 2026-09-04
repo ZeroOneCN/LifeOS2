@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote,
   Building,
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { DatePicker } from '@/components/ui/date-picker'
+import { MonthPicker } from '@/components/ui/month-picker'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -130,6 +131,22 @@ function HousingTab() {
     const res = await api.list<Utility>('/finance/utilities', { page_size: PAGE_SIZE })
     setUtilities(res.items)
   }
+
+  // 水电气账单按「住房 + 账单月」聚合成一行（电/水/气/合计）
+  const utilityGroups = useMemo(() => {
+    const map: Record<string, { key: string; housing_id?: number; bill_month: string; byType: Record<string, number>; due_date?: string; paid: boolean; ids: number[]; total: number }> = {}
+    for (const u of utilities) {
+      const k = `${u.housing_id ?? '-'}|${u.bill_month}`
+      if (!map[k]) map[k] = { key: k, housing_id: u.housing_id, bill_month: u.bill_month, byType: {}, ids: [], total: 0, due_date: u.due_date, paid: u.paid }
+      const g = map[k]
+      g.byType[u.fee_type] = (g.byType[u.fee_type] || 0) + u.amount
+      g.total += u.amount
+      g.ids.push(u.id)
+      if (u.due_date) g.due_date = u.due_date
+      if (u.paid) g.paid = true
+    }
+    return Object.values(map).sort((a, b) => a.bill_month.localeCompare(b.bill_month))
+  }, [utilities])
 
   useEffect(() => {
     loadHouses()
@@ -260,21 +277,29 @@ function HousingTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
-                <TableHead>月租</TableHead><TableHead>押金</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>朝向</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
+                <TableHead className="text-right">总成本</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {houses.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
-              ) : houses.map((h) => (
+                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
+              ) : houses.map((h) => {
+                const inD = h.move_in_date ? new Date(h.move_in_date) : null
+                const outD = h.move_out_date ? new Date(h.move_out_date) : (inD ? new Date() : null)
+                const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
+                const rent = h.actual_monthly_rent || 0
+                const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
+                const total = days > 0 ? (rent / 30) * days + fees : rent || 0
+                return (
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{h.name}</TableCell>
                   <TableCell className="text-muted-foreground">{h.short_name ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{h.orientation ?? '—'}</TableCell>
                   <TableCell>{h.channel ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : ''}</TableCell>
-                  <TableCell>{fmt(h.actual_monthly_rent)}</TableCell>
-                  <TableCell>{h.deposit ? fmt(h.deposit) : '—'}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(total)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil /></Button>
@@ -282,7 +307,8 @@ function HousingTab() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -297,27 +323,26 @@ function HousingTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>月份</TableHead><TableHead>住房</TableHead><TableHead>类型</TableHead>
-                <TableHead className="text-right">金额</TableHead><TableHead>到期日</TableHead><TableHead>状态</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead>其他</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {utilities.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
-              ) : utilities.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>{u.bill_month}</TableCell>
-                  <TableCell>{houseName(u.housing_id)}</TableCell>
-                  <TableCell>{u.fee_type}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt(u.amount)}</TableCell>
-                  <TableCell className="text-muted-foreground">{u.due_date ?? '—'}</TableCell>
-                  <TableCell>{u.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ housing_id: u.housing_id ? String(u.housing_id) : '', bill_month: u.bill_month, fee_type: u.fee_type, amount: String(u.amount), due_date: u.due_date ?? '', paid: u.paid ? 'true' : 'false', note: u.note ?? '' }); setUDialog({ editing: u }) }}><Pencil /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeUtility(u)}><Trash2 /></Button>
-                    </div>
+              {utilityGroups.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
+              ) : utilityGroups.map((g) => (
+                <TableRow key={g.key}>
+                  <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
+                  <TableCell>{houseName(g.housing_id)}</TableCell>
+                  <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
+                  <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
+                  <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {Object.entries(g.byType)
+                      .filter(([f]) => !['电费','水费','燃气费'].includes(f))
+                      .map(([f, v]) => `${f} ${fmt(v)}`).join('，') || '—'}
                   </TableCell>
+                  <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
+                  <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -368,13 +393,13 @@ function HousingTab() {
             <DialogDescription>记录水、电、燃气等费用。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><DatePicker value={form.bill_month} onChange={(v) => setForm({ ...form, bill_month: v })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={form.bill_month} onChange={(v) => setForm({ ...form, bill_month: v })} /></div>
             <div className="space-y-2"><Label>关联住房</Label>
               <Select value={form.housing_id} onValueChange={(v) => setForm({ ...form, housing_id: v })}>
-                <SelectTrigger><SelectValue placeholder="选择住房" /></SelectTrigger>
+                <SelectTrigger className="max-w-full truncate"><SelectValue placeholder="选择住房" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">不关联</SelectItem>
-                  {houses.map((h) => <SelectItem key={h.id} value={String(h.id)}>{h.name}</SelectItem>)}
+                  {houses.map((h) => <SelectItem key={h.id} value={String(h.id)} className="text-xs">{h.short_name || h.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -409,6 +434,20 @@ function HousingTab() {
 /* ---------------- 服务订阅 ---------------- */
 
 const cycleMeta: Record<string, string> = { month: '月付', quarter: '季付', year: '年付' }
+
+/** 开通时长：start → end（缺省算至今），返回如 1年3个月 / 28天 */
+function durationLabel(start?: string, end?: string): string {
+  const s = start ? new Date(start) : null
+  if (!s || isNaN(s.getTime())) return '—'
+  const e = end ? new Date(end) : new Date()
+  if (isNaN(e.getTime()) || e < s) return '—'
+  const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth())
+  const days = Math.floor((e.getTime() - s.getTime()) / 86400000) % 30
+  if (months >= 12) return `${Math.floor(months / 12)}年${months % 12 ? `${months % 12}个月` : ''}`
+  if (months > 0) return days > 0 ? `${months}个月${days}天` : `${months}个月`
+  const totalDays = Math.floor((e.getTime() - s.getTime()) / 86400000)
+  return `${totalDays}天`
+}
 const subStatusMeta: Record<string, { label: string; className: string }> = {
   active: { label: '生效中', className: 'bg-green-100 text-green-700' },
   expired: { label: '已过期', className: 'bg-red-100 text-red-700' },
@@ -418,10 +457,13 @@ const subStatusMeta: Record<string, { label: string; className: string }> = {
 type Subscription = {
   id: number
   name: string
+  plan_name?: string
   category: string
   billing_cycle: 'month' | 'quarter' | 'year'
   amount: number
   start_date: string
+  end_date?: string
+  auto_renew?: boolean
   remind_days: number
   status: 'active' | 'expired' | 'cancelled'
   note?: string
@@ -433,11 +475,15 @@ type SubStats = {
   by_category: { category: string; amount: number }[]
   upcoming: { id: number; name: string; category: string; amount: number; next_renewal: string; remind_days: number }[]
 }
+type SubCategory = { id: number; name: string }
 
 function SubscriptionTab() {
   const [items, setItems] = useState<Subscription[]>([])
   const [stats, setStats] = useState<SubStats | null>(null)
+  const [categories, setCategories] = useState<SubCategory[]>([])
   const [dialog, setDialog] = useState<null | { editing?: Subscription }>(null)
+  const [catDialog, setCatDialog] = useState(false)
+  const [newCategory, setNewCategory] = useState('')
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
@@ -447,16 +493,33 @@ function SubscriptionTab() {
     setItems(res.items)
     api.stats<SubStats>('/finance/subscriptions').then(setStats).catch(() => setStats(null))
   }
-  useEffect(() => { load() }, [])
+  const loadCategories = async () => {
+    api.list<SubCategory>('/finance/subscription-categories', { page_size: 100 }).then((res) => setCategories(res.items)).catch(() => setCategories([]))
+  }
+  useEffect(() => { load(); loadCategories() }, [])
+
+  const addCategory = async () => {
+    const name = newCategory.trim()
+    if (!name) return
+    await api.create<SubCategory>('/finance/subscription-categories', { name })
+    setNewCategory('')
+    await loadCategories()
+  }
+  const removeCategory = async (c: SubCategory) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/subscription-categories', c.id)
+    await loadCategories()
+  }
 
   const openCreate = () => {
-    setForm({ name: '', category: '会员', billing_cycle: 'month', amount: '', start_date: new Date().toISOString().slice(0, 10), remind_days: '30', status: 'active', note: '' })
+    setForm({ name: '', plan_name: '', category: categories[0]?.name ?? '会员', billing_cycle: 'month', amount: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', auto_renew: 'false', remind_days: '30', status: 'active', note: '' })
     setDialog({})
   }
   const save = async () => {
     const payload = {
-      name: form.name, category: form.category, billing_cycle: form.billing_cycle,
-      amount: Number(form.amount), start_date: form.start_date, remind_days: Number(form.remind_days),
+      name: form.name, plan_name: form.plan_name || null, category: form.category, billing_cycle: form.billing_cycle,
+      amount: Number(form.amount), start_date: form.start_date, end_date: form.end_date || null,
+      auto_renew: form.auto_renew === 'true', remind_days: Number(form.remind_days),
       status: form.status, note: form.note || null,
     }
     setSaving(true)
@@ -516,38 +579,50 @@ function SubscriptionTab() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-lg font-medium">服务订阅</CardTitle>
-          <Button onClick={openCreate}><Plus /> 新增订阅</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setNewCategory(''); setCatDialog(true) }}><Layers className="size-4" /> 分类设置</Button>
+            <Button onClick={openCreate}><Plus /> 新增订阅</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>名称</TableHead><TableHead>分类</TableHead><TableHead>计费周期</TableHead>
-                <TableHead className="text-right">金额</TableHead><TableHead>起始时间</TableHead><TableHead>提前提醒</TableHead><TableHead>状态</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead>名称</TableHead><TableHead>方案名称</TableHead><TableHead>分类</TableHead><TableHead>开通时间</TableHead><TableHead>到期时间</TableHead><TableHead>开通时长</TableHead>
+                <TableHead className="text-right">周期金额</TableHead><TableHead>计费周期</TableHead><TableHead>自动续费</TableHead><TableHead>当前状态</TableHead><TableHead>备注</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无订阅，点击"新增订阅"添加</TableCell></TableRow>
-              ) : items.map((s) => (
+                <TableRow><TableCell colSpan={12} className="h-16 text-center text-muted-foreground">暂无订阅，点击"新增订阅"添加</TableCell></TableRow>
+              ) : items.map((s) => {
+                const dur = durationLabel(s.start_date, s.end_date)
+                return (
                 <TableRow key={s.id}>
                   <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.plan_name ?? '—'}</TableCell>
                   <TableCell>{s.category}</TableCell>
-                  <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt(s.amount)}</TableCell>
                   <TableCell className="text-muted-foreground">{s.start_date}</TableCell>
-                  <TableCell>提前 {s.remind_days} 天</TableCell>
+                  <TableCell className="text-muted-foreground">{s.end_date ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{dur}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(s.amount)}</TableCell>
+                  <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
+                  <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
                   <TableCell><Badge className={subStatusMeta[s.status]?.className}>{subStatusMeta[s.status]?.label ?? s.status}</Badge></TableCell>
+                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={s.note ?? ''}>{s.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, remind_days: String(s.remind_days), status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', remind_days: String(s.remind_days), status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(s)}><Trash2 /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -559,11 +634,12 @@ function SubscriptionTab() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>订阅名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 视频会员 / 云服务器" /></div>
+            <div className="space-y-2"><Label>方案名称</Label><Input value={form.plan_name} onChange={(e) => setForm({ ...form, plan_name: e.target.value })} placeholder="如 黄金会员 / 2C4G 套餐" /></div>
             <div className="space-y-2"><Label>分类 <span className="text-destructive">*</span></Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['会员', '服务器', '软件', '域名', '内容', '其他'].map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categories.length ? categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -574,7 +650,14 @@ function SubscriptionTab() {
               </Select>
             </div>
             <div className="space-y-2"><Label>每期金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            <div className="space-y-2"><Label>起始时间 <span className="text-destructive">*</span></Label><DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} /></div>
+            <div className="space-y-2"><Label>开通时间 <span className="text-destructive">*</span></Label><DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} /></div>
+            <div className="space-y-2"><Label>到期时间</Label><DatePicker value={form.end_date} onChange={(v) => setForm({ ...form, end_date: v })} /></div>
+            <div className="space-y-2"><Label>自动续费</Label>
+              <Select value={form.auto_renew} onValueChange={(v) => setForm({ ...form, auto_renew: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="false">否</SelectItem><SelectItem value="true">是</SelectItem></SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2"><Label>过期前提醒(天)</Label><Input type="number" min={0} value={form.remind_days} onChange={(e) => setForm({ ...form, remind_days: e.target.value })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
@@ -587,6 +670,34 @@ function SubscriptionTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
             <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 分类管理弹窗 */}
+      <Dialog open={catDialog} onOpenChange={setCatDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>订阅分类设置</DialogTitle>
+            <DialogDescription>管理服务订阅的分类，用于下拉选择。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="输入分类名称" onKeyDown={(e) => e.key === 'Enter' && addCategory()} />
+              <Button onClick={addCategory}><Plus /> 添加</Button>
+            </div>
+            <div className="space-y-1.5">
+              {categories.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span>{c.name}</span>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button>
+                </div>
+              ))}
+              {categories.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无分类</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCatDialog(false)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -607,17 +718,18 @@ type LoanBill = {
   bill_month: string
   due_date?: string
   amount: number
+  interest?: number
   paid_amount: number
   status: 'pending' | 'partial' | 'cleared'
   note?: string
 }
 type LoanBillStats = {
-  total: number; paid: number; remaining: number
+  total: number; paid: number; remaining: number; total_interest?: number
   status: { pending: number; partial: number; cleared: number }
   by_month: { month: string; amount: number }[]
-  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; paid_amount: number; remaining: number; status: string }[]
+  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string }[]
 }
-type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; method?: string; note?: string }
+type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
 
 const billStatusMeta: Record<string, { label: string; className: string }> = {
   pending: { label: '待还', className: 'bg-amber-100 text-amber-700' },
@@ -692,14 +804,15 @@ function LoanTab() {
   }
 
   const openBillCreate = () => {
-    setBillForm({ platform_id: platforms[0] ? String(platforms[0].id) : '', bill_month: new Date().toISOString().slice(0, 10), due_date: '', amount: '', paid_amount: '0', status: 'pending', note: '' })
+    setBillForm({ platform_id: platforms[0] ? String(platforms[0].id) : '', bill_month: new Date().toISOString().slice(0, 10), due_date: '', amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
     setBillDialog({})
   }
   const saveBill = async () => {
     const payload = {
       platform_id: billForm.platform_id ? Number(billForm.platform_id) : null,
       bill_month: billForm.bill_month, due_date: billForm.due_date || null,
-      amount: Number(billForm.amount), paid_amount: Number(billForm.paid_amount || 0),
+      amount: Number(billForm.amount), interest: billForm.interest ? Number(billForm.interest) : 0,
+      paid_amount: Number(billForm.paid_amount || 0),
       status: billForm.status, note: billForm.note || null,
     }
     setSaving(true)
@@ -721,14 +834,15 @@ function LoanTab() {
 
   const openRepay = (b: LoanBill) => {
     const remaining = b.amount - b.paid_amount
-    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? String(remaining) : '', method: '', note: '' })
+    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? String(remaining) : '', discount: '', method: '', note: '' })
     setRepayDialog(b)
   }
   const submitRepay = async () => {
     if (!repayDialog) return
     const payload = {
       bill_id: repayDialog.id, repay_date: repayForm.repay_date,
-      amount: Number(repayForm.amount), method: repayForm.method || null, note: repayForm.note || null,
+      amount: Number(repayForm.amount), discount: repayForm.discount ? Number(repayForm.discount) : 0,
+      method: repayForm.method || null, note: repayForm.note || null,
     }
     setSaving(true)
     try {
@@ -797,29 +911,35 @@ function LoanTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>平台</TableHead><TableHead>账单月份</TableHead><TableHead>到期日</TableHead>
-                <TableHead className="text-right">欠款</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead>
+                <TableHead className="text-right">欠款/利息</TableHead><TableHead className="text-right">已还/剩余</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {bills.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无账单</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">暂无账单</TableCell></TableRow>
               ) : bills.map((b) => {
                 const remaining = b.amount - b.paid_amount
+                const interest = b.interest ?? 0
                 return (
                   <TableRow key={b.id} className={selectedBill === b.id ? 'bg-blue-50/60' : ''}>
                     <TableCell onClick={() => setSelectedBill(selectedBill === b.id ? null : b.id)} className="cursor-pointer font-medium">{platformName(b.platform_id)}</TableCell>
-                    <TableCell>{b.bill_month}</TableCell>
+                    <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
-                    <TableCell className="text-right">{fmt(b.amount)}</TableCell>
-                    <TableCell className="text-right text-green-600">{fmt(b.paid_amount)}</TableCell>
-                    <TableCell className={`text-right font-medium ${remaining > 0 ? 'text-red-600' : ''}`}>{fmt(remaining)}</TableCell>
+                    <TableCell className="text-right">
+                      <div>{fmt(b.amount)}</div>
+                      {interest > 0 && <div className="text-xs text-amber-600">利息 {fmt(interest)}</div>}
+                    </TableCell>
+                    <TableCell className={`text-right ${remaining > 0 ? '' : ''}`}>
+                      <div>{fmt(b.paid_amount)}</div>
+                      <div className={`text-xs ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>剩余 {fmt(remaining)}</div>
+                    </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {remaining > 0 && (
-                          <Button variant="ghost" size="sm" onClick={() => openRepay(b)} title="还款/一次结清"><Banknote /></Button>
+                          <Button size="sm" onClick={() => openRepay(b)} className="h-7 gap-1 px-2 text-xs"><Banknote className="size-3.5" />还款</Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
                       </div>
                     </TableCell>
@@ -857,19 +977,20 @@ function LoanTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>还款日期</TableHead><TableHead className="text-right">金额</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead>
+                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead>
                 {selectedBill && <TableHead className="w-16 text-right">操作</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {!selectedBill ? (
-                <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">请选择账单查看还款记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">请选择账单查看还款记录</TableCell></TableRow>
               ) : repayments.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
               ) : repayments.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{r.repay_date}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
+                  <TableCell className="text-right text-green-600">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
                   <TableCell>{r.method ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
@@ -912,7 +1033,7 @@ function LoanTab() {
       {/* 账单新增/编辑弹窗 */}
       <Dialog open={billDialog !== null} onOpenChange={(o) => !o && setBillDialog(null)}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{billDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle><DialogDescription>欠款金额已含利息，无需单独计算。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{billDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle><DialogDescription>填写应交欠款总额，若有差异可单列利息用于展示。</DialogDescription></DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>平台 <span className="text-destructive">*</span></Label>
               <Select value={billForm.platform_id} onValueChange={(v) => setBillForm({ ...billForm, platform_id: v })}>
@@ -920,9 +1041,10 @@ function LoanTab() {
                 <SelectContent>{platforms.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><DatePicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v })} /></div>
             <div className="space-y-2"><Label>到期日</Label><DatePicker value={billForm.due_date} onChange={(v) => setBillForm({ ...billForm, due_date: v })} /></div>
-            <div className="space-y-2"><Label>欠款(含利息) <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>应付欠款(含利息) <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>其中利息</Label><Input type="number" min={0} step="0.01" value={billForm.interest} onChange={(e) => setBillForm({ ...billForm, interest: e.target.value })} placeholder="无则为 0" /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={billForm.status} onValueChange={(v) => setBillForm({ ...billForm, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -949,8 +1071,18 @@ function LoanTab() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
-            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>应还金额 <span className="text-destructive">*</span></Label><Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" /></div>
+            <div className="space-y-2"><Label>优惠(券/抵扣)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
+            <div className="col-span-2 space-y-1">
+              <Label>实付支出（= 应还 - 优惠）</Label>
+              <div className="rounded-lg border px-3 py-2 text-sm font-medium">
+                {fmt(Math.max(0, (Number(repayForm.amount) || 0) - (Number(repayForm.discount) || 0)))}
+                {(Number(repayForm.discount) || 0) > 0 && (
+                  <span className="ml-2 text-xs text-green-600">优惠抵减 {fmt(Number(repayForm.discount))}</span>
+                )}
+              </div>
+            </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} /></div>
           </div>
           <DialogFooter>

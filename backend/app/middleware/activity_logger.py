@@ -33,6 +33,7 @@ MODULE_NAMES = {
     "finance/housing": "房租水电",
     "finance/utilities": "水电账单",
     "finance/subscriptions": "服务订阅",
+    "finance/subscription-categories": "订阅分类",
     "finance/loan-platforms": "借款平台",
     "finance/loan-bills": "网贷账单",
     "finance/repayments": "还款记录",

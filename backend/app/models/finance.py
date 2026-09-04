@@ -139,10 +139,13 @@ class FinanceSubscription(TimestampMixin, UserOwned, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128))  # 订阅名称
+    plan_name: Mapped[str | None] = mapped_column(String(128))  # 方案名称
     category: Mapped[str] = mapped_column(String(32), index=True)  # 分类（会员/服务器/软件等）
     billing_cycle: Mapped[str] = mapped_column(String(16), default="month")  # month/quarter/year
     amount: Mapped[float] = mapped_column(Float)  # 每期金额
-    start_date: Mapped[date] = mapped_column(Date)  # 起始时间
+    start_date: Mapped[date] = mapped_column(Date)  # 开通时间
+    end_date: Mapped[date | None] = mapped_column(Date)  # 到期时间
+    auto_renew: Mapped[bool] = mapped_column(Boolean, default=False)  # 自动续费
     remind_days: Mapped[int] = mapped_column(Integer, default=30)  # 过期前多少天提醒
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/expired/cancelled
     note: Mapped[str | None] = mapped_column(Text)
@@ -170,8 +173,9 @@ class FinanceLoanBill(TimestampMixin, UserOwned, Base):
     platform_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 借款平台
     bill_month: Mapped[date] = mapped_column(Date, index=True)  # 账单月份
     due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
-    amount: Mapped[float] = mapped_column(Float)  # 欠款（含利息，不单独算）
-    paid_amount: Mapped[float] = mapped_column(Float, default=0)  # 已还
+    amount: Mapped[float] = mapped_column(Float)  # 应交欠款（含利息）
+    interest: Mapped[float | None] = mapped_column(Float, default=0)  # 其中利息部分，便于展示
+    paid_amount: Mapped[float] = mapped_column(Float, default=0)  # 已还（实付+优惠）
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/partial/cleared
     note: Mapped[str | None] = mapped_column(Text)
 
@@ -184,7 +188,8 @@ class FinanceRepayment(TimestampMixin, UserOwned, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     bill_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联账单
     repay_date: Mapped[date] = mapped_column(Date)  # 还款日期
-    amount: Mapped[float] = mapped_column(Float)  # 还款金额
+    amount: Mapped[float] = mapped_column(Float)  # 还款金额（实付）
+    discount: Mapped[float | None] = mapped_column(Float, default=0)  # 优惠金额（券/抵扣）
     method: Mapped[str | None] = mapped_column(String(32))  # 还款方式
     note: Mapped[str | None] = mapped_column(Text)
 
@@ -271,6 +276,15 @@ class FinanceCurrency(TimestampMixin, UserOwned, Base):
     name: Mapped[str | None] = mapped_column(String(32))  # 币种名称
     rate_to_cny: Mapped[float] = mapped_column(Float)  # 1 单位该币种 = 多少人民币
     symbol: Mapped[str | None] = mapped_column(String(8))  # 符号，如 $ / HK$ / ¥
+
+
+class FinanceSubscriptionCategory(TimestampMixin, UserOwned, Base):
+    """订阅分类：服务订阅的分类（AI工具/影视会员/服务器等），可增删管理。"""
+
+    __tablename__ = "finance_subscription_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(32), index=True)  # 分类名称
 
 
 class FinanceReport(TimestampMixin, UserOwned, Base):

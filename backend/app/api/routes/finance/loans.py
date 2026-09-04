@@ -69,6 +69,7 @@ def _bills_stats(db: Session, days: int, user_id: int) -> dict:
     ).all()
     total = sum(r.amount for r in rows)
     paid = sum(r.paid_amount for r in rows)
+    total_interest = sum(r.interest or 0 for r in rows)
 
     by_month: dict[str, float] = {}
     status_count = {"pending": 0, "partial": 0, "cleared": 0}
@@ -84,6 +85,7 @@ def _bills_stats(db: Session, days: int, user_id: int) -> dict:
             "bill_month": r.bill_month.isoformat(),
             "due_date": r.due_date.isoformat() if r.due_date else None,
             "amount": r.amount,
+            "interest": r.interest or 0,
             "paid_amount": r.paid_amount,
             "remaining": round(r.amount - r.paid_amount, 2),
             "status": r.status,
@@ -99,6 +101,7 @@ def _bills_stats(db: Session, days: int, user_id: int) -> dict:
         "total": round(total, 2),
         "paid": round(paid, 2),
         "remaining": round(total - paid, 2),
+        "total_interest": round(total_interest, 2),
         "status": status_count,
         "by_month": [
             {"month": m, "amount": round(a, 2)}
@@ -144,7 +147,8 @@ def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
             FinanceRepayment.user_id == user_id,
         )
     ).all()
-    bill.paid_amount = sum(r.amount for r in reps)
+    # 已还 = 实付 + 优惠（优惠券/抵扣同样抵减欠款）
+    bill.paid_amount = sum((r.amount or 0) + (r.discount or 0) for r in reps)
     if bill.amount - bill.paid_amount <= 1e-6:
         bill.status = "cleared"
     elif bill.paid_amount > 0:
@@ -184,8 +188,9 @@ def create_repayment(
     if not bill or bill.user_id != user.id:
         raise HTTPException(status_code=404, detail="账单不存在")
     remaining = bill.amount - bill.paid_amount
-    if payload.amount > remaining + 1e-6:
-        raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余欠款 {remaining:.2f}")
+    applied = (payload.amount or 0) + (payload.discount or 0)
+    if applied > remaining + 1e-6:
+        raise HTTPException(status_code=400, detail=f"实付+优惠不能超过剩余欠款 {remaining:.2f}")
     obj = FinanceRepayment(**payload.model_dump(), user_id=user.id)
     db.add(obj)
     _sync_bill(db, payload.bill_id, user.id)
@@ -244,9 +249,10 @@ def update_repayment(
             FinanceRepayment.user_id == user.id,
         )
     ).all()
-    other_sum = sum(o.amount for o in others)
-    if payload.amount > bill.amount - other_sum + 1e-6:
-        raise HTTPException(status_code=400, detail="还款金额不能超过剩余欠款")
+    other_sum = sum((o.amount or 0) + (o.discount or 0) for o in others)
+    applied = (payload.amount or 0) + (payload.discount or 0)
+    if applied > bill.amount - other_sum + 1e-6:
+        raise HTTPException(status_code=400, detail="实付+优惠不能超过剩余欠款")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
     _sync_bill(db, obj.bill_id, user.id)

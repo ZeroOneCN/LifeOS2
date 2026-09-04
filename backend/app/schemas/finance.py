@@ -113,16 +113,27 @@ class UtilityRead(UtilityCreate, ORMRead):
 
 class SubscriptionCreate(BaseModel):
     name: str
+    plan_name: str | None = None
     category: str
     billing_cycle: str = Field("month", pattern="^(month|quarter|year)$")
     amount: float = Field(ge=0)
     start_date: date
+    end_date: date | None = None
+    auto_renew: bool = False
     remind_days: int = Field(30, ge=0)
     status: str = Field("active", pattern="^(active|expired|cancelled)$")
     note: str | None = None
 
 
 class SubscriptionRead(SubscriptionCreate, ORMRead):
+    pass
+
+
+class SubscriptionCategoryCreate(BaseModel):
+    name: str
+
+
+class SubscriptionCategoryRead(SubscriptionCategoryCreate, ORMRead):
     pass
 
 
@@ -143,6 +154,7 @@ class LoanBillCreate(BaseModel):
     bill_month: date
     due_date: date | None = None
     amount: float = Field(ge=0)
+    interest: float | None = Field(None, ge=0)
     paid_amount: float = Field(default=0, ge=0)
     status: str = Field("pending", pattern="^(pending|partial|cleared)$")
     note: str | None = None
@@ -156,6 +168,7 @@ class RepaymentCreate(BaseModel):
     bill_id: int | None = None
     repay_date: date
     amount: float = Field(gt=0)
+    discount: float | None = Field(None, ge=0)
     method: str | None = None
     note: str | None = None
 

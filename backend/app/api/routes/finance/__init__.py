@@ -26,6 +26,7 @@ for sub in (
     travel.router,
     housing.router,
     subscriptions.router,
+    subscriptions.subscription_categories_router,
     loans.router,
     reminders.router,
     planning.router,

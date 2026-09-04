@@ -1,12 +1,19 @@
 from datetime import date, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
-from app.models import FinanceSubscription
-from app.schemas.finance import SubscriptionCreate, SubscriptionRead
+from app.core.database import get_db
+from app.core.security import get_current_user
+from app.models import FinanceSubscription, FinanceSubscriptionCategory, UserProfile
+from app.schemas.finance import (
+    SubscriptionCategoryCreate,
+    SubscriptionCategoryRead,
+    SubscriptionCreate,
+    SubscriptionRead,
+)
 
 
 def _add_months(d: date, months: int) -> date:
@@ -83,4 +90,24 @@ router = crud_router(
     order_by=FinanceSubscription.start_date,
     date_column="start_date",
     stats_func=_subs_stats,
+)
+
+
+def _category_stats(db: Session, days: int, user_id: int) -> dict:
+    rows = db.scalars(
+        select(FinanceSubscriptionCategory).where(
+            FinanceSubscriptionCategory.user_id == user_id
+        )
+    ).all()
+    return {"category_count": len(rows), "categories": [{"id": c.id, "name": c.name} for c in rows]}
+
+
+subscription_categories_router = crud_router(
+    prefix="/finance/subscription-categories",
+    tag="finance-subscription-categories",
+    model=FinanceSubscriptionCategory,
+    create_schema=SubscriptionCategoryCreate,
+    read_schema=SubscriptionCategoryRead,
+    order_by=FinanceSubscriptionCategory.id,
+    stats_func=_category_stats,
 )
