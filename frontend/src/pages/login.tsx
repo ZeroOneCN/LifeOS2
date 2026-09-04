@@ -49,10 +49,12 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-            L
-          </div>
-          <CardTitle className="text-xl">登录 LifeOS 后台</CardTitle>
+          <img
+            src="/favicon.svg"
+            alt="数字化生活助手"
+            className="mx-auto mb-2 size-10"
+          />
+          <CardTitle className="text-xl">登录 数字化生活助手</CardTitle>
           <CardDescription>使用你的账号登录以继续</CardDescription>
         </CardHeader>
         <form onSubmit={submit}>

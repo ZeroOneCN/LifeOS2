@@ -108,13 +108,13 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex h-8 items-center gap-2 px-2">
+        <div className="flex h-10 items-center gap-2.5 px-2">
           <img
             src="/favicon.svg"
             alt="数字化生活助手"
-            className="size-5 shrink-0"
+            className="size-7 shrink-0"
           />
-          <span className="font-heading text-base font-semibold group-data-[collapsible=icon]:hidden">
+          <span className="font-heading text-lg font-semibold leading-tight group-data-[collapsible=icon]:hidden">
             数字化生活助手
           </span>
         </div>

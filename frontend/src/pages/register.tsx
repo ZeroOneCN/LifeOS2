@@ -59,11 +59,13 @@ export function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">
-            L
-          </div>
-          <CardTitle className="text-xl">注册 LifeOS 账号</CardTitle>
-          <CardDescription>创建账号以使用 LifeOS 后台</CardDescription>
+          <img
+            src="/favicon.svg"
+            alt="数字化生活助手"
+            className="mx-auto mb-2 size-10"
+          />
+          <CardTitle className="text-xl">注册 数字化生活助手</CardTitle>
+          <CardDescription>创建账号以使用数字化生活助手</CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
           <CardContent className="space-y-4">
