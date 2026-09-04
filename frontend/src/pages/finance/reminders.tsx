@@ -213,6 +213,8 @@ export function RemindersPage() {
         apiPath="/finance/reminders"
         fields={fields}
         columns={columns}
+        monthMode
+        monthField="reminder_date"
         onMutate={() => setRefresh((v) => v + 1)}
         extra={
           <>

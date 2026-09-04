@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,7 +32,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { api } from '@/lib/api'
+import { api, type ListParams } from '@/lib/api'
 
 export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
 
@@ -72,6 +72,10 @@ type RecordManagerProps<T extends { id: number }> = {
   refreshKey?: number
   /** 隐藏内置标题区（主标题已由页面统一在 Tab 上方展示），仅保留右侧操作按钮 */
   hideHeader?: boolean
+  /** 启用按「账单月」分页（仿网贷账单），按 monthField 的月份过滤，头部提供 ‹ › » 翻页 */
+  monthMode?: boolean
+  /** monthMode 生效时用于过滤的日期字段 */
+  monthField?: string
   /** CRUD 成功后回调（新增/编辑/删除），用于页面同步刷新统计图表 */
   onMutate?: () => void
 }
@@ -96,6 +100,8 @@ export function RecordManager<T extends { id: number }>({
   rowActions,
   refreshKey,
   hideHeader,
+  monthMode,
+  monthField = 'reminder_date',
   onMutate,
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
@@ -106,6 +112,10 @@ export function RecordManager<T extends { id: number }>({
   const [editing, setEditing] = useState<T | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [month, setMonth] = useState(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
+  })
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const { confirm, dialog: confirmDialog } = useConfirm({
@@ -113,11 +123,28 @@ export function RecordManager<T extends { id: number }>({
     description: '确定删除这条记录吗？此操作不可恢复。',
   })
 
+  const shiftMonth = (m: string, delta: number) => {
+    const [y, mm] = m.split('-').map(Number)
+    const dt = new Date(y, mm - 1 + delta, 1)
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+  }
+  const jumpMonth = (m: string) => {
+    setMonth(m)
+    setPage(1)
+  }
+
   const load = async () => {
     // 翻页/刷新时保留旧数据渲染（仅首载显示加载占位），避免高度变化引起抖动
     setLoading(true)
     try {
-      const res = await api.list<T>(apiPath, { page, page_size: PAGE_SIZE })
+      const params: ListParams = { page, page_size: PAGE_SIZE }
+      if (monthMode) {
+        const [yy, mm] = month.split('-').map(Number)
+        const last = String(new Date(yy, mm, 0).getDate()).padStart(2, '0')
+        params.start = `${month}-01`
+        params.end = `${month}-${last}`
+      }
+      const res = await api.list<T>(apiPath, params)
       setItems(res.items)
       setTotal(res.total)
     } finally {
@@ -128,11 +155,15 @@ export function RecordManager<T extends { id: number }>({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey])
+  }, [page, refreshKey, month])
 
   const openCreate = () => {
     setEditing(null)
-    setForm(Object.fromEntries(fields.map((f) => [f.key, ''])))
+    const initial: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, '']))
+    if (monthMode && fields.some((f) => f.key === monthField)) {
+      initial[monthField] = `${month}-01`
+    }
+    setForm(initial)
     setDialogOpen(true)
   }
 
@@ -193,6 +224,14 @@ export function RecordManager<T extends { id: number }>({
           </div>
         )}
         <div className="flex items-center gap-2">
+          {monthMode ? (
+            <div className="flex items-center gap-1 rounded-lg border p-1">
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="上一月" onClick={() => jumpMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
+              <span className="min-w-[72px] text-center text-sm font-medium">{month}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="下一月" onClick={() => jumpMonth(shiftMonth(month, 1))}><ChevronRight /></Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); jumpMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
+            </div>
+          ) : null}
           {headerExtra}
           <Button onClick={openCreate}>
             <Plus /> 新增记录
