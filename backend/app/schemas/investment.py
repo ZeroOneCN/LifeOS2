@@ -37,7 +37,8 @@ class ForexRead(ForexCreate, ORMRead):
 
 class FundCreate(BaseModel):
     record_type: str = Field(pattern="^(deposit|withdraw|experience)$")
-    amount: float = Field(ge=0)
+    # 金额可为负：体验金亏损/失效以负数记录，体现余额减少
+    amount: float
     record_date: date
     note: str | None = None
 

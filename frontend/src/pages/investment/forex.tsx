@@ -262,6 +262,18 @@ function TradingCalendar() {
       .catch(() => setData(null))
   }, [month])
 
+  const monthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = []
+    const now = new Date()
+    // 覆盖最近 24 个月到未来 6 个月，便于回看历史与跨期
+    for (let i = 24; i >= -6; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      opts.push({ value, label: `${d.getFullYear()}年 ${d.getMonth() + 1}月` })
+    }
+    return opts
+  }, [])
+
   const firstDow = useMemo(() => (data ? new Date(data.year, data.month - 1, 1).getDay() : 0), [data])
   const cells: (CalendarData['days'][number] | null)[] = useMemo(
     () => [
@@ -277,7 +289,17 @@ function TradingCalendar() {
         <CardTitle className="flex items-center gap-2 text-sm">
           <CalendarDays className="size-4 text-indigo-500" /> 交易日历
         </CardTitle>
-        <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-36" />
+        <Select value={month} onValueChange={(v) => setMonth(v)}>
+          <SelectTrigger className="w-40">
+            <CalendarDays className="size-3.5 text-muted-foreground" />
+            <SelectValue placeholder="选择月份" />
+          </SelectTrigger>
+          <SelectContent>
+            {monthOptions.map((m) => (
+              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-7 gap-1 text-center text-xs">
@@ -722,7 +744,7 @@ function FundsSection() {
                   <div>
                     <div className="text-sm font-medium">
                       {fundTypes.find((t) => t.value === r.record_type)?.label}
-                      <span className="ml-2 font-semibold text-emerald-600">+{fmtVal(r.amount)}</span>
+                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmtVal(r.amount)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">{r.record_date}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
