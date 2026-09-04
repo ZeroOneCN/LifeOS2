@@ -89,7 +89,7 @@ type InvOverview = {
   }
 }
 
-type Profile = { nickname?: string; username?: string }
+type Profile = { nickname?: string; username?: string; account?: string }
 
 /* ------------------------------ 小组件 ------------------------------ */
 
@@ -179,7 +179,7 @@ export function HomePage() {
       api.query<HealthDash>('/health/dashboard').then(setHealth),
       api.query<LifeOverview>('/lifestyle/overview').then(setLife),
       api.query<InvOverview>('/investment/overview').then(setInv),
-      api.query<Profile>('/user/profile')
+      api.query<Profile>('/auth/me')
         .then(setProfile)
         .catch(() => setProfile(null)),
       fetch('/api/v1/health')
@@ -198,7 +198,7 @@ export function HomePage() {
     day: 'numeric',
     weekday: 'long',
   }).format(new Date())
-  const displayName = profile?.nickname || profile?.username || '主人'
+  const displayName = profile?.nickname || profile?.username || profile?.account || '主人'
 
   const outstanding = (fin?.outstanding_loans ?? 0) + (fin?.outstanding_debt ?? 0)
 
