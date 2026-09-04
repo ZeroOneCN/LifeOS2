@@ -91,7 +91,7 @@ class HousingCreate(BaseModel):
     orientation: str | None = None
     move_in_date: date
     move_out_date: date | None = None
-    rent_term: str = Field("monthly", pattern="^(monthly|quarterly)$")
+    rent_term: str = Field("monthly", pattern="^(monthly|quarterly|one_time)$")
     actual_monthly_rent: float = Field(ge=0)
     deposit: float | None = Field(None, ge=0)
     deposit_refunded: float | None = Field(None, ge=0)  # 已退/已扣押金

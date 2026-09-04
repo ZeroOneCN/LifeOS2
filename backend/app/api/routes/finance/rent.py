@@ -39,8 +39,13 @@ def _add_months(d: date, months: int) -> date:
 def _build_terms(housing: FinanceHousing) -> list[dict]:
     """按支付周期从入住日到退租/到期日生成期次；最后一期不足整期按日折算。"""
     monthly = housing.actual_monthly_rent or 0
-    months = _monthly(housing.rent_term)
+    daily = monthly / 30.0
     end = housing.move_out_date or date.today()
+    # 一次性：整租期一期，按天折算
+    if housing.rent_term == "one_time":
+        total_days = max((end - housing.move_in_date).days + 1, 1)
+        return [{"term_no": 1, "amount": round(daily * total_days, 2), "due_date": end}]
+    months = _monthly(housing.rent_term)
     daily = monthly / 30.0
     terms = []
     no = 1

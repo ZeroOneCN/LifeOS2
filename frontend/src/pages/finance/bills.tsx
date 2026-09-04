@@ -81,7 +81,7 @@ type Housing = {
   orientation?: string
   move_in_date: string
   move_out_date?: string
-  rent_term: 'monthly' | 'quarterly'
+  rent_term: 'monthly' | 'quarterly' | 'one_time'
   actual_monthly_rent: number
   deposit?: number
   deposit_refunded?: number
@@ -468,7 +468,7 @@ function HousingTab() {
                   <div key={h.id} className="rounded-lg border p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{h.short_name || h.name}</span>
-                      <Badge variant="outline">{h.rent_term === 'quarterly' ? '按季付' : '按月付'}</Badge>
+                      <Badge variant="outline">{h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'}</Badge>
                     </div>
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">{h.name}</div>
                     <div className="mt-1 text-muted-foreground">
@@ -600,7 +600,7 @@ function HousingTab() {
             <div className="space-y-2"><Label>缴纳方式</Label>
               <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="monthly">按月付</SelectItem><SelectItem value="quarterly">按季付</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="monthly">按月付</SelectItem><SelectItem value="quarterly">按季付</SelectItem><SelectItem value="one_time">一次性</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="space-y-2"><Label>实际月租 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.actual_monthly_rent} onChange={(e) => setForm({ ...form, actual_monthly_rent: e.target.value })} /></div>
@@ -649,7 +649,7 @@ function HousingTab() {
               ['房屋朝向', viewH.orientation || '—'],
               ['入住时间', viewH.move_in_date],
               ['退租时间', viewH.move_out_date || '—'],
-              ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : '按月付'],
+              ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : viewH.rent_term === 'one_time' ? '一次性' : '按月付'],
               ['签约月租', fmt(rent)],
               ['折算月租(实际)', fmt(monthlyRent)],
               ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
