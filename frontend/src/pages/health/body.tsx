@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -174,6 +175,11 @@ export function BodyPage() {
       setPage(1)
       await load()
       setRefresh((v) => v + 1)
+      toast.success(editing ? '体重记录已更新' : '体重记录已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -181,10 +187,17 @@ export function BodyPage() {
 
   const remove = async (row: BodyRecord) => {
     if (!(await confirm())) return
-    await api.remove('/health/body', row.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
-    setRefresh((v) => v + 1)
+    try {
+      await api.remove('/health/body', row.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((v) => v + 1)
+      toast.success('体重记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const n = (v: unknown) => (typeof v === 'number' ? v.toFixed(1) : '-')

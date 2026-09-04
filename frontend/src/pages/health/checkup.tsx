@@ -7,6 +7,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -275,6 +276,11 @@ export function CheckupPage() {
       setPage(1)
       await load()
       setRefresh((v) => v + 1)
+      toast.success(editing ? '体检记录已更新' : '体检记录已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -282,10 +288,17 @@ export function CheckupPage() {
 
   const remove = async (row: CheckupRecord) => {
     if (!(await confirm())) return
-    await api.remove('/health/checkup', row.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
-    setRefresh((v) => v + 1)
+    try {
+      await api.remove('/health/checkup', row.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((v) => v + 1)
+      toast.success('体检记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   // ---- 单指标模板 ----
@@ -325,14 +338,26 @@ export function CheckupPage() {
       else await api.create('/health/checkup/templates', payload)
       setTemplateFormOpen(false)
       await loadTemplates()
+      toast.success(editingTemplate ? '模板已更新' : '模板已添加')
+    } catch (e) {
+      toast.error('模板保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSavingTemplate(false)
     }
   }
   const removeTemplate = async (t: Template) => {
     if (!(await confirm({ title: '确认删除模板', description: `确定删除指标模板「${t.item_name}」吗？` }))) return
-    await api.remove('/health/checkup/templates', t.id)
-    await loadTemplates()
+    try {
+      await api.remove('/health/checkup/templates', t.id)
+      await loadTemplates()
+      toast.success('模板已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   // ---- 组合模板（套餐） ----
@@ -377,14 +402,26 @@ export function CheckupPage() {
       else await api.post('/health/checkup/panels', payload)
       setPanelFormOpen(false)
       await loadPanels()
+      toast.success(editingPanel ? '组合已更新' : '组合已添加')
+    } catch (e) {
+      toast.error('组合保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSavingPanel(false)
     }
   }
   const removePanel = async (p: Panel) => {
     if (!(await confirm({ title: '确认删除组合', description: `确定删除组合「${p.panel_name}」吗？` }))) return
-    await api.remove('/health/checkup/panels', p.id)
-    await loadPanels()
+    try {
+      await api.remove('/health/checkup/panels', p.id)
+      await loadPanels()
+      toast.success('组合已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const sc = stats?.status_counts

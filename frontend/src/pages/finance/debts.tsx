@@ -14,6 +14,7 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -142,16 +143,28 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       setDialog(null)
       await load()
       setRefresh((v) => v + 1)
+      toast.success(dialog?.editing ? '借贷记录已更新' : '借贷记录已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const remove = async (d: DebtRecord) => {
     if (!(await confirm())) return
-    await api.remove('/finance/debts', d.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
-    setRefresh((v) => v + 1)
+    try {
+      await api.remove('/finance/debts', d.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((v) => v + 1)
+      toast.success('借贷记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const openRepay = (d: DebtRecord) => {
@@ -168,8 +181,11 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       setRepayTarget(null)
       await load()
       setRefresh((v) => v + 1)
+      toast.success('还款已记录')
     } catch (e) {
-      window.alert((e as Error).message)
+      toast.error('还款失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -379,14 +395,26 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
       else await api.create('/finance/investments', payload)
       setDialog(null)
       await load()
+      toast.success(dialog?.editing ? '投资记录已更新' : '投资记录已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const remove = async (iv: Investment) => {
     if (!(await confirm())) return
-    await api.remove('/finance/investments', iv.id)
-    await load()
+    try {
+      await api.remove('/finance/investments', iv.id)
+      await load()
+      toast.success('投资记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (
@@ -507,14 +535,26 @@ function MemoTab() {
       else await api.create('/finance/memos', payload)
       setDialog(null)
       await load()
+      toast.success(dialog?.editing ? '备忘已更新' : '备忘已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const remove = async (m: Memo) => {
     if (!(await confirm())) return
-    await api.remove('/finance/memos', m.id)
-    await load()
+    try {
+      await api.remove('/finance/memos', m.id)
+      await load()
+      toast.success('备忘已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (
@@ -586,11 +626,18 @@ function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
     if (!editing) return
     const v = Number(rateValue)
     if (!v || v <= 0) return
-    const updated = await api.update<Currency>('/finance/currencies', editing.id, {
-      currency: editing.currency, name: editing.name, symbol: editing.symbol, rate_to_cny: v,
-    })
-    setCurrencies(currencies.map((c) => (c.id === updated.id ? updated : c)))
-    setEditing(null)
+    try {
+      const updated = await api.update<Currency>('/finance/currencies', editing.id, {
+        currency: editing.currency, name: editing.name, symbol: editing.symbol, rate_to_cny: v,
+      })
+      setCurrencies(currencies.map((c) => (c.id === updated.id ? updated : c)))
+      setEditing(null)
+      toast.success('汇率已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
   const resetToCny = () => {
     const c = currencies.find((x) => x.currency === 'CNY')

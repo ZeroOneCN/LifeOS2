@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -200,6 +201,11 @@ export function FitnessPage() {
       setPage(1)
       await load()
       setRefresh((v) => v + 1)
+      toast.success(editing ? '运动记录已更新' : '运动记录已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -207,10 +213,17 @@ export function FitnessPage() {
 
   const remove = async (row: FitnessRecord) => {
     if (!(await confirm())) return
-    await api.remove('/health/fitness', row.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
-    setRefresh((v) => v + 1)
+    try {
+      await api.remove('/health/fitness', row.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((v) => v + 1)
+      toast.success('运动记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (

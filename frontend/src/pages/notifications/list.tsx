@@ -9,6 +9,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -168,33 +169,58 @@ export function NotificationList() {
       else await api.create('/notifications', payload)
       setDialogOpen(false)
       await load()
+      toast.success(editing ? '通知已更新' : '通知已发布')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '发布失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
 
   const toggleRead = async (row: NotificationRecord) => {
-    await api.update('/notifications', row.id, {
-      title: row.title,
-      category: row.category,
-      source: row.source ?? null,
-      notify_date: row.notify_date,
-      content: row.content ?? null,
-      read: !row.read,
-    })
-    await load()
+    try {
+      await api.update('/notifications', row.id, {
+        title: row.title,
+        category: row.category,
+        source: row.source ?? null,
+        notify_date: row.notify_date,
+        content: row.content ?? null,
+        read: !row.read,
+      })
+      await load()
+    } catch (e) {
+      toast.error('操作失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const readAll = async () => {
-    await api.post('/notifications/read-all')
-    await load()
+    try {
+      await api.post('/notifications/read-all')
+      await load()
+      toast.success('已全部标为已读')
+    } catch (e) {
+      toast.error('操作失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const remove = async (row: NotificationRecord) => {
     if (!(await confirm())) return
-    await api.remove('/notifications', row.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
+    try {
+      await api.remove('/notifications', row.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      toast.success('通知已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const byCategory = stats?.by_category ?? []

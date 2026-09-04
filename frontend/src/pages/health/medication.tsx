@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Loader2, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -257,15 +258,27 @@ export function MedicationPage() {
       setFormError('')
       await loadMed()
       setRefresh((v) => v + 1)
+      toast.success(editing ? '用药记录已更新' : '用药记录已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const removeMed = async (row: MedRecord) => {
     if (!(await confirm({ title: '确认删除', description: '确定删除这条用药记录吗？' }))) return
-    await api.remove('/health/medication', row.id)
-    await loadMed()
-    setRefresh((v) => v + 1)
+    try {
+      await api.remove('/health/medication', row.id)
+      await loadMed()
+      setRefresh((v) => v + 1)
+      toast.success('用药记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const openPurCreate = () => {
@@ -318,21 +331,40 @@ export function MedicationPage() {
       setFormError('')
       await loadPur()
       await loadStock()
+      toast.success(editing ? '购药记录已更新' : '购药记录已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const removePur = async (row: Purchase) => {
     if (!(await confirm({ title: '确认删除', description: '确定删除这条购药记录吗？' }))) return
-    await api.remove('/health/medication/purchases', row.id)
-    await loadPur()
-    await loadStock()
+    try {
+      await api.remove('/health/medication/purchases', row.id)
+      await loadPur()
+      await loadStock()
+      toast.success('购药记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const removeStock = async (row: Stock) => {
     if (!(await confirm({ title: '确认删除', description: '确定删除该库存吗？' }))) return
-    await api.remove('/health/medication/stocks', row.id)
-    await loadStock()
+    try {
+      await api.remove('/health/medication/stocks', row.id)
+      await loadStock()
+      toast.success('库存已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
   const submitStock = async () => {
     if (!stockForm.medicine_name.trim()) {
@@ -352,6 +384,11 @@ export function MedicationPage() {
       setDialogOpen(false)
       setFormError('')
       await loadStock()
+      toast.success(editing ? '库存已更新' : '库存已添加')
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }

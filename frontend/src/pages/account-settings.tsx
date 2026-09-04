@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { KeyRound, Loader2, Save, UserRound } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,8 +21,6 @@ type Settings = {
   created_at: string
 }
 
-type Message = { type: 'success' | 'error'; text: string } | null
-
 function formatDate(iso: string) {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -36,14 +35,13 @@ export function AccountSettingsPage() {
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [savingPwd, setSavingPwd] = useState(false)
-  const [message, setMessage] = useState<Message>(null)
 
   const load = async () => {
     try {
       const data = await api.query<Settings>('/user/settings')
       setSettings(data)
     } catch {
-      setMessage({ type: 'error', text: '加载账号设置失败' })
+      toast.error('加载账号设置失败')
     }
   }
 
@@ -54,31 +52,32 @@ export function AccountSettingsPage() {
 
   const savePassword = async () => {
     if (!newPwd) {
-      setMessage({ type: 'error', text: '请输入新密码' })
+      toast.error('请输入新密码')
       return
     }
     if (newPwd.length < 6) {
-      setMessage({ type: 'error', text: '新密码长度不能少于 6 位' })
+      toast.error('新密码长度不能少于 6 位')
       return
     }
     if (newPwd !== confirmPwd) {
-      setMessage({ type: 'error', text: '两次输入的密码不一致' })
+      toast.error('两次输入的密码不一致')
       return
     }
     setSavingPwd(true)
-    setMessage(null)
     try {
       await api.put('/user/settings', {
         current_password: currentPwd || null,
         new_password: newPwd,
       })
-      setMessage({ type: 'success', text: '密码已更新' })
+      toast.success('密码已更新')
       setCurrentPwd('')
       setNewPwd('')
       setConfirmPwd('')
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: err instanceof Error ? err.message : '保存失败' })
+      toast.error('保存失败', {
+        description: err instanceof Error ? err.message : '请稍后重试',
+      })
     } finally {
       setSavingPwd(false)
     }
@@ -90,18 +89,6 @@ export function AccountSettingsPage() {
         <h1 className="font-heading text-2xl font-semibold tracking-tight">账号设置</h1>
         <p className="text-sm text-muted-foreground">管理登录账号与密码。</p>
       </section>
-
-      {message && (
-        <p
-          className={`rounded-md border px-3 py-2 text-sm ${
-            message.type === 'success'
-              ? 'border-green-200 bg-green-50 text-green-700'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {message.text}
-        </p>
-      )}
 
       <Card>
         <CardHeader className="pb-2">

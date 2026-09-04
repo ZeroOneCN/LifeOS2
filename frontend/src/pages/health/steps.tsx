@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
 
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -252,8 +253,10 @@ export function StepsPage() {
       if (editing) {
         await api.update('/health/steps', editing.id, payload)
         setDialogOpen(false)
+        toast.success(`已更新 ${periodLabel(form.period)} ${form.steps} 步`)
       } else {
         await api.create('/health/steps', payload)
+        toast.success(`已保存 ${periodLabel(form.period)} ${form.steps} 步`)
         const idx = PERIODS.findIndex((p) => p.value === form.period)
         const isLast = idx === PERIODS.length - 1
         if (isLast) {
@@ -267,6 +270,10 @@ export function StepsPage() {
       setPage(1)
       await load()
       setRefresh((r) => r + 1)
+    } catch (e) {
+      toast.error(editing ? '更新失败' : '保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -274,17 +281,31 @@ export function StepsPage() {
 
   const remove = async (row: StepsRecord) => {
     if (!(await confirm())) return
-    await api.remove('/health/steps', row.id)
-    if (items.length === 1 && page > 1) setPage(page - 1)
-    else await load()
-    setRefresh((r) => r + 1)
+    try {
+      await api.remove('/health/steps', row.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((r) => r + 1)
+      toast.success('步数记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const saveSetting = async () => {
-    await api.put('/health/steps/settings', { stride_cm: Number(stride) || 70 })
-    setSettingDialogOpen(false)
-    setRefresh((r) => r + 1)
-    await load()
+    try {
+      await api.put('/health/steps/settings', { stride_cm: Number(stride) || 70 })
+      setSettingDialogOpen(false)
+      setRefresh((r) => r + 1)
+      await load()
+      toast.success('步幅设置已保存')
+    } catch (e) {
+      toast.error('设置保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   // ---- 派生可视化数据（基于 month-detail） ----

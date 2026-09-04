@@ -10,6 +10,7 @@ import {
   Quote,
   VenusAndMars,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -136,6 +137,11 @@ export function UserCenterPage() {
       setDialogOpen(false)
       await load()
       await refreshAuth()
+      toast.success('个人资料已更新')
+    } catch (e) {
+      toast.error('保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }

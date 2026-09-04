@@ -231,15 +231,27 @@ function HousingTab() {
       setDialog(null)
       await loadHouses()
       await loadStats()
+      toast.success(dialog?.editing ? '住房信息已更新' : '住房信息已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const removeHousing = async (h: Housing) => {
     if (!(await confirm())) return
-    await api.remove('/finance/housing', h.id)
-    await loadHouses()
-    await loadStats()
+    try {
+      await api.remove('/finance/housing', h.id)
+      await loadHouses()
+      await loadStats()
+      toast.success('住房信息已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const openUCreate = () => {
@@ -263,14 +275,26 @@ function HousingTab() {
       else await api.create('/finance/utilities', payload)
       setUDialog(null)
       await loadUtilities()
+      toast.success(editingU ? '缴费记录已更新' : '缴费记录已添加')
+    } catch (e) {
+      toast.error(editingU ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const removeUtility = async (u: Utility) => {
     if (!(await confirm())) return
-    await api.remove('/finance/utilities', u.id)
-    await loadUtilities()
+    try {
+      await api.remove('/finance/utilities', u.id)
+      await loadUtilities()
+      toast.success('缴费记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (
@@ -688,14 +712,28 @@ function SubscriptionTab() {
   const addCategory = async () => {
     const name = newCategory.trim()
     if (!name) return
-    await api.create<SubCategory>('/finance/subscription-categories', { name })
-    setNewCategory('')
-    await loadCategories()
+    try {
+      await api.create<SubCategory>('/finance/subscription-categories', { name })
+      setNewCategory('')
+      await loadCategories()
+      toast.success('订阅分类已添加')
+    } catch (e) {
+      toast.error('添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
   const removeCategory = async (c: SubCategory) => {
     if (!(await confirm())) return
-    await api.remove('/finance/subscription-categories', c.id)
-    await loadCategories()
+    try {
+      await api.remove('/finance/subscription-categories', c.id)
+      await loadCategories()
+      toast.success('订阅分类已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const openCreate = () => {
@@ -715,14 +753,26 @@ function SubscriptionTab() {
       else await api.create('/finance/subscriptions', payload)
       setDialog(null)
       await load()
+      toast.success(dialog?.editing ? '订阅已更新' : '订阅已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const remove = async (s: Subscription) => {
     if (!(await confirm())) return
-    await api.remove('/finance/subscriptions', s.id)
-    await load()
+    try {
+      await api.remove('/finance/subscriptions', s.id)
+      await load()
+      toast.success('订阅已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (
@@ -1035,8 +1085,15 @@ function LoanTab() {
   }
   const removePlatform = async (id: number) => {
     if (!(await confirm())) return
-    await api.remove('/finance/loan-platforms', id)
-    await loadPlatforms()
+    try {
+      await api.remove('/finance/loan-platforms', id)
+      await loadPlatforms()
+      toast.success('平台已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const dueFor = (platformId: string, billMonth: string) => {
@@ -1076,9 +1133,16 @@ function LoanTab() {
   }
   const removeBill = async (b: LoanBill) => {
     if (!(await confirm())) return
-    await api.remove('/finance/loan-bills', b.id)
-    if (selectedBill === b.id) setSelectedBill(null)
-    await refresh()
+    try {
+      await api.remove('/finance/loan-bills', b.id)
+      if (selectedBill === b.id) setSelectedBill(null)
+      await refresh()
+      toast.success('账单已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   const openRepay = (b: LoanBill) => {
@@ -1098,16 +1162,26 @@ function LoanTab() {
       await api.create('/finance/repayments', payload)
       setRepayDialog(null)
       await refresh()
+      toast.success('还款记录已添加')
     } catch (e) {
-      window.alert((e as Error).message)
+      toast.error('保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
   }
   const removeRepay = async (r: Repayment) => {
     if (!(await confirm())) return
-    await api.remove('/finance/repayments', r.id)
-    await refresh()
+    try {
+      await api.remove('/finance/repayments', r.id)
+      await refresh()
+      toast.success('还款记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   return (
