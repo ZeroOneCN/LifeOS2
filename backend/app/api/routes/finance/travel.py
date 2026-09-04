@@ -30,7 +30,6 @@ from app.schemas.finance import (
     TravelPaymentChannelRead,
 )
 from app.services import finance_report
-from app.services.report_period import resolve_period
 
 # 行程账本：标准 CRUD
 ledgers_router = crud_router(
@@ -181,9 +180,6 @@ report_router = APIRouter(prefix="/finance/travel", tags=["finance-travel"])
 
 class ReportGenReq(BaseModel):
     ledger_id: int | None = None
-    days: int = 30
-    start_date: date | None = None
-    end_date: date | None = None
 
 
 def _to_read(r: FinanceTravelReport) -> dict:
@@ -234,13 +230,14 @@ def travel_report_generate(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    start, end, _label = resolve_period(payload.days, payload.start_date, payload.end_date)
-    title, summary, content = finance_report.build_travel_report(db, start, end, payload.ledger_id, user.id)
+    title, summary, content, pstart, pend = finance_report.build_travel_report(
+        db, payload.ledger_id, user.id
+    )
     report = FinanceTravelReport(
         title=title,
         ledger_id=payload.ledger_id,
-        period_start=start,
-        period_end=end,
+        period_start=pstart,
+        period_end=pend,
         summary=summary,
         content=json.dumps(content, ensure_ascii=False),
         user_id=user.id,

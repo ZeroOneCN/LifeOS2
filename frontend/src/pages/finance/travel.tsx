@@ -48,10 +48,6 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
-import {
-  ReportPeriodPicker,
-  type ReportPeriod,
-} from '@/components/reports/period-picker'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
@@ -215,7 +211,7 @@ export function TravelPage() {
   const [saving, setSaving] = useState(false)
 
   const [reportDialog, setReportDialog] = useState(false)
-  const [reportPeriod, setReportPeriod] = useState<ReportPeriod>({ days: 30 })
+  const [reportLedger, setReportLedger] = useState<string>('')
   const [reportLoading, setReportLoading] = useState(false)
   const [report, setReport] = useState<TravelReport | null>(null)
   const [reportCollapsed, setReportCollapsed] = useState(false)
@@ -434,8 +430,7 @@ export function TravelPage() {
     setReportLoading(true)
     try {
       const res = await api.create<TravelReport>('/finance/travel/report/generate', {
-        ledger_id: currentLedger ? Number(currentLedger) : null,
-        ...reportPeriod,
+        ledger_id: reportLedger ? Number(reportLedger) : null,
       })
       setReport(res)
       setReportCollapsed(false)
@@ -491,7 +486,7 @@ export function TravelPage() {
           <Button variant="outline" size="icon" title="新建行程" onClick={openCreateLedger}><Plus /></Button>
           <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger}><Trash2 /></Button>
           <Button variant="outline" size="icon" title="支付方式设置" onClick={() => setPayDialog(true)}><Settings2 /></Button>
-          <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
+          <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); setReportLedger(currentLedger || ''); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
         </div>
       </section>
@@ -706,13 +701,10 @@ export function TravelPage() {
             <DialogDescription>生成并保存报告，可预览内容、导出 PDF，历史报告自动留存。</DialogDescription>
           </DialogHeader>
           <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-64">
-              <ReportPeriodPicker value={reportPeriod} onChange={setReportPeriod} />
-            </div>
             <div className="space-y-1">
-              <Label>行程</Label>
-              <Select value={currentLedger} onValueChange={setCurrentLedger}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="全部行程" /></SelectTrigger>
+              <Label>选择行程 <span className="text-destructive">*</span></Label>
+              <Select value={reportLedger} onValueChange={(v) => { setReportLedger(v); setReport(null) }}>
+                <SelectTrigger className="w-56"><SelectValue placeholder="选择一个行程生成报告" /></SelectTrigger>
                 <SelectContent>
                   {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
                 </SelectContent>
@@ -720,7 +712,7 @@ export function TravelPage() {
             </div>
             <div className="space-y-1">
               <Label>&nbsp;</Label>
-              <Button onClick={generateReport} disabled={reportLoading}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
+              <Button onClick={generateReport} disabled={reportLoading || !reportLedger}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
             </div>
           </div>
 

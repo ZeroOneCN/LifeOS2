@@ -139,13 +139,9 @@ def _duration_hours(begin: time | None, end: time | None) -> float:
     return round((end_dt - begin_dt).total_seconds() / 3600, 2)
 
 
-def build_travel_report(db: Session, start: date, end: date, ledger_id: int | None, user_id: int):
-    """聚合行程明细生成旅行报告内容。"""
-    stmt = select(FinanceTravelDetail).where(
-        FinanceTravelDetail.user_id == user_id,
-        FinanceTravelDetail.detail_date >= start,
-        FinanceTravelDetail.detail_date <= end,
-    )
+def build_travel_report(db: Session, ledger_id: int | None, user_id: int):
+    """按行程(账本)聚合其全部明细生成旅行报告内容，不再按统计周期过滤。"""
+    stmt = select(FinanceTravelDetail).where(FinanceTravelDetail.user_id == user_id)
     if ledger_id:
         stmt = stmt.where(FinanceTravelDetail.ledger_id == ledger_id)
     rows = db.scalars(stmt.order_by(FinanceTravelDetail.detail_date)).all()
@@ -175,8 +171,11 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
         by_date[r.detail_date.isoformat()] += r.actual_price
 
     title = f"旅行开支报告（{ledger_name}）"
+    pstart = min((r.detail_date for r in rows), default=None)
+    pend = max((r.detail_date for r in rows), default=None)
+    range_txt = f"{pstart.isoformat()} ~ {pend.isoformat()}" if pstart and pend else "全部记录"
     summary = (
-        f"统计区间 {start.isoformat()} ~ {end.isoformat()}，共 {len(rows)} 条明细，"
+        f"区间 {range_txt}，共 {len(rows)} 条明细，"
         f"实付合计 ¥{total_actual:,.2f}，原价 ¥{total_original:,.2f}（优惠 ¥{total_discount:,.2f}），"
         f"记录时长合计 {total_hours} 小时。"
     )
@@ -230,7 +229,7 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
             else [["—", "—", "—", "—", "—", "—", "—"]],
         },
     ]
-    return title, summary, content
+    return title, summary, content, pstart, pend
 
 
 # --------------------------------------------------------------------------
