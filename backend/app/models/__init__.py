@@ -18,6 +18,7 @@ from app.models.finance import (
     FinanceSubscriptionCategory,
     FinanceTravelDetail,
     FinanceTravelLedger,
+    FinanceTravelPaymentChannel,
     FinanceTravelReport,
     FinanceUtility,
 )
@@ -81,6 +82,7 @@ __all__ = [
     "FinanceReport",
     "FinanceTravelLedger",
     "FinanceTravelDetail",
+    "FinanceTravelPaymentChannel",
     "FinanceTravelReport",
     "FinanceHousing",
     "FinanceUtility",
