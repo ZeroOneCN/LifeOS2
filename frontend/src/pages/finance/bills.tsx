@@ -809,7 +809,7 @@ function HousingTab() {
                       <span className="text-sm font-medium">水电账单明细</span>
                       <span className="text-xs text-muted-foreground">已缴 {fmt(utilPaid)} / 待缴 {fmt(utilTotal - utilPaid)}</span>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="grid gap-1.5 sm:grid-cols-2">
                       {myUtils.map((u) => (
                         <div key={u.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
                           <div className="min-w-0">
