@@ -93,7 +93,7 @@ export function MonthPicker({
                 <button
                   key={label}
                   type="button"
-                  onClick={() => pick(view.y, i)}
+                  onClick={() => pick(view.y, i + 1)}
                   className={cn(
                     'rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
                     same && 'bg-primary font-medium text-primary-foreground hover:bg-primary hover:text-primary-foreground',
@@ -109,7 +109,7 @@ export function MonthPicker({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => pick(today.getFullYear(), today.getMonth())}
+              onClick={() => pick(today.getFullYear(), today.getMonth() + 1)}
             >
               本月
             </Button>
