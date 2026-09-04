@@ -332,8 +332,8 @@ function HousingTab() {
 
   // 住房统一成本口径：已发生成本=已交期次+已缴水电+杂费；平均单日=已发生成本/居住天数；折算月租=单日×30
   const houseDays = (h: Housing): number => hDays(h)
-  // 中介费、服务费已含在付款期次金额里，不再计入杂费成本；只计保洁/洗衣
-  const houseFees = (h: Housing): number => (h.clean_fee || 0) + (h.laundry_fee || 0)
+  // 服务费已含在付款期次金额里不再计入；中介费为单另费用、保洁/洗衣一并计入成本
+  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
   const houseIncurred = (h: Housing): number => {
     const termsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
     const utilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
