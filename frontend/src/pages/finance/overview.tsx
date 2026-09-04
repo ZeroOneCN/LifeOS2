@@ -151,23 +151,25 @@ export function FinanceOverviewPage() {
         <StatCard icon={TrendingUp} label="投资盈亏" value={signFmt(data.invest_pnl)} hint={`共 ${data.sub_count} 项订阅、押金 ${fmt(data.deposit_total)}`} />
       </section>
 
-      {data.categories.length > 0 && (
-        <BarChartCard
-          title="本月支出构成"
-          data={data.categories.map((c) => ({ name: c.label, value: c.amount }))}
-          xKey="name"
-          series={[{ key: 'value', name: '支出', color: '#0f766e' }]}
-        />
-      )}
+      <section className="grid gap-4 lg:grid-cols-2">
+        {data.categories.length > 0 && (
+          <BarChartCard
+            title="本月支出构成"
+            data={data.categories.map((c) => ({ name: c.label, value: c.amount }))}
+            xKey="name"
+            series={[{ key: 'value', name: '支出', color: '#0f766e' }]}
+          />
+        )}
 
-      {data.week_trend.length > 0 && (
-        <BarChartCard
-          title="近 7 天支出趋势"
-          data={data.week_trend}
-          xKey="date"
-          series={[{ key: 'amount', name: '支出', color: '#ef4444' }]}
-        />
-      )}
+        {data.week_trend.length > 0 && (
+          <BarChartCard
+            title="近 7 天支出趋势"
+            data={data.week_trend}
+            xKey="date"
+            series={[{ key: 'amount', name: '支出', color: '#ef4444' }]}
+          />
+        )}
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
         <Card>
