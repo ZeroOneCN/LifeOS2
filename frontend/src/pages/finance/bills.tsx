@@ -13,7 +13,6 @@ import {
   Plus,
   Repeat,
   Trash2,
-  X,
   Wallet,
 } from 'lucide-react'
 
@@ -639,13 +638,13 @@ function HousingTab() {
                 </div>
                 <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} placeholder="如 朝南 / 朝东" /></div>
                 <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
-                <div className="space-y-2"><Label>退租时间</Label>
-                  <div className="flex gap-1">
-                    <DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} />
-                    {(form.move_out_date || '') !== '' && (
-                      <Button type="button" variant="outline" size="icon" className="h-8 w-9 shrink-0" title="设为在住" onClick={() => setForm({ ...form, move_out_date: '' })}><X /></Button>
-                    )}
-                  </div>
+                <div className="col-span-2 space-y-2"><Label>退租时间</Label>
+                  <Select value={form.move_out_date ? 'out' : 'in'} onValueChange={(v) => { if (v === 'in') setForm({ ...form, move_out_date: '' }); else setForm({ ...form, move_out_date: form.move_out_date || new Date().toISOString().slice(0, 10) }) }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="in">在住（未退）</SelectItem><SelectItem value="out">已退租</SelectItem></SelectContent>
+                  </Select>
+                  {form.move_out_date && <DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} />}
+                  {!form.move_out_date && <p className="text-xs text-muted-foreground">在住中，无需填写退租日期</p>}
                 </div>
                 <div className="space-y-2"><Label>缴纳方式</Label>
                   <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
