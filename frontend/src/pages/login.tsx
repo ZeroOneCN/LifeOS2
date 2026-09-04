@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, LogIn } from 'lucide-react'
 
@@ -22,6 +22,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    document.title = '数字化生活助手-登录'
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, UserPlus } from 'lucide-react'
 
@@ -24,6 +24,10 @@ export function RegisterPage() {
   const [confirmPwd, setConfirmPwd] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    document.title = '数字化生活助手-注册'
+  }, [])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()

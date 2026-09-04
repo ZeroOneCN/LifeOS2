@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
 import { AppSidebar } from '@/components/app-sidebar'
@@ -22,12 +23,20 @@ const PAGE_TITLES: Record<string, string> = {
   '/user-center/settings': '账号设置',
 }
 
+// 网页标签标题前缀（品牌名）
+const BRAND = '数字化生活助手'
+
 export function AdminLayout() {
   const { pathname } = useLocation()
   const found = findNavEntry(pathname)
   const sectionTitle = found?.section.title
   const showSection = found ? !found.section.system : false
   const pageTitle = found?.entry.title ?? PAGE_TITLES[pathname] ?? '页面'
+
+  // 按当前页面自动更新网页标签标题
+  useEffect(() => {
+    document.title = `${BRAND}-${pageTitle}`
+  }, [pageTitle])
 
   return (
     <SidebarProvider>
