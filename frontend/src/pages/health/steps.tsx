@@ -93,6 +93,18 @@ const EMPTY = {
   steps: '',
 }
 
+// 根据当前时间匹配所处时间段（如 14:30 → 14:00-15:00）
+function periodForNow(): string {
+  const h = new Date().getHours()
+  if (h >= 23) return '23-24'
+  if (h < 8) return '08-09' // 凌晨 0-7 点归为最早时段
+  return PERIODS.find((p) => {
+    const start = Number(p.value.slice(0, 2))
+    const end = Number(p.value.slice(3, 5))
+    return h >= start && h < end && end <= 24
+  })?.value ?? 'full'
+}
+
 export function StepsPage() {
   const [items, setItems] = useState<StepsRecord[]>([])
   const [total, setTotal] = useState(0)
@@ -182,7 +194,8 @@ export function StepsPage() {
   const openCreate = () => {
     setEditing(null)
     setFormError('')
-    setForm({ ...EMPTY, record_date: latestDate })
+    // 时间段按当前时间自动匹配，日期取数据库最新一天
+    setForm({ ...EMPTY, record_date: latestDate, period: periodForNow() })
     setDialogOpen(true)
   }
 
