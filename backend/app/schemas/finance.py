@@ -116,14 +116,15 @@ class RentChannelRead(RentChannelCreate, ORMRead):
 
 
 class RentTermCreate(BaseModel):
+    """新增一期：支持手动按合同录入金额/到期日/是否已交。"""
+    housing_id: int
     amount: float = Field(ge=0)
+    due_date: date
     paid: bool = False
 
 
 class RentTermRead(RentTermCreate, ORMRead):
-    housing_id: int
     term_no: int
-    due_date: date
 
 
 class UtilityCreate(BaseModel):

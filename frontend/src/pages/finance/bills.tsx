@@ -133,6 +133,8 @@ function HousingTab() {
   const [channelDialog, setChannelDialog] = useState(false)
   const [newChannel, setNewChannel] = useState('')
   const [termsByHouse, setTermsByHouse] = useState<Record<number, RentTerm[]>>({})
+  const [termDialog, setTermDialog] = useState<null | { housing_id: number }>(null)
+  const [termForm, setTermForm] = useState<{ amount: string; due_date: string; paid: boolean }>({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true })
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -195,6 +197,83 @@ function HousingTab() {
       toast.success('付款期次已更新')
     } catch (e) {
       toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const patchTerm = (id: number, housingId: number, patch: Partial<RentTerm>) => {
+    setTermsByHouse((prev) => ({
+      ...prev,
+      [housingId]: (prev[housingId] ?? []).map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }))
+  }
+  const updateTermAmount = async (t: RentTerm, amount: number) => {
+    try {
+      await api.put(`/finance/rent-terms/${t.id}?amount=${amount}`, {})
+      patchTerm(t.id, t.housing_id ?? 0, { amount })
+      toast.success('金额已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const updateTermDueDate = async (t: RentTerm, due_date: string) => {
+    try {
+      await api.put(`/finance/rent-terms/${t.id}?due_date=${due_date}`, {})
+      patchTerm(t.id, t.housing_id ?? 0, { due_date })
+      toast.success('到期日已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const deleteTerm = async (t: RentTerm) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/rent-terms', t.id)
+      setTermsByHouse((prev) => ({ ...prev, [t.housing_id ?? 0]: (prev[t.housing_id ?? 0] ?? []).filter((x) => x.id !== t.id) }))
+      toast.success('期次已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const addTerm = async () => {
+    if (!termDialog) return
+    const amount = Number(termForm.amount)
+    if (!amount || amount <= 0) {
+      toast.error('请输入有效金额')
+      return
+    }
+    try {
+      const t = await api.create<RentTerm>('/finance/rent-terms', {
+        housing_id: termDialog.housing_id,
+        amount,
+        due_date: termForm.due_date || null,
+        paid: termForm.paid,
+      })
+      setTermsByHouse((prev) => ({
+        ...prev,
+        [termDialog.housing_id]: [...(prev[termDialog.housing_id] ?? []), t].sort((a, b) => a.term_no - b.term_no),
+      }))
+      setTermDialog(null)
+      toast.success('期次已新增')
+    } catch (e) {
+      toast.error('新增失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const rebuildTerms = async (housingId: number) => {
+    try {
+      await api.post(`/finance/rent-terms/rebuild?housing_id=${housingId}`)
+      await loadTermsForHouse(housingId)
+      toast.success('期次已重建')
+    } catch (e) {
+      toast.error('重建失败', {
         description: e instanceof Error ? e.message : '请稍后重试',
       })
     }
@@ -423,7 +502,7 @@ function HousingTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>朝向</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
-                <TableHead className="text-right">总成本</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead className="text-right">已交租金</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -433,9 +512,7 @@ function HousingTab() {
                 const inD = h.move_in_date ? new Date(h.move_in_date) : null
                 const outD = h.move_out_date ? new Date(h.move_out_date) : (inD ? new Date() : null)
                 const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
-                const rent = h.actual_monthly_rent || 0
-                const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
-                const total = days > 0 ? (rent / 30) * days + fees : rent || 0
+                const paidTerms = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
                 return (
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{h.name}</TableCell>
@@ -443,7 +520,7 @@ function HousingTab() {
                   <TableCell className="text-muted-foreground">{h.orientation ?? '—'}</TableCell>
                   <TableCell>{h.channel ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : ''}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt(total)}</TableCell>
+                  <TableCell className="text-right font-medium">{paidTerms > 0 ? fmt(paidTerms) : '—'}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -625,29 +702,42 @@ function HousingTab() {
                   const terms = termsByHouse[viewH.id] ?? []
                   const paidCount = terms.filter((t) => t.paid).length
                   const paidSum = terms.filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                  const housingId = viewH.id
                   return (
                     <div className="mt-3">
                       <div className="mb-1.5 flex items-center justify-between">
                         <span className="text-sm font-medium">付款期次</span>
-                        <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <Button size="sm" variant="outline" onClick={() => rebuildTerms(housingId)}>重建期次</Button>
+                          <Button size="sm" onClick={() => { setTermForm({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true }); setTermDialog({ housing_id: housingId }) }}>新增期次</Button>
+                        </div>
                       </div>
+                      {terms.length > 0 && (
+                        <p className="mb-1.5 text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</p>
+                      )}
                       <div className="space-y-1.5">
                         {terms.length === 0 ? (
                           <p className="py-3 text-center text-sm text-muted-foreground">暂无付款期次</p>
                         ) : terms.map((t) => (
-                          <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
-                            <div className="min-w-0">
-                              <span className="font-medium">第 {t.term_no} 期</span>
-                              <span className="ml-2 text-muted-foreground">{fmt(t.amount)}</span>
-                              {t.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {t.due_date}</span>}
+                          <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                              <span className="font-medium whitespace-nowrap">第 {t.term_no} 期</span>
+                              <Input
+                                type="number" min={0} step="0.01" defaultValue={t.amount}
+                                className="h-7 w-24 text-right"
+                                onBlur={(e) => { const v = Number(e.target.value); if (v !== t.amount) updateTermAmount(t, v) }}
+                              />
+                              <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               <span className={`text-xs ${t.paid ? 'text-green-600' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
                               <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button>
                             </div>
                           </div>
                         ))}
                       </div>
+                      <p className="mt-2 text-xs text-muted-foreground">短住几天(酒店)可“新增期次”按天折算金额手录，或由自动展开按天折算尾差。</p>
                     </div>
                   )
                 })()}
@@ -760,6 +850,30 @@ function HousingTab() {
           </div>
           <DialogFooter>
             <Button onClick={() => setChannelDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新增付款期次弹窗 */}
+      <Dialog open={termDialog !== null} onOpenChange={(o) => !o && setTermDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新增付款期次</DialogTitle>
+            <DialogDescription>手动录入一期租金，可按天折算金额提交，期次号自动递增。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={termForm.amount} onChange={(e) => setTermForm({ ...termForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={termForm.due_date} onChange={(v) => setTermForm({ ...termForm, due_date: v })} /></div>
+            <div className="col-span-2 space-y-2"><Label>是否已交</Label>
+              <div className="flex items-center gap-2 pt-1">
+                <Switch checked={termForm.paid} onCheckedChange={(v) => setTermForm({ ...termForm, paid: v })} />
+                <span className="text-sm text-muted-foreground">{termForm.paid ? '已交' : '未交'}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTermDialog(null)}>取消</Button>
+            <Button onClick={addTerm}>确认新增</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
