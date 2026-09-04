@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
   Dialog,
   DialogContent,
@@ -128,6 +129,7 @@ function HousingTab() {
   const [uGroup, setUGroup] = useState<null | { housing_id?: number; bill_month: string; ids: number[] }>(null)
   const [viewH, setViewH] = useState<null | Housing>(null)
   const [housePage, setHousePage] = useState(1)
+  const [utilityPage, setUtilityPage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
   const [channels, setChannels] = useState<RentChannel[]>([])
   const [channelDialog, setChannelDialog] = useState(false)
@@ -282,8 +284,12 @@ function HousingTab() {
       if (u.due_date) g.due_date = u.due_date
       if (u.paid) g.paid = true
     }
-    return Object.values(map).sort((a, b) => a.bill_month.localeCompare(b.bill_month))
+    return Object.values(map).sort((a, b) => b.bill_month.localeCompare(a.bill_month))
   }, [utilities])
+  // 水电气账单分页（最新在前）
+  const UTIL_PAGE_SIZE = 10
+  const utilTotalPages = Math.max(1, Math.ceil(utilityGroups.length / UTIL_PAGE_SIZE))
+  const pagedUtilityGroups = utilityGroups.slice((utilityPage - 1) * UTIL_PAGE_SIZE, utilityPage * UTIL_PAGE_SIZE)
 
   // 住房清单卡片：按入住时间（最新在前）排序 + 每页 6 条分页
   const HOUSING_PAGE_SIZE = 6
@@ -313,6 +319,7 @@ function HousingTab() {
   }, [houseTotalPages])
 
   const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
+  const houseShort = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
 
   // 住房居住天数与总成本（不含押金）口径：居住天数=入住~退租（含退租日）
   const hDays = (h: Housing): number => {
@@ -491,7 +498,7 @@ function HousingTab() {
                     <div className="mt-0.5 truncate text-xs text-muted-foreground">{h.name}</div>
                     <div className="mt-1 text-muted-foreground">
                       {h.channel ? `${h.channel} · ` : ''}入住 {h.move_in_date}
-                      {h.move_out_date ? ` · 退租 ${h.move_out_date}` : ''}
+                      {h.move_out_date ? ` · 退租 ${h.move_out_date}` : ' · 在住'}
                       {h.orientation ? ` · ${h.orientation}` : ''}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
@@ -537,7 +544,7 @@ function HousingTab() {
                   <TableCell className="text-muted-foreground">{h.short_name ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{h.orientation ?? '—'}</TableCell>
                   <TableCell>{h.channel ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : ''}</TableCell>
+                  <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : '（在住）'}</TableCell>
                   <TableCell className="text-right font-medium">{paidTerms > 0 ? fmt(paidTerms) : '—'}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
                   <TableCell className="text-right">
@@ -570,10 +577,10 @@ function HousingTab() {
             <TableBody>
               {utilityGroups.length === 0 ? (
                 <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
-              ) : utilityGroups.map((g) => (
+              ) : pagedUtilityGroups.map((g) => (
                 <TableRow key={g.key}>
                   <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
-                  <TableCell className="max-w-[180px] truncate text-muted-foreground" title={houseName(g.housing_id)}>{houseName(g.housing_id)}</TableCell>
+                  <TableCell className="max-w-[140px] truncate text-muted-foreground" title={houseName(g.housing_id)}>{houseShort(g.housing_id)}</TableCell>
                   <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
@@ -591,6 +598,11 @@ function HousingTab() {
               ))}
             </TableBody>
           </Table>
+          {utilityGroups.length > UTIL_PAGE_SIZE && (
+            <div className="border-t p-3">
+              <PaginationBar page={utilityPage} totalPages={utilTotalPages} total={utilityGroups.length} onPageChange={setUtilityPage} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
