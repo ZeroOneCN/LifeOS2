@@ -107,6 +107,25 @@ class HousingRead(HousingCreate, ORMRead):
     pass
 
 
+class RentChannelCreate(BaseModel):
+    name: str
+
+
+class RentChannelRead(RentChannelCreate, ORMRead):
+    pass
+
+
+class RentTermCreate(BaseModel):
+    amount: float = Field(ge=0)
+    paid: bool = False
+
+
+class RentTermRead(RentTermCreate, ORMRead):
+    housing_id: int
+    term_no: int
+    due_date: date
+
+
 class UtilityCreate(BaseModel):
     housing_id: int | None = None
     bill_month: date

@@ -129,6 +129,28 @@ class FinanceHousing(TimestampMixin, UserOwned, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class FinanceRentChannel(TimestampMixin, UserOwned, Base):
+    """租房渠道：住房只能从设置好的渠道中选择。"""
+
+    __tablename__ = "finance_rent_channels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(64), index=True)  # 渠道名称
+
+
+class FinanceRentTerm(TimestampMixin, UserOwned, Base):
+    """租房付款期次：按支付周期自动展开，每期标记是否已交，只有已交计入已发生成本。"""
+
+    __tablename__ = "finance_rent_terms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    housing_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联住房
+    term_no: Mapped[int] = mapped_column(Integer, index=True)  # 期次序号
+    amount: Mapped[float] = mapped_column(Float)  # 本期应付款
+    due_date: Mapped[date] = mapped_column(Date)  # 本期到期日
+    paid: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否已交
+
+
 class FinanceUtility(TimestampMixin, UserOwned, Base):
     """水电燃气/宽带费用账单。"""
 
