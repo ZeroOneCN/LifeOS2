@@ -109,7 +109,8 @@ function StatChip({
 
 export function TodosPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<TodoStats>('/lifestyle/todos', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<TodoStats>('/lifestyle/todos', days, refresh)
   const byPriority = stats?.by_priority ?? []
 
   return (
@@ -119,6 +120,7 @@ export function TodosPage() {
       apiPath="/lifestyle/todos"
       fields={fields}
       columns={columns}
+      onMutate={() => setRefresh((v) => v + 1)}
       extra={
         <>
           <div className="flex justify-end">

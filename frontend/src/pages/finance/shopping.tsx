@@ -168,11 +168,16 @@ export function ShoppingPage() {
         setTotal(res.total)
       })
       .finally(() => setLoading(false))
+    loadStats()
+  }, [currentLedger, page])
+
+  const loadStats = () => {
+    const ledgerParam = currentLedger ? Number(currentLedger) : undefined
     api
       .query<Stats>(`/finance/shopping/records/stats?days=3650${currentLedger ? `&ledger_id=${ledgerParam}` : ''}`)
       .then(setStats)
       .catch(() => setStats(null))
-  }, [currentLedger, page])
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -278,6 +283,7 @@ export function ShoppingPage() {
       setRecords(res.items)
       setTotal(res.total)
       setLoading(false)
+      loadStats()
     }
   }
 

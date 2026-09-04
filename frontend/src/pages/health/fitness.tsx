@@ -96,7 +96,8 @@ export function FitnessPage() {
   })
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<FitnessStats>('/health/fitness', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<FitnessStats>('/health/fitness', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -198,6 +199,7 @@ export function FitnessPage() {
       setDialogOpen(false)
       setPage(1)
       await load()
+      setRefresh((v) => v + 1)
     } finally {
       setSaving(false)
     }
@@ -208,6 +210,7 @@ export function FitnessPage() {
     await api.remove('/health/fitness', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    setRefresh((v) => v + 1)
   }
 
   return (

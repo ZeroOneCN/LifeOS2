@@ -235,6 +235,8 @@ export function ItemsPage() {
         apiPath="/lifestyle/items"
         fields={fields}
         columns={columns}
+        refreshKey={refresh}
+        onMutate={() => setRefresh((v) => v + 1)}
         headerExtra={
           <Button variant="outline" onClick={openSync}>
             <ShoppingCart className="size-4" />

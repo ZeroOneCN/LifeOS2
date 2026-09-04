@@ -154,7 +154,8 @@ export function MedicationPage() {
   const { confirm, dialog: confirmDialog } = useConfirm()
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<MedStats>('/health/medication', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<MedStats>('/health/medication', days, refresh)
   const PAGE_SIZE = 10
   const medPages = Math.max(1, Math.ceil(medTotal / PAGE_SIZE))
   const purPages = Math.max(1, Math.ceil(purTotal / PAGE_SIZE))
@@ -255,6 +256,7 @@ export function MedicationPage() {
       setDialogOpen(false)
       setFormError('')
       await loadMed()
+      setRefresh((v) => v + 1)
     } finally {
       setSaving(false)
     }
@@ -263,6 +265,7 @@ export function MedicationPage() {
     if (!(await confirm({ title: '确认删除', description: '确定删除这条用药记录吗？' }))) return
     await api.remove('/health/medication', row.id)
     await loadMed()
+    setRefresh((v) => v + 1)
   }
 
   const openPurCreate = () => {

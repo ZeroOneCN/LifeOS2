@@ -104,7 +104,8 @@ export function BodyPage() {
   })
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<BodyStats>('/health/body', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<BodyStats>('/health/body', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const gender = form.gender === 'female' ? 'female' : 'male'
@@ -172,6 +173,7 @@ export function BodyPage() {
       setDialogOpen(false)
       setPage(1)
       await load()
+      setRefresh((v) => v + 1)
     } finally {
       setSaving(false)
     }
@@ -182,6 +184,7 @@ export function BodyPage() {
     await api.remove('/health/body', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    setRefresh((v) => v + 1)
   }
 
   const n = (v: unknown) => (typeof v === 'number' ? v.toFixed(1) : '-')

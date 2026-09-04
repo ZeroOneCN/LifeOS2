@@ -253,6 +253,7 @@ export function StepsPage() {
       }
       setPage(1)
       await load()
+      setRefresh((r) => r + 1)
     } finally {
       setSaving(false)
     }
@@ -263,6 +264,7 @@ export function StepsPage() {
     await api.remove('/health/steps', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    setRefresh((r) => r + 1)
   }
 
   const saveSetting = async () => {

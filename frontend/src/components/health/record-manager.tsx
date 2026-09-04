@@ -72,6 +72,8 @@ type RecordManagerProps<T extends { id: number }> = {
   refreshKey?: number
   /** 隐藏内置标题区（主标题已由页面统一在 Tab 上方展示），仅保留右侧操作按钮 */
   hideHeader?: boolean
+  /** CRUD 成功后回调（新增/编辑/删除），用于页面同步刷新统计图表 */
+  onMutate?: () => void
 }
 
 const PAGE_SIZE = 10
@@ -94,6 +96,7 @@ export function RecordManager<T extends { id: number }>({
   rowActions,
   refreshKey,
   hideHeader,
+  onMutate,
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -164,6 +167,7 @@ export function RecordManager<T extends { id: number }>({
         setPage(1)
         await load()
       }
+      onMutate?.()
     } finally {
       setSaving(false)
     }
@@ -174,6 +178,7 @@ export function RecordManager<T extends { id: number }>({
     await api.remove(apiPath, row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    onMutate?.()
   }
 
   return (

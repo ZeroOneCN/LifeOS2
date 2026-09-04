@@ -135,7 +135,8 @@ export function CheckupPage() {
   })
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<CheckupStats>('/health/checkup', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<CheckupStats>('/health/checkup', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -273,6 +274,7 @@ export function CheckupPage() {
       setDialogOpen(false)
       setPage(1)
       await load()
+      setRefresh((v) => v + 1)
     } finally {
       setSaving(false)
     }
@@ -283,6 +285,7 @@ export function CheckupPage() {
     await api.remove('/health/checkup', row.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    setRefresh((v) => v + 1)
   }
 
   // ---- 单指标模板 ----

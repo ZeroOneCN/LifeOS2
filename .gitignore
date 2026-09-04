@@ -17,3 +17,5 @@ __pycache__/
 # 本地临时 SQLite（测试/脚本残留，不入库）
 backend/_tmp_auth_test.db
 *.db
+# 数据库迁移备份归档（保留本地，不入库）
+backend/migrations/backup/

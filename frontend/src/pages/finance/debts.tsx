@@ -90,7 +90,8 @@ type LoanSync = { total_remaining: number; platform_count: number; platforms: { 
 
 function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<DebtStats>('/finance/debts', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<DebtStats>('/finance/debts', days, refresh)
   const [items, setItems] = useState<DebtRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -140,6 +141,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       else await api.create('/finance/debts', payload)
       setDialog(null)
       await load()
+      setRefresh((v) => v + 1)
     } finally {
       setSaving(false)
     }
@@ -149,6 +151,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
     await api.remove('/finance/debts', d.id)
     if (items.length === 1 && page > 1) setPage(page - 1)
     else await load()
+    setRefresh((v) => v + 1)
   }
 
   const openRepay = (d: DebtRecord) => {
@@ -164,6 +167,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       })
       setRepayTarget(null)
       await load()
+      setRefresh((v) => v + 1)
     } catch (e) {
       window.alert((e as Error).message)
     } finally {

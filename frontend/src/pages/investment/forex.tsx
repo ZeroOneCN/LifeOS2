@@ -914,6 +914,7 @@ export function ForexPage() {
           fields={tradeFields}
           columns={tradeColumns}
           refreshKey={refresh}
+          onMutate={() => setRefresh((r) => r + 1)}
           headerExtra={<ImportButton onDone={onImported} />}
           extra={
             <>

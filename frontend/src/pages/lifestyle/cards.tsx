@@ -340,12 +340,13 @@ function MiniStat({ icon: Icon, label, value }: { icon?: typeof Smartphone; labe
 export function CardsPage() {
   const [tab, setTab] = useState<(typeof TAB_META)[number]['key']>('phone')
   const [phoneRefresh, setPhoneRefresh] = useState(0)
+  const [bankRefresh, setBankRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
-  const bankStats = useStats<BankStats>('/lifestyle/bank-cards', days)
-  const billStats = useStats<BillStats>('/lifestyle/card-bills', days)
+  const bankStats = useStats<BankStats>('/lifestyle/bank-cards', days, bankRefresh)
+  const billStats = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
   const itemStats = useStats<ItemStats>('/lifestyle/items', days)
 
   // 用于扣账账单中显示手机号
@@ -435,6 +436,7 @@ export function CardsPage() {
           fields={phoneFields}
           columns={phoneColumns}
           refreshKey={phoneRefresh}
+          onMutate={() => setPhoneRefresh((v) => v + 1)}
           rowActions={(r) =>
             !r.bill_paid_this_month ? (
               <Button
@@ -477,6 +479,7 @@ export function CardsPage() {
           apiPath="/lifestyle/bank-cards"
           fields={bankFields}
           columns={bankColumns}
+          onMutate={() => setBankRefresh((v) => v + 1)}
           extra={
             bankStats ? (
               <>
@@ -515,6 +518,7 @@ export function CardsPage() {
           fields={billFields}
           columns={billColumns}
           refreshKey={billRefresh}
+          onMutate={() => setBillRefresh((v) => v + 1)}
           extra={
             billStats ? (
               <StatRow cols={3}>

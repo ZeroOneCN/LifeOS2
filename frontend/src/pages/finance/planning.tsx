@@ -98,7 +98,8 @@ const columns: ColumnDef<PlanRecord>[] = [
 
 export function PlanningPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<PlanStats>('/finance/planning', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<PlanStats>('/finance/planning', days, refresh)
   const byType = stats?.by_type ?? []
 
   return (
@@ -108,6 +109,7 @@ export function PlanningPage() {
       apiPath="/finance/planning"
       fields={fields}
       columns={columns}
+      onMutate={() => setRefresh((v) => v + 1)}
       extra={
         <>
           <div className="flex justify-end">

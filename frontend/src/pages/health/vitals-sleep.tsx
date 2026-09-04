@@ -131,7 +131,8 @@ const columns: ColumnDef<VitalsRecord>[] = [
 
 export function VitalsSleepPage() {
   const [days, setDays] = useState<StatsDays>(7)
-  const stats = useStats<VitalsStats>('/health/vitals-sleep', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<VitalsStats>('/health/vitals-sleep', days, refresh)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
 
@@ -160,6 +161,7 @@ export function VitalsSleepPage() {
       fields={fields}
       columns={columns}
       headerExtra={periodPicker}
+      onMutate={() => setRefresh((v) => v + 1)}
       extra={
         <>
           <div className="grid gap-4 md:grid-cols-4">

@@ -125,12 +125,13 @@ const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDig
 
 export function RemindersPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<ReminderStats>('/finance/reminders', days)
+  const [refresh, setRefresh] = useState(0)
+  const stats = useStats<ReminderStats>('/finance/reminders', days, refresh)
   const [agg, setAgg] = useState<Aggregate | null>(null)
 
   useEffect(() => {
     api.query<Aggregate>('/finance/reminders/aggregate').then(setAgg).catch(() => setAgg(null))
-  }, [])
+  }, [refresh])
 
   const aggCards = agg
     ? [
@@ -212,6 +213,7 @@ export function RemindersPage() {
         apiPath="/finance/reminders"
         fields={fields}
         columns={columns}
+        onMutate={() => setRefresh((v) => v + 1)}
         extra={
           <>
             <div className="flex justify-end">

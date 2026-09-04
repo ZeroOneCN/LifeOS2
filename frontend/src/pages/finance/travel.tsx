@@ -252,11 +252,16 @@ export function TravelPage() {
         setTotal(res.total)
       })
       .finally(() => setLoading(false))
+    loadStats()
+  }, [currentLedger, page])
+
+  const loadStats = () => {
+    const ledgerParam = currentLedger ? Number(currentLedger) : undefined
     api
       .query<Stats>(`/finance/travel/details/stats?days=3650${currentLedger ? `&ledger_id=${ledgerParam}` : ''}`)
       .then(setStats)
       .catch(() => setStats(null))
-  }, [currentLedger, page])
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -360,6 +365,7 @@ export function TravelPage() {
       setItems(res.items)
       setTotal(res.total)
       setLoading(false)
+      loadStats()
     }
   }
 
