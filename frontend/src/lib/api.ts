@@ -25,7 +25,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 401) handleUnauthorized(path)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(body?.detail ?? `请求失败（${res.status}）`)
+    let msg = body?.detail ?? `请求失败（${res.status}）`
+    // FastAPI 422 的 detail 是数组/对象，转成可读文本，避免显示 OBJECT
+    if (typeof msg === 'object') {
+      if (Array.isArray(msg)) {
+        msg = msg
+          .map((d) => (d && typeof d === 'object' ? `${(d.loc || []).slice(1).join('.')}: ${d.msg || ''}` : String(d)))
+          .join('；')
+      } else {
+        try { msg = JSON.stringify(msg) } catch { msg = String(msg) }
+      }
+    }
+    throw new Error(msg)
   }
   if (res.status === 204) return undefined as T
   return res.json()

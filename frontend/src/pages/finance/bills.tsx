@@ -419,9 +419,13 @@ function HousingTab() {
   }
   const saveUtility = async () => {
     const editingU = uDialog?.editing
+    const amt = Number(utilityForm.amount)
+    if (!utilityForm.bill_month) { toast.error('请选择账单月份'); return }
+    if (!utilityForm.fee_type) { toast.error('请选择费用类型'); return }
+    if (utilityForm.amount === '' || Number.isNaN(amt)) { toast.error('请填写金额'); return }
     const payload = {
       housing_id: utilityForm.housing_id ? Number(utilityForm.housing_id) : null,
-      bill_month: utilityForm.bill_month, fee_type: utilityForm.fee_type, amount: Number(utilityForm.amount),
+      bill_month: utilityForm.bill_month, fee_type: utilityForm.fee_type, amount: amt,
       due_date: utilityForm.due_date || null, paid: utilityForm.paid === 'true', note: utilityForm.note || null,
     }
     setSaving(true)
@@ -812,7 +816,7 @@ function HousingTab() {
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       {myUtils.map((u) => (
                         <div key={u.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
-                          <div className="min-w-0 truncate">
+                          <div className="min-w-0 truncate" title={`${u.bill_month.slice(0, 7)} · ${u.fee_type} · ${fmt(u.amount)}`}>
                             <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
                             <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
                           </div>
