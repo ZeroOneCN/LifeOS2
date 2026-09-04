@@ -14,6 +14,8 @@ class Settings(BaseSettings):
         "http://localhost:5174",
         "http://127.0.0.1:5174",
     ]
+    # 是否允许任意来源跨域（局域网/开发模式访问时启用；关闭后仅放行 CORS_ORIGINS 白名单）
+    CORS_ALLOW_ALL: bool = True
     DATABASE_URL: str = (
         "mysql+pymysql://root:123456@127.0.0.1:3306/lifeos?charset=utf8mb4"
     )
