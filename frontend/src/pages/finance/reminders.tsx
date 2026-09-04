@@ -3,6 +3,7 @@ import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } 
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import {
@@ -128,10 +129,22 @@ export function RemindersPage() {
   const [refresh, setRefresh] = useState(0)
   const stats = useStats<ReminderStats>('/finance/reminders', days, refresh)
   const [agg, setAgg] = useState<Aggregate | null>(null)
+  const [aggPage, setAggPage] = useState(1)
 
   useEffect(() => {
     api.query<Aggregate>('/finance/reminders/aggregate').then(setAgg).catch(() => setAgg(null))
   }, [refresh])
+
+  const AGG_PAGE_SIZE = 10
+  const aggTotalPages = Math.max(1, Math.ceil((agg?.items.length ?? 0) / AGG_PAGE_SIZE))
+  const aggPaged = (agg?.items ?? []).slice(
+    (aggPage - 1) * AGG_PAGE_SIZE,
+    aggPage * AGG_PAGE_SIZE
+  )
+  useEffect(() => {
+    if (aggPage > aggTotalPages) setAggPage(aggTotalPages)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aggTotalPages])
 
   const aggCards = agg
     ? [
@@ -174,12 +187,12 @@ export function RemindersPage() {
               {agg.items.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">暂无待办提醒</p>
               ) : (
-                agg.items.map((it, i) => {
+                aggPaged.map((it, i) => {
                   const meta = sourceMeta[it.source] ?? { label: it.source_label, className: 'bg-gray-100 text-gray-600', icon: Inbox }
                   const Icon = meta.icon
                   return (
                     <div
-                      key={i}
+                      key={`${i}-${it.title}`}
                       className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${it.status === 'overdue' ? 'border-red-200 bg-red-50' : 'bg-white'}`}
                     >
                       <span className="flex items-center gap-2">
@@ -203,6 +216,11 @@ export function RemindersPage() {
                 })
               )}
             </CardContent>
+            {agg.items.length > 0 && (
+              <div className="border-t p-3">
+                <PaginationBar page={aggPage} totalPages={aggTotalPages} total={agg.items.length} onPageChange={setAggPage} />
+              </div>
+            )}
           </Card>
         </>
       )}
