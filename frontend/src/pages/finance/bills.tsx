@@ -138,7 +138,7 @@ function HousingTab() {
   const [termDialog, setTermDialog] = useState<null | { housing_id: number }>(null)
   const [termForm, setTermForm] = useState<{ amount: string; due_date: string; paid: boolean }>({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true })
   const [saving, setSaving] = useState(false)
-  const [housingFormBackup, setHousingFormBackup] = useState<Record<string, string> | null>(null)
+  const [utilityForm, setUtilityForm] = useState<Record<string, string>>({})
   const [dialogTab, setDialogTab] = useState<'basic' | 'terms' | 'utility' | 'deposit'>('basic')
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -409,28 +409,19 @@ function HousingTab() {
   }
 
   const openUCreate = () => {
-    setForm({ housing_id: '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'false', note: '' })
+    setUtilityForm({ housing_id: dialog?.editing ? String(dialog.editing.id) : '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'false', note: '' })
     setUDialog({})
   }
   const openUEdit = (u: Utility) => {
-    setForm({ housing_id: u.housing_id ? String(u.housing_id) : '', bill_month: u.bill_month, fee_type: u.fee_type, amount: String(u.amount), due_date: u.due_date ?? '', paid: u.paid ? 'true' : 'false', note: u.note ?? '' })
+    setUtilityForm({ housing_id: u.housing_id ? String(u.housing_id) : '', bill_month: u.bill_month, fee_type: u.fee_type, amount: String(u.amount), due_date: u.due_date ?? '', paid: u.paid ? 'true' : 'false', note: u.note ?? '' })
     setUDialog({ editing: u })
-  }
-  // 从「编辑住房」弹窗内打开水电账单新增/编辑：备份住房表单，关闭账单弹窗后恢复
-  const openUtilityFromHousing = (u?: Utility) => {
-    if (dialog?.editing) setHousingFormBackup(form)
-    if (u) openUEdit(u)
-    else {
-      setForm({ housing_id: dialog?.editing ? String(dialog.editing.id) : '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'false', note: '' })
-      setUDialog({})
-    }
   }
   const saveUtility = async () => {
     const editingU = uDialog?.editing
     const payload = {
-      housing_id: form.housing_id ? Number(form.housing_id) : null,
-      bill_month: form.bill_month, fee_type: form.fee_type, amount: Number(form.amount),
-      due_date: form.due_date || null, paid: form.paid === 'true', note: form.note || null,
+      housing_id: utilityForm.housing_id ? Number(utilityForm.housing_id) : null,
+      bill_month: utilityForm.bill_month, fee_type: utilityForm.fee_type, amount: Number(utilityForm.amount),
+      due_date: utilityForm.due_date || null, paid: utilityForm.paid === 'true', note: utilityForm.note || null,
     }
     setSaving(true)
     try {
@@ -714,7 +705,7 @@ function HousingTab() {
                 <div className="col-span-2 rounded-lg border p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-sm font-medium">水电燃气</span>
-                    <Button size="sm" onClick={() => openUtilityFromHousing()}><Plus /> 新增账单</Button>
+                    <Button size="sm" onClick={() => openUCreate()}><Plus /> 新增账单</Button>
                   </div>
                   <div className="space-y-1.5">
                     {utils.length === 0 ? (
@@ -727,7 +718,7 @@ function HousingTab() {
                           {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUtilityFromHousing(u)}><Pencil /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
                         </div>
                       </div>
@@ -865,21 +856,16 @@ function HousingTab() {
       </Dialog>
 
       {/* 账单弹窗 */}
-      <Dialog open={uDialog !== null} onOpenChange={(o) => {
-        if (!o) {
-          if (housingFormBackup) { setForm(housingFormBackup); setHousingFormBackup(null) }
-          setUDialog(null)
-        }
-      }}>
+      <Dialog open={uDialog !== null} onOpenChange={(o) => !o && setUDialog(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{uDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle>
             <DialogDescription>记录水、电、燃气等费用。</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={form.bill_month} onChange={(v) => setForm({ ...form, bill_month: v })} /></div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={utilityForm.bill_month} onChange={(v) => setUtilityForm({ ...utilityForm, bill_month: v })} /></div>
             <div className="space-y-2"><Label>关联住房</Label>
-              <Select value={form.housing_id} onValueChange={(v) => setForm({ ...form, housing_id: v })}>
+              <Select value={utilityForm.housing_id} onValueChange={(v) => setUtilityForm({ ...utilityForm, housing_id: v })}>
                 <SelectTrigger className="max-w-full truncate"><SelectValue placeholder="选择住房" /></SelectTrigger>
                 <SelectContent>
                     <SelectItem value="">不关联</SelectItem>
@@ -888,20 +874,20 @@ function HousingTab() {
               </Select>
             </div>
             <div className="space-y-2"><Label>类型 <span className="text-destructive">*</span></Label>
-              <Select value={form.fee_type} onValueChange={(v) => setForm({ ...form, fee_type: v })}>
+              <Select value={utilityForm.fee_type} onValueChange={(v) => setUtilityForm({ ...utilityForm, fee_type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{feeTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-            <div className="space-y-2"><Label>到期日</Label><DatePicker value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /></div>
+            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={utilityForm.amount} onChange={(e) => setUtilityForm({ ...utilityForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={utilityForm.due_date} onChange={(v) => setUtilityForm({ ...utilityForm, due_date: v })} /></div>
             <div className="space-y-2"><Label>状态</Label>
-              <Select value={form.paid} onValueChange={(v) => setForm({ ...form, paid: v })}>
+              <Select value={utilityForm.paid} onValueChange={(v) => setUtilityForm({ ...utilityForm, paid: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="false">待缴</SelectItem><SelectItem value="true">已缴</SelectItem></SelectContent>
               </Select>
             </div>
-            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={utilityForm.note} onChange={(e) => setUtilityForm({ ...utilityForm, note: e.target.value })} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUDialog(null)}>取消</Button>
