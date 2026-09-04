@@ -7,6 +7,7 @@ import {
   Eye,
   Home,
   Layers,
+  ListTree,
   Loader2,
   Pencil,
   Plus,
@@ -51,7 +52,6 @@ import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const PAGE_SIZE = 10
 
 type TabKey = 'housing' | 'subscription' | 'loan'
 
@@ -119,6 +119,7 @@ function HousingTab() {
   const [utilities, setUtilities] = useState<Utility[]>([])
   const [dialog, setDialog] = useState<null | { editing?: Housing }>(null)
   const [uDialog, setUDialog] = useState<null | { editing?: Utility }>(null)
+  const [uGroup, setUGroup] = useState<null | { housing_id?: number; bill_month: string; ids: number[] }>(null)
   const [viewH, setViewH] = useState<null | Housing>(null)
   const [housePage, setHousePage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
@@ -134,7 +135,7 @@ function HousingTab() {
     api.query<HousingStats>('/finance/housing/stats').then(setStats).catch(() => setStats(null))
   }
   const loadUtilities = async () => {
-    const res = await api.list<Utility>('/finance/utilities', { page_size: PAGE_SIZE })
+    const res = await api.list<Utility>('/finance/utilities', { page_size: 100 })
     setUtilities(res.items)
   }
 
@@ -228,6 +229,10 @@ function HousingTab() {
     setForm({ housing_id: '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'false', note: '' })
     setUDialog({})
   }
+  const openUEdit = (u: Utility) => {
+    setForm({ housing_id: u.housing_id ? String(u.housing_id) : '', bill_month: u.bill_month, fee_type: u.fee_type, amount: String(u.amount), due_date: u.due_date ?? '', paid: u.paid ? 'true' : 'false', note: u.note ?? '' })
+    setUDialog({ editing: u })
+  }
   const saveUtility = async () => {
     const editingU = uDialog?.editing
     const payload = {
@@ -244,6 +249,11 @@ function HousingTab() {
     } finally {
       setSaving(false)
     }
+  }
+  const removeUtility = async (u: Utility) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/utilities', u.id)
+    await loadUtilities()
   }
 
   return (
@@ -348,12 +358,12 @@ function HousingTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead>其他</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead>
+                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead>其他</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead><TableHead className="w-16 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {utilityGroups.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
               ) : utilityGroups.map((g) => (
                 <TableRow key={g.key}>
                   <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
@@ -368,6 +378,9 @@ function HousingTab() {
                   </TableCell>
                   <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
                   <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" title="明细/编辑" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -412,18 +425,26 @@ function HousingTab() {
 
       {/* 住房查看弹窗 */}
       <Dialog open={viewH !== null} onOpenChange={(o) => !o && setViewH(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{viewH?.name}</DialogTitle>
-            <DialogDescription>住房详细信息（只读）。</DialogDescription>
+            <DialogDescription>住房详细信息（含水电账单统计，只读）。</DialogDescription>
           </DialogHeader>
           {viewH && (() => {
             const inD = viewH.move_in_date ? new Date(viewH.move_in_date) : null
             const outD = viewH.move_out_date ? new Date(viewH.move_out_date) : (inD ? new Date() : null)
             const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
+            const months = Math.max(1, Math.ceil(days / 30))
             const rent = viewH.actual_monthly_rent || 0
+            const monthlyRent = rent / (viewH.rent_term === 'quarterly' ? 3 : 1) // 折算月租（按季付摊到月）
             const fees = (viewH.agent_fee || 0) + (viewH.clean_fee || 0) + (viewH.service_fee || 0) + (viewH.laundry_fee || 0)
-            const total = days > 0 ? (rent / 30) * days + fees : rent || 0
+            const myUtils = utilities.filter((u) => u.housing_id === viewH.id)
+              .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
+            const utilTotal = myUtils.reduce((s, u) => s + u.amount, 0)
+            const utilPaid = myUtils.filter((u) => u.paid).reduce((s, u) => s + u.amount, 0)
+            const avgUtil = months > 0 ? utilTotal / months : 0
+            const rentDaysCost = days > 0 ? (monthlyRent / 30) * days : (monthlyRent * months)
+            const total = rentDaysCost + fees + utilTotal // 居住总成本（含水电）
             const rows: [string, string][] = [
               ['小区名', viewH.short_name || '—'],
               ['租房渠道', viewH.channel || '—'],
@@ -431,28 +452,57 @@ function HousingTab() {
               ['入住时间', viewH.move_in_date],
               ['退租时间', viewH.move_out_date || '—'],
               ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : '按月付'],
-              ['实际月租', fmt(rent)],
+              ['签约月租', fmt(rent)],
+              ['折算月租(实际)', fmt(monthlyRent)],
               ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
               ['中介费', viewH.agent_fee ? fmt(viewH.agent_fee) : '—'],
               ['保洁费', viewH.clean_fee ? fmt(viewH.clean_fee) : '—'],
               ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
               ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
-              ['居住天数', days > 0 ? `${days} 天` : '—'],
-              ['居住总成本', fmt(total)],
+              ['居住月数', `${months} 个月（${days} 天）`],
+              ['水电合计', fmt(utilTotal)],
+              ['月均水电', fmt(avgUtil)],
+              ['综合月成本(含水电)', fmt(monthlyRent + avgUtil)],
+              ['居住总成本(含水电)', fmt(total)],
             ]
             return (
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                {rows.map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-2 border-b py-1">
-                    <dt className="text-muted-foreground">{k}</dt>
-                    <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+              <>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  {rows.map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-2 border-b py-1">
+                      <dt className="text-muted-foreground">{k}</dt>
+                      <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {myUtils.length > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-sm font-medium">水电账单明细（可修改）</span>
+                      <span className="text-xs text-muted-foreground">已缴 {fmt(utilPaid)} / 待缴 {fmt(utilTotal - utilPaid)}</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {myUtils.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
+                          <div className="min-w-0">
+                            <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
+                            <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
+                            {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Button variant="ghost" size="icon" title="修改" onClick={() => openUEdit(u)}><Pencil /></Button>
+                            <Button variant="ghost" size="icon" className="text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </dl>
+                )}
+              </>
             )
           })()}
           <DialogFooter>
-            {viewH && <Button variant="outline" onClick={() => { openEdit(viewH); setViewH(null) }}>编辑</Button>}
+            {viewH && <Button variant="outline" onClick={() => { openEdit(viewH); setViewH(null) }}>编辑住房</Button>}
             <Button onClick={() => setViewH(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
@@ -495,6 +545,40 @@ function HousingTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setUDialog(null)}>取消</Button>
             <Button onClick={saveUtility} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 水电气账单明细弹窗（支持单条修改/删除，避免数据错误） */}
+      <Dialog open={uGroup !== null} onOpenChange={(o) => !o && setUGroup(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>账单明细 · {uGroup?.bill_month.slice(0, 7)}</DialogTitle>
+            <DialogDescription>{uGroup?.housing_id ? houseName(uGroup.housing_id) : '未关联住房'} 的当月水电账单，可逐条修改或删除。</DialogDescription>
+          </DialogHeader>
+          {uGroup && (
+            <div className="space-y-1.5">
+              {utilities.filter((u) => uGroup.ids.includes(u.id)).map((u) => (
+                <div key={u.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium">{u.fee_type}</span>
+                    <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
+                    {u.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {u.due_date}</span>}
+                    {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                  </div>
+                </div>
+              ))}
+              {utilities.filter((u) => uGroup.ids.includes(u.id)).length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">该组暂无账单明细</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setUGroup(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -815,6 +899,7 @@ function LoanTab() {
   const [platformStats, setPlatformStats] = useState<LoanPlatformStats | null>(null)
   const [bills, setBills] = useState<LoanBill[]>([])
   const [billStats, setBillStats] = useState<LoanBillStats | null>(null)
+  const [loanMonth, setLoanMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
   const [repayments, setRepayments] = useState<Repayment[]>([])
   const [selectedBill, setSelectedBill] = useState<number | null>(null)
 
@@ -866,6 +951,13 @@ function LoanTab() {
   }
 
   const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '—'
+
+  const shiftMonth = (ym: string, delta: number) => {
+    const [y, m] = ym.split('-').map(Number)
+    const dt = new Date(y, m - 1 + delta, 1)
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+  }
+  const monthBills = bills.filter((b) => b.bill_month.slice(0, 7) === loanMonth)
   const addPlatform = async () => {
     const name = newPf.name?.trim()
     if (!name) return
@@ -920,8 +1012,7 @@ function LoanTab() {
   }
   const openBillCreate = () => {
     const pfId = platforms[0] ? String(platforms[0].id) : ''
-    const month = new Date().toISOString().slice(0, 10)
-    setBillForm({ platform_id: pfId, bill_month: month, due_date: dueFor(pfId, month), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
+    setBillForm({ platform_id: pfId, bill_month: loanMonth, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
     setBillDialog({})
   }
   const saveBill = async () => {
@@ -1028,7 +1119,13 @@ function LoanTab() {
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
           <CardTitle className="text-lg font-medium">网贷账单（含利息）</CardTitle>
-          <Button onClick={openBillCreate}><Plus /> 新增账单</Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" title="上一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button>
+            <span className="min-w-[72px] text-center text-sm font-medium">{loanMonth}</span>
+            <Button variant="ghost" size="icon" title="下一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button>
+            <Button size="sm" variant="outline" onClick={() => { const n = new Date(); setLoanMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
+            <Button onClick={openBillCreate} className="ml-1"><Plus /> 新增账单</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -1039,9 +1136,9 @@ function LoanTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bills.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">暂无账单</TableCell></TableRow>
-              ) : bills.map((b) => {
+              {monthBills.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{bills.length === 0 ? '暂无账单' : `「${loanMonth}」无账单`}</TableCell></TableRow>
+              ) : monthBills.map((b) => {
                 const remaining = b.amount - b.paid_amount
                 const interest = b.interest ?? 0
                 return (
