@@ -94,6 +94,8 @@ class HousingCreate(BaseModel):
     rent_term: str = Field("monthly", pattern="^(monthly|quarterly)$")
     actual_monthly_rent: float = Field(ge=0)
     deposit: float | None = Field(None, ge=0)
+    deposit_refunded: float | None = Field(None, ge=0)  # 已退/已扣押金
+    deposit_refund_channel: str | None = None  # 退还渠道（退到哪 / 扣押说明）
     agent_fee: float | None = Field(None, ge=0)
     clean_fee: float | None = Field(None, ge=0)
     service_fee: float | None = Field(None, ge=0)

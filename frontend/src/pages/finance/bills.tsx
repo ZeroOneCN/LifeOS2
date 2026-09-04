@@ -83,6 +83,8 @@ type Housing = {
   rent_term: 'monthly' | 'quarterly'
   actual_monthly_rent: number
   deposit?: number
+  deposit_refunded?: number
+  deposit_refund_channel?: string
   agent_fee?: number
   clean_fee?: number
   service_fee?: number
@@ -199,7 +201,7 @@ function HousingTab() {
   }
 
   const openCreate = () => {
-    setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
+    setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', deposit_refunded: '', deposit_refund_channel: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
     setDialog({})
   }
   const openEdit = (h: Housing) => {
@@ -207,9 +209,9 @@ function HousingTab() {
       name: h.name, short_name: h.short_name ?? '', channel: h.channel ?? '', orientation: h.orientation ?? '',
       move_in_date: h.move_in_date, move_out_date: h.move_out_date ?? '',
       rent_term: h.rent_term, actual_monthly_rent: String(h.actual_monthly_rent),
-      deposit: h.deposit != null ? String(h.deposit) : '', agent_fee: h.agent_fee != null ? String(h.agent_fee) : '',
-      clean_fee: h.clean_fee != null ? String(h.clean_fee) : '', service_fee: h.service_fee != null ? String(h.service_fee) : '',
-      laundry_fee: h.laundry_fee != null ? String(h.laundry_fee) : '', note: h.note ?? '',
+      deposit: h.deposit != null ? String(h.deposit) : '', deposit_refunded: h.deposit_refunded != null ? String(h.deposit_refunded) : '', deposit_refund_channel: h.deposit_refund_channel ?? '',
+      agent_fee: h.agent_fee != null ? String(h.agent_fee) : '', clean_fee: h.clean_fee != null ? String(h.clean_fee) : '',
+      service_fee: h.service_fee != null ? String(h.service_fee) : '', laundry_fee: h.laundry_fee != null ? String(h.laundry_fee) : '', note: h.note ?? '',
     })
     setDialog({ editing: h })
   }
@@ -218,9 +220,9 @@ function HousingTab() {
       name: form.name, short_name: form.short_name || null, channel: form.channel || null, orientation: form.orientation || null,
       move_in_date: form.move_in_date, move_out_date: form.move_out_date || null,
       rent_term: form.rent_term, actual_monthly_rent: Number(form.actual_monthly_rent),
-      deposit: form.deposit ? Number(form.deposit) : 0, agent_fee: form.agent_fee ? Number(form.agent_fee) : 0,
-      clean_fee: form.clean_fee ? Number(form.clean_fee) : 0, service_fee: form.service_fee ? Number(form.service_fee) : 0,
-      laundry_fee: form.laundry_fee ? Number(form.laundry_fee) : 0, note: form.note || null,
+      deposit: form.deposit ? Number(form.deposit) : 0, deposit_refunded: form.deposit_refunded ? Number(form.deposit_refunded) : 0, deposit_refund_channel: form.deposit_refund_channel || null,
+      agent_fee: form.agent_fee ? Number(form.agent_fee) : 0, clean_fee: form.clean_fee ? Number(form.clean_fee) : 0,
+      service_fee: form.service_fee ? Number(form.service_fee) : 0, laundry_fee: form.laundry_fee ? Number(form.laundry_fee) : 0, note: form.note || null,
     }
     setSaving(true)
     try {
@@ -433,6 +435,8 @@ function HousingTab() {
             </div>
             <div className="space-y-2"><Label>实际月租 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.actual_monthly_rent} onChange={(e) => setForm({ ...form, actual_monthly_rent: e.target.value })} /></div>
             <div className="space-y-2"><Label>押金</Label><Input type="number" min={0} step="0.01" value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
+            <div className="space-y-2"><Label>已退押金</Label><Input type="number" min={0} step="0.01" value={form.deposit_refunded} onChange={(e) => setForm({ ...form, deposit_refunded: e.target.value })} placeholder="退租已退/已扣，默认0" /></div>
+            <div className="col-span-2 space-y-2"><Label>押金退还渠道</Label><Input value={form.deposit_refund_channel} onChange={(e) => setForm({ ...form, deposit_refund_channel: e.target.value })} placeholder="如 微信 / 银行 / 抵扣 / 扣押" /></div>
             <div className="space-y-2"><Label>中介费</Label><Input type="number" min={0} step="0.01" value={form.agent_fee} onChange={(e) => setForm({ ...form, agent_fee: e.target.value })} /></div>
             <div className="space-y-2"><Label>保洁费</Label><Input type="number" min={0} step="0.01" value={form.clean_fee} onChange={(e) => setForm({ ...form, clean_fee: e.target.value })} /></div>
             <div className="space-y-2"><Label>服务费</Label><Input type="number" min={0} step="0.01" value={form.service_fee} onChange={(e) => setForm({ ...form, service_fee: e.target.value })} /></div>
@@ -478,6 +482,9 @@ function HousingTab() {
               ['签约月租', fmt(rent)],
               ['折算月租(实际)', fmt(monthlyRent)],
               ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
+              ['已退押金', viewH.deposit_refunded ? fmt(viewH.deposit_refunded) : '—'],
+              ['未退押金', viewH.deposit ? fmt(Math.max(0, (viewH.deposit || 0) - (viewH.deposit_refunded || 0))) : '—'],
+              ['退还渠道', viewH.deposit_refund_channel || '—'],
               ['中介费', viewH.agent_fee ? fmt(viewH.agent_fee) : '—'],
               ['保洁费', viewH.clean_fee ? fmt(viewH.clean_fee) : '—'],
               ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],

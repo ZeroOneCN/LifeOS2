@@ -119,6 +119,9 @@ class FinanceHousing(TimestampMixin, UserOwned, Base):
     rent_term: Mapped[str] = mapped_column(String(16), default="monthly")  # monthly/quarterly 按月/按季付
     actual_monthly_rent: Mapped[float] = mapped_column(Float)  # 实际月租
     deposit: Mapped[float | None] = mapped_column(Float, default=0)  # 押金
+    # 押金可退：已退/已扣押金金额与退还渠道；未退押金 = deposit - deposit_refunded
+    deposit_refunded: Mapped[float | None] = mapped_column(Float, default=0)
+    deposit_refund_channel: Mapped[str | None] = mapped_column(String(32))
     agent_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 中介费
     clean_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 保洁费
     service_fee: Mapped[float | None] = mapped_column(Float, default=0)  # 服务费
