@@ -180,7 +180,6 @@ class FinanceSubscription(TimestampMixin, UserOwned, Base):
     start_date: Mapped[date] = mapped_column(Date)  # 开通时间
     end_date: Mapped[date | None] = mapped_column(Date)  # 到期时间
     auto_renew: Mapped[bool] = mapped_column(Boolean, default=False)  # 自动续费
-    remind_days: Mapped[int] = mapped_column(Integer, default=30)  # 过期前多少天提醒
     status: Mapped[str] = mapped_column(String(16), default="active")  # active/expired/cancelled
     note: Mapped[str | None] = mapped_column(Text)
 

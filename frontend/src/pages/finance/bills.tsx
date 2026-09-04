@@ -1087,7 +1087,6 @@ type Subscription = {
   start_date: string
   end_date?: string
   auto_renew?: boolean
-  remind_days: number
   status: 'active' | 'expired' | 'cancelled'
   note?: string
 }
@@ -1096,7 +1095,7 @@ type SubStats = {
   active_count: number
   total_count: number
   by_category: { category: string; amount: number }[]
-  upcoming: { id: number; name: string; category: string; amount: number; next_renewal: string; remind_days: number }[]
+  upcoming: { id: number; name: string; category: string; amount: number; next_renewal: string }[]
 }
 type SubCategory = { id: number; name: string }
 
@@ -1149,14 +1148,14 @@ function SubscriptionTab() {
   }
 
   const openCreate = () => {
-    setForm({ name: '', plan_name: '', category: categories[0]?.name ?? '会员', billing_cycle: 'month', amount: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', auto_renew: 'false', remind_days: '30', status: 'active', note: '' })
+    setForm({ name: '', plan_name: '', category: categories[0]?.name ?? '会员', billing_cycle: 'month', amount: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', auto_renew: 'false', status: 'active', note: '' })
     setDialog({})
   }
   const save = async () => {
     const payload = {
       name: form.name, plan_name: form.plan_name || null, category: form.category, billing_cycle: form.billing_cycle,
       amount: Number(form.amount), start_date: form.start_date, end_date: form.end_date || null,
-      auto_renew: form.auto_renew === 'true', remind_days: Number(form.remind_days),
+      auto_renew: form.auto_renew === 'true',
       status: form.status, note: form.note || null,
     }
     setSaving(true)
@@ -1262,7 +1261,7 @@ function SubscriptionTab() {
                   <TableCell className="max-w-[160px] truncate text-muted-foreground" title={s.note ?? ''}>{s.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', remind_days: String(s.remind_days), status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(s)}><Trash2 /></Button>
                     </div>
                   </TableCell>
@@ -1307,7 +1306,6 @@ function SubscriptionTab() {
                 <SelectContent><SelectItem value="false">否</SelectItem><SelectItem value="true">是</SelectItem></SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>过期前提醒(天)</Label><Input type="number" min={0} value={form.remind_days} onChange={(e) => setForm({ ...form, remind_days: e.target.value })} /></div>
             <div className="space-y-2"><Label>状态</Label>
               <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>

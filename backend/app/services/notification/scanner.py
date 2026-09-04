@@ -93,6 +93,7 @@ def _scan_subscription(db: Session, advance: int, user_id: int) -> list[dict]:
         out.append(
             {
                 "source_id": r.id,
+                "dedup_key": f"{r.id}:{due.isoformat()}",  # 每期续费日不同，按续费日去重
                 "title_ctx": {"name": r.name, "due_date": due.isoformat()},
                 "content_ctx": {
                     "name": r.name,
@@ -315,6 +316,7 @@ def _scan_phone_bill(db: Session, advance: int, user_id: int) -> list[dict]:
         out.append(
             {
                 "source_id": r.id,
+                "dedup_key": f"{r.id}:{bill_day.isoformat()}",  # 每月账单日不同，按账单日去重
                 "title_ctx": {"phone_number": r.phone_number},
                 "content_ctx": {
                     "phone_number": r.phone_number,
@@ -346,6 +348,7 @@ def _scan_bankcard_due(db: Session, advance: int, user_id: int) -> list[dict]:
         out.append(
             {
                 "source_id": r.id,
+                "dedup_key": f"{r.id}:{due.isoformat()}",  # 每月还款日不同，按还款日去重
                 "title_ctx": {"card_name": r.card_name, "due_date": due.isoformat()},
                 "content_ctx": {
                     "card_name": r.card_name,
@@ -451,11 +454,12 @@ def _scan_user(db: Session, user_id: int) -> dict:
         content_tpl = tpl.content_template if tpl else "触发提醒：{content}"
         for item in rows:
             summary["scanned"] += 1
-            source_tag = f"{s.feature_key}:{item['source_id']}"
+            dedup = item.get("dedup_key", item["source_id"])
+            source_tag = f"{s.feature_key}:{dedup}"
+            # 跨天去重：同一来源（含到期日）已提醒过就不再重复，直到数据变化或删除提醒
             exists = db.scalar(
                 select(Notification).where(
                     Notification.source == source_tag,
-                    Notification.notify_date == today,
                     Notification.user_id == user_id,
                 )
             )

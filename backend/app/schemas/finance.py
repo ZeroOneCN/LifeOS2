@@ -150,7 +150,6 @@ class SubscriptionCreate(BaseModel):
     start_date: date
     end_date: date | None = None
     auto_renew: bool = False
-    remind_days: int = Field(30, ge=0)
     status: str = Field("active", pattern="^(active|expired|cancelled)$")
     note: str | None = None
 

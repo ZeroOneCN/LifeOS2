@@ -8,6 +8,7 @@ from app.api.crud import crud_router
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import FinanceSubscription, FinanceSubscriptionCategory, UserProfile
+from app.models.notification_center import FeatureReminderSetting
 from app.schemas.finance import (
     SubscriptionCategoryCreate,
     SubscriptionCategoryRead,
@@ -53,10 +54,20 @@ def _subs_stats(db: Session, days: int, user_id: int) -> dict:
     for r in active:
         by_category[r.category] = by_category.get(r.category, 0.0) + r.amount
 
+    # 即将续费窗口与通知中心"订阅续费提醒"开关的提前天数保持一致（以通知中心为准）
+    advance = db.scalar(
+        select(FeatureReminderSetting.advance_days).where(
+            FeatureReminderSetting.user_id == user_id,
+            FeatureReminderSetting.feature_key == "finance_subscription_due",
+        )
+    )
+    if advance is None:
+        advance = 30
+
     upcoming = []
     for r in active:
         next_renewal = _next_renewal(r.start_date, r.billing_cycle, today)
-        if (next_renewal - today).days <= r.remind_days:
+        if (next_renewal - today).days <= advance:
             upcoming.append(
                 {
                     "id": r.id,
@@ -64,7 +75,6 @@ def _subs_stats(db: Session, days: int, user_id: int) -> dict:
                     "category": r.category,
                     "amount": r.amount,
                     "next_renewal": next_renewal.isoformat(),
-                    "remind_days": r.remind_days,
                 }
             )
     upcoming.sort(key=lambda x: x["next_renewal"])
