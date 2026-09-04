@@ -354,13 +354,22 @@ function HousingTab() {
     setDialog({ editing: h })
   }
   const saveHousing = async () => {
+    const num = (v?: string) => {
+      if (v == null || v.trim() === '') return 0
+      const n = Number(v)
+      return Number.isFinite(n) ? n : 0
+    }
+    if (!form.name?.trim() || !form.move_in_date) {
+      toast.error('保存失败', { description: '房屋名称与入住日期为必填项' })
+      return
+    }
     const payload = {
       name: form.name, short_name: form.short_name || null, channel: form.channel || null, orientation: form.orientation || null,
       move_in_date: form.move_in_date, move_out_date: form.move_out_date || null,
-      rent_term: form.rent_term, actual_monthly_rent: Number(form.actual_monthly_rent),
-      deposit: form.deposit ? Number(form.deposit) : 0, deposit_refunded: form.deposit_refunded ? Number(form.deposit_refunded) : 0, deposit_refund_channel: form.deposit_refund_channel || null,
-      agent_fee: form.agent_fee ? Number(form.agent_fee) : 0, clean_fee: form.clean_fee ? Number(form.clean_fee) : 0,
-      service_fee: form.service_fee ? Number(form.service_fee) : 0, laundry_fee: form.laundry_fee ? Number(form.laundry_fee) : 0, note: form.note || null,
+      rent_term: form.rent_term, actual_monthly_rent: num(form.actual_monthly_rent),
+      deposit: num(form.deposit), deposit_refunded: num(form.deposit_refunded), deposit_refund_channel: form.deposit_refund_channel || null,
+      agent_fee: num(form.agent_fee), clean_fee: num(form.clean_fee),
+      service_fee: num(form.service_fee), laundry_fee: num(form.laundry_fee), note: form.note || null,
     }
     setSaving(true)
     try {

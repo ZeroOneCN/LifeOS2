@@ -201,7 +201,7 @@ def create_repayment(
 
 @repayments_router.get("/stats")
 def repayment_stats(
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(30, ge=1, le=3650),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
