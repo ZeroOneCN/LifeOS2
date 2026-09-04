@@ -137,6 +137,7 @@ function HousingTab() {
   const [termForm, setTermForm] = useState<{ amount: string; due_date: string; paid: boolean }>({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true })
   const [saving, setSaving] = useState(false)
   const [housingFormBackup, setHousingFormBackup] = useState<Record<string, string> | null>(null)
+  const [dialogTab, setDialogTab] = useState<'basic' | 'terms' | 'utility' | 'deposit'>('basic')
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
   const loadHouses = async () => {
@@ -268,18 +269,6 @@ function HousingTab() {
       })
     }
   }
-  const rebuildTerms = async (housingId: number) => {
-    try {
-      await api.post(`/finance/rent-terms/rebuild?housing_id=${housingId}`)
-      await loadTermsForHouse(housingId)
-      toast.success('期次已重建')
-    } catch (e) {
-      toast.error('重建失败', {
-        description: e instanceof Error ? e.message : '请稍后重试',
-      })
-    }
-  }
-
   // 水电气账单按「住房 + 账单月」聚合成一行（电/水/气/合计）
   const utilityGroups = useMemo(() => {
     const map: Record<string, { key: string; housing_id?: number; bill_month: string; byType: Record<string, number>; due_date?: string; paid: boolean; ids: number[]; total: number }> = {}
@@ -334,8 +323,22 @@ function HousingTab() {
     return Math.floor((b - a) / 86400000) + 1
   }
 
+  // 住房统一成本口径：已发生成本=已交期次+已缴水电+杂费；平均单日=已发生成本/居住天数；折算月租=单日×30
+  const houseDays = (h: Housing): number => hDays(h)
+  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
+  const houseIncurred = (h: Housing): number => {
+    const termsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+    const utilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
+    return termsPaid + utilsPaid + houseFees(h)
+  }
+  const houseDaily = (h: Housing): number => {
+    const d = houseDays(h)
+    return d ? houseIncurred(h) / d : 0
+  }
+
   const openCreate = () => {
     setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', deposit_refunded: '', deposit_refund_channel: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
+    setDialogTab('basic')
     setDialog({})
   }
   const openEdit = (h: Housing) => {
@@ -347,6 +350,7 @@ function HousingTab() {
       agent_fee: h.agent_fee != null ? String(h.agent_fee) : '', clean_fee: h.clean_fee != null ? String(h.clean_fee) : '',
       service_fee: h.service_fee != null ? String(h.service_fee) : '', laundry_fee: h.laundry_fee != null ? String(h.laundry_fee) : '', note: h.note ?? '',
     })
+    setDialogTab('basic')
     setDialog({ editing: h })
   }
   const saveHousing = async () => {
@@ -445,13 +449,8 @@ function HousingTab() {
       {stats && (
         <>
           {(stats?.houses.length ?? 0) > 0 && (() => {
-            const days = stats.houses.reduce((s, h) => s + hDays(h), 0)
-            const incurred = stats.houses.reduce((s, h) => {
-              const termsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((ss, t) => ss + t.amount, 0)
-              const utilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid === true).reduce((ss, u) => ss + u.amount, 0)
-              const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
-              return s + termsPaid + utilsPaid + fees
-            }, 0)
+            const days = stats.houses.reduce((s, h) => s + houseDays(h), 0)
+            const incurred = stats.houses.reduce((s, h) => s + houseIncurred(h), 0)
             const avgDaily = days ? incurred / days : 0
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -488,8 +487,8 @@ function HousingTab() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                       <span>月租 <b>{fmt(h.actual_monthly_rent)}</b></span>
-                      <span>单日 <b>{fmt(h.single_day_cost)}</b></span>
-                      <span>月计 <b>{fmt(h.monthly_contribution)}</b></span>
+                      <span>单日 <b>{houseIncurred(h) > 0 ? fmt(houseDaily(h)) : '—'}</b></span>
+                      <span>月计 <b>{houseIncurred(h) > 0 ? fmt(houseDaily(h) * 30) : '—'}</b></span>
                     </div>
                   </div>
                 ))}
@@ -591,103 +590,122 @@ function HousingTab() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{dialog?.editing ? '编辑住房' : '新增住房'}</DialogTitle>
-            <DialogDescription>记录租房渠道、押金、杂费与租期，用于组合月租分析。</DialogDescription>
+            <DialogDescription>记录租房渠道、押金、杂费与租期；期次与水电在各自子页即时维护。</DialogDescription>
           </DialogHeader>
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
+            <Button size="sm" variant={dialogTab === 'basic' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('basic')}>基础信息</Button>
+            <Button size="sm" variant={dialogTab === 'deposit' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('deposit')}>押金</Button>
+            {dialog?.editing && (
+              <>
+                <Button size="sm" variant={dialogTab === 'terms' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('terms')}>付款期次</Button>
+                <Button size="sm" variant={dialogTab === 'utility' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('utility')}>水电燃气</Button>
+              </>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
-            <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
-            <div className="space-y-2"><Label>租房渠道</Label>
-              <Select value={form.channel} onValueChange={(v) => setForm({ ...form, channel: v })}>
-                <SelectTrigger><SelectValue placeholder="选择渠道" /></SelectTrigger>
-                <SelectContent>
-                  {channels.length ? channels.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
-            <div className="space-y-2"><Label>退租时间</Label><DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} /></div>
-            <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} /></div>
-            <div className="space-y-2"><Label>缴纳方式</Label>
-              <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="monthly">按月付</SelectItem><SelectItem value="quarterly">按季付</SelectItem><SelectItem value="one_time">一次性</SelectItem></SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2"><Label>实际月租 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.actual_monthly_rent} onChange={(e) => setForm({ ...form, actual_monthly_rent: e.target.value })} /></div>
-            <div className="space-y-2"><Label>押金</Label><Input type="number" min={0} step="0.01" value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
-            <div className="space-y-2"><Label>已退押金</Label><Input type="number" min={0} step="0.01" value={form.deposit_refunded} onChange={(e) => setForm({ ...form, deposit_refunded: e.target.value })} placeholder="退租已退/已扣，默认0" /></div>
-            <div className="col-span-2 space-y-2"><Label>押金退还渠道</Label><Input value={form.deposit_refund_channel} onChange={(e) => setForm({ ...form, deposit_refund_channel: e.target.value })} placeholder="如 微信 / 银行 / 抵扣 / 扣押" /></div>
-            <div className="space-y-2"><Label>中介费</Label><Input type="number" min={0} step="0.01" value={form.agent_fee} onChange={(e) => setForm({ ...form, agent_fee: e.target.value })} /></div>
-            <div className="space-y-2"><Label>保洁费</Label><Input type="number" min={0} step="0.01" value={form.clean_fee} onChange={(e) => setForm({ ...form, clean_fee: e.target.value })} /></div>
-            <div className="space-y-2"><Label>服务费</Label><Input type="number" min={0} step="0.01" value={form.service_fee} onChange={(e) => setForm({ ...form, service_fee: e.target.value })} /></div>
-            <div className="space-y-2"><Label>洗衣费</Label><Input type="number" min={0} step="0.01" value={form.laundry_fee} onChange={(e) => setForm({ ...form, laundry_fee: e.target.value })} /></div>
-            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
-            {dialog?.editing && (() => {
+            {dialogTab === 'basic' && (
+              <>
+                <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
+                <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
+                <div className="space-y-2"><Label>租房渠道</Label>
+                  <Select value={form.channel} onValueChange={(v) => setForm({ ...form, channel: v })}>
+                    <SelectTrigger><SelectValue placeholder="选择渠道" /></SelectTrigger>
+                    <SelectContent>
+                      {channels.length ? channels.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} placeholder="如 朝南 / 朝东" /></div>
+                <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
+                <div className="space-y-2"><Label>退租时间</Label><DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} /></div>
+                <div className="space-y-2"><Label>缴纳方式</Label>
+                  <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="monthly">按月付</SelectItem><SelectItem value="quarterly">按季付</SelectItem><SelectItem value="one_time">一次性</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>实际月租 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.actual_monthly_rent} onChange={(e) => setForm({ ...form, actual_monthly_rent: e.target.value })} /></div>
+                <div className="space-y-2"><Label>中介费</Label><Input type="number" min={0} step="0.01" value={form.agent_fee} onChange={(e) => setForm({ ...form, agent_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>保洁费</Label><Input type="number" min={0} step="0.01" value={form.clean_fee} onChange={(e) => setForm({ ...form, clean_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>服务费</Label><Input type="number" min={0} step="0.01" value={form.service_fee} onChange={(e) => setForm({ ...form, service_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>洗衣费</Label><Input type="number" min={0} step="0.01" value={form.laundry_fee} onChange={(e) => setForm({ ...form, laundry_fee: e.target.value })} /></div>
+                <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+              </>
+            )}
+            {dialogTab === 'deposit' && (
+              <>
+                <div className="space-y-2"><Label>押金</Label><Input type="number" min={0} step="0.01" value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
+                <div className="space-y-2"><Label>已退押金</Label><Input type="number" min={0} step="0.01" value={form.deposit_refunded} onChange={(e) => setForm({ ...form, deposit_refunded: e.target.value })} placeholder="退租已退/已扣，默认0" /></div>
+                <div className="col-span-2 space-y-2"><Label>押金退还渠道</Label><Input value={form.deposit_refund_channel} onChange={(e) => setForm({ ...form, deposit_refund_channel: e.target.value })} placeholder="如 微信 / 银行 / 抵扣 / 扣押" /></div>
+              </>
+            )}
+            {dialog?.editing && dialogTab === 'terms' && (() => {
               const editingId = dialog!.editing!.id
               const terms = termsByHouse[editingId] ?? []
               const paidCount = terms.filter((t) => t.paid).length
               const paidSum = terms.filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+              return (
+                <div className="col-span-2 rounded-lg border p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">付款期次</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                      <Button size="sm" onClick={() => { setTermForm({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true }); setTermDialog({ housing_id: editingId }) }}>新增期次</Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {terms.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">暂未录期次，点「新增期次」手动添加</p>
+                    ) : terms.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-medium whitespace-nowrap">第 {t.term_no} 期</span>
+                          <Input
+                            type="number" min={0} step="0.01" defaultValue={t.amount}
+                            className="h-7 w-24 text-right"
+                            onBlur={(e) => { const v = Number(e.target.value); if (v !== t.amount) updateTermAmount(t, v) }}
+                          />
+                          <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={`text-xs ${t.paid ? 'text-green-600' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
+                          <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+            {dialog?.editing && dialogTab === 'utility' && (() => {
+              const editingId = dialog!.editing!.id
               const utils = utilities.filter((u) => u.housing_id === editingId)
                 .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
               return (
-                <>
-                  <div className="col-span-2 mt-1 rounded-lg border p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">付款期次</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
-                        <Button size="sm" variant="outline" onClick={() => rebuildTerms(editingId)}>重建期次</Button>
-                        <Button size="sm" onClick={() => { setTermForm({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true }); setTermDialog({ housing_id: editingId }) }}>新增期次</Button>
+                <div className="col-span-2 rounded-lg border p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-medium">水电燃气</span>
+                    <Button size="sm" onClick={() => openUtilityFromHousing()}><Plus /> 新增账单</Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {utils.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">暂无账单记录，点「新增账单」添加</p>
+                    ) : utils.map((u) => (
+                      <div key={u.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
+                        <div className="min-w-0">
+                          <span className="font-medium">{u.fee_type}</span>
+                          <span className="ml-2 text-muted-foreground">{u.bill_month.slice(0, 7)} · {fmt(u.amount)}</span>
+                          {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUtilityFromHousing(u)}><Pencil /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {terms.length === 0 ? (
-                        <p className="py-2 text-center text-sm text-muted-foreground">暂无付款期次</p>
-                      ) : terms.map((t) => (
-                        <div key={t.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
-                          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                            <span className="font-medium whitespace-nowrap">第 {t.term_no} 期</span>
-                            <Input
-                              type="number" min={0} step="0.01" defaultValue={t.amount}
-                              className="h-7 w-24 text-right"
-                              onBlur={(e) => { const v = Number(e.target.value); if (v !== t.amount) updateTermAmount(t, v) }}
-                            />
-                            <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <span className={`text-xs ${t.paid ? 'text-green-600' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
-                            <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-
-                  <div className="col-span-2 rounded-lg border p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">水电燃气</span>
-                      <Button size="sm" onClick={() => openUtilityFromHousing()}><Plus /> 新增账单</Button>
-                    </div>
-                    <div className="space-y-1.5">
-                      {utils.length === 0 ? (
-                        <p className="py-2 text-center text-sm text-muted-foreground">暂无账单记录</p>
-                      ) : utils.map((u) => (
-                        <div key={u.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
-                          <div className="min-w-0">
-                            <span className="font-medium">{u.fee_type}</span>
-                            <span className="ml-2 text-muted-foreground">{u.bill_month.slice(0, 7)} · {fmt(u.amount)}</span>
-                            {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUtilityFromHousing(u)}><Pencil /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                </div>
               )
             })()}
           </div>
@@ -721,6 +739,8 @@ function HousingTab() {
             const rentDaysCost = days > 0 ? (monthlyRent / 30) * days : (monthlyRent * months)
             const total = rentDaysCost + fees + utilTotal // 居住总成本（含水电、杂费）
             const avgFees = months > 0 ? fees / months : 0 // 月均杂费
+            const incurred = houseIncurred(viewH)
+            const daily = houseDaily(viewH)
             const rows: [string, string][] = [
               ['小区名', viewH.short_name || '—'],
               ['租房渠道', viewH.channel || '—'],
@@ -729,7 +749,6 @@ function HousingTab() {
               ['退租时间', viewH.move_out_date || '—'],
               ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : viewH.rent_term === 'one_time' ? '一次性' : '按月付'],
               ['签约月租', fmt(rent)],
-              ['折算月租(实际)', fmt(monthlyRent)],
               ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
               ['已退押金', viewH.deposit_refunded ? fmt(viewH.deposit_refunded) : '—'],
               ['未退押金', viewH.deposit ? fmt(Math.max(0, (viewH.deposit || 0) - (viewH.deposit_refunded || 0))) : '—'],
@@ -739,6 +758,9 @@ function HousingTab() {
               ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
               ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
               ['居住月数', `${months} 个月（${days} 天）`],
+              ['已发生成本(不含押金)', incurred > 0 ? fmt(incurred) : '—'],
+              ['平均单日成本', daily > 0 ? fmt(daily) : '—'],
+              ['折算月租(单日×30)', daily > 0 ? fmt(daily * 30) : '—'],
               ['水电合计', fmt(utilTotal)],
               ['月均水电', fmt(avgUtil)],
               ['杂费合计', fmt(fees)],
