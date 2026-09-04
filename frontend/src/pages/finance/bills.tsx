@@ -48,6 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -113,6 +114,9 @@ type Utility = {
   note?: string
 }
 
+type RentChannel = { id: number; name: string }
+type RentTerm = { id: number; housing_id?: number; term_no: number; amount: number; due_date?: string; paid: boolean }
+
 const feeTypes = ['水费', '电费', '燃气费', '宽带', '物业', '其他']
 
 function HousingTab() {
@@ -125,6 +129,10 @@ function HousingTab() {
   const [viewH, setViewH] = useState<null | Housing>(null)
   const [housePage, setHousePage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [channels, setChannels] = useState<RentChannel[]>([])
+  const [channelDialog, setChannelDialog] = useState(false)
+  const [newChannel, setNewChannel] = useState('')
+  const [termsByHouse, setTermsByHouse] = useState<Record<number, RentTerm[]>>({})
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -139,6 +147,57 @@ function HousingTab() {
   const loadUtilities = async () => {
     const res = await api.list<Utility>('/finance/utilities', { page_size: 100 })
     setUtilities(res.items)
+  }
+  const loadChannels = async () => {
+    api.list<RentChannel>('/finance/rent-channels', { page_size: 100 }).then((res) => setChannels(res.items)).catch(() => setChannels([]))
+  }
+  const loadTermsForHouse = async (id: number) => {
+    try {
+      const items = await api.query<RentTerm[]>('/finance/rent-terms?housing_id=' + id)
+      setTermsByHouse((prev) => ({ ...prev, [id]: items }))
+    } catch {
+      // 忽略期次加载失败
+    }
+  }
+  const addChannel = async () => {
+    const name = newChannel.trim()
+    if (!name) return
+    try {
+      await api.create('/finance/rent-channels', { name })
+      setNewChannel('')
+      await loadChannels()
+      toast.success('租房渠道已添加')
+    } catch (e) {
+      toast.error('添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const removeChannel = async (c: RentChannel) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/rent-channels', c.id)
+      await loadChannels()
+      toast.success('租房渠道已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const toggleTermPaid = async (term: RentTerm) => {
+    try {
+      await api.put(`/finance/rent-terms/${term.id}?paid=${!term.paid}`, {})
+      setTermsByHouse((prev) => ({
+        ...prev,
+        [term.housing_id ?? 0]: (prev[term.housing_id ?? 0] ?? []).map((t) => (t.id === term.id ? { ...t, paid: !t.paid } : t)),
+      }))
+      toast.success('付款期次已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
   }
 
   // 水电气账单按「住房 + 账单月」聚合成一行（电/水/气/合计）
@@ -168,8 +227,9 @@ function HousingTab() {
   const pagedHouses = sortedHouses.slice((housePage - 1) * HOUSING_PAGE_SIZE, housePage * HOUSING_PAGE_SIZE)
 
   useEffect(() => {
-    loadHouses()
+    loadHouses().then((list) => { if (list.length) list.forEach((h) => loadTermsForHouse(h.id)) })
     loadStats()
+    loadChannels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => {
@@ -185,19 +245,13 @@ function HousingTab() {
 
   const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
 
-  // 住房居住天数与总成本（不含押金）口径：居住天数=入住~退租（含退租日）；成本=月租/30×天数+杂费
+  // 住房居住天数与总成本（不含押金）口径：居住天数=入住~退租（含退租日）
   const hDays = (h: Housing): number => {
     if (!h.move_in_date) return 0
     const a = new Date(h.move_in_date).getTime()
     const b = h.move_out_date ? new Date(h.move_out_date).getTime() : Date.now()
     if (b < a) return 0
     return Math.floor((b - a) / 86400000) + 1
-  }
-  const hCost = (h: Housing): number => {
-    const days = hDays(h)
-    const m = h.actual_monthly_rent || 0
-    const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
-    return (m / 30) * days + fees
   }
 
   const openCreate = () => {
@@ -303,15 +357,20 @@ function HousingTab() {
         <>
           {(stats?.houses.length ?? 0) > 0 && (() => {
             const days = stats.houses.reduce((s, h) => s + hDays(h), 0)
-            const cost = stats.houses.reduce((s, h) => s + hCost(h), 0)
-            const avgMonth = stats.houses.length ? stats.houses.reduce((s, h) => s + h.actual_monthly_rent, 0) / stats.houses.length : 0
+            const incurred = stats.houses.reduce((s, h) => {
+              const termsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((ss, t) => ss + t.amount, 0)
+              const utilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid === true).reduce((ss, u) => ss + u.amount, 0)
+              const fees = (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
+              return s + termsPaid + utilsPaid + fees
+            }, 0)
+            const avgDaily = days ? incurred / days : 0
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <StatCard icon={Home} label="住房数" value={`${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
                 <StatCard icon={Building} label="总居住天数" value={`${days} 天`} className="text-blue-500" />
-                <StatCard icon={Wallet} label="平均月租" value={fmt(avgMonth)} hint="租金均值" className="text-emerald-500" />
-                <StatCard icon={Wallet} label="总成本(不含押金)" value={fmt(cost)} hint="月租折算 + 杂费" className="text-amber-500" />
-                <StatCard icon={Wallet} label="平均单日成本" value={fmt(days ? cost / days : 0)} hint={`${days} 天均摊`} className="text-red-500" />
+                <StatCard icon={Wallet} label="已发生成本(不含押金)" value={fmt(incurred)} hint="已交期次+已缴水电+杂费" className="text-amber-500" />
+                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={`${days} 天均摊`} className="text-red-500" />
+                <StatCard icon={Wallet} label="折算月租" value={fmt(avgDaily * 30)} hint="单日成本 × 30" className="text-emerald-500" />
               </section>
             )
           })()}
@@ -354,7 +413,10 @@ function HousingTab() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-lg font-medium">住房信息</CardTitle>
-          <Button size="sm" onClick={openCreate}><Plus /> 新增住房</Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setNewChannel(''); setChannelDialog(true) }}><Layers className="size-4" /> 渠道设置</Button>
+            <Button size="sm" onClick={openCreate}><Plus /> 新增住房</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -447,7 +509,14 @@ function HousingTab() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
             <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
-            <div className="space-y-2"><Label>租房渠道</Label><Input value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} placeholder="贝壳/自如/中介" /></div>
+            <div className="space-y-2"><Label>租房渠道</Label>
+              <Select value={form.channel} onValueChange={(v) => setForm({ ...form, channel: v })}>
+                <SelectTrigger><SelectValue placeholder="选择渠道" /></SelectTrigger>
+                <SelectContent>
+                  {channels.length ? channels.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
             <div className="space-y-2"><Label>退租时间</Label><DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} /></div>
             <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} /></div>
@@ -552,6 +621,36 @@ function HousingTab() {
                     </div>
                   </div>
                 )}
+                {(() => {
+                  const terms = termsByHouse[viewH.id] ?? []
+                  const paidCount = terms.filter((t) => t.paid).length
+                  const paidSum = terms.filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                  return (
+                    <div className="mt-3">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-sm font-medium">付款期次</span>
+                        <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {terms.length === 0 ? (
+                          <p className="py-3 text-center text-sm text-muted-foreground">暂无付款期次</p>
+                        ) : terms.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
+                            <div className="min-w-0">
+                              <span className="font-medium">第 {t.term_no} 期</span>
+                              <span className="ml-2 text-muted-foreground">{fmt(t.amount)}</span>
+                              {t.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {t.due_date}</span>}
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className={`text-xs ${t.paid ? 'text-green-600' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
+                              <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             )
           })()}
@@ -633,6 +732,34 @@ function HousingTab() {
           )}
           <DialogFooter>
             <Button onClick={() => setUGroup(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 租房渠道设置弹窗 */}
+      <Dialog open={channelDialog} onOpenChange={setChannelDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>租房渠道设置</DialogTitle>
+            <DialogDescription>管理租房渠道，用于新增/编辑住房时下拉选择。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newChannel} onChange={(e) => setNewChannel(e.target.value)} placeholder="输入渠道名称" onKeyDown={(e) => e.key === 'Enter' && addChannel()} />
+              <Button onClick={addChannel}><Plus /> 添加</Button>
+            </div>
+            <div className="space-y-1.5">
+              {channels.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span>{c.name}</span>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)}><Trash2 /></Button>
+                </div>
+              ))}
+              {channels.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无渠道</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setChannelDialog(false)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
