@@ -125,13 +125,23 @@ def _register_fixed(router) -> None:
         for r in rows:
             steps = r.steps or 0
             d = by_day.get(r.record_date)
+            if d is None:
+                d = by_day[r.record_date] = {
+                    "date": r.record_date,
+                    "steps": 0,
+                    "distance_km": 0.0,
+                    "calories": 0.0,
+                    "count": 0,
+                }
             # 每日取最大值（同天多个时间段是累计序列，取最大的即当天代表值）
-            if d is None or steps > d["steps"]:
+            if steps > d["steps"]:
                 by_day[r.record_date] = {
+                    **d,
                     "steps": steps,
                     "distance_km": r.distance_km or 0,
                     "calories": r.calories or 0,
                 }
+            by_day[r.record_date]["count"] += 1
         days = sorted(by_day.items(), key=lambda x: x[0], reverse=True)
         total = len(days)
         start = (page - 1) * page_size
@@ -140,10 +150,11 @@ def _register_fixed(router) -> None:
             "month": f"{y}-{m:02d}",
             "items": [
                 {
-                    "record_date": d,
+                    "record_date": v["date"],
                     "steps": v["steps"],
                     "distance_km": round(v["distance_km"], 2),
                     "calories": round(v["calories"], 1),
+                    "count": v["count"],
                 }
                 for d, v in current
             ],

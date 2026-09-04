@@ -48,7 +48,7 @@ type MonthlyStats = { months: { month: string; steps: number; distance_km: numbe
 
 type DaySummary = {
   month: string
-  items: { record_date: string; steps: number; distance_km?: number; calories?: number }[]
+  items: { record_date: string; steps: number; distance_km?: number; calories?: number; count?: number }[]
   total: number
   page: number
   page_size: number
@@ -116,7 +116,6 @@ export function StepsPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [formError, setFormError] = useState('')
-  const [latestDate, setLatestDate] = useState<string>(new Date().toISOString().slice(0, 10))
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
   const [stride, setStride] = useState('70')
   const { confirm, dialog: confirmDialog } = useConfirm({
@@ -185,18 +184,13 @@ export function StepsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
-  // 拉取数据库最新一天的日期，作为新增弹窗默认值
-  useEffect(() => {
-    api.list<StepsRecord>('/health/steps', { page: 1, page_size: 1 }).then((res) => {
-      if (res.items.length > 0) setLatestDate(res.items[0].record_date)
-    })
-  }, [])
+  const todayStr = new Date().toISOString().slice(0, 10)
 
   const openCreate = () => {
     setEditing(null)
     setFormError('')
-    // 时间段按当前时间自动匹配，日期取数据库最新一天
-    setForm({ ...EMPTY, record_date: latestDate, period: periodForNow() })
+    // 日期默认取今天，时间段按当前时间自动匹配
+    setForm({ ...EMPTY, record_date: todayStr, period: periodForNow() })
     setDialogOpen(true)
   }
 
@@ -451,6 +445,9 @@ export function StepsPage() {
                       <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
                         <span>距离 {d.distance_km != null ? `${d.distance_km} km` : '—'}</span>
                         <span>消耗 {d.calories != null ? `${d.calories} kcal` : '—'}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        录入 {d.count ?? 0} 条时间段
                       </div>
                     </CardContent>
                   </Card>
