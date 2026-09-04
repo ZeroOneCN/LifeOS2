@@ -75,6 +75,15 @@ class FinanceTravelLedger(TimestampMixin, UserOwned, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class FinanceTravelPaymentChannel(TimestampMixin, UserOwned, Base):
+    """旅行支付方式：可设置的支付方式选项，明细记录里只能从中选择。"""
+
+    __tablename__ = "finance_travel_payment_channels"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(32), index=True)  # 支付方式名称，如 支付宝/微信
+
+
 class FinanceTravelDetail(TimestampMixin, UserOwned, Base):
     """行程明细：一条旅行费用/日程，自动计算时长与实付。"""
 

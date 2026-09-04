@@ -57,6 +57,14 @@ class TravelLedgerRead(TravelLedgerCreate, ORMRead):
     pass
 
 
+class TravelPaymentChannelCreate(BaseModel):
+    name: str
+
+
+class TravelPaymentChannelRead(TravelPaymentChannelCreate, ORMRead):
+    pass
+
+
 class TravelDetailCreate(BaseModel):
     ledger_id: int | None = None
     detail_date: date

@@ -8,6 +8,7 @@ import {
   Pencil,
   Plane,
   Plus,
+  Settings2,
   Trash2,
   TrendingUp,
   Wallet,
@@ -57,6 +58,7 @@ import { formatDateTime } from '@/lib/utils'
 const PAGE_SIZE = 10
 
 type Ledger = { id: number; name: string; start_date?: string; end_date?: string; note?: string }
+type PayChannel = { id: number; name: string }
 type TravelDetail = {
   id: number
   ledger_id?: number
@@ -224,6 +226,11 @@ export function TravelPage() {
   const [ledgerSaving, setLedgerSaving] = useState(false)
   const [ledgerNote, setLedgerNote] = useState('')
 
+  // 支付方式设置
+  const [payChannels, setPayChannels] = useState<PayChannel[]>([])
+  const [payDialog, setPayDialog] = useState(false)
+  const [newPay, setNewPay] = useState('')
+
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
   const loadLedgers = async () => {
@@ -231,11 +238,28 @@ export function TravelPage() {
     setLedgers(res.items)
     return res.items
   }
+  const loadPayChannels = async () => {
+    const res = await api.list<PayChannel>('/finance/travel/payment-channels', { page_size: 100 })
+    setPayChannels(res.items)
+  }
+  const addPayChannel = async () => {
+    const name = newPay.trim()
+    if (!name) return
+    const item = await api.create<PayChannel>('/finance/travel/payment-channels', { name })
+    setPayChannels((p) => [...p, item])
+    setNewPay('')
+  }
+  const removePayChannel = async (id: number) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/travel/payment-channels', id)
+    await loadPayChannels()
+  }
 
   useEffect(() => {
     loadLedgers().then((items) => {
       if (items.length > 0 && !currentLedger) setCurrentLedger(String(items[0].id))
     })
+    loadPayChannels()
   }, [])
 
   useEffect(() => {
@@ -429,6 +453,7 @@ export function TravelPage() {
           </Select>
           <Button variant="outline" size="icon" title="新建行程" onClick={openCreateLedger}><Plus /></Button>
           <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger}><Trash2 /></Button>
+          <Button variant="outline" size="icon" title="支付方式设置" onClick={() => setPayDialog(true)}><Settings2 /></Button>
           <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
         </div>
@@ -449,6 +474,23 @@ export function TravelPage() {
         </>
       )}
 
+      {(() => {
+        const cur = ledgers.find((l) => l.id === Number(currentLedger))
+        if (!cur?.note) return null
+        return (
+          <Card className="border-indigo-200 bg-indigo-50/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700">
+                <TrendingUp className="size-4" /> 行程总结 · {cur.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cur.note}</p>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -464,15 +506,16 @@ export function TravelPage() {
                 <TableHead className="text-right">实付</TableHead>
                 <TableHead>交通</TableHead>
                 <TableHead>支付方式</TableHead>
+                <TableHead>备注</TableHead>
                 <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
               {items.length === 0 ? (
                 loading ? (
-                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
                 ) : (
-                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground">暂无行程明细，点击"新增明细"添加</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={12} className="h-24 text-center text-muted-foreground">暂无行程明细，点击"新增明细"添加</TableCell></TableRow>
                 )
               ) : (
                 items.map((row) => (
@@ -487,6 +530,7 @@ export function TravelPage() {
                     <TableCell className="text-right font-medium">{fmt(row.actual_price)}</TableCell>
                     <TableCell className="text-muted-foreground">{row.transport_info ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.payment_method ?? '—'}</TableCell>
+                    <TableCell className="max-w-[160px] truncate text-muted-foreground" title={row.note ?? ''}>{row.note ?? '—'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
@@ -502,6 +546,32 @@ export function TravelPage() {
       </Card>
 
       <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+
+      {/* 支付方式设置弹窗 */}
+      <Dialog open={payDialog} onOpenChange={setPayDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>支付方式设置</DialogTitle>
+            <DialogDescription>管理旅行明细的支付方式，只能从这里选择。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newPay} onChange={(e) => setNewPay(e.target.value)} placeholder="输入支付方式" onKeyDown={(e) => e.key === 'Enter' && addPayChannel()} />
+              <Button onClick={addPayChannel}><Plus /> 添加</Button>
+            </div>
+            <div className="space-y-1.5">
+              {payChannels.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span>{p.name}</span>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePayChannel(p.id)}><Trash2 /></Button>
+                </div>
+              ))}
+              {payChannels.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无支付方式</p>}
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => setPayDialog(false)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 明细新增/编辑弹窗 */}
       <Dialog open={detailDialog} onOpenChange={setDetailDialog}>
@@ -521,7 +591,14 @@ export function TravelPage() {
             <div className="space-y-2"><Label>开始时间</Label><Input type="time" value={form.begin_time} onChange={(e) => setForm({ ...form, begin_time: e.target.value })} /></div>
             <div className="space-y-2"><Label>结束时间</Label><Input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} /></div>
             <div className="space-y-2"><Label>项目 <span className="text-destructive">*</span></Label><Input value={form.item} onChange={(e) => setForm({ ...form, item: e.target.value })} /></div>
-            <div className="space-y-2"><Label>支付方式</Label><Input value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })} /></div>
+            <div className="space-y-2"><Label>支付方式</Label>
+              <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v })}>
+                <SelectTrigger><SelectValue placeholder="选择支付方式" /></SelectTrigger>
+                <SelectContent>
+                  {payChannels.length ? payChannels.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2"><Label>原价 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.original_price} onChange={(e) => setForm({ ...form, original_price: e.target.value })} /></div>
             <div className="space-y-2"><Label>优惠</Label><Input type="number" min={0} step="0.01" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></div>
             <div className="col-span-2 space-y-1">

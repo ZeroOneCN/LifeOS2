@@ -16,11 +16,19 @@ from app.core.security import get_current_user
 from app.models import (
     FinanceTravelDetail,
     FinanceTravelLedger,
+    FinanceTravelPaymentChannel,
     FinanceTravelReport,
     UserProfile,
 )
 from app.schemas.health import PageOut
-from app.schemas.finance import TravelDetailCreate, TravelDetailRead, TravelLedgerCreate, TravelLedgerRead
+from app.schemas.finance import (
+    TravelDetailCreate,
+    TravelDetailRead,
+    TravelLedgerCreate,
+    TravelLedgerRead,
+    TravelPaymentChannelCreate,
+    TravelPaymentChannelRead,
+)
 from app.services import finance_report
 from app.services.report_period import resolve_period
 
@@ -32,6 +40,16 @@ ledgers_router = crud_router(
     create_schema=TravelLedgerCreate,
     read_schema=TravelLedgerRead,
     order_by=FinanceTravelLedger.id,
+)
+
+# 支付方式：标准 CRUD（明细记录里只能从这些方式中选择）
+payment_channels_router = crud_router(
+    prefix="/finance/travel/payment-channels",
+    tag="finance-travel-payment-channels",
+    model=FinanceTravelPaymentChannel,
+    create_schema=TravelPaymentChannelCreate,
+    read_schema=TravelPaymentChannelRead,
+    order_by=FinanceTravelPaymentChannel.id,
 )
 
 # 行程明细：自定义路由（账本过滤 + 自动实付 + 统计）
@@ -285,5 +303,6 @@ def travel_report_delete(
 # 合并为一个 router 供 __init__ 使用
 router = APIRouter()
 router.include_router(ledgers_router)
+router.include_router(payment_channels_router)
 router.include_router(details_router)
 router.include_router(report_router)
