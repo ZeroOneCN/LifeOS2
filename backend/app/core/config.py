@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     )
     # 通知渠道敏感字段加密密钥（Fernet），为空时首次启动自动生成写入 .env
     NOTIFICATION_ENC_KEY: str = ""
-    # 每日提醒扫描时间（HH:MM）
-    NOTIFY_SCAN_TIME: str = "08:30"
+    # 每日提醒扫描时间（HH:MM），默认每天 0:00 执行
+    NOTIFY_SCAN_TIME: str = "00:00"
     # JWT 签名密钥（生产环境务必修改为随机值）
     JWT_SECRET_KEY: str = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
     JWT_ALGORITHM: str = "HS256"
