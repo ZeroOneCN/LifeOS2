@@ -14,6 +14,7 @@ from app.models import (
     FinanceLoanBill,
     FinancePlan,
     FinanceReminder,
+    FinanceRepayment,
     FinanceShoppingRecord,
     FinanceSubscription,
     FinanceTravelDetail,
@@ -43,18 +44,21 @@ def overview(
         select(FinanceShoppingRecord).where(
             FinanceShoppingRecord.user_id == user.id,
             FinanceShoppingRecord.record_date >= month_start,
+            FinanceShoppingRecord.record_date <= month_end,
         )
     ).all()
     month_travel = db.scalars(
         select(FinanceTravelDetail).where(
             FinanceTravelDetail.user_id == user.id,
             FinanceTravelDetail.detail_date >= month_start,
+            FinanceTravelDetail.detail_date <= month_end,
         )
     ).all()
     month_utils = db.scalars(
         select(FinanceUtility).where(
             FinanceUtility.user_id == user.id,
             FinanceUtility.bill_month >= month_start,
+            FinanceUtility.bill_month <= month_end,
         )
     ).all()
     # 生效中的订阅 -> 折算月均
@@ -83,6 +87,7 @@ def overview(
         select(FinanceLoanBill).where(
             FinanceLoanBill.user_id == user.id,
             FinanceLoanBill.bill_month >= month_start,
+            FinanceLoanBill.bill_month <= month_end,
         )
     ).all()
 
@@ -170,11 +175,18 @@ def overview(
         if r.detail_date >= week_ago:
             week_rows.append((r.detail_date, r.actual_price))
     for r in month_utils:
-        if r.bill_month >= week_ago:
-            week_rows.append((r.bill_month, r.amount))
-    for r in month_loans:
         if r.bill_month >= week_ago and r.bill_month <= today:
-            week_rows.append((r.bill_month, r.amount - r.paid_amount))
+            week_rows.append((r.bill_month, r.amount))
+    # 网贷还款按实际还款日期归入近 7 天（真实支出时间），而非账单月初
+    week_repays = db.scalars(
+        select(FinanceRepayment).where(
+            FinanceRepayment.user_id == user.id,
+            FinanceRepayment.repay_date >= week_ago,
+            FinanceRepayment.repay_date <= today,
+        )
+    ).all()
+    for rp in week_repays:
+        week_rows.append((rp.repay_date, round(rp.amount, 2)))
     daily: dict[date, float] = defaultdict(float)
     for d, amount in week_rows:
         daily[d] += amount
