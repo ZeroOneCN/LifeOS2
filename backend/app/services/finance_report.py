@@ -151,10 +151,12 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
     rows = db.scalars(stmt.order_by(FinanceTravelDetail.detail_date)).all()
 
     ledger_name = "全部行程"
+    led_note = None
     if ledger_id:
         led = db.get(FinanceTravelLedger, ledger_id)
         if led and led.user_id == user_id:
             ledger_name = led.name
+            led_note = led.note
 
     total_actual = sum(r.actual_price for r in rows)
     total_original = sum(r.original_price for r in rows)
@@ -178,7 +180,11 @@ def build_travel_report(db: Session, start: date, end: date, ledger_id: int | No
         f"实付合计 ¥{total_actual:,.2f}，原价 ¥{total_original:,.2f}（优惠 ¥{total_discount:,.2f}），"
         f"记录时长合计 {total_hours} 小时。"
     )
-    content = [
+    content = []
+    if led_note:
+        content.append({"type": "h2", "text": "行程总结"})
+        content.append({"type": "paragraph", "text": led_note})
+    content += [
         {"type": "h2", "text": "一、总体概览"},
         {
             "type": "kv",

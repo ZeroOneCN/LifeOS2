@@ -114,6 +114,8 @@ function ReportContent({ content }: { content?: ContentSection[] }) {
               {s.text}
             </h3>
           )
+        if (s.type === 'paragraph')
+          return <p key={i} className="whitespace-pre-wrap text-sm text-muted-foreground">{s.text}</p>
         return (
           <div key={i}>
             {s.label && <div className="mb-1 text-xs font-semibold text-indigo-600">{s.label}</div>}
@@ -719,33 +721,6 @@ export function TravelPage() {
             <div className="space-y-1">
               <Label>&nbsp;</Label>
               <Button onClick={generateReport} disabled={reportLoading}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium">当前数据概览</span>
-              <span className="text-xs text-muted-foreground">
-                {currentLedger ? (ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '该行程') : '全部行程'} · 实时统计
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded-md bg-muted/40 px-3 py-2">
-                <div className="text-xs text-muted-foreground">实付合计</div>
-                <div className="text-lg font-semibold">{stats ? fmt(stats.total_actual) : '…'}</div>
-              </div>
-              <div className="rounded-md bg-muted/40 px-3 py-2">
-                <div className="text-xs text-muted-foreground">原价合计</div>
-                <div className="text-lg font-semibold">{stats ? fmt(stats.total_original) : '…'}</div>
-              </div>
-              <div className="rounded-md bg-muted/40 px-3 py-2">
-                <div className="text-xs text-muted-foreground">优惠</div>
-                <div className="text-lg font-semibold text-green-600">{stats ? fmt(stats.total_discount) : '…'}</div>
-              </div>
-              <div className="rounded-md bg-muted/40 px-3 py-2">
-                <div className="text-xs text-muted-foreground">笔数</div>
-                <div className="text-lg font-semibold">{stats ? `${stats.count} 笔` : '…'}</div>
-              </div>
             </div>
           </div>
 
