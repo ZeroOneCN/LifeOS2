@@ -102,6 +102,8 @@ export function StepsPage() {
   const [editing, setEditing] = useState<StepsRecord | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
+  const [formError, setFormError] = useState('')
+  const [latestDate, setLatestDate] = useState<string>(new Date().toISOString().slice(0, 10))
   const [settingDialogOpen, setSettingDialogOpen] = useState(false)
   const [stride, setStride] = useState('70')
   const { confirm, dialog: confirmDialog } = useConfirm({
@@ -170,14 +172,23 @@ export function StepsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
+  // 拉取数据库最新一天的日期，作为新增弹窗默认值
+  useEffect(() => {
+    api.list<StepsRecord>('/health/steps', { page: 1, page_size: 1 }).then((res) => {
+      if (res.items.length > 0) setLatestDate(res.items[0].record_date)
+    })
+  }, [])
+
   const openCreate = () => {
     setEditing(null)
-    setForm(EMPTY)
+    setFormError('')
+    setForm({ ...EMPTY, record_date: latestDate })
     setDialogOpen(true)
   }
 
   const openEdit = (row: StepsRecord) => {
     setEditing(row)
+    setFormError('')
     setForm({
       record_date: row.record_date,
       period: row.period,
@@ -186,7 +197,10 @@ export function StepsPage() {
     setDialogOpen(true)
   }
 
-  const set = (key: keyof typeof EMPTY, value: string) => setForm((f) => ({ ...f, [key]: value }))
+  const set = (key: keyof typeof EMPTY, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }))
+    if (formError) setFormError('')
+  }
 
   const stepsInputRef = useRef<HTMLInputElement>(null)
 
@@ -202,6 +216,24 @@ export function StepsPage() {
       period: form.period,
       steps: Number(form.steps),
     }
+    // 新增去重：该日期已存在的时间段禁止重复添加
+    if (!editing && form.record_date && form.period) {
+      try {
+        const existing = await api.list<StepsRecord>('/health/steps', {
+          page: 1,
+          page_size: 100,
+          start: form.record_date,
+          end: form.record_date,
+        })
+        const dup = existing.items.find((r) => r.period === form.period)
+        if (dup) {
+          setFormError(`该日期已存在 ${periodLabel(form.period)} 的步数记录，请勿重复添加`)
+          return
+        }
+      } catch {
+        /* 校验失败不阻断 */
+      }
+    }
     setSaving(true)
     try {
       if (editing) {
@@ -216,6 +248,7 @@ export function StepsPage() {
         } else {
           // 跳到下一个时间段，清空步数，继续保持日期连续录入
           setForm((f) => ({ ...f, period: PERIODS[idx + 1].value, steps: '' }))
+          setFormError('')
         }
       }
       setPage(1)
@@ -491,6 +524,12 @@ export function StepsPage() {
                 : '选择时间段录入步数，按 Enter 或点击保存后自动跳到下一时间段连续录入；录完最后时段自动关闭。'}
             </DialogDescription>
           </DialogHeader>
+          {editing ? null : (
+            <p className="mb-1 text-xs text-muted-foreground">已添加的时间段会自动拦截提示，避免重复录入。</p>
+          )}
+          {formError && (
+            <div className="mb-2 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>
