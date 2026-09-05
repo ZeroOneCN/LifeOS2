@@ -98,11 +98,11 @@ const TABLE_LABELS: Record<string, string> = {
   health_diet: '饮食记录',
   health_body: '身体指标',
   health_steps: '步数统计',
-  health_step_settings: '步数设置',
+  health_step_setting: '步数设置',
   health_checkup: '体检指标',
-  health_checkup_templates: '体检模板',
-  health_checkup_panels: '体检面板',
-  health_checkup_panel_items: '体检面板项目',
+  health_checkup_template: '体检模板',
+  health_checkup_panel: '体检面板',
+  health_checkup_panel_item: '体检面板项目',
   health_medication: '用药记录',
   health_med_purchase: '购药记录',
   health_med_stock: '药品库存',
@@ -117,14 +117,14 @@ const TABLE_LABELS: Record<string, string> = {
   finance_housing: '住房信息',
   finance_rent_channels: '租金渠道',
   finance_rent_terms: '付款期次',
-  finance_utility: '水电账单',
+  finance_utilities: '水电账单',
   finance_subscriptions: '订阅续费',
   finance_subscription_categories: '订阅分类',
   finance_loan_platforms: '借款平台',
   finance_loan_bills: '借款账单',
   finance_repayments: '还款记录',
   finance_reminders: '账单提醒',
-  finance_plans: '财务规划',
+  finance_planning: '财务规划',
   finance_debts: '债务管理',
   finance_debt_payments: '债务还款',
   finance_investments: '投资记录',
@@ -147,7 +147,8 @@ const TABLE_LABELS: Record<string, string> = {
   feature_reminder_settings: '功能提醒设置',
   notification_send_logs: '发送日志',
   activity_logs: '活动日志',
-  user_profiles: '用户信息',
+  user_profile: '用户信息',
+  scheduled_backups: '定时备份计划',
 }
 
 const CRON_PRESETS = [
@@ -612,12 +613,23 @@ export function BackupPage() {
                 <input
                   type="file"
                   accept=".json"
+                  id="import-file-input"
                   onChange={(e) => {
                     setImportFile(e.target.files?.[0] ?? null)
                     setImportResult(null)
                   }}
-                  className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
+                  className="hidden"
                 />
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById('import-file-input')?.click()}
+                >
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  选择备份文件
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {importFile ? importFile.name : '未选择文件'}
+                </span>
               </div>
               {importFile && (
                 <div className="rounded-md bg-muted/50 px-4 py-2 text-sm">
