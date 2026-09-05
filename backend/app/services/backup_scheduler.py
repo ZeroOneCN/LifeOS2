@@ -78,7 +78,7 @@ def _scan_job() -> None:
 
 
 def _cron_matches(expr: str, dt: datetime) -> bool:
-    """简易 cron 匹配（仅支持 min/hour/day/month/dow 标准5字段，不支持特殊字符如 L, W, #）。"""
+    """简易 cron 匹配（支持标准5字段：*、数字、逗号列表、步进 */N）。"""
     parts = expr.strip().split()
     if len(parts) != 5:
         return False
@@ -93,10 +93,28 @@ def _cron_matches(expr: str, dt: datetime) -> bool:
 
 
 def _field_match(pattern: str, value: int) -> bool:
-    """匹配单个 cron 字段（支持 * 和具体数字）。"""
+    """匹配单个 cron 字段（支持 *、数字、逗号列表、步进 */N）。"""
     if pattern == "*":
         return True
-    # 不支持逗号列表和范围，简化处理
+
+    # 步进：*/N  → 每隔 N
+    if pattern.startswith("*/"):
+        step = pattern[2:]
+        if step.isdigit():
+            return value % int(step) == 0
+        return False
+
+    # 逗号列表：1,3,5
+    if "," in pattern:
+        return any(_field_match(p.strip(), value) for p in pattern.split(","))
+
+    # 范围：1-5
+    if "-" in pattern:
+        parts = pattern.split("-")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            return int(parts[0]) <= value <= int(parts[1])
+        return False
+
     return int(pattern) == value if pattern.isdigit() else False
 
 
@@ -106,7 +124,7 @@ def _dow_match(pattern: str, weekday: int) -> bool:
         return True
     # cron: 0=Sunday, 6=Saturday; Python: 0=Monday, 6=Sunday
     cron_dow = (weekday + 1) % 7
-    return int(pattern) == cron_dow if pattern.isdigit() else False
+    return _field_match(pattern, cron_dow)
 
 
 def start_scheduler() -> None:

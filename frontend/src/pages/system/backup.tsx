@@ -355,6 +355,13 @@ export function BackupPage() {
 
   // ── 定时备份 ──
 
+  function isValidCron(expr: string): boolean {
+    const parts = expr.trim().split(/\s+/)
+    if (parts.length !== 5) return false
+    const cronField = /^(\*|\d+|\*\/\d+|\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)$/
+    return parts.every((p) => cronField.test(p))
+  }
+
   const handleCreateSchedule = async () => {
     if (!newSchedule.name.trim()) {
       toast.error('请输入任务名称')
@@ -363,6 +370,10 @@ export function BackupPage() {
     const cronExpr = cronMode === 'custom' ? cronCustom.trim() : newSchedule.cron_expression
     if (!cronExpr) {
       toast.error('请输入 cron 表达式')
+      return
+    }
+    if (!isValidCron(cronExpr)) {
+      toast.error('cron 表达式格式错误，标准格式为：分 时 日 月 周（5个字段，如 0 3 * * *）')
       return
     }
     setSavingSchedule(true)
