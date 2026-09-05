@@ -15,7 +15,7 @@ function parseValue(v: string | undefined): Date | null {
 }
 
 /**
- * 主题化月份选择器，仅选择年月（不选到日）。
+ * 主题化月份选择器，仅选择年月（不选到日），支持年份快捷切换。
  * value/onChange 使用 "YYYY-MM-01" 字符串（首日），与后端 date 字段一致。
  */
 export function MonthPicker({
@@ -34,6 +34,7 @@ export function MonthPicker({
   const [open, setOpen] = React.useState(false)
   const selected = React.useMemo(() => parseValue(value), [value])
   const today = React.useMemo(() => new Date(), [])
+  const [mode, setMode] = React.useState<'month' | 'year'>('month')
   const [view, setView] = React.useState(() => {
     const base = selected ?? today
     return { y: base.getFullYear() }
@@ -41,13 +42,18 @@ export function MonthPicker({
 
   const handleOpenChange = (o: boolean) => {
     setOpen(o)
-    if (o) setView({ y: (selected ?? today).getFullYear() })
+    if (o) {
+      setView({ y: (selected ?? today).getFullYear() })
+      setMode('month')
+    }
   }
 
   const pick = (y: number, m: number) => {
     onChange(`${y}-${String(m).padStart(2, '0')}-01`)
     setOpen(false)
   }
+
+  const yearStart = Math.floor(view.y / 10) * 10
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
@@ -78,32 +84,85 @@ export function MonthPicker({
           )}
         >
           <div className="mb-2 flex items-center justify-between">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setView((v) => ({ y: v.y - 1 }))} aria-label="上一年">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => (mode === 'month' ? setView((v) => ({ y: v.y - 1 })) : setView((v) => ({ y: v.y - 10 })))}
+              aria-label={mode === 'month' ? '上一年' : '上一个十年'}
+            >
               <ChevronLeftIcon />
             </Button>
-            <span className="text-sm font-medium">{view.y}年</span>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => setView((v) => ({ y: v.y + 1 }))} aria-label="下一年">
+            {mode === 'month' ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setMode('year')}
+                aria-label="选择年份"
+                className="font-medium"
+              >
+                {view.y}年
+              </Button>
+            ) : (
+              <span className="px-3 text-sm font-medium">
+                {yearStart} - {yearStart + 11}
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => (mode === 'month' ? setView((v) => ({ y: v.y + 1 })) : setView((v) => ({ y: v.y + 10 })))}
+              aria-label={mode === 'month' ? '下一年' : '下一个十年'}
+            >
               <ChevronRightIcon />
             </Button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {MONTHS.map((label, i) => {
-              const same = selected && selected.getFullYear() === view.y && selected.getMonth() === i
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => pick(view.y, i + 1)}
-                  className={cn(
-                    'rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
-                    same && 'bg-primary font-medium text-primary-foreground hover:bg-primary hover:text-primary-foreground',
-                  )}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
+
+          {mode === 'month' ? (
+            <div className="grid grid-cols-3 gap-1.5">
+              {MONTHS.map((label, i) => {
+                const same = selected && selected.getFullYear() === view.y && selected.getMonth() === i
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => pick(view.y, i + 1)}
+                    className={cn(
+                      'rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                      same && 'bg-primary font-medium text-primary-foreground hover:bg-primary hover:text-primary-foreground',
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-1.5">
+              {Array.from({ length: 12 }, (_, i) => yearStart + i).map((yr) => {
+                const same = selected && selected.getFullYear() === yr
+                return (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => {
+                      setView({ y: yr })
+                      setMode('month')
+                    }}
+                    className={cn(
+                      'rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                      same && 'bg-primary font-medium text-primary-foreground hover:bg-primary hover:text-primary-foreground',
+                    )}
+                  >
+                    {yr}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
           <div className="mt-2 flex items-center justify-end border-t pt-2">
             <Button
               type="button"
