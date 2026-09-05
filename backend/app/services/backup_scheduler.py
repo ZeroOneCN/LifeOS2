@@ -19,12 +19,12 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 def _execute_backup(schedule_id: int, db: Session) -> str:
-    """执行单个定时备份任务，返回状态 'success' 或 'failed'。"""
-    try:
-        sched = db.get(ScheduledBackup, schedule_id)
-        if not sched or not sched.enabled:
-            return "skipped"
+    """执行单个定时备份任务，返回状态 'success' 或 'failed'，并写入执行日志。"""
+    sched = db.get(ScheduledBackup, schedule_id)
+    if not sched or not sched.enabled:
+        return "skipped"
 
+    try:
         # 确定要导出的表
         if sched.table_selection == "selected" and sched.selected_tables:
             tables = json.loads(sched.selected_tables)
@@ -44,10 +44,19 @@ def _execute_backup(schedule_id: int, db: Session) -> str:
         filepath = backup_service.BACKUP_DIR / filename
         filepath.write_bytes(data)
 
+        backup_service.write_backup_log(
+            db, sched.user_id, sched.name, sched.export_format, "success",
+            schedule_id=sched.id, filename=filename, file_size=filepath.stat().st_size,
+        )
+
         logger.info("定时备份 '%s' 完成：%s", sched.name, filename)
         return "success"
     except Exception as exc:
         logger.exception("定时备份 '%s' 失败：%s", sched.name, exc)
+        backup_service.write_backup_log(
+            db, sched.user_id, sched.name, sched.export_format, "failed",
+            schedule_id=sched.id, error_message=str(exc)[:2000],
+        )
         return "failed"
 
 

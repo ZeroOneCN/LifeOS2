@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     # 访问令牌有效期（分钟），默认 7 天
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
+    # mysqldump 可执行文件路径（留空则自动从 PATH 查找）
+    MYSQLDUMP_PATH: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

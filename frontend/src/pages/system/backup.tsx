@@ -17,6 +17,7 @@ import {
   Play,
   Pause,
   Pencil,
+  ScrollText,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -93,6 +94,28 @@ type ScheduleItem = {
   updated_at: string
 }
 
+type LogItem = {
+  id: number
+  schedule_id: number | null
+  name: string
+  export_format: string
+  filename: string | null
+  file_size: number | null
+  file_size_display: string | null
+  status: string
+  error_message: string | null
+  started_at: string
+  finished_at: string
+  created_at: string
+}
+
+type LogPage = {
+  items: LogItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
 const TABLE_LABELS: Record<string, string> = {
   health_vitals_sleep: '睡眠体征',
   health_fitness: '健身运动',
@@ -150,6 +173,7 @@ const TABLE_LABELS: Record<string, string> = {
   activity_logs: '活动日志',
   user_profile: '用户信息',
   scheduled_backups: '定时备份计划',
+  backup_logs: '备份执行日志',
 }
 
 const CRON_PRESETS = [
@@ -168,6 +192,7 @@ const TABS = [
   { key: 'export', label: '数据导出', icon: FileDown },
   { key: 'import', label: '数据导入', icon: FileUp },
   { key: 'schedule', label: '定时备份', icon: Clock },
+  { key: 'logs', label: '执行日志', icon: ScrollText },
   { key: 'manage', label: '备份管理', icon: HardDrive },
 ] as const
 
@@ -208,6 +233,13 @@ export function BackupPage() {
     table_selection: 'all',
   })
   const [savingSchedule, setSavingSchedule] = useState(false)
+
+  // 执行日志
+  const [logs, setLogs] = useState<LogItem[]>([])
+  const [logTotal, setLogTotal] = useState(0)
+  const [logPage, setLogPage] = useState(1)
+  const [loadingLogs, setLoadingLogs] = useState(false)
+  const logPageSize = 15
 
   const loadTables = async () => {
     setLoadingTables(true)
@@ -251,6 +283,23 @@ export function BackupPage() {
     loadBackups()
     loadSchedules()
   }, [])
+
+  useEffect(() => {
+    if (tab === 'logs') loadLogs()
+  }, [tab, logPage])
+
+  const loadLogs = async () => {
+    setLoadingLogs(true)
+    try {
+      const data = await api.query<LogPage>(`/backup/logs?page=${logPage}&page_size=${logPageSize}`)
+      setLogs(data.items)
+      setLogTotal(data.total)
+    } catch {
+      toast.error('加载备份日志失败')
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
 
   const toggleTable = (name: string) => {
     setSelectedTables((prev) => {
@@ -974,6 +1023,118 @@ export function BackupPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── 执行日志 Tab ── */}
+      {tab === 'logs' && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ScrollText className="h-5 w-5" />
+                备份执行日志
+              </CardTitle>
+              <CardDescription>
+                查看每次自动/手动备份的执行结果，共 {logTotal} 条记录
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingLogs ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                  <ScrollText className="mb-2 h-10 w-10" />
+                  <p>暂无备份日志</p>
+                  <p className="text-xs">执行数据导出或定时备份后，执行记录将出现在这里</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>任务</TableHead>
+                        <TableHead>格式</TableHead>
+                        <TableHead>文件名</TableHead>
+                        <TableHead>结果</TableHead>
+                        <TableHead>执行时间</TableHead>
+                        <TableHead>详情</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {logs.map((l) => (
+                        <TableRow key={l.id}>
+                          <TableCell className="font-medium max-w-[120px] truncate" title={l.name}>
+                            {l.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs uppercase">
+                              {l.export_format}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate font-mono text-xs" title={l.filename || ''}>
+                            {l.filename || '-'}
+                          </TableCell>
+                          <TableCell>
+                            {l.status === 'success' ? (
+                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                成功
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive">失败</Badge>
+                            )}
+                            {l.file_size_display && l.status === 'success' && (
+                              <span className="ml-1.5 text-xs text-muted-foreground">{l.file_size_display}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatTime(l.started_at)}
+                          </TableCell>
+                          <TableCell className="max-w-[250px]">
+                            {l.error_message ? (
+                              <span className="block text-xs text-destructive truncate" title={l.error_message}>
+                                {l.error_message}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              {/* 分页 */}
+              {logTotal > logPageSize && (
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    共 {logTotal} 条，第 {logPage}/{Math.ceil(logTotal / logPageSize)} 页
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={logPage <= 1}
+                      onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={logPage >= Math.ceil(logTotal / logPageSize)}
+                      onClick={() => setLogPage((p) => p + 1)}
+                    >
+                      下一页
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

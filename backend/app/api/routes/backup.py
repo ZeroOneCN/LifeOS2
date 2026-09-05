@@ -103,7 +103,17 @@ def export_data(
             data, filename = backup_service.export_tables_json(
                 db, payload.tables, payload.compress
             )
+        # 写入执行日志
+        filepath = backup_service.BACKUP_DIR / filename
+        backup_service.write_backup_log(
+            db, user.id, "手动导出", payload.format, "success",
+            filename=filename, file_size=filepath.stat().st_size if filepath.exists() else None,
+        )
     except RuntimeError as e:
+        backup_service.write_backup_log(
+            db, user.id, "手动导出", payload.format, "failed",
+            error_message=str(e)[:2000],
+        )
         raise HTTPException(status_code=500, detail=str(e))
 
     media_type = (
@@ -316,3 +326,40 @@ def _schedule_to_read(s: ScheduledBackup) -> ScheduleRead:
         created_at=s.created_at.isoformat(),
         updated_at=s.updated_at.isoformat(),
     )
+
+
+# ── 备份日志 ──────────────────────────────────────────────────────────────
+
+
+class LogRead(BaseModel):
+    id: int
+    schedule_id: int | None = None
+    name: str
+    export_format: str
+    filename: str | None = None
+    file_size: int | None = None
+    file_size_display: str | None = None
+    status: str
+    error_message: str | None = None
+    started_at: str
+    finished_at: str
+    created_at: str
+
+
+class LogPage(BaseModel):
+    items: list[LogRead]
+    total: int
+    page: int
+    page_size: int
+
+
+@router.get("/logs", response_model=LogPage)
+def list_logs(
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """分页查询备份执行日志。"""
+    items, total = backup_service.get_backup_logs(db, user.id, page, page_size)
+    return {"items": items, "total": total, "page": page, "page_size": page_size}

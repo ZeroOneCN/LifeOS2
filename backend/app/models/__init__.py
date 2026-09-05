@@ -1,5 +1,5 @@
 from app.models.activity_log import ActivityLog
-from app.models.backup import ScheduledBackup
+from app.models.backup import ScheduledBackup, BackupLog
 from app.models.finance import (
     FinanceCurrency,
     FinanceDebt,
@@ -67,6 +67,7 @@ from app.models.user import UserProfile
 
 __all__ = [
     "ScheduledBackup",
+    "BackupLog",
     "HealthVitalsSleep",
     "HealthFitness",
     "HealthDiet",

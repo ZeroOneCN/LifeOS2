@@ -26,3 +26,21 @@ class ScheduledBackup(UserOwned, Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+
+class BackupLog(UserOwned, Base):
+    """备份执行日志：记录每次自动/手动备份的详细结果。"""
+
+    __tablename__ = "backup_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schedule_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 关联的定时任务 ID，手动导出为 null
+    name: Mapped[str] = mapped_column(String(64))  # 任务名称 / 导出名称
+    export_format: Mapped[str] = mapped_column(String(8))  # json / sql
+    filename: Mapped[str | None] = mapped_column(String(128), nullable=True)  # 生成的文件名
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 文件大小（字节）
+    status: Mapped[str] = mapped_column(String(16))  # success / failed
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)  # 失败时的错误信息
+    started_at: Mapped[datetime] = mapped_column(DateTime)
+    finished_at: Mapped[datetime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

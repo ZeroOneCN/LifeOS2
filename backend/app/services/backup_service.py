@@ -15,6 +15,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.backup import BackupLog
 
 BACKUP_DIR = Path(__file__).resolve().parent.parent.parent / "backups"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -143,8 +144,9 @@ def export_sql_mysqldump(
         (bytes 数据, 建议文件名)
     """
     params = _parse_db_url()
+    mysqldump_cmd = settings.MYSQLDUMP_PATH or "mysqldump"
     cmd = [
-        "mysqldump",
+        mysqldump_cmd,
         f"--user={params['user']}",
         f"--password={params['password']}",
         f"--host={params['host']}",
@@ -161,7 +163,10 @@ def export_sql_mysqldump(
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
     except FileNotFoundError:
-        raise RuntimeError("未找到 mysqldump 命令，请确保 MySQL 客户端已安装并加入 PATH")
+        raise RuntimeError(
+            f"未找到 mysqldump 命令，请确保 MySQL 客户端已安装。"
+            f"您可以在 .env 中设置 MYSQLDUMP_PATH（例如 MYSQLDUMP_PATH=C:\\mysql\\bin\\mysqldump.exe）"
+        )
 
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace")[:500]
@@ -261,3 +266,75 @@ def import_json_data(
         total += inserted
 
     return {"tables": stats, "total_inserted": total}
+
+
+def write_backup_log(
+    db: Session,
+    user_id: int,
+    name: str,
+    export_format: str,
+    status: str,
+    *,
+    schedule_id: int | None = None,
+    filename: str | None = None,
+    file_size: int | None = None,
+    error_message: str | None = None,
+) -> BackupLog:
+    """写入一条备份执行日志。"""
+    from datetime import datetime
+
+    now = datetime.now()
+    log = BackupLog(
+        user_id=user_id,
+        schedule_id=schedule_id,
+        name=name,
+        export_format=export_format,
+        filename=filename,
+        file_size=file_size,
+        status=status,
+        error_message=error_message,
+        started_at=now,
+        finished_at=now,
+    )
+    db.add(log)
+    db.commit()
+    return log
+
+
+def get_backup_logs(
+    db: Session,
+    user_id: int,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[dict[str, Any]], int]:
+    """分页查询备份执行日志。"""
+    from sqlalchemy import desc, func, select
+
+    total = db.scalar(
+        select(func.count(BackupLog.id)).where(BackupLog.user_id == user_id)
+    ) or 0
+    rows = db.scalars(
+        select(BackupLog)
+        .where(BackupLog.user_id == user_id)
+        .order_by(desc(BackupLog.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+
+    def _log_to_dict(log: BackupLog) -> dict[str, Any]:
+        return {
+            "id": log.id,
+            "schedule_id": log.schedule_id,
+            "name": log.name,
+            "export_format": log.export_format,
+            "filename": log.filename,
+            "file_size": log.file_size,
+            "file_size_display": _fmt_size(log.file_size) if log.file_size else None,
+            "status": log.status,
+            "error_message": log.error_message,
+            "started_at": log.started_at.isoformat(),
+            "finished_at": log.finished_at.isoformat(),
+            "created_at": log.created_at.isoformat(),
+        }
+
+    return [_log_to_dict(r) for r in rows], total
