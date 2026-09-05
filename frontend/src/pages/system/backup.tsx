@@ -57,6 +57,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
 type TableInfo = {
@@ -205,6 +206,7 @@ function formatTime(iso: string) {
 }
 
 export function BackupPage() {
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [tab, setTab] = useState<TabKey>('export')
   const [tables, setTables] = useState<TableInfo[]>([])
   const [backups, setBackups] = useState<BackupFile[]>([])
@@ -219,6 +221,7 @@ export function BackupPage() {
   const [importing, setImporting] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   // 新增/编辑定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
@@ -417,6 +420,13 @@ export function BackupPage() {
   }
 
   const handleDeleteBackup = async (filename: string) => {
+    const ok = await confirm({
+      title: '删除备份文件',
+      description: `确定要删除备份文件「${filename}」吗？此操作不可撤销。`,
+      confirmText: '确认删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.del(`/backup/exports/${encodeURIComponent(filename)}`)
       toast.success(`备份文件 ${filename} 已删除`)
@@ -535,12 +545,28 @@ export function BackupPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={loadTables}>
-            <RefreshCw className="mr-1 h-4 w-4" />
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={refreshing}
+            onClick={async () => {
+              setRefreshing(true)
+              await Promise.allSettled([
+                loadTables(),
+                loadBackups(),
+                loadSchedules(),
+                tab === 'logs' ? loadLogs() : Promise.resolve(),
+              ])
+              setRefreshing(false)
+            }}
+          >
+            <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             刷新
           </Button>
         </div>
       </div>
+
+      {confirmDialog}
 
       {/* Tab 导航 */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">
@@ -1002,7 +1028,7 @@ export function BackupPage() {
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-muted-foreground">
-                                已暂停
+                                已停止
                               </Badge>
                             )}
                           </TableCell>
@@ -1082,11 +1108,11 @@ export function BackupPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>任务</TableHead>
-                        <TableHead>格式</TableHead>
-                        <TableHead className="w-36">文件名</TableHead>
-                        <TableHead>结果</TableHead>
+                        <TableHead className="w-16">格式</TableHead>
+                        <TableHead className="w-52">文件名</TableHead>
+                        <TableHead className="w-16">结果</TableHead>
                         <TableHead>执行时间</TableHead>
-                        <TableHead className="w-[300px]">详情</TableHead>
+                        <TableHead className="w-[400px]">详情</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
