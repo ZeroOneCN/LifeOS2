@@ -15,8 +15,11 @@ def _inv_stats(db: Session, days: int, user_id: int) -> dict:
     by_category: dict[str, float] = {}
     by_platform: dict[str, float] = {}
     for r in rows:
-        by_category[r.category] = by_category.get(r.category, 0.0) + r.pnl
         by_platform[r.platform] = by_platform.get(r.platform, 0.0) + r.pnl
+        for c in (r.category or "").split(","):
+            c = c.strip()
+            if c:
+                by_category[c] = by_category.get(c, 0.0) + r.pnl
     return {
         "count": len(rows),
         "total_pnl": round(total_pnl, 2),

@@ -298,16 +298,16 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>日期</TableHead><TableHead>名称</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
-                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead><TableHead className="text-right">利息</TableHead><TableHead>到期</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
+                <TableHead>日期</TableHead><TableHead>名称</TableHead><TableHead>对方</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
+                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead><TableHead className="text-right">利息</TableHead><TableHead>到期</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
               {items.length === 0 ? (
                 loading ? (
-                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
                 ) : (
-                  <TableRow><TableCell colSpan={11} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
                 )
               ) : items.map((d) => {
                 const paid = hasPaid(d)
@@ -315,10 +315,8 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 return (
                 <TableRow key={d.id}>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{d.debt_date}</TableCell>
-                  <TableCell>
-                    <div className="font-medium">{d.name}</div>
-                    {d.counterparty && <div className="text-xs text-muted-foreground">{d.counterparty}</div>}
-                  </TableCell>
+                  <TableCell className="font-medium">{d.name}</TableCell>
+                  <TableCell>{d.counterparty ?? '—'}</TableCell>
                   <TableCell><Badge className={directionMeta[d.direction]?.className}>{directionMeta[d.direction]?.label}</Badge></TableCell>
                   <TableCell>{d.channel ? <Badge variant="outline" className={channelMeta[d.channel]?.className}>{d.channel}</Badge> : '—'}</TableCell>
                   <TableCell className="text-right">{fmtMoney(d.amount)}</TableCell>
@@ -329,6 +327,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>
+                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={d.note ?? ''}>{d.note ?? '—'}</TableCell>
                   <TableCell><Badge className={statusMeta[d.status]?.className}>{statusMeta[d.status]?.label}</Badge></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -473,10 +472,13 @@ type Investment = { id: number; platform: string; account?: string; category: st
 type InvStats = { count: number; total_pnl: number; profit: number; loss: number; by_category: { category: string; amount: number }[]; by_platform: { platform: string; amount: number }[] }
 
 function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
+  // 投资记账统一按美元计算与显示，不做汇率换算
+  const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   const [items, setItems] = useState<Investment[]>([])
   const [stats, setStats] = useState<InvStats | null>(null)
   const [dialog, setDialog] = useState<null | { editing?: Investment }>(null)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [selCats, setSelCats] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -487,13 +489,17 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
   }
   useEffect(() => { load() }, [])
 
+  const toggleCat = (c: string) => {
+    setSelCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+  }
   const openCreate = () => {
-    setForm({ platform: '', account: '', category: '美股', pnl: '', note: '' })
+    setForm({ platform: '', account: '', pnl: '', note: '' })
+    setSelCats([])
     setDialog({})
   }
   const save = async () => {
     const payload = {
-      platform: form.platform, account: form.account || null, category: form.category,
+      platform: form.platform, account: form.account || null, category: selCats.join(',') || investCategories[0],
       pnl: Number(form.pnl), note: form.note || null,
     }
     setSaving(true)
@@ -530,9 +536,9 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Wallet} label="投资平台数" value={`${stats.count} 个`} />
-            <StatCard icon={ArrowUpCircle} label="整体盈亏" value={fmtMoney(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'} />
-            <StatCard icon={ArrowUpCircle} label="盈利合计" value={fmtMoney(stats.profit)} className="text-green-600" />
-            <StatCard icon={ArrowDownCircle} label="亏损合计" value={fmtMoney(stats.loss)} className="text-red-600" />
+            <StatCard icon={ArrowUpCircle} label="整体盈亏" value={usd(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'} />
+            <StatCard icon={ArrowUpCircle} label="盈利合计" value={usd(stats.profit)} className="text-green-600" />
+            <StatCard icon={ArrowDownCircle} label="亏损合计" value={usd(stats.loss)} className="text-red-600" />
           </section>
           {stats.by_category.length > 0 && (
             <Card>
@@ -541,7 +547,7 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 <div className="flex flex-wrap gap-2">
                   {stats.by_category.map((c) => (
                     <Badge key={c.category} variant="outline">
-                      {c.category}：<span className={c.amount >= 0 ? 'text-green-600' : 'text-red-600'}>{fmtMoney(c.amount)}</span>
+                      {c.category}：<span className={c.amount >= 0 ? 'text-green-600' : 'text-red-600'}>{usd(c.amount)}</span>
                     </Badge>
                   ))}
                 </div>
@@ -570,12 +576,16 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 <TableRow key={iv.id}>
                   <TableCell className="font-medium">{iv.platform}</TableCell>
                   <TableCell>{iv.account ?? '—'}</TableCell>
-                  <TableCell><Badge variant="outline">{iv.category}</Badge></TableCell>
-                  <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmtMoney(iv.pnl)}</TableCell>
-                  <TableCell className="text-muted-foreground">{iv.note ?? '—'}</TableCell>
+                  <TableCell className="max-w-[200px]">
+                    <div className="flex flex-wrap gap-1">
+                      {iv.category.split(',').filter((c) => c.trim()).map((c) => <Badge key={c} variant="outline">{c.trim()}</Badge>)}
+                    </div>
+                  </TableCell>
+                  <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>{usd(iv.pnl)}</TableCell>
+                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={iv.note ?? ''}>{iv.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', category: iv.category, pnl: String(iv.pnl), note: iv.note ?? '' }); setDialog({ editing: iv }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', pnl: String(iv.pnl), note: iv.note ?? '' }); setSelCats(iv.category.split(',').map((s) => s.trim()).filter(Boolean)); setDialog({ editing: iv }) }}><Pencil /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(iv)}><Trash2 /></Button>
                     </div>
                   </TableCell>
@@ -595,11 +605,18 @@ function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>平台 *</Label><Input value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} placeholder="如 富途 / 币安" /></div>
             <div className="space-y-2"><Label>平台账号</Label><Input value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} /></div>
-            <div className="space-y-2"><Label>类别 *</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{investCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="col-span-2 space-y-2"><Label>类别 *（可多选）</Label>
+              <div className="flex flex-wrap gap-2">
+                {investCategories.map((c) => {
+                  const on = selCats.includes(c)
+                  return (
+                    <button type="button" key={c} onClick={() => toggleCat(c)}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}>
+                      {c}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             <div className="space-y-2"><Label>盈亏总额 *</Label><Input type="number" step="0.01" value={form.pnl} onChange={(e) => setForm({ ...form, pnl: e.target.value })} placeholder="正为盈利，负为亏损" /></div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
