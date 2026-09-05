@@ -251,9 +251,9 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Wallet} label="民间债务总数" value={String(stats?.total ?? 0)} />
-            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-blue-500" />
-            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-amber-500" />
-            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-indigo-500" />
+            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-green-600" />
+            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-red-600" />
+            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-red-600" />
           </section>
 
           {(stats?.overdue ?? 0) > 0 && (
