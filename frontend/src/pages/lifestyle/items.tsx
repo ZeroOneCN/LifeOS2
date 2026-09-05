@@ -133,7 +133,10 @@ const columns: ColumnDef<ItemRecord>[] = [
   {
     key: 'daily_cost',
     label: '日均成本',
-    render: (r) => (dailyCost(r) != null ? fmt(dailyCost(r)!) + '/天' : '—'),
+    render: (r) => {
+      const c = dailyCost(r)
+      return c != null ? `¥${c.toFixed(2)}/天` : '—'
+    },
   },
   { key: 'expire_date', label: '过期时间', render: (r) => r.expire_date ?? '—' },
   {

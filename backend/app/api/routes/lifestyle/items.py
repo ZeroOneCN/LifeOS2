@@ -206,7 +206,7 @@ router = crud_router(
     model=LifestyleItem,
     create_schema=ItemCreate,
     read_schema=ItemRead,
-    order_by=LifestyleItem.id,
+    order_by=LifestyleItem.purchase_date,
     stats_func=_item_stats,
     extra_routes=_items_extra,
 )
