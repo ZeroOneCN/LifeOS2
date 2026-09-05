@@ -180,16 +180,16 @@ def delete_record(
 
 import_router = APIRouter(prefix="/finance/shopping", tags=["finance-shopping"])
 
-# 表头映射：日期，平台，商品名称，规格，总价，单价，订单号，账本
-_HEADER_MAP = {
-    "日期": "record_date",
-    "平台": "platform_name",
-    "商品名称": "product_name",
-    "规格": "spec",
-    "总价": "total_price",
-    "单价": "unit_price",
-    "订单号": "order_no",
-    "账本": "ledger_name",
+# 表头别名映射：兼容常见 xlsx 表头（如"名称/价格/购买平台"等）
+_FIELD_ALIASES = {
+    "record_date": ["日期", "购买日期"],
+    "platform_name": ["平台", "购买平台", "商城"],
+    "product_name": ["商品名称", "名称", "商品"],
+    "spec": ["规格"],
+    "total_price": ["总价", "价格", "金额"],
+    "unit_price": ["单价"],
+    "order_no": ["订单号"],
+    "ledger_name": ["账本"],
 }
 
 
@@ -206,19 +206,37 @@ def _resolve_name(name: str, cache: dict[str, int], model, attr: str, db: Sessio
 
 
 def _coerce_date(value) -> date:
-    """尝试把 Excel 日期（datetime / date / string）转成 date。"""
+    """尝试把 Excel 日期（datetime / date / 数字 / 分隔字符串）转成 date。"""
+    import re
+
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
         return value
+    s = str(value).strip()
+    if not s:
+        return date.today()
+    # 纯数字：yyyymmdd(8位) 或 yymmdd(6位，如 260902)
+    if s.isdigit():
+        try:
+            if len(s) >= 8:
+                return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+            if len(s) == 6:
+                return date(2000 + int(s[:2]), int(s[2:4]), int(s[4:6]))
+        except ValueError:
+            pass
+    # 分隔形式：2026-9-3 / 2026/9/3 / 2026年9月3日
+    m = re.match(r"^(\d{4})[-/.年月](\d{1,2})[-/.月日]", s)
+    if m:
+        try:
+            return date(*(int(x) for x in m.groups()))
+        except ValueError:
+            pass
     try:
-        return datetime.fromisoformat(str(value).strip()).date()
+        return datetime.fromisoformat(s).date()
     except ValueError:
         try:
-            from datetime import date as _d
-
-            # 处理 2026-9-3 形式
-            return _d.fromisoformat(str(value).strip())
+            return date.fromisoformat(s)
         except ValueError:
             return date.today()
 
@@ -265,8 +283,11 @@ async def import_xlsx(
     header = [str(c).strip() if c is not None else "" for c in rows[0]]
     col_idx: dict[str, int] = {}
     for i, h in enumerate(header):
-        if h in _HEADER_MAP:
-            col_idx[_HEADER_MAP[h]] = i
+        if not h:
+            continue
+        for field, aliases in _FIELD_ALIASES.items():
+            if h in aliases and field not in col_idx:
+                col_idx[field] = i
 
     def get(raw, key):
         i = col_idx.get(key)
