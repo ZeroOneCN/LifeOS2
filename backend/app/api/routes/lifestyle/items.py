@@ -90,7 +90,7 @@ class SyncReq(BaseModel):
 
 
 def _sync_candidates(db: Session, user_id: int) -> list[dict]:
-    """返回当前用户尚未同步为物品的购物记录（按日期倒序，最多 100 条）。"""
+    """返回当前用户尚未同步为物品的全部购物记录（按日期倒序）。"""
     existing = set(
         db.scalars(
             select(LifestyleItem.shopping_record_id).where(
@@ -104,7 +104,6 @@ def _sync_candidates(db: Session, user_id: int) -> list[dict]:
         select(FinanceShoppingRecord)
         .where(FinanceShoppingRecord.user_id == user_id)
         .order_by(FinanceShoppingRecord.record_date.desc())
-        .limit(200)
     ).all()
     out = []
     for r in records:
@@ -119,8 +118,6 @@ def _sync_candidates(db: Session, user_id: int) -> list[dict]:
                 "total_price": r.total_price,
             }
         )
-        if len(out) >= 100:
-            break
     return out
 
 
