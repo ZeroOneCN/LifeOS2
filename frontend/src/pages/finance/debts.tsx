@@ -846,7 +846,7 @@ function StatCard({ icon: Icon, label, value, className }: { icon: typeof Wallet
         <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
         <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
       </CardHeader>
-      <CardContent><div className="text-2xl font-semibold">{value}</div></CardContent>
+      <CardContent><div className={`text-2xl font-semibold ${className ?? ''}`}>{value}</div></CardContent>
     </Card>
   )
 }
