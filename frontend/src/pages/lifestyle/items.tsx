@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, RefreshCw, ShoppingCart } from 'lucide-react'
+import { Loader2, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -10,14 +10,6 @@ import {
   type ColumnDef,
   type FieldDef,
 } from '@/components/health/record-manager'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { api } from '@/lib/api'
 
 type ItemRecord = {
@@ -46,14 +38,6 @@ type ItemStats = {
   by_category: { category: string; count: number }[]
   by_status: { status: string; count: number }[]
   by_source: { source: string; count: number }[]
-}
-
-type SyncCandidate = {
-  id: number
-  record_date?: string
-  product_name: string
-  spec?: string
-  total_price: number
 }
 
 const categories = ['电子', '服饰', '书籍', '家居', '数码配件', '购物', '其他']
@@ -168,49 +152,25 @@ export function ItemsPage() {
   const byStatus = stats?.by_status ?? []
   const bySource = stats?.by_source ?? []
 
-  const [syncOpen, setSyncOpen] = useState(false)
-  const [candidates, setCandidates] = useState<SyncCandidate[]>([])
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [loadingSync, setLoadingSync] = useState(false)
-
-  const openSync = async () => {
-    setSyncOpen(true)
-    setSelected(new Set())
-    setLoadingSync(true)
-    try {
-      const res = await api.query<SyncCandidate[]>('/lifestyle/items/sync-candidates')
-      setCandidates(res)
-    } catch (e) {
-      toast.error('加载失败', { description: (e as Error).message })
-    } finally {
-      setLoadingSync(false)
-    }
-  }
+  const [syncing, setSyncing] = useState(false)
 
   const doSync = async () => {
-    if (selected.size === 0) return
-    setLoadingSync(true)
+    if (syncing) return
+    setSyncing(true)
     try {
       const res = await api.create<{ created: number; skipped: number }>('/lifestyle/items/sync', {
-        record_ids: Array.from(selected),
+        record_ids: [],
       })
-      toast.success(`已同步 ${res.created} 条物品`, { description: `跳过 ${res.skipped} 条重复记录` })
-      setSyncOpen(false)
+      toast.success(
+        res.created > 0 ? `已同步 ${res.created} 条物品` : '没有可同步的购物记录',
+        { description: res.created > 0 ? `跳过 ${res.skipped} 条重复记录` : '购物记录已全部同步过' },
+      )
       setRefresh((v) => v + 1)
     } catch (e) {
       toast.error('同步失败', { description: (e as Error).message })
     } finally {
-      setLoadingSync(false)
+      setSyncing(false)
     }
-  }
-
-  const toggle = (id: number) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   }
 
   const chartStats =
@@ -231,15 +191,15 @@ export function ItemsPage() {
     <>
       <RecordManager<ItemRecord>
         title="物品追踪"
-        description="登记个人物品，计算使用时长与分摊费用损耗，支持从购物记录同步。"
+        description="登记个人物品，计算使用时长与分摊费用损耗，支持一键从购物记录同步。"
         apiPath="/lifestyle/items"
         fields={fields}
         columns={columns}
         refreshKey={refresh}
         onMutate={() => setRefresh((v) => v + 1)}
         headerExtra={
-          <Button variant="outline" onClick={openSync}>
-            <ShoppingCart className="size-4" />
+          <Button variant="outline" onClick={doSync} disabled={syncing}>
+            {syncing ? <Loader2 className="size-4 animate-spin" /> : <ShoppingCart className="size-4" />}
             同步购物记录
           </Button>
         }
@@ -283,61 +243,6 @@ export function ItemsPage() {
           </>
         }
       />
-
-      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
-        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>从购物记录同步物品</DialogTitle>
-            <DialogDescription>
-              勾选需要转为物品的购物记录，系统将以商品名称、购买日期、价格生成物品（已同步的会自动跳过）。
-            </DialogDescription>
-          </DialogHeader>
-          {loadingSync && !candidates.length ? (
-            <div className="flex justify-center py-10">
-              <Loader2 className="size-5 animate-spin" />
-            </div>
-          ) : candidates.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              没有可同步的购物记录，或已全部同步过。
-            </p>
-          ) : (
-            <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-              {candidates.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 hover:bg-muted/40"
-                >
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{c.product_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.spec ? `${c.spec} · ` : ''}
-                      {c.record_date ?? '—'}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className="text-sm font-medium">{fmt(c.total_price)}</span>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(c.id)}
-                      onChange={() => toggle(c.id)}
-                      className="size-4 accent-indigo-600"
-                    />
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSyncOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={doSync} disabled={loadingSync || selected.size === 0}>
-              {loadingSync ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-              同步（{selected.size}）
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

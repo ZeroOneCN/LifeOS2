@@ -1,7 +1,7 @@
 from collections import defaultdict
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -85,7 +85,8 @@ def _item_stats(db: Session, days: int, user_id: int) -> dict:
 
 
 class SyncReq(BaseModel):
-    record_ids: list[int]
+    # 为空列表时表示同步当前用户全部未同步的购物记录
+    record_ids: list[int] = []
 
 
 def _sync_candidates(db: Session, user_id: int) -> list[dict]:
@@ -137,8 +138,34 @@ def _items_extra(api_router: APIRouter):
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
+        # 未指定 record_ids 时，自动同步当前用户全部尚未同步为物品的购物记录
         if not payload.record_ids:
-            raise HTTPException(status_code=400, detail="请选择要同步的购物记录")
+            candidates = _sync_candidates(db, user.id)
+            created = 0
+            for c in candidates:
+                purchase = None
+                if c.get("record_date"):
+                    try:
+                        purchase = date.fromisoformat(c["record_date"])
+                    except ValueError:
+                        purchase = None
+                db.add(
+                    LifestyleItem(
+                        item_name=c["product_name"],
+                        category="购物",
+                        status="in_use",
+                        purchase_date=purchase,
+                        price=c.get("total_price"),
+                        source="shopping",
+                        shopping_record_id=c["id"],
+                        user_id=user.id,
+                        note=f"来自购物记录（{c['product_name']}{' · ' + c['spec'] if c.get('spec') else ''}）",
+                    )
+                )
+                created += 1
+            db.commit()
+            return {"created": created, "skipped": 0}
+
         records = db.scalars(
             select(FinanceShoppingRecord).where(
                 FinanceShoppingRecord.user_id == user.id,
