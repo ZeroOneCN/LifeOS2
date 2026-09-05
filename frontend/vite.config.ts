@@ -16,6 +16,10 @@ export default defineConfig({
     host: '0.0.0.0',
     // 允许任意 Host 访问（开发模式），避免局域网 IP 访问被 Vite 拦截
     allowedHosts: true,
+    // 启动时预编译全部页面/组件，避免切换路由时首次按需编译导致的长时间卡顿
+    warmup: {
+      clientFiles: ['./src/pages/**/*.{ts,tsx}', './src/components/**/*.{ts,tsx}', './src/layouts/**/*.{ts,tsx}', './src/lib/**/*.{ts,tsx}'],
+    },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
