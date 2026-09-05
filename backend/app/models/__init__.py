@@ -2,6 +2,7 @@ from app.models.activity_log import ActivityLog
 from app.models.finance import (
     FinanceCurrency,
     FinanceDebt,
+    FinanceDebtPayment,
     FinanceHousing,
     FinanceInvestment,
     FinanceLoanBill,
@@ -98,6 +99,7 @@ __all__ = [
     "FinanceReminder",
     "FinancePlan",
     "FinanceDebt",
+    "FinanceDebtPayment",
     "FinanceInvestment",
     "FinanceMemo",
     "FinanceCurrency",

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.api.crud import crud_router
-from app.models import FinanceDebt, FinanceLoanBill, FinanceLoanPlatform, UserProfile
+from app.models import FinanceDebt, FinanceDebtPayment, FinanceLoanBill, FinanceLoanPlatform, UserProfile
 from app.schemas.finance import (
     DebtCreate,
     DebtRead,
@@ -115,7 +115,7 @@ def repay_debt(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清。"""
+    """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清，并记录还款明细。"""
     debt = db.get(FinanceDebt, item_id)
     if not debt or debt.user_id != user.id:
         raise HTTPException(status_code=404, detail="债务记录不存在")
@@ -128,6 +128,15 @@ def repay_debt(
     if debt.remaining <= 1e-6:
         debt.remaining = 0
         debt.status = "settled"
+    db.add(
+        FinanceDebtPayment(
+            user_id=user.id,
+            debt_id=item_id,
+            repay_date=payload.repay_date,
+            amount=round(payload.amount, 2),
+            note=payload.note,
+        )
+    )
     db.commit()
     return {
         "id": debt.id,
@@ -138,6 +147,57 @@ def repay_debt(
         "repay": payload.repay_date,
         "amount": round(payload.amount, 2),
     }
+
+
+@router.get("/finance/debts/{item_id}/payments")
+def list_debt_payments(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+) -> list[dict]:
+    """查询某笔借贷的还款/收款明细（新在前）。"""
+    debt = db.get(FinanceDebt, item_id)
+    if not debt or debt.user_id != user.id:
+        raise HTTPException(status_code=404, detail="债务记录不存在")
+    rows = db.scalars(
+        select(FinanceDebtPayment)
+        .where(FinanceDebtPayment.debt_id == item_id)
+        .order_by(FinanceDebtPayment.repay_date.desc(), FinanceDebtPayment.id.desc())
+    ).all()
+    return [
+        {
+            "id": r.id,
+            "debt_id": r.debt_id,
+            "repay_date": r.repay_date,
+            "amount": r.amount,
+            "note": r.note,
+        }
+        for r in rows
+    ]
+
+
+@router.delete("/finance/debts/{item_id}/payments/{payment_id}")
+def delete_debt_payment(
+    item_id: int,
+    payment_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """删除一笔还款明细，并回滚对应债务的剩余金额（结清则恢复为进行中）。"""
+    debt = db.get(FinanceDebt, item_id)
+    if not debt or debt.user_id != user.id:
+        raise HTTPException(status_code=404, detail="债务记录不存在")
+    payment = db.get(FinanceDebtPayment, payment_id)
+    if not payment or payment.debt_id != item_id or payment.user_id != user.id:
+        raise HTTPException(status_code=404, detail="还款明细不存在")
+    rest = (debt.remaining if debt.remaining is not None else debt.amount) + payment.amount
+    # 回滚不得超过本金总额
+    debt.remaining = round(min(rest, debt.amount), 2)
+    if debt.remaining > 1e-6 and debt.status == "settled":
+        debt.status = "active"
+    db.delete(payment)
+    db.commit()
+    return {"id": debt.id, "remaining": debt.remaining, "status": debt.status}
 
 
 router.include_router(

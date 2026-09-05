@@ -242,6 +242,8 @@ class DebtCreate(BaseModel):
     amount: float = Field(ge=0)
     remaining: float | None = Field(None, ge=0)
     interest_rate: float | None = Field(None, ge=0)
+    interest_total: float | None = Field(None, ge=0)  # 累计应付/已付利息总额
+    channel: str | None = Field(None, max_length=16)  # 途径：现金/银行转账/微信/支付宝/其他
     due_date: date | None = None
     status: str = Field("active", pattern="^(active|settled)$")
     note: str | None = None
@@ -249,6 +251,16 @@ class DebtCreate(BaseModel):
 
 class DebtRead(DebtCreate, ORMRead):
     pass
+
+
+class DebtPaymentCreate(BaseModel):
+    repay_date: date
+    amount: float = Field(gt=0)
+    note: str | None = None
+
+
+class DebtPaymentRead(DebtPaymentCreate, ORMRead):
+    debt_id: int
 
 
 class InvestmentCreate(BaseModel):
@@ -287,6 +299,7 @@ class CurrencyRead(CurrencyCreate, ORMRead):
 class DebtRepayPayload(BaseModel):
     repay_date: date
     amount: float = Field(gt=0)
+    note: str | None = None
 
 
 class PageOut(BaseModel, Generic[T]):

@@ -270,9 +270,23 @@ class FinanceDebt(TimestampMixin, UserOwned, Base):
     amount: Mapped[float] = mapped_column(Float)  # 总金额（本金）
     remaining: Mapped[float | None] = mapped_column(Float)  # 剩余未还/未收金额
     interest_rate: Mapped[float | None] = mapped_column(Float)  # 年利率（%）
+    interest_total: Mapped[float | None] = mapped_column(Float, default=0)  # 累计应付/已付利息总额
+    channel: Mapped[str | None] = mapped_column(String(16))  # 途径：现金/银行转账/微信/支付宝/其他
     due_date: Mapped[date | None] = mapped_column(Date)  # 到期日
     status: Mapped[str] = mapped_column(String(16), default="active")  # active=进行中 / settled=已结清
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class FinanceDebtPayment(TimestampMixin, UserOwned, Base):
+    """民间借贷的还款/收款明细记录。"""
+
+    __tablename__ = "finance_debt_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    debt_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联债务
+    repay_date: Mapped[date] = mapped_column(Date, index=True)  # 还款/收款日期
+    amount: Mapped[float] = mapped_column(Float)  # 本次金额
+    note: Mapped[str | None] = mapped_column(Text)  # 备注
 
 
 class FinanceInvestment(TimestampMixin, UserOwned, Base):
