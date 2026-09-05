@@ -142,6 +142,22 @@ const itemStatus: Record<string, string> = {
   recycled: '已淘汰',
 }
 
+/** 从开卡日期到今天的时长（x年x个月） */
+function openDuration(dateStr: string): string {
+  const open = new Date(dateStr)
+  if (Number.isNaN(open.getTime())) return ''
+  const now = new Date()
+  let months =
+    (now.getFullYear() - open.getFullYear()) * 12 +
+    (now.getMonth() - open.getMonth())
+  months = Math.max(0, months)
+  const years = Math.floor(months / 12)
+  const rest = months % 12
+  if (years > 0 && rest > 0) return `${years}年${rest}个月`
+  if (years > 0) return `${years}年`
+  return `${rest}个月`
+}
+
 const phoneFields: FieldDef[] = [
   { key: 'phone_number', label: '号码', type: 'text', required: true },
   {
@@ -188,10 +204,10 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
     key: 'phone_number',
     label: '号码',
     render: (r) => (
-      <div>
-        <div className="font-medium">{r.phone_number}</div>
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium">{r.phone_number}</span>
         {r.billing_type !== 'monthly' && (
-          <Badge className="mt-0.5 bg-slate-100 text-slate-600">
+          <Badge className="bg-slate-100 text-slate-600">
             {billingTypes.find((b) => b.value === r.billing_type)?.label ?? r.billing_type}
           </Badge>
         )}
@@ -214,7 +230,11 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       return cp || sp || '—'
     },
   },
-  { key: 'open_date', label: '开卡时间', render: (r) => r.open_date ?? '—' },
+  {
+    key: 'open_date',
+    label: '开卡时间',
+    render: (r) => (r.open_date ? `${r.open_date}（${openDuration(r.open_date)}）` : '—'),
+  },
   { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
   {
     key: 'bill_paid_this_month',
