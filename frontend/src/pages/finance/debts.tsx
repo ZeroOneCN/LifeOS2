@@ -277,30 +277,16 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 
       {/* 网贷只读同步 */}
       {loanSync && loanSync.platform_count > 0 && (
-        <Card className="border-indigo-200 bg-indigo-50/60">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700">
-              <Receipt className="size-4" /> 网贷欠款同步（来源：账单管理 · 网贷借还）
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {loanSync.platforms.map((p) => (
-                <div key={p.platform_id} className="flex items-center justify-between rounded-lg border border-white/70 bg-white px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">{p.bill_count} 笔待还</div>
-                  </div>
-                  <span className="shrink-0 text-base font-bold text-red-600">{fmtMoney(p.remaining)}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-between rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
-                <span className="text-sm font-medium text-indigo-700">合计待还</span>
-                <span className="shrink-0 text-lg font-bold text-indigo-700">{fmtMoney(loanSync.total_remaining)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm">
+          <span className="flex items-center gap-1.5 font-medium text-indigo-700"><Receipt className="size-4" /> 网贷欠款</span>
+          {loanSync.platforms.map((p) => (
+            <Badge key={p.platform_id} variant="outline" className="bg-white/80">
+              {p.name}：<span className="font-medium text-red-600">{fmtMoney(p.remaining)}</span>
+              <span className="text-muted-foreground">（{p.bill_count} 笔）</span>
+            </Badge>
+          ))}
+          <Badge className="bg-indigo-100 text-indigo-700">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
+        </div>
       )}
 
       <Card>
