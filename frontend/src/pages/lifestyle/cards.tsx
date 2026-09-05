@@ -142,20 +142,31 @@ const itemStatus: Record<string, string> = {
   recycled: '已淘汰',
 }
 
-/** 从开卡日期到今天的时长（x年x个月） */
+/** 从开卡日期到今天的持有时长（精确到天：x年x个月x天） */
 function openDuration(dateStr: string): string {
   const open = new Date(dateStr)
   if (Number.isNaN(open.getTime())) return ''
   const now = new Date()
-  let months =
-    (now.getFullYear() - open.getFullYear()) * 12 +
-    (now.getMonth() - open.getMonth())
-  months = Math.max(0, months)
-  const years = Math.floor(months / 12)
-  const rest = months % 12
-  if (years > 0 && rest > 0) return `${years}年${rest}个月`
-  if (years > 0) return `${years}年`
-  return `${rest}个月`
+
+  let years = now.getFullYear() - open.getFullYear()
+  let months = now.getMonth() - open.getMonth()
+  let days = now.getDate() - open.getDate()
+  if (days < 0) {
+    months -= 1
+    const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+    days += prevMonthDays
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  const parts: string[] = []
+  if (years > 0) parts.push(`${years}年`)
+  if (months > 0) parts.push(`${months}个月`)
+  if (years === 0 && months === 0 && days === 0) parts.push('0个月')
+  else if (days > 0) parts.push(`${days}天`)
+  return parts.join('')
 }
 
 const phoneFields: FieldDef[] = [
