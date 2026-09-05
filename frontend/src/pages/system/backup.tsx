@@ -580,8 +580,8 @@ export function BackupPage() {
                 className="flex-1"
                 onClick={() => setTab(t.key)}
               >
-                <Icon className="md:mr-1.5 h-4 w-4" />
-                <span className="hidden md:inline">{t.label}</span>
+                <Icon className="mr-1.5 h-4 w-4 shrink-0" />
+              {t.label}
               </Button>
             )
           })}
