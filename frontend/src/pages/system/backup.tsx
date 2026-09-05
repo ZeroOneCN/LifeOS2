@@ -239,7 +239,7 @@ export function BackupPage() {
   const [logTotal, setLogTotal] = useState(0)
   const [logPage, setLogPage] = useState(1)
   const [loadingLogs, setLoadingLogs] = useState(false)
-  const logPageSize = 15
+  const logPageSize = 10
 
   const loadTables = async () => {
     setLoadingTables(true)
@@ -1061,10 +1061,10 @@ export function BackupPage() {
                       <TableRow>
                         <TableHead>任务</TableHead>
                         <TableHead>格式</TableHead>
-                        <TableHead>文件名</TableHead>
+                        <TableHead className="w-36">文件名</TableHead>
                         <TableHead>结果</TableHead>
                         <TableHead>执行时间</TableHead>
-                        <TableHead>详情</TableHead>
+                        <TableHead className="w-[300px]">详情</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1078,7 +1078,7 @@ export function BackupPage() {
                               {l.export_format}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[200px] truncate font-mono text-xs" title={l.filename || ''}>
+                          <TableCell className="max-w-[120px] truncate font-mono text-xs" title={l.filename || ''}>
                             {l.filename || '-'}
                           </TableCell>
                           <TableCell>
@@ -1096,7 +1096,7 @@ export function BackupPage() {
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatTime(l.started_at)}
                           </TableCell>
-                          <TableCell className="max-w-[250px]">
+                          <TableCell className="max-w-[300px]">
                             {l.error_message ? (
                               <span className="block text-xs text-destructive truncate" title={l.error_message}>
                                 {l.error_message}
