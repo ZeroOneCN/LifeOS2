@@ -124,6 +124,7 @@ export function ShoppingPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<Stats | null>(null)
+  const [refresh, setRefresh] = useState(0)
 
   // 弹窗状态
   const [ledgerDialog, setLedgerDialog] = useState<null | { mode: 'create' } | { mode: 'rename'; id: number; name: string }>(null)
@@ -149,9 +150,7 @@ export function ShoppingPage() {
   }
 
   useEffect(() => {
-    loadLedgers().then((items) => {
-      if (items.length > 0 && !currentLedger) setCurrentLedger(String(items[0].id))
-    })
+    loadLedgers()
     loadPlatforms()
   }, [])
 
@@ -170,7 +169,7 @@ export function ShoppingPage() {
       })
       .finally(() => setLoading(false))
     loadStats()
-  }, [currentLedger, page])
+  }, [currentLedger, page, refresh])
 
   const loadStats = () => {
     const ledgerParam = currentLedger ? Number(currentLedger) : undefined
@@ -295,7 +294,7 @@ export function ShoppingPage() {
     try {
       const res = await api.upload<{ imported: number; skipped: number }>('/finance/shopping/import', fd)
       setPage(1)
-      setCurrentLedger(currentLedger || '')
+      setRefresh((v) => v + 1)
       toast.success('导入成功', { description: `共导入 ${res.imported} 条，跳过 ${res.skipped} 条` })
     } catch (e) {
       toast.error('导入失败', { description: (e as Error).message })
@@ -317,6 +316,7 @@ export function ShoppingPage() {
               <SelectValue placeholder="选择账本" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="">全部账本</SelectItem>
               {ledgers.map((l) => (
                 <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
               ))}
