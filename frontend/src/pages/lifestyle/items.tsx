@@ -152,8 +152,14 @@ export function ItemsPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const stats = useStats<ItemStats>('/lifestyle/items', days, refresh)
   const byCategory = stats?.by_category ?? []
-  const byStatus = stats?.by_status ?? []
-  const bySource = stats?.by_source ?? []
+  const byStatus = (stats?.by_status ?? []).map((s) => ({
+    status: statusMeta[s.status]?.label ?? s.status,
+    count: s.count,
+  }))
+  const bySource = (stats?.by_source ?? []).map((s) => ({
+    source: s.source === 'shopping' ? '购物同步' : '手动',
+    count: s.count,
+  }))
 
   const [syncing, setSyncing] = useState(false)
 

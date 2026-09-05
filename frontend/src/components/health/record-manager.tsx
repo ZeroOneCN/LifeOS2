@@ -194,8 +194,10 @@ export function RecordManager<T extends { id: number }>({
         await api.create(apiPath, payload)
       }
       setDialogOpen(false)
-      if (editing && page === 1) await load()
-      else {
+      if (editing) {
+        // 编辑保存后停留在当前页，避免跳回第一页
+        await load()
+      } else {
         setPage(1)
         await load()
       }
