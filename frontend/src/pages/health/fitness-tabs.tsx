@@ -30,14 +30,14 @@ export function FitnessTabsPage() {
           数据看板、饮食记录、运动记录与体重记录集中管理。
         </p>
       </section>
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((t) => {
           const Icon = t.icon
           return (
             <Button
               key={t.key}
               variant={tab === t.key ? 'default' : 'ghost'}
-              className="flex-1"
+              className="min-w-max flex-1 whitespace-nowrap"
               onClick={() => setTab(t.key)}
             >
               <Icon className="size-4" />
