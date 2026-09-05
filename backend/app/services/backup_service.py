@@ -5,7 +5,8 @@ import os
 import re
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -29,11 +30,19 @@ def _serialize_value(value: Any) -> Any:
     """将 SQLAlchemy 行值转为 JSON 可序列化类型。"""
     if isinstance(value, datetime):
         return value.isoformat()
+    if isinstance(value, timedelta):
+        return str(value)
+    if isinstance(value, Decimal):
+        return float(value)
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
-    if hasattr(value, "isoformat"):  # date, time, timedelta 等
+    # 兜底：任何还有 isoformat 的对象（date, time 等）
+    if hasattr(value, "isoformat"):
         return str(value)
-    return value
+    # 确保返回值是 JSON 原生类型
+    if isinstance(value, (int, float, str, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _parse_db_url() -> dict[str, str]:
