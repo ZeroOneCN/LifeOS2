@@ -858,11 +858,19 @@ export function DebtsPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([])
   const [currency, setCurrency] = useState<Currency | null>(null)
 
+  // 显示币种持久化到本地，避免切换页面/刷新后重置
+  const DISPLAY_CURRENCY_KEY = 'lifeos_display_currency'
+  const setDisplayCurrency = (c: Currency | null) => {
+    setCurrency(c)
+    if (c) localStorage.setItem(DISPLAY_CURRENCY_KEY, c.currency)
+  }
+
   useEffect(() => {
     api.query<Currency[]>('/finance/currencies').then((list) => {
       setCurrencies(list)
       const cny = list.find((c) => c.currency === 'CNY')
-      setCurrency(cny ?? list[0] ?? null)
+      const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY)
+      setCurrency(list.find((c) => c.currency === saved) ?? cny ?? list[0] ?? null)
     }).catch(() => {})
   }, [])
 
@@ -905,7 +913,7 @@ export function DebtsPage() {
       {tab === 'debt' && <DebtTab fmtMoney={fmtMoney} />}
       {tab === 'invest' && <InvestTab />}
       {tab === 'memo' && <MemoTab />}
-      {tab === 'rate' && <RateTab currencies={currencies} setCurrencies={setCurrencies} currency={currency} setCurrency={setCurrency} />}
+      {tab === 'rate' && <RateTab currencies={currencies} setCurrencies={setCurrencies} currency={currency} setCurrency={setDisplayCurrency} />}
     </div>
   )
 }
