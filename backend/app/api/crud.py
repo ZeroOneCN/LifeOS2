@@ -32,6 +32,7 @@ def crud_router(
     create_schema: type[BaseModel],
     read_schema: type[BaseModel],
     order_by,
+    order_dir: str = "desc",
     date_column: str | None = None,
     stats_func: Callable[[Session, int, int], dict] | None = None,
     extra_routes: Callable[[APIRouter], None] | None = None,
@@ -66,8 +67,9 @@ def crud_router(
                 stmt = stmt.where(col <= end)
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         sort_cols = order_by if isinstance(order_by, (list, tuple)) else [order_by]
+        order_clauses = [c if order_dir == "asc" else c.desc() for c in sort_cols]
         rows = db.scalars(
-            stmt.order_by(*[c.desc() for c in sort_cols])
+            stmt.order_by(*order_clauses)
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()

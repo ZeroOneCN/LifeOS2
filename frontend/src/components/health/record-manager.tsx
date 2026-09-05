@@ -181,7 +181,11 @@ export function RecordManager<T extends { id: number }>({
       if (field.type === 'number') {
         payload[field.key] = raw === '' ? null : Number(raw)
       } else if (field.type === 'boolean') {
-        payload[field.key] = raw === 'true'
+        // 未选择时不上送，避免覆盖后端默认值
+        if (raw === 'true' || raw === 'false') payload[field.key] = raw === 'true'
+      } else if (field.type === 'select') {
+        // 未选择时不上送，让后端使用默认值
+        if (raw !== '') payload[field.key] = raw
       } else {
         payload[field.key] = raw === '' ? null : raw
       }

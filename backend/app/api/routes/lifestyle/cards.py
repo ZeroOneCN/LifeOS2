@@ -126,7 +126,8 @@ phone_router = crud_router(
     model=LifestylePhoneCard,
     create_schema=PhoneCardCreate,
     read_schema=PhoneCardRead,
-    order_by=LifestylePhoneCard.id,
+    order_by=LifestylePhoneCard.open_date,
+    order_dir="asc",
     stats_func=_phone_stats,
     extra_routes=_phone_extra,
 )

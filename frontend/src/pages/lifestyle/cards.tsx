@@ -135,6 +135,13 @@ const bankStatus = [
   { value: 'closed', label: '已注销' },
 ]
 
+const itemStatus: Record<string, string> = {
+  in_use: '使用中',
+  loaned: '借出',
+  lost: '丢失',
+  recycled: '已淘汰',
+}
+
 const phoneFields: FieldDef[] = [
   { key: 'phone_number', label: '号码', type: 'text', required: true },
   {
@@ -193,14 +200,22 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
   },
   { key: 'operator', label: '运营商' },
   { key: 'region', label: '归属地', render: (r) => r.region ?? '—' },
+  { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
+  { key: 'monthly_fee', label: '月租', render: (r) => (r.monthly_fee != null ? fmt(r.monthly_fee) : '—') },
+  { key: 'bill_day', label: '账单日', render: (r) => (r.bill_day ? `${r.bill_day} 日` : '—') },
   { key: 'data_plan', label: '流量套餐', render: (r) => r.data_plan ?? '—' },
   {
-    key: 'monthly_fee',
-    label: '月租',
-    render: (r) => (r.monthly_fee != null ? fmt(r.monthly_fee) : '—'),
+    key: 'call_sms',
+    label: '通话短信',
+    render: (r) => {
+      const cp = r.call_plan
+      const sp = r.sms_plan
+      if (cp && sp) return `${cp} / ${sp}`
+      return cp || sp || '—'
+    },
   },
-  { key: 'bill_day', label: '账单日', render: (r) => (r.bill_day ? `${r.bill_day} 日` : '—') },
-  { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
+  { key: 'open_date', label: '开卡时间', render: (r) => r.open_date ?? '—' },
+  { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
   {
     key: 'bill_paid_this_month',
     label: '本月扣账',
@@ -349,6 +364,49 @@ export function CardsPage() {
   const billStats = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
   const itemStats = useStats<ItemStats>('/lifestyle/items', days)
 
+  // 手机号「运营商」下拉从运营商平台设置动态加载，保证与平台数据一致
+  const [carrierNames, setCarrierNames] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    api
+      .list<Carrier>('/lifestyle/carriers', { page: 1, page_size: 100 })
+      .then((res: PageResult<Carrier>) => {
+        const names = res.items.map((c) => ({ value: c.name, label: c.name }))
+        setCarrierNames(names.length ? names : operators.map((o) => ({ value: o, label: o })))
+      })
+      .catch(() => setCarrierNames(operators.map((o) => ({ value: o, label: o }))))
+  }, [])
+
+  // 手机号新增/编辑：运营商选项来自运营商平台设置
+  const dynamicPhoneFields = phoneFields.map((f) =>
+    f.key === 'operator' ? { ...f, options: carrierNames } : f,
+  )
+
+  // 各图表横坐标中文映射
+  const phoneChartByStatus = (phoneStats?.by_status ?? []).map((s) => ({
+    status: phoneStatus.find((x) => x.value === s.status)?.label ?? s.status,
+    count: s.count,
+  }))
+  const phoneChartBilling = (phoneStats?.billing_type ?? []).map((b) => ({
+    billing_type: billingTypes.find((x) => x.value === b.billing_type)?.label ?? b.billing_type,
+    count: b.count,
+  }))
+  const bankChartCategory = (bankStats?.by_category ?? []).map((c) => ({
+    card_category: c.card_category === 'credit' ? '信用卡' : '储蓄卡',
+    count: c.count,
+  }))
+  const bankChartStatus = (bankStats?.by_status ?? []).map((s) => ({
+    status: bankStatus.find((x) => x.value === s.status)?.label ?? s.status,
+    count: s.count,
+  }))
+  const itemChartStatus = (itemStats?.by_status ?? []).map((s) => ({
+    status: itemStatus[s.status] ?? s.status,
+    count: s.count,
+  }))
+  const itemChartSource = (itemStats?.by_source ?? []).map((s) => ({
+    source: s.source === 'shopping' ? '购物同步' : '手动',
+    count: s.count,
+  }))
+
   // 用于扣账账单中显示手机号
   const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
   useEffect(() => {
@@ -433,7 +491,7 @@ export function CardsPage() {
           title=""
           description=""
           apiPath="/lifestyle/phone-cards"
-          fields={phoneFields}
+          fields={dynamicPhoneFields}
           columns={phoneColumns}
           refreshKey={phoneRefresh}
           onMutate={() => setPhoneRefresh((v) => v + 1)}
@@ -453,18 +511,18 @@ export function CardsPage() {
           extra={
             phoneStats ? (
               <>
-                <StatRow>
-                  <MiniStat icon={Smartphone} label="手机卡总数" value={`${phoneStats.total} 张`} />
-                  <MiniStat icon={BadgeCheck} label="正常在网" value={`${phoneStats.active} 张`} />
-                  <MiniStat icon={Banknote} label="月租合计" value={fmt(phoneStats.monthly_fee_total)} />
-                  <MiniStat icon={CreditCard} label="本月扣账" value={`${phoneStats.month_deduct_count} 笔 / ${fmt(phoneStats.month_deduct)}`} />
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                  <MiniStat icon={Smartphone} label="手机卡" value={`${phoneStats.total} 张`} />
+                  <MiniStat icon={BadgeCheck} label="正常在网" value={`${phoneStats.active}`} />
+                  <MiniStat label="月租合计" value={fmt(phoneStats.monthly_fee_total)} />
+                  <MiniStat label="本月扣账" value={`${phoneStats.month_deduct_count}笔/${fmt(phoneStats.month_deduct)}`} />
                   <MiniStat label="余额合计" value={fmt(phoneStats.balance_total)} />
-                  <MiniStat label="本月未扣账" value={`${phoneStats.unpaid_this_month} 张`} />
-                </StatRow>
+                  <MiniStat label="本月未扣账" value={`${phoneStats.unpaid_this_month}张`} />
+                </div>
                 <div className="grid gap-4 lg:grid-cols-3">
                   <BarChartCard title="运营商分布" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
-                  <BarChartCard title="状态分布" data={phoneStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
-                  <BarChartCard title="付费方式" data={phoneStats.billing_type} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
+                  <BarChartCard title="状态分布" data={phoneChartByStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
+                  <BarChartCard title="付费方式" data={phoneChartBilling} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
                 </div>
               </>
             ) : null
@@ -491,8 +549,8 @@ export function CardsPage() {
                 </StatRow>
                 <div className="grid gap-4 lg:grid-cols-3">
                   <BarChartCard title="银行分布" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
-                  <BarChartCard title="卡类型" data={bankStats.by_category} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
-                  <BarChartCard title="状态分布" data={bankStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
+                  <BarChartCard title="卡类型" data={bankChartCategory} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
+                  <BarChartCard title="状态分布" data={bankChartStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
                 </div>
               </>
             ) : null
@@ -556,8 +614,8 @@ export function CardsPage() {
               </StatRow>
               <div className="grid gap-4 lg:grid-cols-3">
                 <BarChartCard title="物品 · 分类" data={itemStats.by_category} xKey="category" series={[{ key: 'count', name: '数量', color: '#6366f1' }]} />
-                <BarChartCard title="物品 · 状态" data={itemStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
-                <BarChartCard title="物品 · 来源" data={itemStats.by_source} xKey="source" series={[{ key: 'count', name: '数量', color: '#a855f7' }]} />
+                <BarChartCard title="物品 · 状态" data={itemChartStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
+                <BarChartCard title="物品 · 来源" data={itemChartSource} xKey="source" series={[{ key: 'count', name: '数量', color: '#a855f7' }]} />
               </div>
             </section>
           )}
@@ -570,8 +628,8 @@ export function CardsPage() {
               </div>
               <div className="grid gap-4 lg:grid-cols-3">
                 <BarChartCard title="手机卡 · 运营商" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
-                <BarChartCard title="手机卡 · 付费方式" data={phoneStats.billing_type} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
-                <BarChartCard title="手机卡 · 状态" data={phoneStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
+                <BarChartCard title="手机卡 · 付费方式" data={phoneChartBilling} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
+                <BarChartCard title="手机卡 · 状态" data={phoneChartByStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
               </div>
             </section>
           )}
@@ -584,8 +642,8 @@ export function CardsPage() {
               </div>
               <div className="grid gap-4 lg:grid-cols-3">
                 <BarChartCard title="银行卡 · 银行" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
-                <BarChartCard title="银行卡 · 类型" data={bankStats.by_category} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
-                <BarChartCard title="银行卡 · 状态" data={bankStats.by_status} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
+                <BarChartCard title="银行卡 · 类型" data={bankChartCategory} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
+                <BarChartCard title="银行卡 · 状态" data={bankChartStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
               </div>
             </section>
           )}
