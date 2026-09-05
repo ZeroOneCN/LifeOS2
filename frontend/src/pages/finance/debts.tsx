@@ -902,9 +902,9 @@ export function DebtsPage() {
         {currency && <Badge variant="outline" className="text-base">显示：{currency.name ?? currency.currency} {currency.symbol ?? ''}</Badge>}
       </section>
 
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {tabs.map((t) => (
-          <Button key={t.key} variant={tab === t.key ? 'default' : 'ghost'} className="flex-1" onClick={() => setTab(t.key)}>
+          <Button key={t.key} variant={tab === t.key ? 'default' : 'ghost'} className="min-w-max flex-1 whitespace-nowrap" onClick={() => setTab(t.key)}>
             <t.icon className="size-4" /> {t.label}
           </Button>
         ))}
