@@ -244,10 +244,13 @@ def _coerce_date(value) -> date:
 @import_router.post("/import")
 async def import_xlsx(
     file: UploadFile = File(...),
+    ledger_id: int | None = Query(None),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """导入 xlsx 购物记录。表头：日期/平台/商品名称/规格/总价/单价/订单号/账本。"""
+    """导入 xlsx 购物记录。表头：日期/平台/商品名称/规格/总价/单价/订单号/账本。
+    文件无账本列时，记录归属传入的 ledger_id（需先选择账本再导入）。"""
+    ledger_param = ledger_id
     try:
         from openpyxl import load_workbook
     except ImportError:
@@ -322,7 +325,9 @@ async def import_xlsx(
                 total_price=round(float(total_cost), 2),
                 unit_price=round(float(unit), 2) if unit is not None else None,
                 order_no=order_no,
-                ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db, user.id),
+                ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db, user.id)
+                if ledger_name
+                else ledger_param,
                 note=None,
                 user_id=user.id,
             )

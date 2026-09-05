@@ -265,6 +265,12 @@ export function ShoppingPage() {
       else await api.create('/finance/shopping/records', payload)
       setRecordDialog(false)
       setPage(1)
+      setRefresh((v) => v + 1)
+      toast.success(editing ? '记录已更新' : '记录已添加')
+    } catch (e) {
+      toast.error('保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     } finally {
       setSaving(false)
     }
@@ -291,8 +297,12 @@ export function ShoppingPage() {
   const importXlsx = async (file: File) => {
     const fd = new FormData()
     fd.append('file', file)
+    if (!currentLedger) {
+      toast.warning('请先选择具体账本，再导入购物记录')
+      return
+    }
     try {
-      const res = await api.upload<{ imported: number; skipped: number }>('/finance/shopping/import', fd)
+      const res = await api.upload<{ imported: number; skipped: number }>(`/finance/shopping/import?ledger_id=${Number(currentLedger)}`, fd)
       setPage(1)
       setRefresh((v) => v + 1)
       toast.success('导入成功', { description: `共导入 ${res.imported} 条，跳过 ${res.skipped} 条` })
