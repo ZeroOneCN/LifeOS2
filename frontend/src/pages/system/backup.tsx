@@ -569,21 +569,23 @@ export function BackupPage() {
       {confirmDialog}
 
       {/* Tab 导航 */}
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
-        {TABS.map((t) => {
-          const Icon = t.icon
-          return (
-            <Button
-              key={t.key}
-              variant={tab === t.key ? 'default' : 'ghost'}
-              className="flex-1"
-              onClick={() => setTab(t.key)}
-            >
-              <Icon className="mr-1.5 h-4 w-4" />
-              {t.label}
-            </Button>
-          )
-        })}
+      <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex gap-1 rounded-lg bg-muted p-1 min-w-max">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            return (
+              <Button
+                key={t.key}
+                variant={tab === t.key ? 'default' : 'ghost'}
+                className="flex-1"
+                onClick={() => setTab(t.key)}
+              >
+                <Icon className="md:mr-1.5 h-4 w-4" />
+                <span className="hidden md:inline">{t.label}</span>
+              </Button>
+            )
+          })}
+        </div>
       </div>
 
       {/* ── 导出 Tab ── */}
