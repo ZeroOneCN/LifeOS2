@@ -138,11 +138,27 @@ def export_tables_json(
 def export_sql_mysqldump(
     table_names: list[str] | None = None,
 ) -> tuple[bytes, str]:
-    """使用 mysqldump 导出 SQL 备份。
+    """导出 SQL 备份。优先使用 mysqldump，不可用时用纯 Python 生成。
 
     Returns:
         (bytes 数据, 建议文件名)
     """
+    try:
+        return _export_sql_via_mysqldump(table_names)
+    except (FileNotFoundError, RuntimeError) as exc:
+        from app.core.database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            return _export_sql_pure_python(db, table_names)
+        finally:
+            db.close()
+
+
+def _export_sql_via_mysqldump(
+    table_names: list[str] | None = None,
+) -> tuple[bytes, str]:
+    """使用 mysqldump 导出 SQL 备份。"""
     params = _parse_db_url()
     mysqldump_cmd = settings.MYSQLDUMP_PATH or "mysqldump"
     cmd = [
@@ -163,16 +179,96 @@ def export_sql_mysqldump(
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
     except FileNotFoundError:
-        raise RuntimeError(
-            f"未找到 mysqldump 命令，请确保 MySQL 客户端已安装。"
-            f"您可以在 .env 中设置 MYSQLDUMP_PATH（例如 MYSQLDUMP_PATH=C:\\mysql\\bin\\mysqldump.exe）"
-        )
+        raise RuntimeError("mysqldump 不可用，将使用纯 Python 方式生成 SQL")
 
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"mysqldump 执行失败: {stderr}")
 
     sql = result.stdout
+    filename = _backup_filename("sql", ".sql")
+    return sql, filename
+
+
+def _export_sql_pure_python(
+    db: Session,
+    table_names: list[str] | None = None,
+) -> tuple[bytes, str]:
+    """纯 Python 方式生成 SQL（不依赖 mysqldump）。"""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.bind)
+    all_tables = set(inspector.get_table_names())
+    skip = {"alembic_version", "spatial_ref_sys"}
+    target = (
+        [t for t in table_names if t in all_tables]
+        if table_names
+        else [t for t in all_tables if t not in skip]
+    )
+    target.sort()
+
+    lines: list[str] = []
+    lines.append(f"-- Pure Python SQL 备份")
+    lines.append(f"-- 导出时间: {datetime.now().isoformat()}")
+    lines.append(f"-- 数据库: {_parse_db_url()['database']}")
+    lines.append("")
+    lines.append("SET NAMES utf8mb4;")
+    lines.append("SET FOREIGN_KEY_CHECKS = 0;")
+    lines.append("")
+
+    for table_name in target:
+        # 获取建表语句
+        create_stmt = db.execute(
+            text(f"SHOW CREATE TABLE `{table_name}`")
+        ).mappings().first()
+        if not create_stmt:
+            continue
+        lines.append(f"-- 表: {table_name}")
+        lines.append(create_stmt["Create Table"] + ";")
+        lines.append("")
+
+        # 获取数据
+        rows = db.execute(text(f"SELECT * FROM `{table_name}`")).mappings().all()
+        if not rows:
+            continue
+
+        columns = list(rows[0].keys())
+        col_names = ", ".join(f"`{c}`" for c in columns)
+        batch: list[str] = []
+        for row in rows:
+            vals = []
+            for c in columns:
+                v = row[c]
+                if v is None:
+                    vals.append("NULL")
+                elif isinstance(v, (int, float)):
+                    vals.append(str(v))
+                elif isinstance(v, bool):
+                    vals.append("1" if v else "0")
+                elif isinstance(v, bytes):
+                    vals.append(f"x'{v.hex()}'")
+                else:
+                    escaped = str(v).replace("'", "''").replace("\\", "\\\\")
+                    vals.append(f"'{escaped}'")
+            batch.append(f"({', '.join(vals)})")
+
+        # 每500行一组 INSERT
+        chunk_size = 500
+        for i in range(0, len(batch), chunk_size):
+            chunk = batch[i : i + chunk_size]
+            lines.append(
+                f"INSERT INTO `{table_name}` ({col_names}) VALUES\n"
+                + ",\n".join(chunk)
+                + ";"
+            )
+        lines.append("")
+
+    lines.append("SET FOREIGN_KEY_CHECKS = 1;")
+    lines.append("")
+    lines.append("-- 备份完成")
+    lines.append("")
+
+    sql = "\n".join(lines).encode("utf-8")
     filename = _backup_filename("sql", ".sql")
     return sql, filename
 
