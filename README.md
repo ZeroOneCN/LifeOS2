@@ -154,7 +154,7 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 启动服务
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+.\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 首次启动会自动创建数据库表，并初始化通知渠道等基础数据。
