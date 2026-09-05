@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Clock,
   Database,
@@ -284,9 +284,31 @@ export function BackupPage() {
     loadSchedules()
   }, [])
 
+  // 切换 Tab 时刷新对应数据
   useEffect(() => {
     if (tab === 'logs') loadLogs()
-  }, [tab, logPage])
+    if (tab === 'manage') loadBackups()
+    if (tab === 'schedule') loadSchedules()
+  }, [tab])
+
+  useEffect(() => {
+    if (tab === 'logs') loadLogs()
+  }, [logPage])
+
+  // 定时备份：每 30 秒自动刷新状态
+  const schedulePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    if (tab === 'schedule') {
+      loadSchedules()
+      schedulePollRef.current = setInterval(loadSchedules, 30_000)
+    }
+    return () => {
+      if (schedulePollRef.current) {
+        clearInterval(schedulePollRef.current)
+        schedulePollRef.current = null
+      }
+    }
+  }, [tab])
 
   const loadLogs = async () => {
     setLoadingLogs(true)
