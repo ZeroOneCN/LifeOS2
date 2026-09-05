@@ -330,21 +330,6 @@ function metaClass(status: string): string {
   return map[status] ?? 'bg-gray-100 text-gray-500'
 }
 
-function Tab({ active, onClick, label, icon: Icon }: { active: boolean; onClick: () => void; label: string; icon: typeof Smartphone }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-        active ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-      }`}
-    >
-      <Icon className="size-4" />
-      {label}
-    </button>
-  )
-}
-
 function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: number }) {
   return <div className={`grid gap-3 sm:grid-cols-2 ${cols === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>{children}</div>
 }
@@ -482,9 +467,16 @@ export function CardsPage() {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-1 rounded-xl border bg-muted/40 p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TAB_META.map((t) => (
-          <Tab key={t.key} active={tab === t.key} label={t.label} icon={t.icon} onClick={() => setTab(t.key)} />
+          <Button
+            key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="min-w-max flex-1 whitespace-nowrap"
+            onClick={() => setTab(t.key)}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </Button>
         ))}
       </div>
 
