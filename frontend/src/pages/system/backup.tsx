@@ -16,6 +16,7 @@ import {
   FileCode,
   Play,
   Pause,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -194,8 +195,9 @@ export function BackupPage() {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
 
-  // 新增定时备份弹窗
+  // 新增/编辑定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
   const [cronMode, setCronMode] = useState<CronOption>('preset')
   const [cronCustom, setCronCustom] = useState('0 3 * * *')
   const [newSchedule, setNewSchedule] = useState({
@@ -362,6 +364,26 @@ export function BackupPage() {
     return parts.every((p) => cronField.test(p))
   }
 
+  const handleEditSchedule = (s: ScheduleItem) => {
+    setEditingSchedule(s)
+    setNewSchedule({
+      name: s.name,
+      cron_expression: s.cron_expression,
+      export_format: s.export_format,
+      compress: s.compress,
+      table_selection: s.table_selection,
+    })
+    // 判断当前 cron 是否在预设中
+    const isPreset = CRON_PRESETS.some((p) => p.value === s.cron_expression)
+    if (isPreset) {
+      setCronMode('preset')
+    } else {
+      setCronMode('custom')
+      setCronCustom(s.cron_expression)
+    }
+    setShowScheduleDialog(true)
+  }
+
   const handleCreateSchedule = async () => {
     if (!newSchedule.name.trim()) {
       toast.error('请输入任务名称')
@@ -378,16 +400,23 @@ export function BackupPage() {
     }
     setSavingSchedule(true)
     try {
-      await api.post<ScheduleItem>('/backup/schedules', {
+      const body = {
         ...newSchedule,
         cron_expression: cronExpr,
         selected_tables:
           newSchedule.table_selection === 'selected'
             ? Array.from(selectedTables)
             : null,
-      })
-      toast.success('定时备份任务已创建')
+      }
+      if (editingSchedule) {
+        await api.put<ScheduleItem>(`/backup/schedules/${editingSchedule.id}`, body)
+        toast.success('定时备份任务已更新')
+      } else {
+        await api.post<ScheduleItem>('/backup/schedules', body)
+        toast.success('定时备份任务已创建')
+      }
       setShowScheduleDialog(false)
+      setEditingSchedule(null)
       setCronMode('preset')
       setCronCustom('0 3 * * *')
       setNewSchedule({
@@ -399,7 +428,7 @@ export function BackupPage() {
       })
       loadSchedules()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '创建失败')
+      toast.error(e instanceof Error ? e.message : '操作失败')
     } finally {
       setSavingSchedule(false)
     }
@@ -715,9 +744,12 @@ export function BackupPage() {
                   设置自动备份计划，系统将按 cron 表达式定时执行数据导出
                 </CardDescription>
               </div>
-              <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+              <Dialog open={showScheduleDialog} onOpenChange={(v) => {
+                setShowScheduleDialog(v)
+                if (!v) setEditingSchedule(null)
+              }}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button onClick={() => { setEditingSchedule(null); setNewSchedule({ name: '', cron_expression: '0 3 * * *', export_format: 'json', compress: false, table_selection: 'all' }); setCronMode('preset'); setCronCustom('0 3 * * *') }}>
                     <Plus className="mr-1 h-4 w-4" />
                     新建任务
                   </Button>
@@ -727,9 +759,9 @@ export function BackupPage() {
                   onEscapeKeyDown={(e) => e.preventDefault()}
                 >
                   <DialogHeader>
-                    <DialogTitle>新建定时备份任务</DialogTitle>
+                    <DialogTitle>{editingSchedule ? '编辑定时备份任务' : '新建定时备份任务'}</DialogTitle>
                     <DialogDescription>
-                      设置自动备份的计划和参数
+                      {editingSchedule ? '修改定时备份的计划和参数' : '设置自动备份的计划和参数'}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-2">
@@ -905,6 +937,15 @@ export function BackupPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="编辑"
+                                onClick={() => handleEditSchedule(s)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
