@@ -14,9 +14,8 @@ class Settings(BaseSettings):
     ]
     # 是否允许任意来源跨域（局域网/开发模式访问时启用；关闭后仅放行 CORS_ORIGINS 白名单）
     CORS_ALLOW_ALL: bool = True
-    DATABASE_URL: str = (
-        "mysql+pymysql://root:123456@127.0.0.1:3306/lifeos?charset=utf8mb4"
-    )
+    # 数据库连接串（必填，必须通过 .env 或环境变量提供，禁止在代码中硬编码账号密码）
+    DATABASE_URL: str
     # 通知渠道敏感字段加密密钥（Fernet），为空时首次启动自动生成写入 .env
     NOTIFICATION_ENC_KEY: str = ""
     # 每日提醒扫描时间（HH:MM），默认每天 0:00 执行
