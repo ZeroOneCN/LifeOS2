@@ -297,7 +297,7 @@ class FinanceInvestment(TimestampMixin, UserOwned, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     platform: Mapped[str] = mapped_column(String(64))  # 平台名称
     account: Mapped[str | None] = mapped_column(String(64))  # 平台账号
-    category: Mapped[str] = mapped_column(String(24), index=True)  # 美股/港股/外汇/加密货币-合约等
+    category: Mapped[str] = mapped_column(String(128), index=True)  # 多类别逗号分隔：美股/港股/外汇/加密货币-合约等
     pnl: Mapped[float] = mapped_column(Float)  # 盈亏总额
     note: Mapped[str | None] = mapped_column(Text)
 
