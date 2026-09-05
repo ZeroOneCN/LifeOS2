@@ -32,6 +32,7 @@ import { NotFoundPage } from '@/pages/not-found'
 import { NotificationsPage } from '@/pages/notifications'
 import { PlaceholderPage } from '@/pages/placeholder'
 import { AccountSettingsPage } from '@/pages/account-settings'
+import { BackupPage } from '@/pages/system/backup'
 import { UserCenterPage } from '@/pages/user-center'
 import { LoginPage } from '@/pages/login'
 import { RegisterPage } from '@/pages/register'
@@ -66,6 +67,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/investment/reports': <InvestmentReportsPage />,
   '/notifications': <NotificationsPage />,
   '/activity-logs': <ActivityLogsPage />,
+  '/backup': <BackupPage />,
   '/user-center': <UserCenterPage />,
   '/user-center/settings': <AccountSettingsPage />,
 }

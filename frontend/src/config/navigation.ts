@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Compass,
   CreditCard,
+  Database,
   Dumbbell,
   FileText,
   Footprints,
@@ -49,6 +50,7 @@ export const navigation: NavSection[] = [
       { title: '系统首页', url: '/home', icon: Home },
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History },
+      { title: '数据备份', url: '/backup', icon: Database },
     ],
   },
   {

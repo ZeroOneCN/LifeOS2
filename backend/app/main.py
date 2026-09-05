@@ -7,6 +7,7 @@ from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
 from app.api.routes import (
     activity_log,
     auth,
+    backup,
     finance,
     health,
     health_check,
@@ -22,6 +23,10 @@ from app.core.database import Base, SessionLocal, engine
 from app.middleware.activity_logger import ActivityLoggerMiddleware
 from app.services.notification.scheduler import start_scheduler, stop_scheduler
 from app.services.notification.seed import ensure_seed
+from app.services.backup_scheduler import (
+    start_scheduler as start_backup_scheduler,
+    stop_scheduler as stop_backup_scheduler,
+)
 
 
 @asynccontextmanager
@@ -35,7 +40,9 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     start_scheduler()
+    start_backup_scheduler()
     yield
+    stop_backup_scheduler()
     stop_scheduler()
 
 
@@ -66,6 +73,7 @@ app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
 app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
