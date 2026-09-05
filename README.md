@@ -119,11 +119,11 @@ LifeOS 将个人生活的核心维度整合到一个统一平台：记录健康�
 
 ```
 LifeOS V2.0/
-├── backend/            # 后端服务（FastAPI，端口 8000）
+├── backend/            # 后端服务（FastAPI，端口 9515）
 │   ├── app/            # 应用代码（模型 / 接口 / 服务）
 │   ├── migrations/     # 数据库迁移脚本
 │   └── backups/        # 数据库备份归档（仅本地，不入库）
-├── frontend/           # 前端应用（Vite，端口 5173）
+├── frontend/           # 前端应用（Vite，端口 9015）
 │   └── src/            # 页面与组件源码
 ├── docs/
 │   └── images/         # 文档配图（效果图）
@@ -142,7 +142,7 @@ LifeOS V2.0/
 | Node.js | 18+ |
 | MySQL | 8.0+ |
 
-### 1. 启动后端（端口 8000）
+### 1. 启动后端（端口 9515）
 
 ```bash
 cd backend
@@ -154,12 +154,12 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # 启动服务
-.\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+.\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 9515 --reload
 ```
 
 首次启动会自动创建数据库表，并初始化通知渠道等基础数据。
 
-### 2. 启动前端（端口 5173）
+### 2. 启动前端（端口 9015）
 
 ```bash
 cd frontend
@@ -167,16 +167,16 @@ npm install
 npm run dev
 ```
 
-浏览器访问 `http://localhost:5173`，注册账号后即可开始使用。
+浏览器访问 `http://localhost:9015`，注册账号后即可开始使用。
 
-> 前端已配置 `/api` 代理到后端；局域网设备可通过 `http://<局域网IP>:5173` 访问。
+> 前端已配置 `/api` 代理到后端；局域网设备可通过 `http://<局域网IP>:9015` 访问。
 
 ### 3. 接口文档（可选）
 
 后端启动后，可通过以下地址查看与调试接口：
 
-- Swagger UI：`http://localhost:8000/docs`
-- ReDoc：`http://localhost:8000/redoc`
+- Swagger UI：`http://localhost:9515/docs`
+- ReDoc：`http://localhost:9515/redoc`
 
 ***
 
@@ -191,7 +191,7 @@ npm run dev
 Nginx ──┬── / 前端静态资源（frontend/dist 构建产物）
         │
         └── /api 反向代理
-                 │  HTTP (8000)
+                 │  HTTP (9515)
                  ▼
             Uvicorn 后端（systemd 守护）
                  │
@@ -269,7 +269,7 @@ After=network.target mysql.service
 
 [Service]
 WorkingDirectory=/opt/lifeos/backend
-ExecStart=/opt/lifeos/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+ExecStart=/opt/lifeos/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9515
 Restart=always
 RestartSec=3
 User=www-data
@@ -310,7 +310,7 @@ server {
 
     # 后端 API 反向代理
     location /api/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:9515;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -344,13 +344,13 @@ crontab -e
 
 ### 9. 部署验证清单
 
-- [ ] 后端服务运行中：`systemctl status lifeos`，访问 `http://<IP>:8000/docs` 可打开接口文档
+- [ ] 后端服务运行中：`systemctl status lifeos`，访问 `http://<IP>:9515/docs` 可打开接口文档
 - [ ] 前端可访问：浏览器打开 `http://<IP>` 能正常登录使用
 - [ ] 注册 / 登录、数据增删改查、报告导出均正常
 - [ ] 通知提醒在设定时间正常触发（检查发送日志）
 - [ ] HTTPS 证书有效（如已配置）
 
-> **内网 / 局域网部署**：若仅个人或家庭使用，可不启用 Nginx，直接以 `uvicorn ... --host 0.0.0.0 --port 8000` 运行后端、`npm run dev` 运行前端，并将 `CORS_ALLOW_ALL` 保持 `True` 即可。
+> **内网 / 局域网部署**：若仅个人或家庭使用，可不启用 Nginx，直接以 `uvicorn ... --host 0.0.0.0 --port 9515` 运行后端、`npm run dev` 运行前端，并将 `CORS_ALLOW_ALL` 保持 `True` 即可。
 
 ***
 

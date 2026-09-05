@@ -12,8 +12,9 @@ export default defineConfig({
     },
   },
   server: {
-    // 监听所有网卡，支持局域网设备访问（http://<局域网IP>:5173）
+    // 监听所有网卡，支持局域网设备访问（http://<局域网IP>:9015）
     host: '0.0.0.0',
+    port: 9015,
     // 允许任意 Host 访问（开发模式），避免局域网 IP 访问被 Vite 拦截
     allowedHosts: true,
     // 启动时预编译全部页面/组件，避免切换路由时首次按需编译导致的长时间卡顿
@@ -22,7 +23,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:9515',
         changeOrigin: true,
       },
     },
