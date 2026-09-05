@@ -75,6 +75,8 @@ type ImportResult = {
   tables: Record<string, number>
 }
 
+type CronOption = 'preset' | 'custom'
+
 type ScheduleItem = {
   id: number
   name: string
@@ -157,6 +159,7 @@ const CRON_PRESETS = [
   { label: '每 12 小时', value: '0 */12 * * *' },
   { label: '每周一 03:00', value: '0 3 * * 1' },
   { label: '每月1日 03:00', value: '0 3 1 * *' },
+  { label: '自定义', value: '__custom__' },
 ] as const
 
 const TABS = [
@@ -188,9 +191,12 @@ export function BackupPage() {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
 
   // 新增定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
+  const [cronMode, setCronMode] = useState<CronOption>('preset')
+  const [cronCustom, setCronCustom] = useState('0 3 * * *')
   const [newSchedule, setNewSchedule] = useState({
     name: '',
     cron_expression: '0 3 * * *',
@@ -321,6 +327,7 @@ export function BackupPage() {
       const formData = new FormData()
       formData.append('file', importFile)
       const result = await api.upload<ImportResult>('/backup/import', formData)
+      setImportResult(result)
       toast.success(`导入完成，共插入 ${result.total_inserted} 条记录`)
       loadTables()
       setImportFile(null)
@@ -352,10 +359,16 @@ export function BackupPage() {
       toast.error('请输入任务名称')
       return
     }
+    const cronExpr = cronMode === 'custom' ? cronCustom.trim() : newSchedule.cron_expression
+    if (!cronExpr) {
+      toast.error('请输入 cron 表达式')
+      return
+    }
     setSavingSchedule(true)
     try {
       await api.post<ScheduleItem>('/backup/schedules', {
         ...newSchedule,
+        cron_expression: cronExpr,
         selected_tables:
           newSchedule.table_selection === 'selected'
             ? Array.from(selectedTables)
@@ -363,6 +376,8 @@ export function BackupPage() {
       })
       toast.success('定时备份任务已创建')
       setShowScheduleDialog(false)
+      setCronMode('preset')
+      setCronCustom('0 3 * * *')
       setNewSchedule({
         name: '',
         cron_expression: '0 3 * * *',
@@ -489,8 +504,8 @@ export function BackupPage() {
                           )}
                         </span>
                         <div className="min-w-0 flex-1 truncate">
-                          <div className="truncate" title={t.name}>
-                            {TABLE_LABELS[t.name] || t.name}
+                          <div className="truncate" title={TABLE_LABELS[t.name] || t.name}>
+                          {TABLE_LABELS[t.name] || t.name}
                           </div>
                           <div className="text-muted-foreground text-xs">
                             {t.count} 条
@@ -597,7 +612,10 @@ export function BackupPage() {
                 <input
                   type="file"
                   accept=".json"
-                  onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    setImportFile(e.target.files?.[0] ?? null)
+                    setImportResult(null)
+                  }}
                   className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                 />
               </div>
@@ -620,6 +638,43 @@ export function BackupPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {importResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Database className="h-5 w-5" />
+                  导入结果
+                </CardTitle>
+                <CardDescription>
+                  共插入 {importResult.total_inserted} 条记录，各表详情如下：
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>数据表</TableHead>
+                        <TableHead className="text-right">插入条数</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {Object.entries(importResult.tables)
+                        .filter(([, count]) => count > 0)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([tableName, count]) => (
+                          <TableRow key={tableName}>
+                            <TableCell>{TABLE_LABELS[tableName] || tableName}</TableCell>
+                            <TableCell className="text-right">{count}</TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -667,23 +722,41 @@ export function BackupPage() {
                     </div>
                     <div className="space-y-1">
                       <Label>执行计划</Label>
-                      <Select
-                        value={newSchedule.cron_expression}
-                        onValueChange={(v) =>
-                          setNewSchedule({ ...newSchedule, cron_expression: v })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CRON_PRESETS.map((p) => (
-                            <SelectItem key={p.value} value={p.value}>
-                              {p.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Select
+                          value={cronMode === 'custom' ? '__custom__' : newSchedule.cron_expression}
+                          onValueChange={(v) => {
+                            if (v === '__custom__') {
+                              setCronMode('custom')
+                            } else {
+                              setCronMode('preset')
+                              setNewSchedule({ ...newSchedule, cron_expression: v })
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CRON_PRESETS.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {cronMode === 'custom' && (
+                          <Input
+                            value={cronCustom}
+                            onChange={(e) => setCronCustom(e.target.value)}
+                            placeholder="5-field cron, e.g. 0 3 * * *"
+                            className="font-mono text-xs"
+                          />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        cron 格式：分 时 日 月 周（例如 <code className="rounded bg-muted px-1">0 3 * * *</code> 表示每天 03:00）
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label>导出格式</Label>
