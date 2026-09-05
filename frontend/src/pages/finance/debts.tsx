@@ -225,7 +225,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const deletePayment = async (p: DebtPayment, d: DebtRecord) => {
     if (!(await confirm())) return
     try {
-      await api.remove(`/finance/debts/${d.id}/payments/${p.id}`)
+      await api.del(`/finance/debts/${d.id}/payments/${p.id}`)
       setPayments((prev) => prev.filter((x) => x.id !== p.id))
       await load()
       setRefresh((v) => v + 1)
@@ -479,7 +479,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 type Investment = { id: number; platform: string; account?: string; category: string; pnl: number; note?: string }
 type InvStats = { count: number; total_pnl: number; profit: number; loss: number; by_category: { category: string; amount: number }[]; by_platform: { platform: string; amount: number }[] }
 
-function InvestTab({ fmtMoney }: { fmtMoney: Fmt }) {
+function InvestTab() {
   // 投资记账统一按美元计算与显示，不做汇率换算
   const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
   const [items, setItems] = useState<Investment[]>([])
@@ -903,7 +903,7 @@ export function DebtsPage() {
       </div>
 
       {tab === 'debt' && <DebtTab fmtMoney={fmtMoney} />}
-      {tab === 'invest' && <InvestTab fmtMoney={fmtMoney} />}
+      {tab === 'invest' && <InvestTab />}
       {tab === 'memo' && <MemoTab />}
       {tab === 'rate' && <RateTab currencies={currencies} setCurrencies={setCurrencies} currency={currency} setCurrency={setCurrency} />}
     </div>

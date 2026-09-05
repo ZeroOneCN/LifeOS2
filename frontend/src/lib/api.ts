@@ -88,6 +88,8 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (path: string, id: number) =>
     request<void>(`${path}/${id}`, { method: 'DELETE' }),
+  del: <T>(path: string) =>
+    request<T>(path, { method: 'DELETE' }),
   upload: async <T>(path: string, formData: FormData) => {
     const headers: Record<string, string> = {}
     const token = localStorage.getItem('lifeos_token')

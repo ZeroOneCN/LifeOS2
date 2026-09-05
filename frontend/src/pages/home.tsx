@@ -91,6 +91,10 @@ type InvOverview = {
 
 type Profile = { nickname?: string; username?: string; account?: string }
 
+type Compliment = { content: string; sequence_no?: number; hour?: number; updated_at?: string }
+
+const RAINBOW_REFRESH_MS = 60 * 60 * 1000 // 每小时刷新一句彩虹屁
+
 /* ------------------------------ 小组件 ------------------------------ */
 
 function StatCard({
@@ -170,8 +174,21 @@ export function HomePage() {
   const [life, setLife] = useState<LifeOverview | null>(null)
   const [inv, setInv] = useState<InvOverview | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [compliment, setCompliment] = useState<string>('')
   const [backend, setBackend] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const fetchCompliment = () => {
+    api
+      .query<Compliment>('/motivation/rainbow')
+      .then((d) => setCompliment(d.content))
+      .catch(() => setCompliment(''))
+  }
+  useEffect(() => {
+    fetchCompliment()
+    const timer = setInterval(fetchCompliment, RAINBOW_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     Promise.allSettled([
@@ -215,8 +232,13 @@ export function HomePage() {
               {greeting}，{displayName}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {todayStr} · 今天是管理各项生活的美好一天
+              {todayStr}
             </p>
+            {compliment && (
+              <p className="mt-3 max-w-2xl italic text-foreground/70 transition-opacity duration-700">
+                「{compliment}」
+              </p>
+            )}
           </div>
           {!loading && !backend && (
             <Badge className="bg-destructive/10 text-destructive">后端未连接</Badge>

@@ -12,6 +12,7 @@ from app.api.routes import (
     health_check,
     investment,
     lifestyle,
+    motivation,
     notification,
     notifications,
     user,
@@ -58,6 +59,7 @@ app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(finance.router, prefix=settings.API_V1_PREFIX)
 app.include_router(lifestyle.router, prefix=settings.API_V1_PREFIX)
 app.include_router(investment.router, prefix=settings.API_V1_PREFIX)
+app.include_router(motivation.router, prefix=settings.API_V1_PREFIX)
 # 注意：通知中心扩展路由（/notifications/channels 等）必须先于通用 CRUD
 # 路由（notification.router 的 /notifications/{item_id}）注册，否则会被捕获。
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
