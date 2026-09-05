@@ -1,11 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BadgeCheck, Banknote, CreditCard, Landmark, ListChecks, Smartphone } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { BarChartCard, getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -93,7 +93,6 @@ const TAB_META = [
   { key: 'bank', label: '银行卡', icon: Landmark },
   { key: 'carrier', label: '运营商', icon: BadgeCheck },
   { key: 'bill', label: '扣账账单', icon: ListChecks },
-  { key: 'analysis', label: '数据分析', icon: CreditCard },
 ] as const
 
 const operators = ['中国移动', '中国联通', '中国电信', '虚拟运营商']
@@ -370,7 +369,7 @@ export function CardsPage() {
   const [bankRefresh, setBankRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
 
-  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
   const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
   const bankStats = useStats<BankStats>('/lifestyle/bank-cards', days, bankRefresh)
   const billStats = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
@@ -592,56 +591,6 @@ export function CardsPage() {
         />
       )}
 
-      {tab === 'analysis' && (
-        <div className="flex flex-col gap-6">
-          <div className="flex justify-end">
-            <StatsPeriodPicker
-              value={days}
-              onChange={(d) => {
-                setDays(d)
-                setGlobalStatsDays(d)
-              }}
-            />
-          </div>
-          {phoneStats && (
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Smartphone className="size-4 text-blue-500" />
-                <h3 className="text-base font-semibold">手机卡</h3>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
-                <BarChartCard title="手机卡 · 运营商" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
-                <BarChartCard title="手机卡 · 付费方式" data={phoneChartBilling} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
-                <BarChartCard title="手机卡 · 状态" data={phoneChartByStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
-              </div>
-            </section>
-          )}
-
-          {bankStats && (
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <Landmark className="size-4 text-cyan-600" />
-                <h3 className="text-base font-semibold">银行卡</h3>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
-                <BarChartCard title="银行卡 · 银行" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
-                <BarChartCard title="银行卡 · 类型" data={bankChartCategory} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
-                <BarChartCard title="银行卡 · 状态" data={bankChartStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
-              </div>
-            </section>
-          )}
-
-          {billStats && (
-            <section className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <ListChecks className="size-4 text-red-500" />
-                <h3 className="text-base font-semibold">扣账账单</h3>
-              </div>
-              <BarChartCard title="近几个月扣账趋势" data={billStats.by_month ?? []} xKey="bill_month" series={[{ key: 'amount', name: '扣账', color: '#dc2626' }]} />
-            </section>
-          )}
-        </div>
-      )}
     </div>
   )
 }
