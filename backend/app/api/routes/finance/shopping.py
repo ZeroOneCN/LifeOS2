@@ -298,6 +298,16 @@ async def import_xlsx(
             return None
         return raw[i]
 
+    # 去重键集合：优先按订单号，无订单号则按 日期+商品+总价 兜底
+    existing_rows = db.scalars(
+        select(FinanceShoppingRecord).where(FinanceShoppingRecord.user_id == user.id)
+    ).all()
+    order_keys = {r.order_no for r in existing_rows if r.order_no}
+    content_keys = {
+        (str(r.record_date), str(r.product_name).strip(), round(r.total_price, 2))
+        for r in existing_rows
+    }
+
     records = []
     skipped = 0
     for raw in rows[1:]:
@@ -310,19 +320,34 @@ async def import_xlsx(
             skipped += 1
             continue
 
+        rec_date_d = _coerce_date(rec_date)
+        product_s = str(product).strip()
+        total_val = round(float(total_cost), 2)
         platform_name = str(get(raw, "platform_name")).strip() if get(raw, "platform_name") else ""
         ledger_name = str(get(raw, "ledger_name")).strip() if get(raw, "ledger_name") else ""
         spec = str(get(raw, "spec")).strip() if get(raw, "spec") else None
         order_no = str(get(raw, "order_no")).strip() if get(raw, "order_no") else None
         unit = get(raw, "unit_price")
 
+        # 去重：命中已有记录则跳过（同一文件内重复也防重）
+        dup = bool(order_no and order_no in order_keys)
+        if not dup and not order_no:
+            dup = (str(rec_date_d), product_s, total_val) in content_keys
+        if dup:
+            skipped += 1
+            continue
+        if order_no:
+            order_keys.add(order_no)
+        else:
+            content_keys.add((str(rec_date_d), product_s, total_val))
+
         records.append(
             FinanceShoppingRecord(
-                record_date=_coerce_date(rec_date),
+                record_date=rec_date_d,
                 platform_id=_resolve_name(platform_name, platform_cache, FinanceShoppingPlatform, "name", db, user.id),
-                product_name=str(product).strip(),
+                product_name=product_s,
                 spec=spec,
-                total_price=round(float(total_cost), 2),
+                total_price=total_val,
                 unit_price=round(float(unit), 2) if unit is not None else None,
                 order_no=order_no,
                 ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db, user.id)
