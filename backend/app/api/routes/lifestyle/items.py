@@ -95,7 +95,6 @@ def _sync_candidates(db: Session, user_id: int) -> list[dict]:
         db.scalars(
             select(LifestyleItem.shopping_record_id).where(
                 LifestyleItem.user_id == user_id,
-                LifestyleItem.source == "shopping",
                 LifestyleItem.shopping_record_id.is_not(None),
             )
         ).all()
@@ -173,7 +172,6 @@ def _items_extra(api_router: APIRouter):
             db.scalars(
                 select(LifestyleItem.shopping_record_id).where(
                     LifestyleItem.user_id == user.id,
-                    LifestyleItem.source == "shopping",
                     LifestyleItem.shopping_record_id.is_not(None),
                 )
             ).all()
