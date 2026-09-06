@@ -4,6 +4,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Double,
     Float,
     Integer,
     String,
@@ -221,8 +222,8 @@ class FinanceRepayment(TimestampMixin, UserOwned, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     bill_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联账单
     repay_date: Mapped[date] = mapped_column(Date)  # 还款日期
-    amount: Mapped[float] = mapped_column(Float)  # 还款金额（实付）
-    discount: Mapped[float | None] = mapped_column(Float, default=0)  # 优惠金额（券/抵扣）
+    amount: Mapped[float] = mapped_column(Double)  # 还款金额（实付）
+    discount: Mapped[float | None] = mapped_column(Double, default=0)  # 优惠金额（券/抵扣）
     method: Mapped[str | None] = mapped_column(String(32))  # 还款方式
     note: Mapped[str | None] = mapped_column(Text)
 

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+﻿from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -149,7 +149,7 @@ def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
     ).all()
     # 已还 = 实付 + 优惠（优惠券/抵扣同样抵减欠款）
     bill.paid_amount = sum((r.amount or 0) + (r.discount or 0) for r in reps)
-    if bill.amount - bill.paid_amount <= 1e-6:
+    if bill.amount - bill.paid_amount <= 1e-2:
         bill.status = "cleared"
     elif bill.paid_amount > 0:
         bill.status = "partial"
@@ -189,7 +189,7 @@ def create_repayment(
         raise HTTPException(status_code=404, detail="账单不存在")
     remaining = bill.amount - bill.paid_amount
     applied = (payload.amount or 0) + (payload.discount or 0)
-    if applied > remaining + 1e-6:
+    if applied > remaining + 1e-2:
         raise HTTPException(status_code=400, detail=f"实付+优惠不能超过剩余欠款 {remaining:.2f}")
     obj = FinanceRepayment(**payload.model_dump(), user_id=user.id)
     db.add(obj)
@@ -257,7 +257,7 @@ def update_repayment(
     ).all()
     other_sum = sum((o.amount or 0) + (o.discount or 0) for o in others)
     applied = (payload.amount or 0) + (payload.discount or 0)
-    if applied > bill.amount - other_sum + 1e-6:
+    if applied > bill.amount - other_sum + 1e-2:
         raise HTTPException(status_code=400, detail="实付+优惠不能超过剩余欠款")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
