@@ -149,7 +149,7 @@ export function FinanceOverviewPage() {
         <StatCard icon={Plane} label="旅行开支" value={`${data.month_travel_count} 笔`} hint="本月旅行费用笔数" />
         <StatCard icon={Receipt} label="网贷未还" value={fmt(data.unpaid_bills)} hint={`本月 ${data.month_bill_count} 笔账单`} />
         <StatCard icon={HandCoins} label="累计待还" value={fmt(data.outstanding_loans + data.outstanding_debt)} hint={`网贷 ${fmt(data.outstanding_loans)} + 民间 ${fmt(data.outstanding_debt)}`} />
-        <StatCard icon={Home} label="组合房租" value={fmt(data.categories.find((c) => c.label === '住房月租')?.amount ?? 0)} hint={`当月折算 · 押金 ${fmt(data.deposit_total)}`} />
+        <StatCard icon={Home} label="组合房租" value={fmt(data.categories.find((c) => c.label === '住房月租')?.amount ?? 0)} hint="当月折算" />
         <StatCard icon={Banknote} label="借贷往来" value={fmt(data.lend_total)} hint={`借出 ${fmt(data.lend_total)} / 借入 ${fmt(data.borrow_total)}`} />
         <StatCard icon={TrendingUp} label="投资盈亏" value={signFmt(data.invest_pnl)} hint={`共 ${data.invest_count} 项持仓`} />
       </section>
