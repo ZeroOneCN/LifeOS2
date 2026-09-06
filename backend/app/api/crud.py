@@ -132,7 +132,7 @@ def crud_router(
         )
         if not obj:
             raise HTTPException(status_code=404, detail="记录不存在")
-        for key, value in payload.model_dump().items():
+        for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(obj, key, value)
         db.commit()
         db.refresh(obj)
