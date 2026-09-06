@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -87,6 +87,25 @@ def _item_stats(db: Session, days: int, user_id: int) -> dict:
 class SyncReq(BaseModel):
     # 为空列表时表示同步当前用户全部未同步的购物记录
     record_ids: list[int] = []
+
+
+class BatchUpdateReq(BaseModel):
+    ids: list[int]
+    updates: dict
+
+    @field_validator("ids")
+    @classmethod
+    def ids_not_empty(cls, v: list[int]) -> list[int]:
+        if not v:
+            raise ValueError("ids must not be empty")
+        return v
+
+    @field_validator("updates")
+    @classmethod
+    def updates_not_empty(cls, v: dict) -> dict:
+        if not v:
+            raise ValueError("updates must not be empty")
+        return v
 
 
 def _sync_candidates(db: Session, user_id: int) -> list[dict]:
@@ -196,6 +215,24 @@ def _items_extra(api_router: APIRouter):
             created += 1
         db.commit()
         return {"created": created, "skipped": len(records) - created}
+
+    @api_router.put("/batch-update")
+    def batch_update(
+        payload: BatchUpdateReq,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        rows = db.scalars(
+            select(LifestyleItem).where(
+                LifestyleItem.user_id == user.id,
+                LifestyleItem.id.in_(payload.ids),
+            )
+        ).all()
+        for obj in rows:
+            for key, value in payload.updates.items():
+                setattr(obj, key, value)
+        db.commit()
+        return {"updated": len(rows)}
 
 
 router = crud_router(

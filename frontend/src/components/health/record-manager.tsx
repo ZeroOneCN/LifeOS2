@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState, useCallback, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -80,6 +81,10 @@ type RecordManagerProps<T extends { id: number }> = {
   monthField?: string
   /** CRUD 成功后回调（新增/编辑/删除），用于页面同步刷新统计图表 */
   onMutate?: () => void
+  /** 启用批量选择模式，表格首列渲染 checkbox */
+  enableBatch?: boolean
+  /** 批量操作工具栏，选中项目后显示在表格上方 */
+  batchToolbar?: (selectedIds: number[], clearSelection: () => void) => ReactNode
 }
 
 const PAGE_SIZE = 10
@@ -105,6 +110,8 @@ export function RecordManager<T extends { id: number }>({
   monthMode,
   monthField = 'reminder_date',
   onMutate,
+  enableBatch = false,
+  batchToolbar,
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -114,6 +121,7 @@ export function RecordManager<T extends { id: number }>({
   const [editing, setEditing] = useState<T | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [month, setMonth] = useState(() => {
     const n = new Date()
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
@@ -137,6 +145,35 @@ export function RecordManager<T extends { id: number }>({
     setMonth(m)
     setPage(1)
   }
+
+  // 翻页/刷新时清空选择
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [page, items])
+
+  const allVisibleSelected = enableBatch && items.length > 0 && items.every((r) => selectedIds.has(r.id))
+  const someVisibleSelected = enableBatch && items.length > 0 && !allVisibleSelected && items.some((r) => selectedIds.has(r.id))
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  const toggleAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((r) => r.id)))
+    }
+  }
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const batchColSpan = enableBatch ? 1 : 0
 
   const load = async () => {
     // 翻页/刷新时保留旧数据渲染（仅首载显示加载占位），避免高度变化引起抖动
@@ -264,11 +301,34 @@ export function RecordManager<T extends { id: number }>({
 
       {extra}
 
+      {enableBatch && selectedIds.size > 0 && batchToolbar && (
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-2.5">
+          <span className="text-sm text-muted-foreground">
+            已选 <strong className="text-foreground">{selectedIds.size}</strong> 项
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            {batchToolbar([...selectedIds], clearSelection)}
+            <Button variant="ghost" size="icon" className="size-7" onClick={clearSelection} title="取消选择">
+              <X />
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                {enableBatch && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+                      onCheckedChange={toggleAll}
+                      aria-label="全选"
+                    />
+                  </TableHead>
+                )}
                 {columns.map((col) => (
                   <TableHead key={col.key} className={col.className}>
                     {col.label}
@@ -284,7 +344,7 @@ export function RecordManager<T extends { id: number }>({
                 loading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={columns.length + 1}
+                      colSpan={columns.length + 1 + batchColSpan}
                       className="h-24 text-center text-muted-foreground"
                     >
                       <Loader2 className="mx-auto size-5 animate-spin" />
@@ -293,7 +353,7 @@ export function RecordManager<T extends { id: number }>({
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={columns.length + 1}
+                      colSpan={columns.length + 1 + batchColSpan}
                       className="h-24 text-center text-muted-foreground"
                     >
                       暂无记录，点击"新增记录"添加第一条数据
@@ -302,7 +362,16 @@ export function RecordManager<T extends { id: number }>({
                 )
               ) : (
                 items.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className={selectedIds.has(row.id) ? 'bg-muted/30' : ''}>
+                    {enableBatch && (
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={selectedIds.has(row.id)}
+                          onCheckedChange={() => toggleOne(row.id)}
+                          aria-label={`选择 ${(row as Record<string, unknown>).item_name ?? row.id}`}
+                        />
+                      </TableCell>
+                    )}
                     {columns.map((col) => (
                       <TableCell key={col.key} className={col.className}>
                         {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}

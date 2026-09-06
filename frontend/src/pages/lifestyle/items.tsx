@@ -1,9 +1,28 @@
 import { useState } from 'react'
-import { Loader2, ShoppingCart } from 'lucide-react'
+import { Loader2, ShoppingCart, PenBox } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
@@ -163,6 +182,66 @@ export function ItemsPage() {
 
   const [syncing, setSyncing] = useState(false)
 
+  // 批量编辑
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false)
+  const [batchForm, setBatchForm] = useState<Record<string, string>>({})
+  const [batchSaving, setBatchSaving] = useState(false)
+  const [batchIds, setBatchIds] = useState<number[]>([])
+
+  const batchEditFields: FieldDef[] = [
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      options: [
+        { value: 'in_use', label: '使用中' },
+        { value: 'loaned', label: '借出' },
+        { value: 'lost', label: '丢失' },
+        { value: 'recycled', label: '已淘汰' },
+      ],
+    },
+    {
+      key: 'category',
+      label: '分类',
+      type: 'select',
+      options: categories.map((c) => ({ value: c, label: c })),
+    },
+    { key: 'location', label: '存放位置', type: 'text', placeholder: '如 书房 / 卧室' },
+    { key: 'end_date', label: '使用结束日期', type: 'date' },
+    { key: 'note', label: '备注', type: 'textarea', full: true },
+  ]
+
+  const openBatchEdit = (ids: number[], clearSelection: () => void) => {
+    setBatchIds(ids)
+    setBatchForm({})
+    setBatchDialogOpen(true)
+  }
+
+  const handleBatchSave = async () => {
+    const updates: Record<string, unknown> = {}
+    for (const field of batchEditFields) {
+      const raw = batchForm[field.key] ?? ''
+      if (raw === '') continue
+      if (field.type === 'number') updates[field.key] = Number(raw)
+      else updates[field.key] = raw
+    }
+    if (Object.keys(updates).length === 0) {
+      toast.error('请至少选择一个字段进行修改')
+      return
+    }
+    setBatchSaving(true)
+    try {
+      await api.put('/lifestyle/items/batch-update', { ids: batchIds, updates })
+      setBatchDialogOpen(false)
+      setRefresh((v) => v + 1)
+      toast.success(`已批量更新 ${batchIds.length} 条记录`)
+    } catch (e) {
+      toast.error('批量更新失败', { description: (e as Error).message })
+    } finally {
+      setBatchSaving(false)
+    }
+  }
+
   const doSync = async () => {
     if (syncing) return
     setSyncing(true)
@@ -206,6 +285,13 @@ export function ItemsPage() {
         columns={columns}
         refreshKey={refresh}
         onMutate={() => setRefresh((v) => v + 1)}
+        enableBatch
+        batchToolbar={(ids, clearSelection) => (
+          <Button variant="outline" size="sm" onClick={() => openBatchEdit(ids, clearSelection)}>
+            <PenBox className="mr-1 size-4" />
+            批量编辑
+          </Button>
+        )}
         headerExtra={
           <Button variant="outline" onClick={doSync} disabled={syncing}>
             {syncing ? <Loader2 className="size-4 animate-spin" /> : <ShoppingCart className="size-4" />}
@@ -252,6 +338,69 @@ export function ItemsPage() {
           </>
         }
       />
+
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>批量编辑（{batchIds.length} 项）</DialogTitle>
+            <DialogDescription>
+              仅填写需要修改的字段，留空的字段保持不变。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            {batchEditFields.map((field) => (
+              <div key={field.key} className={`space-y-2 ${field.full ? 'col-span-2' : ''}`}>
+                <Label>{field.label}</Label>
+                {field.type === 'select' ? (
+                  <Select
+                    value={batchForm[field.key] ?? ''}
+                    onValueChange={(v) => setBatchForm((f) => ({ ...f, [field.key]: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={`请选择${field.label}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(field.options ?? []).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : field.type === 'textarea' ? (
+                  <Textarea
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                  />
+                ) : field.type === 'date' ? (
+                  <DatePicker
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(v) => setBatchForm((f) => ({ ...f, [field.key]: v }))}
+                    placeholder="选择日期"
+                  />
+                ) : (
+                  <Input
+                    type="text"
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleBatchSave} disabled={batchSaving}>
+              {batchSaving && <Loader2 className="animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
