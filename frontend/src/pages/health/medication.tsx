@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Loader2, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -156,6 +157,7 @@ export function MedicationPage() {
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const stats = useStats<MedStats>('/health/medication', days, refresh)
   const PAGE_SIZE = 10
   const medPages = Math.max(1, Math.ceil(medTotal / PAGE_SIZE))
@@ -192,7 +194,7 @@ export function MedicationPage() {
       loadStock().finally(() => setLoading(false))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, medPage])
+  }, [tab, medPage, realtimeTick])
 
   useEffect(() => {
     if (tab === 'purchase') {
@@ -200,12 +202,12 @@ export function MedicationPage() {
       loadPur().finally(() => setLoading(false))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [purPage])
+  }, [purPage, realtimeTick])
 
   useEffect(() => {
     api.query<{ items: Stock[] }>('/health/medication/stocks').then((r) => setStocks(r.items))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab])
+  }, [tab, realtimeTick])
 
   const openMedCreate = () => {
     setEditing(null)

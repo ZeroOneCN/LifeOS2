@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
 
 type Log = {
@@ -26,6 +27,7 @@ type Log = {
 }
 
 export function SendLogPanel() {
+  const realtimeTick = useRealtime(30_000)
   const [logs, setLogs] = useState<Log[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -52,7 +54,7 @@ export function SendLogPanel() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, realtimeTick])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 

@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type Channel = {
@@ -88,9 +89,10 @@ export function ChannelsPanel() {
     config: {},
   })
   const [testingId, setTestingId] = useState<number | null>(null)
+  const realtimeTick = useRealtime()
   const { confirm, dialog: confirmDialog } = useConfirm({
     title: '确认删除',
-    description: '确定删除该通知渠道吗？删除后相关提醒将不再通过该渠道下发。',
+    description: '确认删除该通知渠道吗？删除后相关提醒将不再通过该渠道下发。',
   })
 
   const load = useCallback(async () => {
@@ -105,7 +107,7 @@ export function ChannelsPanel() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, realtimeTick])
 
   const openCreate = (type: string) => {
     setEditing(null)

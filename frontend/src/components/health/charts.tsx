@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type Series = { key: string; name: string; color?: string }
@@ -82,14 +83,24 @@ export function StatsPeriodPicker({
   )
 }
 
-export function useStats<T>(path: string, days: StatsDays = 30, refresh?: number) {
+/**
+ * 拉取统计数据。默认每 30 秒 + 窗口聚焦 + 数据变更时自动刷新（无感实时）；
+ * intervalMs 传 0 则关闭定时轮询，仅保留聚焦与变更刷新。
+ */
+export function useStats<T>(
+  path: string,
+  days: StatsDays = 30,
+  refresh?: number,
+  intervalMs = 30_000,
+) {
+  const realtimeTick = useRealtime(intervalMs)
   const [data, setData] = useState<T | null>(null)
   useEffect(() => {
     api
       .stats<T>(path, days)
       .then(setData)
       .catch(() => setData(null))
-  }, [path, days, refresh])
+  }, [path, days, refresh, realtimeTick])
   return data
 }
 

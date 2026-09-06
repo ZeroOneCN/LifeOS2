@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import {
   RecordManager,
@@ -125,6 +126,7 @@ function StatChip({
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 export function RemindersPage() {
+  const realtimeTick = useRealtime(30_000)
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
   const stats = useStats<ReminderStats>('/finance/reminders', days, refresh)
@@ -133,7 +135,7 @@ export function RemindersPage() {
 
   useEffect(() => {
     api.query<Aggregate>('/finance/reminders/aggregate').then(setAgg).catch(() => setAgg(null))
-  }, [refresh])
+  }, [refresh, realtimeTick])
 
   const AGG_PAGE_SIZE = 10
   const aggTotalPages = Math.max(1, Math.ceil((agg?.items.length ?? 0) / AGG_PAGE_SIZE))

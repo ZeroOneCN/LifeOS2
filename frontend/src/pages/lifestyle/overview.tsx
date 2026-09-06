@@ -12,6 +12,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type ExpiringItem = { id: number; item_name: string; category: string; expire_date?: string; days_left: number }
@@ -98,6 +99,7 @@ const priortyMeta: Record<string, { label: string; className: string }> = {
 }
 
 export function LifestyleOverviewPage() {
+  const realtimeTick = useRealtime(30_000)
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
 
@@ -106,7 +108,7 @@ export function LifestyleOverviewPage() {
       .query<OverviewData>('/lifestyle/overview')
       .then(setData)
       .catch(() => setError(true))
-  }, [])
+  }, [realtimeTick])
 
   if (error) {
     return (

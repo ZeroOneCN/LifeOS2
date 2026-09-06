@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2 } from 'lucide
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -118,6 +119,9 @@ export function RecordManager<T extends { id: number }>({
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
   })
 
+  // 无感实时：每 30 秒 + 窗口聚焦 + 数据变更时自动刷新列表
+  const realtimeTick = useRealtime(30_000)
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const { confirm, dialog: confirmDialog } = useConfirm({
     title: '确认删除',
@@ -156,7 +160,7 @@ export function RecordManager<T extends { id: number }>({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey, month])
+  }, [page, refreshKey, month, realtimeTick])
 
   const openCreate = () => {
     setEditing(null)

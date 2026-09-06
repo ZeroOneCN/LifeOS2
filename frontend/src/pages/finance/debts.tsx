@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -104,6 +105,7 @@ type LoanSync = { total_remaining: number; platform_count: number; platforms: { 
 function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const stats = useStats<DebtStats>('/finance/debts', days, refresh)
   const [items, setItems] = useState<DebtRecord[]>([])
   const [total, setTotal] = useState(0)
@@ -134,7 +136,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   useEffect(() => {
     load()
     api.query<LoanSync>('/finance/debts/loan-sync').then(setLoanSync).catch(() => setLoanSync(null))
-  }, [page])
+  }, [page, realtimeTick])
 
   const remaining = (d: DebtRecord) => (d.remaining != null ? d.remaining : d.amount)
 
@@ -482,6 +484,7 @@ type InvStats = { count: number; total_pnl: number; profit: number; loss: number
 function InvestTab() {
   // 投资记账统一按美元计算与显示，不做汇率换算
   const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<Investment[]>([])
   const [stats, setStats] = useState<InvStats | null>(null)
   const [dialog, setDialog] = useState<null | { editing?: Investment }>(null)
@@ -495,7 +498,7 @@ function InvestTab() {
     setItems(res.items)
     api.stats<InvStats>('/finance/investments').then(setStats).catch(() => setStats(null))
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [realtimeTick])
 
   const toggleCat = (c: string) => {
     setSelCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
@@ -646,6 +649,7 @@ function InvestTab() {
 type Memo = { id: number; title: string; content?: string; memo_date?: string }
 
 function MemoTab() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<Memo[]>([])
   const [dialog, setDialog] = useState<null | { editing?: Memo }>(null)
   const [form, setForm] = useState<Record<string, string>>({})
@@ -656,7 +660,7 @@ function MemoTab() {
     const res = await api.list<Memo>('/finance/memos', { page_size: 100 })
     setItems(res.items)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [realtimeTick])
 
   const openCreate = () => { setForm({ title: '', content: '', memo_date: new Date().toISOString().slice(0, 10) }); setDialog({}) }
   const save = async () => {

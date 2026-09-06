@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type Setting = {
@@ -29,6 +30,7 @@ export function ReminderSettingsPanel() {
   const [scanning, setScanning] = useState(false)
   const [savingId, setSavingId] = useState<number | null>(null)
   const [draft, setDraft] = useState<Record<number, Setting>>({})
+  const realtimeTick = useRealtime()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -47,7 +49,7 @@ export function ReminderSettingsPanel() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, realtimeTick])
 
   const patch = (id: number, key: keyof Setting, value: Setting[keyof Setting]) =>
     setDraft((d) => ({ ...d, [id]: { ...d[id], [key]: value } }))

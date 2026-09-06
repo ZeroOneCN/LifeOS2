@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/card'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type NotificationRecord = {
@@ -72,6 +73,7 @@ export function NotificationList() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const totalPages = Math.max(1, Math.ceil(total / 10))
 
   const load = async () => {
@@ -91,7 +93,7 @@ export function NotificationList() {
 
   useEffect(() => {
     load()
-  }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, realtimeTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const byCategory = stats?.by_category ?? []
   const trend = stats?.trend ?? []

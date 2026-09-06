@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Clock,
   Database,
@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -207,6 +208,7 @@ function formatTime(iso: string) {
 
 export function BackupPage() {
   const { confirm, dialog: confirmDialog } = useConfirm()
+  const realtimeTick = useRealtime(30_000)
   const [tab, setTab] = useState<TabKey>('export')
   const [tables, setTables] = useState<TableInfo[]>([])
   const [backups, setBackups] = useState<BackupFile[]>([])
@@ -287,6 +289,13 @@ export function BackupPage() {
     loadSchedules()
   }, [])
 
+  // 定时轮询：备份文件与任务状态无感刷新（表格勾选状态不被轮询重置）
+  useEffect(() => {
+    loadBackups()
+    loadSchedules()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtimeTick])
+
   // 切换 Tab 时刷新对应数据
   useEffect(() => {
     if (tab === 'logs') loadLogs()
@@ -296,22 +305,7 @@ export function BackupPage() {
 
   useEffect(() => {
     if (tab === 'logs') loadLogs()
-  }, [logPage])
-
-  // 定时备份：每 30 秒自动刷新状态
-  const schedulePollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  useEffect(() => {
-    if (tab === 'schedule') {
-      loadSchedules()
-      schedulePollRef.current = setInterval(loadSchedules, 30_000)
-    }
-    return () => {
-      if (schedulePollRef.current) {
-        clearInterval(schedulePollRef.current)
-        schedulePollRef.current = null
-      }
-    }
-  }, [tab])
+  }, [logPage, realtimeTick])
 
   const loadLogs = async () => {
     setLoadingLogs(true)

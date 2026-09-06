@@ -27,6 +27,7 @@ import {
   ReportPeriodPicker,
   type ReportPeriod,
 } from '@/components/reports/period-picker'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
@@ -108,6 +109,7 @@ function ReportContent({ content }: { content?: unknown }) {
 }
 
 export function InvestmentReportsPage() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<ReportItem[]>([])
   const [loading, setLoading] = useState(true)
   const [genOpen, setGenOpen] = useState(false)
@@ -131,7 +133,7 @@ export function InvestmentReportsPage() {
   }
   useEffect(() => {
     load()
-  }, [])
+  }, [realtimeTick])
 
   const loadDetail = async (id: number) => {
     try {

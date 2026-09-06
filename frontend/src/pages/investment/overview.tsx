@@ -17,6 +17,7 @@ import {
 import { CalendarClock, Download, FileText, Gift, Percent, TrendingUp } from 'lucide-react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type OverviewData = {
@@ -121,6 +122,7 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
 }
 
 export function InvestmentOverviewPage() {
+  const realtimeTick = useRealtime(30_000)
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
   useEffect(() => {
@@ -128,7 +130,7 @@ export function InvestmentOverviewPage() {
       .query<OverviewData>('/investment/overview')
       .then(setData)
       .catch(() => setError(true))
-  }, [])
+  }, [realtimeTick])
 
   if (error)
     return (

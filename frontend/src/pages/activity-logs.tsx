@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
 
 type ActivityRecord = {
@@ -115,6 +116,7 @@ function StatCard({
 }
 
 export function ActivityLogsPage() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<ActivityRecord[]>([])
   const [stats, setStats] = useState<ActivityStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -146,12 +148,12 @@ export function ActivityLogsPage() {
 
   useEffect(() => {
     api.query<ActivityStats>('/activity-logs/stats?days=30').then(setStats).catch(() => setStats(null))
-  }, [])
+  }, [realtimeTick])
 
   useEffect(() => {
     loadList()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, action, module, start, end])
+  }, [page, action, module, start, end, realtimeTick])
 
   const byAction = stats?.by_action ?? []
   const byModule = stats?.by_module ?? []

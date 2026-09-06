@@ -29,6 +29,7 @@ import {
   ReportPeriodPicker,
   type ReportPeriod,
 } from '@/components/reports/period-picker'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type ReportRecord = {
@@ -131,6 +132,7 @@ function ReportContent({ content }: { content?: string }) {
 }
 
 export function ReportsPage() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<ReportRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -165,7 +167,7 @@ export function ReportsPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, realtimeTick])
 
   const handleGenerate = async () => {
     setGenerating(true)

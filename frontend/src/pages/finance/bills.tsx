@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -121,6 +122,7 @@ type RentTerm = { id: number; housing_id?: number; term_no: number; amount: numb
 const feeTypes = ['水费', '电费', '燃气费', '宽带', '物业', '其他']
 
 function HousingTab() {
+  const realtimeTick = useRealtime(30_000)
   const [houses, setHouses] = useState<Housing[]>([])
   const [stats, setStats] = useState<HousingStats | null>(null)
   const [utilities, setUtilities] = useState<Utility[]>([])
@@ -312,11 +314,11 @@ function HousingTab() {
     loadStats()
     loadChannels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [realtimeTick])
   useEffect(() => {
     loadUtilities()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [realtimeTick])
 
   useEffect(() => {
     if (housePage > houseTotalPages) setHousePage(houseTotalPages)
@@ -1100,6 +1102,7 @@ type SubStats = {
 type SubCategory = { id: number; name: string }
 
 function SubscriptionTab() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<Subscription[]>([])
   const [stats, setStats] = useState<SubStats | null>(null)
   const [categories, setCategories] = useState<SubCategory[]>([])
@@ -1118,7 +1121,7 @@ function SubscriptionTab() {
   const loadCategories = async () => {
     api.list<SubCategory>('/finance/subscription-categories', { page_size: 100 }).then((res) => setCategories(res.items)).catch(() => setCategories([]))
   }
-  useEffect(() => { load(); loadCategories() }, [])
+  useEffect(() => { load(); loadCategories() }, [realtimeTick])
 
   const addCategory = async () => {
     const name = newCategory.trim()
@@ -1385,6 +1388,7 @@ const billStatusMeta: Record<string, { label: string; className: string }> = {
 }
 
 function LoanTab() {
+  const realtimeTick = useRealtime(30_000)
   const [platforms, setPlatforms] = useState<LoanPlatform[]>([])
   const [platformStats, setPlatformStats] = useState<LoanPlatformStats | null>(null)
   const [bills, setBills] = useState<LoanBill[]>([])
@@ -1436,7 +1440,7 @@ function LoanTab() {
     loadPlatforms()
     loadBills()
     loadRepStats()
-  }, [])
+  }, [realtimeTick])
   useEffect(() => {
     loadRepayments(selectedBill)
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
@@ -197,6 +198,7 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Wallet; label: st
 }
 
 export function TravelPage() {
+  const realtimeTick = useRealtime(30_000)
   const [ledgers, setLedgers] = useState<Ledger[]>([])
   const [currentLedger, setCurrentLedger] = useState<string>('')
   const [items, setItems] = useState<TravelDetail[]>([])
@@ -293,7 +295,8 @@ export function TravelPage() {
       if (items.length > 0 && !currentLedger) setCurrentLedger(String(items[0].id))
     })
     loadPayChannels()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtimeTick])
 
   useEffect(() => {
     const ledgerParam = currentLedger ? Number(currentLedger) : undefined
@@ -310,7 +313,7 @@ export function TravelPage() {
       })
       .finally(() => setLoading(false))
     loadStats()
-  }, [currentLedger, page])
+  }, [currentLedger, page, realtimeTick])
 
   const loadStats = () => {
     const ledgerParam = currentLedger ? Number(currentLedger) : undefined

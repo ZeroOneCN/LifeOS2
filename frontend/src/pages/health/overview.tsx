@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type Vitals = {
@@ -130,6 +131,7 @@ function SectionCard({
 }
 
 export function HealthOverviewPage() {
+  const realtimeTick = useRealtime(30_000)
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
 
@@ -138,7 +140,7 @@ export function HealthOverviewPage() {
       .query<OverviewData>('/health/overview')
       .then(setData)
       .catch(() => setError(true))
-  }, [])
+  }, [realtimeTick])
 
   if (error) {
     return (

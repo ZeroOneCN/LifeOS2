@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
-
 import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -129,6 +130,7 @@ export function StepsPage() {
   })
 
   const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [selMonth, setSelMonth] = useState<number>(new Date().getMonth() + 1)
   const [months, setMonths] = useState<MonthlyStats['months']>([])
@@ -160,7 +162,7 @@ export function StepsPage() {
     loadDaySummary()
     loadMonthDetail()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh, dailyPage, year, selMonth])
+  }, [refresh, dailyPage, year, selMonth, realtimeTick])
 
   useEffect(() => {
     api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
@@ -168,7 +170,7 @@ export function StepsPage() {
 
   useEffect(() => {
     api.query<MonthlyStats>('/health/steps/monthly').then((r) => setMonths(r.months))
-  }, [refresh])
+  }, [refresh, realtimeTick])
 
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -187,7 +189,7 @@ export function StepsPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, realtimeTick])
 
   const todayStr = new Date().toISOString().slice(0, 10)
 

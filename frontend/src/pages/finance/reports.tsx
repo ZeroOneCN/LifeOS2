@@ -28,6 +28,7 @@ import {
   ReportPeriodPicker,
   type ReportPeriod,
 } from '@/components/reports/period-picker'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 
@@ -129,6 +130,7 @@ function ReportContent({ content }: { content?: unknown }) {
 }
 
 export function FinanceReportsPage() {
+  const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<ReportItem[]>([])
   const [loading, setLoading] = useState(true)
   const [genOpen, setGenOpen] = useState(false)
@@ -157,7 +159,7 @@ export function FinanceReportsPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [realtimeTick])
 
   const loadDetail = async (id: number) => {
     try {

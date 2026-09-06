@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
@@ -115,6 +116,7 @@ function StatCard({ icon: Icon, label, value, hint }: { icon: typeof Wallet; lab
 }
 
 export function ShoppingPage() {
+  const realtimeTick = useRealtime(30_000)
   const [ledgers, setLedgers] = useState<Ledger[]>([])
   const [platforms, setPlatforms] = useState<Platform[]>([])
   const [currentLedger, setCurrentLedger] = useState<string>('')
@@ -152,7 +154,7 @@ export function ShoppingPage() {
   useEffect(() => {
     loadLedgers()
     loadPlatforms()
-  }, [])
+  }, [realtimeTick])
 
   useEffect(() => {
     const ledgerParam = currentLedger ? Number(currentLedger) : undefined
@@ -169,7 +171,7 @@ export function ShoppingPage() {
       })
       .finally(() => setLoading(false))
     loadStats()
-  }, [currentLedger, page, refresh])
+  }, [currentLedger, page, refresh, realtimeTick])
 
   const loadStats = () => {
     const ledgerParam = currentLedger ? Number(currentLedger) : undefined

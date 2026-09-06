@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type Tpl = {
@@ -37,6 +38,7 @@ export function TemplatesPanel() {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Tpl | null>(null)
   const [saving, setSaving] = useState(false)
+  const realtimeTick = useRealtime()
   const [form, setForm] = useState<{ title_template: string; content_template: string }>({
     title_template: '',
     content_template: '',
@@ -54,7 +56,7 @@ export function TemplatesPanel() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, realtimeTick])
 
   const openEdit = (t: Tpl) => {
     setEditing(t)

@@ -1,5 +1,16 @@
 const BASE = '/api/v1'
 
+/** 与 useRealtime 保持一致的事件名：写操作成功后广播，页面据此无感刷新 */
+const DATA_CHANGED_EVENT = 'lifeos:data-changed'
+
+function broadcastDataChanged() {
+  try {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT))
+  } catch {
+    /* 事件广播失败不影响主流程 */
+  }
+}
+
 const AUTH_EXEMPT = ['/auth/login', '/auth/register']
 
 function authHeaders(extra?: HeadersInit): HeadersInit {
@@ -75,21 +86,39 @@ export const api = {
   },
   get: <T>(path: string, id: number) => request<T>(`${path}/${id}`),
   query: <T>(path: string) => request<T>(path),
-  create: <T>(path: string, data: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(data) }),
-  post: <T>(path: string, data?: unknown) =>
-    request<T>(path, {
+  create: async <T>(path: string, data: unknown) => {
+    const res = await request<T>(path, { method: 'POST', body: JSON.stringify(data) })
+    broadcastDataChanged()
+    return res
+  },
+  post: async <T>(path: string, data?: unknown) => {
+    const res = await request<T>(path, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
-    }),
-  update: <T>(path: string, id: number, data: unknown) =>
-    request<T>(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  put: <T>(path: string, data: unknown) =>
-    request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
-  remove: (path: string, id: number) =>
-    request<void>(`${path}/${id}`, { method: 'DELETE' }),
-  del: <T>(path: string) =>
-    request<T>(path, { method: 'DELETE' }),
+    })
+    broadcastDataChanged()
+    return res
+  },
+  update: async <T>(path: string, id: number, data: unknown) => {
+    const res = await request<T>(`${path}/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+    broadcastDataChanged()
+    return res
+  },
+  put: async <T>(path: string, data: unknown) => {
+    const res = await request<T>(path, { method: 'PUT', body: JSON.stringify(data) })
+    broadcastDataChanged()
+    return res
+  },
+  remove: async (path: string, id: number) => {
+    const res = await request<void>(`${path}/${id}`, { method: 'DELETE' })
+    broadcastDataChanged()
+    return res
+  },
+  del: async <T>(path: string) => {
+    const res = await request<T>(path, { method: 'DELETE' })
+    broadcastDataChanged()
+    return res
+  },
   upload: async <T>(path: string, formData: FormData) => {
     const headers: Record<string, string> = {}
     const token = localStorage.getItem('lifeos_token')
@@ -100,6 +129,7 @@ export const api = {
       const body = await res.json().catch(() => null)
       throw new Error(body?.detail ?? `上传失败（${res.status}）`)
     }
+    broadcastDataChanged()
     return res.json() as Promise<T>
   },
   stats: <T>(path: string, days: number | 'all' = 30) =>

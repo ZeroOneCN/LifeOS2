@@ -23,6 +23,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { BarChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type PendingItem = { id: number; bill_type: string; amount: number; remaining?: number; due_date?: string }
@@ -99,6 +100,7 @@ function ItemRow({ item }: { item: PendingItem }) {
 }
 
 export function FinanceOverviewPage() {
+  const realtimeTick = useRealtime(30_000)
   const [data, setData] = useState<FinanceOverviewData | null>(null)
   const [error, setError] = useState(false)
 
@@ -107,7 +109,7 @@ export function FinanceOverviewPage() {
       .query<FinanceOverviewData>('/finance/overview')
       .then(setData)
       .catch(() => setError(true))
-  }, [])
+  }, [realtimeTick])
 
   if (error) {
     return (

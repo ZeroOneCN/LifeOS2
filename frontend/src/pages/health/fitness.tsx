@@ -3,6 +3,7 @@ import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -98,6 +99,7 @@ export function FitnessPage() {
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const stats = useStats<FitnessStats>('/health/fitness', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -116,7 +118,7 @@ export function FitnessPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, realtimeTick])
 
   const openCreate = () => {
     setEditing(null)

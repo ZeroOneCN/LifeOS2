@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { navigation } from '@/config/navigation'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 const centers = navigation.filter((s) => !s.system)
@@ -177,6 +178,7 @@ export function HomePage() {
   const [compliment, setCompliment] = useState<string>('')
   const [backend, setBackend] = useState(false)
   const [loading, setLoading] = useState(true)
+  const realtimeTick = useRealtime(30_000)
 
   const fetchCompliment = () => {
     api
@@ -204,7 +206,7 @@ export function HomePage() {
         .then((d) => setBackend(d.status === 'ok'))
         .catch(() => setBackend(false)),
     ]).finally(() => setLoading(false))
-  }, [])
+  }, [realtimeTick])
 
   // 问候语
   const hour = new Date().getHours()

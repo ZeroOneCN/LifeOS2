@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type DashboardData = {
@@ -23,13 +24,14 @@ type DashboardData = {
 }
 
 export function FitnessDashboardPage() {
+  const realtimeTick = useRealtime(30_000)
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [data, setData] = useState<DashboardData | null>(null)
 
   useEffect(() => {
     const n = days === 'all' ? 0 : days
     api.query<DashboardData>(`/health/dashboard?days=${n}`).then(setData).catch(() => setData(null))
-  }, [days])
+  }, [days, realtimeTick])
 
   if (!data) {
     return (

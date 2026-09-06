@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -137,6 +138,7 @@ export function CheckupPage() {
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
   const stats = useStats<CheckupStats>('/health/checkup', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -171,7 +173,7 @@ export function CheckupPage() {
     loadPanels()
     loadPresets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [page, realtimeTick])
 
   const openCreate = () => {
     setEditing(null)

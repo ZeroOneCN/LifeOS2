@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, MailCheck, Pencil, Plus, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,7 @@ export function EmailConfigPanel() {
   const [form, setForm] = useState<EmailForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [testingId, setTestingId] = useState<number | null>(null)
+  const realtimeTick = useRealtime()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -64,7 +66,7 @@ export function EmailConfigPanel() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, realtimeTick])
 
   const openCreate = () => {
     setEditingId(null)
