@@ -1716,7 +1716,7 @@ function LoanTab() {
           <CardContent className="space-y-1.5 text-sm">
             {billStats?.upcoming.map((u) => (
               <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 px-3 py-1.5">
-                <span>{platformName(u.platform_id)} · {u.bill_month} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge></span>
+                <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge></span>
                 <span className="text-muted-foreground">到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmt(u.remaining)}</span></span>
               </div>
             ))}

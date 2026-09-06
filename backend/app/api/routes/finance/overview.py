@@ -234,6 +234,7 @@ def overview(
         "borrow_total": round(borrow_total, 2),
         "lend_total": round(lend_total, 2),
         "invest_pnl": round(invest_pnl, 2),
+        "invest_count": len(investments),
         "deposit_total": round(total_deposit, 2),
         "categories": categories,
         "week_trend": [

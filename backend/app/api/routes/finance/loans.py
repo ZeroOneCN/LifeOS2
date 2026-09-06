@@ -93,6 +93,7 @@ def _bills_stats(db: Session, days: int, user_id: int) -> dict:
         for r in rows
         if r.status in ("pending", "partial")
         and r.due_date
+        and r.due_date >= today
         and (r.due_date - today).days <= 30
     ]
     upcoming.sort(key=lambda x: x["due_date"] or "")
