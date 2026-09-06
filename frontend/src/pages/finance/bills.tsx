@@ -3,9 +3,11 @@ import {
   Banknote,
   Building,
   Calendar,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
+  FileText,
   Home,
   Layers,
   ListTree,
@@ -1624,6 +1626,8 @@ function LoanTab() {
           <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
           <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
           <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
+          <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
+          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-green-600" />
         </section>
       )}
 

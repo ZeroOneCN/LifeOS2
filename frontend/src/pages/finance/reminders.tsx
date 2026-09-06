@@ -185,37 +185,34 @@ export function RemindersPage() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">全部待办提醒（按到期日）</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1.5">
+            <CardContent>
               {agg.items.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">暂无待办提醒</p>
               ) : (
-                aggPaged.map((it, i) => {
-                  const meta = sourceMeta[it.source] ?? { label: it.source_label, className: 'bg-gray-100 text-gray-600', icon: Inbox }
-                  const Icon = meta.icon
-                  return (
-                    <div
-                      key={`${i}-${it.title}`}
-                      className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${it.status === 'overdue' ? 'border-red-200 bg-red-50' : 'bg-white'}`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className={`flex size-6 items-center justify-center rounded-full ${meta.className}`}>
-                          <Icon className="size-3.5" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {aggPaged.map((it, i) => {
+                    const meta = sourceMeta[it.source] ?? { label: it.source_label, className: 'bg-gray-100 text-gray-600', icon: Inbox }
+                    const Icon = meta.icon
+                    const isOverdue = it.status === 'overdue'
+                    return (
+                      <div
+                        key={`${i}-${it.title}`}
+                        className={`flex flex-col gap-1.5 rounded-md border p-3 text-sm ${isOverdue ? 'border-red-200 bg-red-50' : 'bg-white'}`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span className={`flex size-5 items-center justify-center rounded-full shrink-0 ${meta.className}`}>
+                            <Icon className="size-3" />
+                          </span>
+                          <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0">{meta.label}</Badge>
+                          {isOverdue && <Badge className="bg-red-100 text-red-700 text-[10px] leading-none px-1.5 py-0 ml-auto">已逾期</Badge>}
                         </span>
-                        <Badge variant="outline">{meta.label}</Badge>
-                        <span className="font-medium">{it.title}</span>
-                      </span>
-                      <span className="flex items-center gap-2 text-muted-foreground">
-                        {it.amount != null && <span className="font-medium text-foreground">{fmt(it.amount)}</span>}
-                        <span>到期 {it.due_date}</span>
-                        {it.status === 'overdue' ? (
-                          <Badge className="bg-red-100 text-red-700">已逾期</Badge>
-                        ) : (
-                          <Badge className="bg-amber-100 text-amber-700">待处理</Badge>
-                        )}
-                      </span>
-                    </div>
-                  )
-                })
+                        <span className="font-medium truncate" title={it.title}>{it.title}</span>
+                        {it.amount != null && <span className="text-xs text-muted-foreground">{fmt(it.amount)}</span>}
+                        <span className="text-xs text-muted-foreground">到期 {it.due_date}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </CardContent>
             {agg.items.length > 0 && (
