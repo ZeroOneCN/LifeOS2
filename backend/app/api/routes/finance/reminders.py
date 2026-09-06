@@ -95,7 +95,7 @@ def aggregate_reminders(
             {
                 "source": "网贷",
                 "source_label": "网贷账单",
-                "title": f"网贷还款（{b.bill_month.isoformat()}）",
+                "title": f"网贷还款（{due.isoformat()}）",
                 "amount": round(remaining, 2),
                 "due_date": due.isoformat(),
                 "status": "overdue" if due < today else "pending",

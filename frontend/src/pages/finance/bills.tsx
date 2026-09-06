@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Banknote,
   Building,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -1377,7 +1378,7 @@ type LoanBillStats = {
   total: number; paid: number; remaining: number; total_interest?: number
   status: { pending: number; partial: number; cleared: number }
   by_month: { month: string; amount: number }[]
-  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string }[]
+  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; overdue?: boolean }[]
 }
 type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
 
@@ -1461,6 +1462,10 @@ function LoanTab() {
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
   }
   const monthBills = bills.filter((b) => b.bill_month.slice(0, 7) === loanMonth)
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const thisMonthBills = bills.filter((b) => b.bill_month.slice(0, 7) === thisMonth)
+  const thisMonthTotal = thisMonthBills.reduce((s, b) => s + b.amount, 0)
+  const thisMonthRemaining = thisMonthBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
   const addPlatform = async () => {
     const name = newPf.name?.trim()
     if (!name) return
@@ -1612,6 +1617,7 @@ function LoanTab() {
     <div className="flex flex-col gap-4">
       {platformStats && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 合计 ${fmt(thisMonthTotal)}`} className="text-red-500" />
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
           <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600" />
@@ -1715,9 +1721,12 @@ function LoanTab() {
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700">近期待还（30 天内）</CardTitle></CardHeader>
           <CardContent className="space-y-1.5 text-sm">
             {billStats?.upcoming.map((u) => (
-              <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 px-3 py-1.5">
+              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 border border-red-200' : 'bg-white/70'}`}>
                 <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge></span>
-                <span className="text-muted-foreground">到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmt(u.remaining)}</span></span>
+                <span className="text-muted-foreground">
+                  {u.overdue ? <span className="text-red-600 font-semibold">已逾期 · </span> : ''}
+                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmt(u.remaining)}</span>
+                </span>
               </div>
             ))}
           </CardContent>
