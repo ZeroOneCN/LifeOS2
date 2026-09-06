@@ -1564,11 +1564,21 @@ function LoanTab() {
     setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? String(remaining) : '', discount: '', method: '', note: '' })
     setRepayDialog(b)
   }
+  const actualPay = (): number => {
+    const amt = Number(repayForm.amount) || 0
+    const dsc = Number(repayForm.discount) || 0
+    return Math.max(0, amt - dsc)
+  }
   const submitRepay = async () => {
     if (!repayDialog) return
+    const actual = actualPay()
+    if (actual <= 0) {
+      toast.error('实付金额必须大于 0')
+      return
+    }
     const payload = {
       bill_id: repayDialog.id, repay_date: repayForm.repay_date,
-      amount: Number(repayForm.amount), discount: repayForm.discount ? Number(repayForm.discount) : 0,
+      amount: actual, discount: repayForm.discount ? Number(repayForm.discount) : 0,
       method: repayForm.method || null, note: repayForm.note || null,
     }
     setSaving(true)
@@ -1819,13 +1829,16 @@ function LoanTab() {
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
-            <div className="space-y-2"><Label>应还金额 <span className="text-destructive">*</span></Label><Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" /></div>
+            <div className="space-y-2">
+              <Label>应还金额 <span className="text-destructive">*</span></Label>
+              <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" />
+            </div>
             <div className="space-y-2"><Label>优惠(券/抵扣)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
             <div className="col-span-2 space-y-1">
-              <Label>实付支出（= 应还 - 优惠）</Label>
+              <Label>实际支付（= 应还 - 优惠）</Label>
               <div className="rounded-lg border px-3 py-2 text-sm font-medium">
-                {fmt(Math.max(0, (Number(repayForm.amount) || 0) - (Number(repayForm.discount) || 0)))}
+                {fmt(actualPay())}
                 {(Number(repayForm.discount) || 0) > 0 && (
                   <span className="ml-2 text-xs text-green-600">优惠抵减 {fmt(Number(repayForm.discount))}</span>
                 )}
