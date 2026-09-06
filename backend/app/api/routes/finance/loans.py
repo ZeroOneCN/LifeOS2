@@ -193,6 +193,7 @@ def create_repayment(
         raise HTTPException(status_code=400, detail=f"实付+优惠不能超过剩余欠款 {remaining:.2f}")
     obj = FinanceRepayment(**payload.model_dump(), user_id=user.id)
     db.add(obj)
+    db.flush()  # 先刷新到数据库，_sync_bill 查询时才能看到新记录
     _sync_bill(db, payload.bill_id, user.id)
     db.commit()
     db.refresh(obj)
@@ -260,6 +261,7 @@ def update_repayment(
         raise HTTPException(status_code=400, detail="实付+优惠不能超过剩余欠款")
     for key, value in payload.model_dump().items():
         setattr(obj, key, value)
+    db.flush()  # 先刷新到数据库，_sync_bill 查询时才能看到更新后的值
     _sync_bill(db, obj.bill_id, user.id)
     db.commit()
     db.refresh(obj)
@@ -276,6 +278,7 @@ def delete_repayment(
     if not obj or obj.user_id != user.id:
         raise HTTPException(status_code=404, detail="记录不存在")
     db.delete(obj)
+    db.flush()  # 先刷新到数据库，_sync_bill 查询时才能排除已删除的记录
     _sync_bill(db, obj.bill_id, user.id)
     db.commit()
     return None
