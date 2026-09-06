@@ -213,7 +213,7 @@ export function ItemsPage() {
 
   const openBatchEdit = (ids: number[], clearSelection: () => void) => {
     setBatchIds(ids)
-    setBatchForm({})
+    setBatchForm({ category: '购物', status: 'recycled' })
     setBatchDialogOpen(true)
   }
 
