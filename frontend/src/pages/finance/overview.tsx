@@ -174,7 +174,7 @@ export function FinanceOverviewPage() {
         )}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -188,23 +188,6 @@ export function FinanceOverviewPage() {
               <p className="py-8 text-center text-sm text-muted-foreground">暂无待支付榜单</p>
             ) : (
               data.pending_bills.map((b) => <ItemRow key={b.id} item={b} />)
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Receipt className="size-4 text-sky-500" />
-              待缴水电
-            </CardTitle>
-            <CardDescription>尚未支付的水电燃气账单</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.pending_utils.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">暂无待缴水电账单</p>
-            ) : (
-              data.pending_utils.map((u) => <ItemRow key={u.id} item={u} />)
             )}
           </CardContent>
         </Card>
