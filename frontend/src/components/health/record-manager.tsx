@@ -146,10 +146,10 @@ export function RecordManager<T extends { id: number }>({
     setPage(1)
   }
 
-  // 翻页/刷新时清空选择
+  // 翻页时清空选择
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [page, items])
+  }, [page])
 
   const allVisibleSelected = enableBatch && items.length > 0 && items.every((r) => selectedIds.has(r.id))
   const someVisibleSelected = enableBatch && items.length > 0 && !allVisibleSelected && items.some((r) => selectedIds.has(r.id))
