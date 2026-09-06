@@ -88,11 +88,6 @@ const PERIODS = [
 
 const periodLabel = (p: string) => PERIODS.find((x) => x.value === p)?.label ?? p
 const periodOrder = PERIODS.map((p) => p.value)
-const periodIndex = (p: string) => periodOrder.indexOf(p)
-
-// 明细排序：日期倒序（最新在前），同日按时段倒序（23:59 在最上；补录数据落在对应时间段槽位）
-const sortByDateThenPeriod = (a: StepsRecord, b: StepsRecord) =>
-  b.record_date.localeCompare(a.record_date) || periodIndex(b.period) - periodIndex(a.period)
 
 const EMPTY = {
   record_date: new Date().toISOString().slice(0, 10),
@@ -527,7 +522,7 @@ export function StepsPage() {
                   </TableRow>
                 )
               ) : (
-                [...items].sort(sortByDateThenPeriod).map((row) => (
+                items.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>{row.record_date}</TableCell>
                     <TableCell>{periodLabel(row.period)}</TableCell>
