@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Loader2, ShoppingCart, PenBox } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -187,6 +187,7 @@ export function ItemsPage() {
   const [batchForm, setBatchForm] = useState<Record<string, string>>({})
   const [batchSaving, setBatchSaving] = useState(false)
   const [batchIds, setBatchIds] = useState<number[]>([])
+  const clearSelectionRef = useRef<() => void>(() => {})
 
   const batchEditFields: FieldDef[] = [
     {
@@ -213,6 +214,7 @@ export function ItemsPage() {
 
   const openBatchEdit = (ids: number[], clearSelection: () => void) => {
     setBatchIds(ids)
+    clearSelectionRef.current = clearSelection
     setBatchForm({ category: '购物', status: 'recycled' })
     setBatchDialogOpen(true)
   }
@@ -233,6 +235,7 @@ export function ItemsPage() {
     try {
       await api.put('/lifestyle/items/batch-update', { ids: batchIds, updates })
       setBatchDialogOpen(false)
+      clearSelectionRef.current()
       setRefresh((v) => v + 1)
       toast.success(`已批量更新 ${batchIds.length} 条记录`)
     } catch (e) {
