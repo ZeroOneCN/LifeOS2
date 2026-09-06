@@ -243,7 +243,7 @@ def overview(
         "pending_bills": [
             {
                 "id": r.id,
-                "bill_type": f"网贷账单-{r.bill_month}",
+                "bill_type": f"网贷账单-{r.due_date}",
                 "amount": r.amount,
                 "remaining": round(r.amount - r.paid_amount, 2),
                 "due_date": r.due_date,
