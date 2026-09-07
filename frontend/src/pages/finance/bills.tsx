@@ -479,11 +479,13 @@ function HousingTab() {
             const days = stats.houses.reduce((s, h) => s + houseDays(h), 0)
             const incurred = stats.houses.reduce((s, h) => s + houseIncurred(h), 0)
             const avgDaily = days ? incurred / days : 0
-            // 合同月租合计（按季付折算为月）
-            const contractMonthly = stats.houses.reduce((s, h) => s + (h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent), 0)
-            // 月均水电 = 已缴水电总额 / 居住月数
-            const totalUtilPaid = stats.houses.reduce((s, h) => s + houseUtilsPaid(h), 0)
-            const totalMonths = days / 30
+            // 合同月租合计（按季付折算为月，仅统计在住的房屋）
+            const activeHouses = stats.houses.filter((h) => !h.move_out_date)
+            const contractMonthly = activeHouses.reduce((s, h) => s + (h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent), 0)
+            // 月均水电 = 在住房源已缴水电总额 / 居住月数
+            const totalUtilPaid = activeHouses.reduce((s, h) => s + houseUtilsPaid(h), 0)
+            const activeDays = activeHouses.reduce((s, h) => s + houseDays(h), 0)
+            const totalMonths = activeDays / 30
             const avgUtil = totalMonths > 0 ? totalUtilPaid / totalMonths : 0
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
