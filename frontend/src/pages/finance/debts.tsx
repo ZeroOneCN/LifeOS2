@@ -260,14 +260,9 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
         amount: Number(editPaymentForm.amount),
         note: editPaymentForm.note || null,
       })
-      setPayments((prev) =>
-        prev.map((x) =>
-          x.id === payment.id
-            ? { ...x, repay_date: editPaymentForm.repay_date, amount: Number(editPaymentForm.amount), note: editPaymentForm.note || undefined }
-            : x,
-        ),
-      )
       setEditPaymentTarget(null)
+      const list = await api.query<DebtPayment[]>(`/finance/debts/${debt.id}/payments`)
+      setPayments(list)
       await load()
       setRefresh((v) => v + 1)
       toast.success('还款明细已更新')
