@@ -511,7 +511,7 @@ function HousingTab() {
           {sortedHouses.length > 0 && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">住房清单 · 单日成本与月租</CardTitle>
+                <CardTitle className="text-sm font-medium">住房清单 · 当月租金与水电</CardTitle>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
                   <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
@@ -543,22 +543,19 @@ function HousingTab() {
                       </Badge>
                     </div>
 
-                    {/* 主视觉：单日成本 */}
-                    <div className="mt-3 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 p-3">
-                      <div className="flex items-baseline justify-between">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">平均单日成本</p>
-                        <p className="text-[11px] font-medium text-violet-500">{termLabel} · {days} 天</p>
+                    {/* 主视觉：当月租金与水电 */}
+                    <div className="mt-3 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          当月租金 <span className="text-lg text-emerald-600">{fmt(hMonthRent)}</span>
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                          当月水电 <span className="text-lg text-amber-600">{fmt(hMonthUtil)}</span>
+                        </p>
                       </div>
-                      <p className="mt-1 text-2xl font-bold leading-none text-red-600">
-                        {daily > 0 ? fmt(daily) : '—'}
-                      </p>
-                      <div className="mt-1 flex items-baseline justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">
-                          当月租金 <span className="font-semibold text-foreground">{hMonthRent > 0 ? fmt(hMonthRent) : '—'}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          当月水电 <span className="font-semibold text-foreground">{hMonthUtil > 0 ? fmt(hMonthUtil) : '—'}</span>
-                        </p>
+                      <div className="mt-2 flex items-center justify-between border-t border-indigo-200/50 pt-2 text-xs text-muted-foreground">
+                        <span>入住 {days} 天 · {termLabel}</span>
+                        <span>单日 <span className="font-medium text-red-600">{daily > 0 ? fmt(daily) : '—'}</span></span>
                       </div>
                     </div>
 
