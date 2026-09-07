@@ -336,12 +336,12 @@ export function ActivityLogsPage() {
                         {formatTime(row.created_at)}
                       </span>
                       {row.ip && (
-                        <span className="text-xs text-muted-foreground" title={row.ip}>
+                        <Badge variant="outline" className="text-xs font-normal">
                           IP: {row.ip}
-                        </span>
+                        </Badge>
                       )}
                       {row.user_agent && (
-                        <span className="max-w-[320px] truncate text-xs text-muted-foreground" title={row.user_agent}>
+                        <span className="text-xs text-muted-foreground" title={row.user_agent}>
                           UA: {row.user_agent}
                         </span>
                       )}
