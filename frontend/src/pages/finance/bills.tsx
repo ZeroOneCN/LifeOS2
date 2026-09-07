@@ -152,7 +152,8 @@ function HousingTab() {
     return res.items
   }
   const loadStats = async () => {
-    api.query<HousingStats>('/finance/housing/stats').then(setStats).catch(() => setStats(null))
+    try { setStats(await api.query<HousingStats>('/finance/housing/stats')) }
+    catch { setStats(null) }
   }
   const loadUtilities = async () => {
     const res = await api.list<Utility>('/finance/utilities', { page_size: 100 })
@@ -1074,7 +1075,8 @@ function SubscriptionTab() {
   const load = async () => {
     const res = await api.list<Subscription>('/finance/subscriptions', { page_size: 100 })
     setItems(res.items)
-    api.stats<SubStats>('/finance/subscriptions').then(setStats).catch(() => setStats(null))
+    try { setStats(await api.stats<SubStats>('/finance/subscriptions')) }
+    catch { setStats(null) }
   }
   const loadCategories = async () => {
     api.list<SubCategory>('/finance/subscription-categories', { page_size: 100 }).then((res) => setCategories(res.items)).catch(() => setCategories([]))
