@@ -346,8 +346,8 @@ function HousingTab() {
     if (end < start) return 0
     return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
   }
-  // 杂费（中介+保洁+洗衣；服务费已含在付款期次中）
-  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
+  // 杂费（中介/保洁/服务/洗衣）
+  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.service_fee || 0) + (h.laundry_fee || 0)
   // 当月已交期次（按到期日落在当月且 paid 算）
   const houseTermsPaidInMonth = (h: Housing, mPrefix: string): number =>
     (termsByHouse[h.id] ?? []).filter((t) => t.paid && t.due_date && t.due_date.startsWith(mPrefix)).reduce((s, t) => s + t.amount, 0)
