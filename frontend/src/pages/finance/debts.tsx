@@ -119,6 +119,8 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const [detailTarget, setDetailTarget] = useState<DebtRecord | null>(null)
   const [payments, setPayments] = useState<DebtPayment[]>([])
   const [saving, setSaving] = useState(false)
+  const [editPaymentTarget, setEditPaymentTarget] = useState<{ debt: DebtRecord; payment: DebtPayment } | null>(null)
+  const [editPaymentForm, setEditPaymentForm] = useState({ repay_date: '', amount: '', note: '' })
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
   const totalPages = Math.max(1, Math.ceil(total / 10))
@@ -236,6 +238,45 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       toast.error('删除失败', {
         description: e instanceof Error ? e.message : '请稍后重试',
       })
+    }
+  }
+
+  const openEditPayment = (p: DebtPayment, d: DebtRecord) => {
+    setEditPaymentForm({ repay_date: p.repay_date, amount: String(p.amount), note: p.note ?? '' })
+    setEditPaymentTarget({ debt: d, payment: p })
+  }
+
+  const submitEditPayment = async () => {
+    if (!editPaymentTarget) return
+    const { debt, payment } = editPaymentTarget
+    if (!editPaymentForm.repay_date || !editPaymentForm.amount) {
+      toast.error('请填写日期和金额')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.patch(`/finance/debts/${debt.id}/payments/${payment.id}`, {
+        repay_date: editPaymentForm.repay_date,
+        amount: Number(editPaymentForm.amount),
+        note: editPaymentForm.note || null,
+      })
+      setPayments((prev) =>
+        prev.map((x) =>
+          x.id === payment.id
+            ? { ...x, repay_date: editPaymentForm.repay_date, amount: Number(editPaymentForm.amount), note: editPaymentForm.note || undefined }
+            : x,
+        ),
+      )
+      setEditPaymentTarget(null)
+      await load()
+      setRefresh((v) => v + 1)
+      toast.success('还款明细已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -461,7 +502,10 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="font-medium text-green-600">{fmtMoney(p.amount)}</span>
                     {detailTarget && (
-                      <Button variant="ghost" size="icon" className="size-7 text-destructive" title="删除明细并回滚剩余" onClick={() => deletePayment(p, detailTarget)}><Trash2 className="size-4" /></Button>
+                      <>
+                        <Button variant="ghost" size="icon" className="size-7" title="修改明细" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button>
+                        <Button variant="ghost" size="icon" className="size-7 text-destructive" title="删除明细并回滚剩余" onClick={() => deletePayment(p, detailTarget)}><Trash2 className="size-4" /></Button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -472,6 +516,25 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       </Dialog>
 
       {confirmDialog}
+
+      {/* 修改还款明细弹窗 */}
+      <Dialog open={editPaymentTarget !== null} onOpenChange={(o) => !o && setEditPaymentTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修改还款明细</DialogTitle>
+            <DialogDescription>更新日期、金额或备注，剩余金额将自动重新计算</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={editPaymentForm.repay_date} onChange={(v) => setEditPaymentForm({ ...editPaymentForm, repay_date: v })} /></div>
+            <div className="space-y-2"><Label>金额 *</Label><Input type="number" min={0.01} step="0.01" value={editPaymentForm.amount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} /></div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={editPaymentForm.note} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPaymentTarget(null)}>取消</Button>
+            <Button onClick={submitEditPayment} disabled={saving}><Pencil className="size-4" /> 保存修改</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

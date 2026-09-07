@@ -176,6 +176,45 @@ def list_debt_payments(
     ]
 
 
+@router.patch("/finance/debts/{item_id}/payments/{payment_id}")
+def update_debt_payment(
+    item_id: int,
+    payment_id: int,
+    payload: DebtRepayPayload,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """修改一笔还款明细：更新日期、金额、备注，并重新同步债务剩余金额。"""
+    debt = db.get(FinanceDebt, item_id)
+    if not debt or debt.user_id != user.id:
+        raise HTTPException(status_code=404, detail="债务记录不存在")
+    payment = db.get(FinanceDebtPayment, payment_id)
+    if not payment or payment.debt_id != item_id or payment.user_id != user.id:
+        raise HTTPException(status_code=404, detail="还款明细不存在")
+
+    # 回滚旧金额，加上新金额重新计算
+    old_amount = payment.amount
+    current = (debt.remaining if debt.remaining is not None else debt.amount) + old_amount
+    if payload.amount > current + 1e-6:
+        raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余 {current:.2f}")
+
+    # 更新还款记录
+    payment.repay_date = payload.repay_date
+    payment.amount = round(payload.amount, 2)
+    payment.note = payload.note
+
+    # 更新债务剩余
+    debt.remaining = round(current - payload.amount, 2)
+    if debt.remaining <= 1e-6:
+        debt.remaining = 0
+        debt.status = "settled"
+    elif debt.remaining > 1e-6 and debt.status == "settled":
+        debt.status = "active"
+
+    db.commit()
+    return {"id": debt.id, "remaining": debt.remaining, "status": debt.status}
+
+
 @router.delete("/finance/debts/{item_id}/payments/{payment_id}")
 def delete_debt_payment(
     item_id: int,
