@@ -58,21 +58,53 @@ type ActivityStats = {
 const MODULE_NAMES: Record<string, string> = {
   'health/vitals-sleep': '睡眠体征',
   'health/fitness': '健身运动',
+  'health/diet': '饮食记录',
+  'health/body': '体重记录',
   'health/steps': '步数统计',
   'health/checkup': '体检指标',
   'health/reports': '健康报告',
   'health/medication': '用药跟踪',
-  'finance/purchases': '购买记录',
-  'finance/travel': '旅行开支',
-  'finance/bills': '账单管理',
+  'health/medication/purchases': '购药记录',
+  'health/medication/stocks': '药品库存',
+  'finance/shopping/records': '购物记录',
+  'finance/shopping/ledgers': '购物账本',
+  'finance/shopping/platforms': '购物平台',
+  'finance/shopping/import': '购物记录',
+  'finance/travel/details': '行程明细',
+  'finance/travel/ledgers': '行程账本',
+  'finance/travel/reports': '旅行报告',
+  'finance/housing': '房租水电',
+  'finance/utilities': '水电账单',
+  'finance/subscriptions': '服务订阅',
+  'finance/subscription-categories': '订阅分类',
+  'finance/loan-platforms': '借款平台',
+  'finance/loan-bills': '网贷账单',
+  'finance/repayments': '还款记录',
+  'finance/investments': '投资记账',
+  'finance/memos': '备忘录',
+  'finance/currencies': '汇率设置',
   'finance/reminders': '账单提醒',
   'finance/planning': '财务规划',
+  'finance/debts': '债务管理',
+  'finance/reports': '财务报告',
   'lifestyle/items': '物品追踪',
   'lifestyle/sim-cards': '卡片管理',
   'lifestyle/todos': '待办清单',
   'lifestyle/schedule': '日程管理',
   'investment/forex': '外汇交易',
   notifications: '通知中心',
+  'user/profile': '个人资料',
+  'user/settings': '账号设置',
+  'auth/login': '登录系统',
+  'auth/register': '注册账号',
+  'backup/export': '数据导出',
+  'backup/import': '数据导入',
+  'backup/exports': '备份文件',
+  'backup/schedules': '定时备份',
+  'notifications/scan': '提醒扫描',
+  'notifications/channels': '通知渠道',
+  'notifications/settings': '提醒设置',
+  'notifications/templates': '通知模板',
 }
 
 const ACTION_META: Record<string, { name: string; className: string; icon: LucideIcon }> = {
@@ -287,7 +319,7 @@ export function ActivityLogsPage() {
                 const Icon = meta.icon
                 return (
                   <li key={row.id} className="rounded-lg border px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span
                         className={`flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}
                       >
@@ -300,14 +332,16 @@ export function ActivityLogsPage() {
                           ID: {row.resource_id}
                         </span>
                       )}
-                      <span className="ml-auto text-xs text-muted-foreground">
+                      <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
                         {formatTime(row.created_at)}
                       </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                      {row.ip && <span>IP: {row.ip}</span>}
+                      {row.ip && (
+                        <span className="text-xs text-muted-foreground" title={row.ip}>
+                          IP: {row.ip}
+                        </span>
+                      )}
                       {row.user_agent && (
-                        <span className="truncate max-w-[400px]" title={row.user_agent}>
+                        <span className="max-w-[320px] truncate text-xs text-muted-foreground" title={row.user_agent}>
                           UA: {row.user_agent}
                         </span>
                       )}
