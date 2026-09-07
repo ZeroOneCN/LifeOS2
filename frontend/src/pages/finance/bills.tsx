@@ -482,7 +482,7 @@ function HousingTab() {
             // 当月租金 = 后端按自然月折算的租金合计（含多套房重叠天数）
             const monthlyRent = stats.combined_monthly_rent
             // 当月水电 = 当前 bill_month 的已缴水电合计
-            const monthUtil = utilities.filter((u) => u.bill_month === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
+            const monthUtil = utilities.filter((u) => u.bill_month.slice(0, 7) === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <StatCard icon={Home} label="住房数" value={`${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
@@ -529,7 +529,7 @@ function HousingTab() {
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
                 // 当月租金（按自然月折算，含重叠天数），当月水电（当前 bill_month 的已缴）
                 const hMonthRent = h.monthly_contribution ?? 0
-                const hMonthUtil = utilities.filter((u) => u.housing_id === h.id && u.bill_month === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
+                const hMonthUtil = utilities.filter((u) => u.housing_id === h.id && u.bill_month.slice(0, 7) === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
                 return (
                   <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
                     {/* 头部：名称 + 状态 */}
@@ -553,7 +553,7 @@ function HousingTab() {
                           当月水电 <span className="text-lg text-amber-600">{fmt(hMonthUtil)}</span>
                         </p>
                       </div>
-                      <div className="mt-2 flex items-center justify-between border-t border-indigo-200/50 pt-2 text-xs text-muted-foreground">
+                      <div className="mt-2 flex items-center justify-between border-t border-indigo-200/50 pt-2 text-sm text-muted-foreground">
                         <span>入住 {days} 天 · {termLabel}</span>
                         <span>单日 <span className="font-medium text-red-600">{daily > 0 ? fmt(daily) : '—'}</span></span>
                       </div>
