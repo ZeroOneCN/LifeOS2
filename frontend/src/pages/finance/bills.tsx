@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Eye,
   FileText,
   Home,
   Layers,
@@ -134,7 +133,6 @@ function HousingTab() {
   const [uGroup, setUGroup] = useState<null | { housing_id?: number; bill_month: string; ids: number[] }>(null)
   const [viewH, setViewH] = useState<null | Housing>(null)
   const [housePage, setHousePage] = useState(1)
-  const [houseTablePage, setHouseTablePage] = useState(1)
   const [utilityPage, setUtilityPage] = useState(1)
   const [form, setForm] = useState<Record<string, string>>({})
   const [channels, setChannels] = useState<RentChannel[]>([])
@@ -307,11 +305,6 @@ function HousingTab() {
   const houseTotalPages = Math.max(1, Math.ceil(sortedHouses.length / HOUSING_PAGE_SIZE))
   const pagedHouses = sortedHouses.slice((housePage - 1) * HOUSING_PAGE_SIZE, housePage * HOUSING_PAGE_SIZE)
 
-  // 住房信息表格前端分页
-  const HOUSE_TABLE_PAGE_SIZE = 8
-  const houseTableTotalPages = Math.max(1, Math.ceil(houses.length / HOUSE_TABLE_PAGE_SIZE))
-  const pagedTableHouses = houses.slice((houseTablePage - 1) * HOUSE_TABLE_PAGE_SIZE, houseTablePage * HOUSE_TABLE_PAGE_SIZE)
-
   useEffect(() => {
     loadHouses().then((list) => { if (list.length) list.forEach((h) => loadTermsForHouse(h.id)) })
     loadStats()
@@ -329,16 +322,11 @@ function HousingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [houseTotalPages])
 
-  useEffect(() => {
-    if (houseTablePage > houseTableTotalPages) setHouseTablePage(houseTableTotalPages)
-    if (houseTablePage < 1) setHouseTablePage(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [houseTableTotalPages])
-
   const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
   const houseShort = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
 
-  // 住房居住天数与总成本（不含押金）口径：居住天数=入住~退租（含退租日）
+  // ========== 算法统一为「当月口径」（与后端 /finance/housing/stats 一致）==========
+  // 整段居住周期天数（含首尾）：入住~退租
   const hDays = (h: Housing): number => {
     if (!h.move_in_date) return 0
     const a = new Date(h.move_in_date).getTime()
@@ -346,23 +334,29 @@ function HousingTab() {
     if (b < a) return 0
     return Math.floor((b - a) / 86400000) + 1
   }
-
-  // 住房统一成本口径：已发生成本=已交期次+已缴水电+杂费；平均单日=已发生成本/居住天数；折算月租=单日×30
+  // 居住天数 = 整段居住周期天数（用于住房清单展示）
   const houseDays = (h: Housing): number => hDays(h)
-  // 服务费已含在付款期次金额里不再计入；中介费为单另费用、保洁/洗衣一并计入成本
-  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
-  const houseTermsPaid = (h: Housing): number => (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
-  const houseUtilsPaid = (h: Housing): number => utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
-  const houseIncurred = (h: Housing): number => houseTermsPaid(h) + houseUtilsPaid(h) + houseFees(h)
-  const houseDaily = (h: Housing): number => {
-    const d = houseDays(h)
-    return d ? houseIncurred(h) / d : 0
+  // 当月居住天数 = 与 stats.month 同月区间内的居住天数
+  const houseDaysInMonth = (h: Housing, mStart: Date, mEnd: Date): number => {
+    if (!h.move_in_date) return 0
+    const start = new Date(h.move_in_date) > mStart ? new Date(h.move_in_date) : mStart
+    const outDate = h.move_out_date ? new Date(h.move_out_date) : new Date()
+    const end = outDate < mEnd ? outDate : mEnd
+    if (end < start) return 0
+    return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
   }
-  // 月均水电 = 已缴水电 ÷ 居住月数（水电滞后录入，用均值才能反映真实月度水平）
-  const houseAvgMonthlyUtil = (h: Housing): number => {
-    const d = houseDays(h)
-    const months = d / 30
-    return months > 0 ? houseUtilsPaid(h) / months : 0
+  // 杂费（中介+保洁+洗衣；服务费已含在付款期次中）
+  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
+  // 当月已交期次（按到期日落在当月且 paid 算）
+  const houseTermsPaidInMonth = (h: Housing, mPrefix: string): number =>
+    (termsByHouse[h.id] ?? []).filter((t) => t.paid && t.due_date && t.due_date.startsWith(mPrefix)).reduce((s, t) => s + t.amount, 0)
+  // 当月已缴水电（按账单月）
+  const houseUtilsPaidInMonth = (h: Housing, mPrefix: string): number =>
+    utilities.filter((u) => u.housing_id === h.id && u.paid && u.bill_month.startsWith(mPrefix)).reduce((s, u) => s + u.amount, 0)
+  // 当月已发生成本 = 当月已交期次 + 当月已缴水电 + 当月分摊杂费
+  // 注：杂费仅一次性支出，按"是否在本月之前入住"判断全计入入住当月；这里为简化直接平均到所有月份
+  const houseIncurredInMonth = (h: Housing, mPrefix: string): number => {
+    return houseTermsPaidInMonth(h, mPrefix) + houseUtilsPaidInMonth(h, mPrefix)
   }
 
   const openCreate = () => {
@@ -481,44 +475,31 @@ function HousingTab() {
     <div className="flex flex-col gap-4">
       {stats && (
         <>
-          {(stats?.houses.length ?? 0) > 0 && (() => {
-            const days = stats.houses.reduce((s, h) => s + houseDays(h), 0)
-            const incurred = stats.houses.reduce((s, h) => s + houseIncurred(h), 0)
-            const avgDaily = days ? incurred / days : 0
-            // 每月总费用口径：仅统计在住合同的「合同月租 + 月均水电」
-            // 水电滞后录入（8月账单9月才记），按当前月过滤恒为0，故用月均值反映真实月度水平
-            const active = stats.houses.filter((h) => !h.move_out_date)
-            const contractMonthly = active.reduce((s, h) => s + (h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent), 0)
-            const avgUtilMonthly = active.reduce((s, h) => s + houseAvgMonthlyUtil(h), 0)
+          {(() => {
+            // 统一使用后端 stats.month 作为当月口径
+            const mPrefix = (stats?.month ?? '').slice(0, 7)
+            const [y, mo] = mPrefix.split('-').map(Number)
+            const mStart = new Date(y, (mo || 1) - 1, 1)
+            const mEnd = new Date(y, (mo || 1), 0) // 当月最后一天
+            // 当月实际居住总天数
+            const daysInMonth = stats.houses.reduce((s, h) => s + houseDaysInMonth(h, mStart, mEnd), 0)
+            // 当月已发生成本 = Σ 各套当月已交期次 + Σ 各套当月已缴水电
+            const incurred = stats.houses.reduce((s, h) => s + houseIncurredInMonth(h, mPrefix), 0)
+            const avgDaily = daysInMonth ? incurred / daysInMonth : 0
+            const occupiedCount = stats.houses.filter((h) => !h.move_out_date).length
             return (
-              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                <StatCard icon={Home} label="住房数" value={`${stats.houses.length} 套`} hint={`在住 ${active.length} 套`} className="text-indigo-500" />
-                <StatCard icon={Building} label="总居住天数" value={`${days} 天`} className="text-blue-500" />
-                <StatCard icon={Wallet} label="已发生成本(不含押金)" value={fmt(incurred)} hint="已交期次+已缴水电+杂费" className="text-amber-500" />
-                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={`${days} 天均摊`} className="text-red-500" />
-                <Card className="border-emerald-200">
-                  <CardHeader className="pb-1">
-                    <CardTitle className="flex items-center gap-1 text-sm font-medium">
-                      <Wallet className="size-4 text-emerald-500" />
-                      <span>每月总费用</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-3">
-                    <div className="text-xl font-bold text-emerald-600">{fmt(contractMonthly + avgUtilMonthly)}</div>
-                    <div className="text-xs text-muted-foreground">合同月租 {fmt(contractMonthly)} + 月均水电 {fmt(avgUtilMonthly)}</div>
-                    <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>在住 {active.length} 套</span>
-                      <span className="font-semibold text-foreground">实际月均 {fmt(avgDaily * 30)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
+                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint={`当月折算`} className="text-emerald-500" />
+                <StatCard icon={Wallet} label="当月已发生成本" value={fmt(incurred)} hint="已交期次+已缴水电" className="text-amber-500" />
+                <StatCard icon={Wallet} label="折算月租" value={fmt(avgDaily * 30)} hint={daysInMonth ? `${daysInMonth} 天 × 单日 ${fmt(avgDaily)}` : '当月无居住天数'} className="text-red-500" />
               </section>
             )
           })()}
           {sortedHouses.length > 0 && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">住房清单 · 合同月租与月均水电</CardTitle>
+                <CardTitle className="text-sm font-medium">住房清单</CardTitle>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
                   <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
@@ -527,16 +508,12 @@ function HousingTab() {
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {pagedHouses.map((h) => {
-                const tPaid = houseTermsPaid(h)
-                const uPaid = houseUtilsPaid(h)
-                const fees = houseFees(h)
-                const incurred = houseIncurred(h)
+                const mPrefix = (stats?.month ?? '').slice(0, 7)
+                const tPaid = houseTermsPaidInMonth(h, mPrefix)
+                const uPaid = houseUtilsPaidInMonth(h, mPrefix)
+                const incurredMonth = tPaid + uPaid
                 const days = houseDays(h)
-                const daily = days ? incurred / days : 0
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
-                // 合同月租（按季付折算为月）+ 月均水电（已缴÷居住月数，水电滞后录入故用均值）
-                const hContractMonthly = h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent
-                const hAvgUtil = houseAvgMonthlyUtil(h)
                 return (
                   <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
                     {/* 头部：名称 + 状态 */}
@@ -550,44 +527,25 @@ function HousingTab() {
                       </Badge>
                     </div>
 
-                    {/* 主视觉：每月费用（合同月租 + 月均水电） */}
-                    <div className="mt-3 rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground">
-                          合同月租 <span className="text-lg text-emerald-600">{fmt(hContractMonthly)}</span>
-                        </p>
-                        <p className="text-sm font-semibold text-foreground">
-                          月均水电 <span className="text-lg text-amber-600">{fmt(hAvgUtil)}</span>
-                        </p>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between border-t border-indigo-200/50 pt-2 text-sm text-muted-foreground">
-                        <span>入住 {days} 天 · {termLabel}</span>
-                        <span>单日 <span className="font-medium text-red-600">{daily > 0 ? fmt(daily) : '—'}</span></span>
-                      </div>
+                    {/* 主信息：月租 + 居住周期 */}
+                    <div className="mt-3 flex items-baseline justify-between">
+                      <p className="text-2xl font-bold leading-none text-emerald-600">
+                        {fmt(h.actual_monthly_rent || 0)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{termLabel} · {days} 天</p>
                     </div>
 
-                    {/* 已发生成本汇总 */}
-                    <div className="mt-3 flex items-center justify-between border-b pb-2">
-                      <span className="text-muted-foreground">已发生成本</span>
-                      <span className="text-lg font-semibold text-amber-600">{fmt(incurred)}</span>
+                    {/* 当月已发生成本（高亮） */}
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-amber-50 px-2 py-1.5">
+                      <span className="text-xs text-amber-700">当月已发生</span>
+                      <span className="text-sm font-semibold text-amber-700">{fmt(incurredMonth)}</span>
                     </div>
 
-                    {/* 构成明细 */}
-                    <div className="mt-2 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">租金（已交期次）</span>
-                        <span className="text-sm font-medium">{tPaid > 0 ? fmt(tPaid) : '—'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">水电燃气（已缴）</span>
-                        <span className="text-sm font-medium">{uPaid > 0 ? fmt(uPaid) : '—'}</span>
-                      </div>
-                      {fees > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">杂费</span>
-                          <span className="text-sm font-medium">{fmt(fees)}</span>
-                        </div>
-                      )}
+                    {/* 操作按钮 */}
+                    <div className="mt-3 flex items-center justify-end gap-1">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setViewH(h)}>查看明细</Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="编辑" onClick={() => openEdit(h)}><Pencil className="size-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeHousing(h)}><Trash2 className="size-3.5" /></Button>
                     </div>
                   </div>
                 )
@@ -598,58 +556,10 @@ function HousingTab() {
         </>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">住房信息</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => { setNewChannel(''); setChannelDialog(true) }}><Layers className="size-4" /> 渠道设置</Button>
-            <Button size="sm" onClick={openCreate}><Plus /> 新增住房</Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>名称</TableHead><TableHead>小区名</TableHead><TableHead>朝向</TableHead><TableHead>渠道</TableHead><TableHead>入住/退租</TableHead>
-                <TableHead className="text-right">已发生成本</TableHead><TableHead className="text-right">居住天数</TableHead><TableHead className="w-24 text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {houses.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无住房信息</TableCell></TableRow>
-              ) : pagedTableHouses.map((h) => {
-                const inD = h.move_in_date ? new Date(h.move_in_date) : null
-                const outD = h.move_out_date ? new Date(h.move_out_date) : (inD ? new Date() : null)
-                const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
-                const incurredCost = houseIncurred(h)
-                return (
-                <TableRow key={h.id}>
-                  <TableCell className="font-medium">{h.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{h.short_name ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{h.orientation ?? '—'}</TableCell>
-                  <TableCell>{h.channel ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{h.move_in_date}{h.move_out_date ? ` ~ ${h.move_out_date}` : '（在住）'}</TableCell>
-                  <TableCell className="text-right font-medium">{incurredCost > 0 ? fmt(incurredCost) : '—'}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{days > 0 ? `${days} 天` : '—'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" title="查看详情" onClick={() => setViewH(h)}><Eye /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(h)}><Pencil /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeHousing(h)}><Trash2 /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-          {houses.length > HOUSE_TABLE_PAGE_SIZE && (
-            <div className="border-t p-3">
-              <PaginationBar page={houseTablePage} totalPages={houseTableTotalPages} total={houses.length} onPageChange={setHouseTablePage} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setNewChannel(''); setChannelDialog(true) }}><Layers className="size-4" /> 渠道设置</Button>
+        <Button size="sm" onClick={openCreate}><Plus /> 新增住房</Button>
+      </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -660,12 +570,12 @@ function HousingTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead>其他</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead><TableHead className="w-16 text-right">操作</TableHead>
+                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead><TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {utilityGroups.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
               ) : pagedUtilityGroups.map((g) => (
                 <TableRow key={g.key}>
                   <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
@@ -673,15 +583,12 @@ function HousingTab() {
                   <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {Object.entries(g.byType)
-                      .filter(([f]) => !['电费','水费','燃气费'].includes(f))
-                      .map(([f, v]) => `${f} ${fmt(v)}`).join('，') || '—'}
-                  </TableCell>
                   <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
                   <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" title="明细/编辑" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" title="明细/编辑" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -854,8 +761,18 @@ function HousingTab() {
               .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
             const utilTotal = myUtils.reduce((s, u) => s + u.amount, 0)
             const utilPaid = myUtils.filter((u) => u.paid).reduce((s, u) => s + u.amount, 0)
-            const incurred = houseIncurred(viewH)
-            const daily = houseDaily(viewH)
+            // 整段历史已发生成本（仅供详情弹窗参考；卡片用当月口径）
+            const allTermsPaid = (termsByHouse[viewH.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+            const allUtilsPaid = utilPaid
+            const allFees = houseFees(viewH)
+            const incurred = allTermsPaid + allUtilsPaid + allFees
+            const daily = days ? incurred / days : 0
+            const mPrefix = (stats?.month ?? new Date().toISOString().slice(0, 7)).slice(0, 7)
+            const [yy, mm] = mPrefix.split('-').map(Number)
+            const mStart = new Date(yy, (mm || 1) - 1, 1)
+            const mEnd = new Date(yy, (mm || 1), 0)
+            const daysInMonth = houseDaysInMonth(viewH, mStart, mEnd)
+            const incurredMonth = houseIncurredInMonth(viewH, mPrefix)
             const rows: [string, string][] = [
               ['小区名', viewH.short_name || '—'],
               ['租房渠道', viewH.channel || '—'],
@@ -875,10 +792,10 @@ function HousingTab() {
               ['居住月数', `${months} 个月（${days} 天）`],
             ]
             const costRows: [string, string][] = [
-              ['已发生成本(不含押金)', incurred > 0 ? fmt(incurred) : '—'],
-              ['水电合计(已缴)', utilPaid > 0 ? fmt(utilPaid) : '—'],
-              ['月均水电', utilPaid > 0 && days > 0 ? fmt(utilPaid / (days / 30)) : '—'],
-              ['平均单日成本', daily > 0 ? fmt(daily) : '—'],
+              ['当月已发生成本', incurredMonth > 0 ? fmt(incurredMonth) : '—'],
+              [`当月居住天数`, daysInMonth > 0 ? `${daysInMonth} 天` : '—'],
+              ['整段已发生成本(含杂费)', incurred > 0 ? fmt(incurred) : '—'],
+              ['整段平均单日成本', daily > 0 ? fmt(daily) : '—'],
               ['折算月租(单日×30)', daily > 0 ? fmt(daily * 30) : '—'],
             ]
             return (
@@ -902,14 +819,12 @@ function HousingTab() {
                     ))}
                   </dl>
                 </div>
-                <div className="mt-3">
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-sm font-medium">水电账单明细</span>
-                    <span className="text-xs text-muted-foreground">已缴 {fmt(utilPaid)} / 待缴 {fmt(utilTotal - utilPaid)}</span>
-                  </div>
-                  {myUtils.length === 0 ? (
-                    <p className="py-3 text-center text-sm text-muted-foreground">暂无水电账单记录</p>
-                  ) : (
+                {myUtils.length > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-sm font-medium">水电账单明细</span>
+                      <span className="text-xs text-muted-foreground">已缴 {fmt(utilPaid)} / 待缴 {fmt(utilTotal - utilPaid)}</span>
+                    </div>
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       {myUtils.map((u) => (
                         <div key={u.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
@@ -921,8 +836,8 @@ function HousingTab() {
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
                 {(() => {
                   const terms = termsByHouse[viewH.id] ?? []
                   const paidCount = terms.filter((t) => t.paid).length

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "LifeOS API"
     API_V1_PREFIX: str = "/api/v1"
     CORS_ORIGINS: list[str] = [
+        "http://localhost:9015",
         "http://127.0.0.1:9015",
     ]
     # 是否允许任意来源跨域（局域网/开发模式访问时启用；关闭后仅放行 CORS_ORIGINS 白名单）
