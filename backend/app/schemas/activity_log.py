@@ -14,4 +14,5 @@ class ActivityLogRead(BaseModel):
     summary: str | None
     detail: str | None
     ip: str | None
+    user_agent: str | None
     created_at: datetime

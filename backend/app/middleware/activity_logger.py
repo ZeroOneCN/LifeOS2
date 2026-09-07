@@ -55,7 +55,7 @@ MODULE_NAMES = {
     "user/settings": "账号设置",
 }
 
-ACTION_NAMES = {"create": "新增", "update": "更新", "delete": "删除"}
+ACTION_NAMES = {"create": "新增", "update": "更新", "patch": "部分更新", "delete": "删除"}
 
 MAX_DETAIL = 2000  # 详情字段最大保留长度
 
@@ -74,7 +74,7 @@ class ActivityLoggerMiddleware:
         method = scope["method"]
         path = scope["path"]
         should_log = (
-            method in ("POST", "PUT", "DELETE")
+            method in ("POST", "PUT", "PATCH", "DELETE")
             and path.startswith(API_PREFIX)
             and not path.startswith(f"{API_PREFIX}/activity-logs")
         )
@@ -115,17 +115,21 @@ class ActivityLoggerMiddleware:
 
         # 从 Authorization 头解析当前用户，写入归属
         user_id = None
+        user_agent = None
         for name, value in scope.get("headers", []):
             if name.lower() == b"authorization":
                 token = value.decode("utf-8", "ignore")
                 if token.lower().startswith("bearer "):
                     user_id = decode_token_user_id(token[7:].strip())
-                break
+            if name.lower() == b"user-agent":
+                user_agent = value.decode("utf-8", "ignore")
+                if user_agent and len(user_agent) > 512:
+                    user_agent = user_agent[:512]
 
         req_data = self._parse_json(body)
         resp_data = self._parse_json(resp_body)
 
-        action = {"POST": "create", "PUT": "update", "DELETE": "delete"}[method]
+        action = {"POST": "create", "PUT": "update", "PATCH": "patch", "DELETE": "delete"}[method]
         segments = [s for s in path[len(API_PREFIX) :].strip("/").split("/")]
         non_numeric = [s for s in segments if not s.isdigit()]
         module = "/".join(non_numeric)
@@ -140,6 +144,11 @@ class ActivityLoggerMiddleware:
                 rid = resp_data.get("id")
                 if isinstance(rid, int):
                     resource_id = rid
+                # 对于 auth/login 和 auth/register，user 对象内嵌 id
+                if resource_id is None and isinstance(resp_data.get("user"), dict):
+                    rid = resp_data["user"].get("id")
+                    if isinstance(rid, int):
+                        resource_id = rid
             if resource_id is None and segments and segments[-1].isdigit():
                 resource_id = int(segments[-1])
 
@@ -166,6 +175,7 @@ class ActivityLoggerMiddleware:
                     summary=summary,
                     detail=detail,
                     ip=ip,
+                    user_agent=user_agent,
                 )
             )
             db.commit()

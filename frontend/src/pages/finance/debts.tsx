@@ -261,9 +261,12 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
         note: editPaymentForm.note || null,
       })
       setEditPaymentTarget(null)
+      // 重新加载债务列表和还款明细，确保弹窗数据实时同步
+      await load()
+      const updated = await api.query<DebtRecord>(`/finance/debts/${debt.id}`)
+      setDetailTarget(updated)
       const list = await api.query<DebtPayment[]>(`/finance/debts/${debt.id}/payments`)
       setPayments(list)
-      await load()
       setRefresh((v) => v + 1)
       toast.success('还款明细已更新')
     } catch (e) {

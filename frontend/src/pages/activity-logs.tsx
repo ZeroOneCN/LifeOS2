@@ -43,6 +43,7 @@ type ActivityRecord = {
   summary: string | null
   detail: string | null
   ip: string | null
+  user_agent: string | null
   created_at: string
 }
 
@@ -301,6 +302,14 @@ export function ActivityLogsPage() {
                       <span className="ml-auto text-xs text-muted-foreground">
                         {formatTime(row.created_at)}
                       </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      {row.ip && <span>IP: {row.ip}</span>}
+                      {row.user_agent && (
+                        <span className="truncate max-w-[400px]" title={row.user_agent}>
+                          UA: {row.user_agent}
+                        </span>
+                      )}
                     </div>
                     {row.detail && (
                       <pre className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">

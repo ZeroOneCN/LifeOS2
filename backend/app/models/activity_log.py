@@ -20,6 +20,7 @@ class ActivityLog(UserOwned, Base):
     summary: Mapped[str | None] = mapped_column(String(255))  # 中文操作摘要
     detail: Mapped[str | None] = mapped_column(Text)  # 操作详情（请求/响应内容）
     ip: Mapped[str | None] = mapped_column(String(45))  # 来源IP
+    user_agent: Mapped[str | None] = mapped_column(String(512))  # 客户端User-Agent
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), index=True
     )
