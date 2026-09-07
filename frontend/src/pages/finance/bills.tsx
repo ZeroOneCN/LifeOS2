@@ -479,14 +479,10 @@ function HousingTab() {
             const days = stats.houses.reduce((s, h) => s + houseDays(h), 0)
             const incurred = stats.houses.reduce((s, h) => s + houseIncurred(h), 0)
             const avgDaily = days ? incurred / days : 0
-            // 合同月租合计（按季付折算为月，仅统计在住的房屋）
-            const activeHouses = stats.houses.filter((h) => !h.move_out_date)
-            const contractMonthly = activeHouses.reduce((s, h) => s + (h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent), 0)
-            // 月均水电 = 在住房源已缴水电总额 / 居住月数
-            const totalUtilPaid = activeHouses.reduce((s, h) => s + houseUtilsPaid(h), 0)
-            const activeDays = activeHouses.reduce((s, h) => s + houseDays(h), 0)
-            const totalMonths = activeDays / 30
-            const avgUtil = totalMonths > 0 ? totalUtilPaid / totalMonths : 0
+            // 当月租金 = 后端按自然月折算的租金合计（含多套房重叠天数）
+            const monthlyRent = stats.combined_monthly_rent
+            // 当月水电 = 当前 bill_month 的已缴水电合计
+            const monthUtil = utilities.filter((u) => u.bill_month === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <StatCard icon={Home} label="住房数" value={`${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
@@ -497,12 +493,12 @@ function HousingTab() {
                   <CardHeader className="pb-1">
                     <CardTitle className="flex items-center gap-1 text-sm font-medium">
                       <Wallet className="size-4 text-emerald-500" />
-                      <span>含水电月租</span>
+                      <span>当月总费用</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pb-3">
-                    <div className="text-xl font-bold text-emerald-600">{fmt(contractMonthly + avgUtil)}</div>
-                    <div className="text-xs text-muted-foreground">合同月租 {fmt(contractMonthly)} + 月均水电 {fmt(avgUtil)}</div>
+                    <div className="text-xl font-bold text-emerald-600">{fmt(monthlyRent + monthUtil)}</div>
+                    <div className="text-xs text-muted-foreground">当月租金 {fmt(monthlyRent)} + 当月水电 {fmt(monthUtil)}</div>
                     <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
                       <span>实际月均</span>
                       <span className="font-semibold text-foreground">{fmt(avgDaily * 30)}</span>
@@ -531,8 +527,9 @@ function HousingTab() {
                 const days = houseDays(h)
                 const daily = days ? incurred / days : 0
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
-                const hContract = h.rent_term === 'quarterly' ? h.actual_monthly_rent / 3 : h.actual_monthly_rent
-                const hAvgUtil = days > 0 ? uPaid / (days / 30) : 0
+                // 当月租金（按自然月折算，含重叠天数），当月水电（当前 bill_month 的已缴）
+                const hMonthRent = h.monthly_contribution ?? 0
+                const hMonthUtil = utilities.filter((u) => u.housing_id === h.id && u.bill_month === stats.month && u.paid).reduce((s, u) => s + u.amount, 0)
                 return (
                   <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
                     {/* 头部：名称 + 状态 */}
@@ -557,10 +554,10 @@ function HousingTab() {
                       </p>
                       <div className="mt-1 flex items-baseline justify-between gap-2">
                         <p className="text-xs text-muted-foreground">
-                          含水电月租 <span className="font-semibold text-foreground">{daily > 0 ? fmt(hContract + hAvgUtil) : '—'}</span>
+                          当月租金 <span className="font-semibold text-foreground">{hMonthRent > 0 ? fmt(hMonthRent) : '—'}</span>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          实际月均 <span className="font-semibold text-foreground">{daily > 0 ? fmt(daily * 30) : '—'}</span>
+                          当月水电 <span className="font-semibold text-foreground">{hMonthUtil > 0 ? fmt(hMonthUtil) : '—'}</span>
                         </p>
                       </div>
                     </div>
