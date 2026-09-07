@@ -509,15 +509,14 @@ function HousingTab() {
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {pagedHouses.map((h) => {
                 const mPrefix = (stats?.month ?? '').slice(0, 7)
-                const tPaid = houseTermsPaidInMonth(h, mPrefix)
-                const uPaid = houseUtilsPaidInMonth(h, mPrefix)
-                const incurredMonth = tPaid + uPaid
                 const days = houseDays(h)
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
                 // 整段已发生成本 = 全部已交期次 + 全部已缴水电 + 杂费
                 const allTermsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
                 const allUtilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
                 const totalSpent = allTermsPaid + allUtilsPaid + houseFees(h)
+                // 平均单日成本
+                const daily = days && totalSpent > 0 ? totalSpent / days : 0
                 return (
                   <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
                     {/* 头部：名称 + 状态 */}
@@ -542,10 +541,10 @@ function HousingTab() {
                       </p>
                     </div>
 
-                    {/* 当月已发生成本（小字提示） */}
-                    <div className="mt-2 flex items-center justify-between rounded-md bg-amber-50 px-2 py-1.5">
-                      <span className="text-xs text-amber-700">当月已发生</span>
-                      <span className="text-sm font-semibold text-amber-700">{fmt(incurredMonth)}</span>
+                    {/* 平均单日成本 */}
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-blue-50 px-2 py-1.5">
+                      <span className="text-xs text-blue-700">平均单日</span>
+                      <span className="text-sm font-semibold text-blue-700">{daily > 0 ? fmt(daily) : '—'}</span>
                     </div>
 
                     {/* 操作按钮 */}
