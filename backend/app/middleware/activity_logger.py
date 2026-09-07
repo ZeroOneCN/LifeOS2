@@ -53,6 +53,18 @@ MODULE_NAMES = {
     "notifications": "通知中心",
     "user/profile": "个人资料",
     "user/settings": "账号设置",
+    "auth/login": "登录系统",
+    "auth/register": "注册账号",
+    "backup/export": "数据导出",
+    "backup/import": "数据导入",
+    "backup/exports": "备份文件",
+    "backup/schedules": "定时备份",
+    "backup/schedules/toggle": "定时备份",
+    "notifications/scan": "提醒扫描",
+    "notifications/read-all": "全部已读",
+    "notifications/channels": "通知渠道",
+    "notifications/settings": "提醒设置",
+    "notifications/templates": "通知模板",
 }
 
 ACTION_NAMES = {"create": "新增", "update": "更新", "patch": "部分更新", "delete": "删除"}

@@ -78,6 +78,7 @@ const MODULE_NAMES: Record<string, string> = {
 const ACTION_META: Record<string, { name: string; className: string; icon: LucideIcon }> = {
   create: { name: '新增', className: 'bg-green-100 text-green-700', icon: Plus },
   update: { name: '更新', className: 'bg-blue-100 text-blue-700', icon: Pencil },
+  patch: { name: '部分更新', className: 'bg-yellow-100 text-yellow-700', icon: Pencil },
   delete: { name: '删除', className: 'bg-red-100 text-red-700', icon: Trash2 },
 }
 
