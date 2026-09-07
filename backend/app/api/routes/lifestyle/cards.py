@@ -26,7 +26,6 @@ from app.schemas.lifestyle import (
     PhoneCardCreate,
     PhoneCardRead,
     PhoneRechargeCreate,
-    PhoneRechargeRead,
 )
 
 router = APIRouter()
@@ -153,6 +152,24 @@ def _phone_extra(api_router: APIRouter):
         db.refresh(card)
         return card
 
+    @api_router.get("/{item_id}/recharges")
+    def get_recharges(
+        item_id: int,
+        limit: int = 10,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """获取指定手机号卡的最近充值记录（用于充值弹窗显示）。"""
+        rows = db.scalars(
+            select(LifestylePhoneRecharge).where(
+                LifestylePhoneRecharge.user_id == user.id,
+                LifestylePhoneRecharge.phone_card_id == item_id,
+            )
+            .order_by(LifestylePhoneRecharge.recharge_date.desc())
+            .limit(limit)
+        ).all()
+        return rows
+
 
 phone_router = crud_router(
     prefix="/lifestyle/phone-cards",
@@ -265,17 +282,5 @@ bill_router = crud_router(
 )
 
 
-recharge_router = crud_router(
-    prefix="/lifestyle/phone-recharges",
-    tag="lifestyle-phone-recharges",
-    model=LifestylePhoneRecharge,
-    create_schema=PhoneRechargeCreate,
-    read_schema=PhoneRechargeRead,
-    order_by=LifestylePhoneRecharge.id,
-    order_dir="desc",
-    date_column="recharge_date",
-)
-
-
-for sub in (phone_router, bank_router, carrier_router, bill_router, recharge_router):
+for sub in (phone_router, bank_router, carrier_router, bill_router):
     router.include_router(sub)
