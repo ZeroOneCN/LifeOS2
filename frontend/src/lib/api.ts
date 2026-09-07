@@ -109,6 +109,11 @@ export const api = {
     broadcastDataChanged()
     return res
   },
+  patch: async <T>(path: string, data: unknown) => {
+    const res = await request<T>(path, { method: 'PATCH', body: JSON.stringify(data) })
+    broadcastDataChanged()
+    return res
+  },
   remove: async (path: string, id: number) => {
     const res = await request<void>(`${path}/${id}`, { method: 'DELETE' })
     broadcastDataChanged()
