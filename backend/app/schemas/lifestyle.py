@@ -97,6 +97,21 @@ class CardBillRead(CardBillCreate, ORMRead):
     pass
 
 
+class PhoneRechargeCreate(BaseModel):
+    amount: float = Field(gt=0)
+    recharge_date: date | None = None
+    note: str | None = None
+
+
+class PhoneRechargeRead(BaseModel):
+    id: int
+    phone_card_id: int
+    amount: float
+    recharge_date: date
+    note: str | None = None
+    created_at: str | None = None
+
+
 class LifeReportCreate(BaseModel):
     title: str
     period_label: str

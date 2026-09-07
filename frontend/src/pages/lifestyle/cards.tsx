@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { BadgeCheck, Banknote, CreditCard, Landmark, ListChecks, Smartphone } from 'lucide-react'
+import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { BarChartCard, getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
@@ -456,6 +468,48 @@ export function CardsPage() {
     }
   }
 
+  const [rechargeCardId, setRechargeCardId] = useState<number | null>(null)
+  const [rechargeOpen, setRechargeOpen] = useState(false)
+  const [rechargeAmount, setRechargeAmount] = useState('')
+  const [rechargeDate, setRechargeDate] = useState('')
+  const [rechargeNote, setRechargeNote] = useState('')
+  const [rechargeSaving, setRechargeSaving] = useState(false)
+
+  const doRecharge = async () => {
+    if (!rechargeCardId) return
+    const amount = parseFloat(rechargeAmount)
+    if (!amount || amount <= 0) {
+      toast.error('请输入有效的充值金额')
+      return
+    }
+    setRechargeSaving(true)
+    try {
+      const payload: Record<string, unknown> = { amount }
+      if (rechargeDate) payload.recharge_date = rechargeDate
+      if (rechargeNote) payload.note = rechargeNote
+      await api.post(`/lifestyle/phone-cards/${rechargeCardId}/recharge`, payload)
+      toast.success('充值成功')
+      setRechargeOpen(false)
+      setRechargeCardId(null)
+      setRechargeAmount('')
+      setRechargeDate('')
+      setRechargeNote('')
+      setPhoneRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('充值失败', { description: (e as Error).message })
+    } finally {
+      setRechargeSaving(false)
+    }
+  }
+
+  const openRecharge = (id: number) => {
+    setRechargeCardId(id)
+    setRechargeAmount('')
+    setRechargeDate('')
+    setRechargeNote('')
+    setRechargeOpen(true)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap items-center justify-between gap-3">
@@ -490,17 +544,28 @@ export function CardsPage() {
           refreshKey={phoneRefresh}
           onMutate={() => setPhoneRefresh((v) => v + 1)}
           rowActions={(r) =>
-            !r.bill_paid_this_month ? (
+            <>
               <Button
                 variant="ghost"
                 size="icon"
-                title="记录当月扣账"
-                className="text-indigo-600"
-                onClick={() => doDeduct(r.id)}
+                title="充值"
+                className="text-emerald-600"
+                onClick={() => openRecharge(r.id)}
               >
-                <Banknote className="size-4" />
+                <Coins className="size-4" />
               </Button>
-            ) : null
+              {!r.bill_paid_this_month ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="记录当月扣账"
+                  className="text-indigo-600"
+                  onClick={() => doDeduct(r.id)}
+                >
+                  <Banknote className="size-4" />
+                </Button>
+              ) : null}
+            </>
           }
           extra={
             phoneStats ? (
@@ -523,6 +588,43 @@ export function CardsPage() {
           }
         />
       )}
+
+      <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>充值</DialogTitle>
+            <DialogDescription>增加手机号卡的余额，系统将自动记录充值流水。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>充值金额 *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={rechargeAmount}
+                onChange={(e) => setRechargeAmount(e.target.value)}
+                placeholder="如 50.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>充值日期</Label>
+              <DatePicker value={rechargeDate} onChange={setRechargeDate} placeholder="默认为今天" />
+            </div>
+            <div className="space-y-2">
+              <Label>备注</Label>
+              <Textarea value={rechargeNote} onChange={(e) => setRechargeNote(e.target.value)} placeholder="如 话费充值" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRechargeOpen(false)}>取消</Button>
+            <Button onClick={doRecharge} disabled={rechargeSaving}>
+              {rechargeSaving && <Loader2 className="animate-spin" />}
+              确认充值
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {tab === 'bank' && (
         <RecordManager<BankCard>

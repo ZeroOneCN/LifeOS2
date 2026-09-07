@@ -13,6 +13,7 @@ from app.models import (
     LifestyleCardBill,
     LifestyleCarrier,
     LifestylePhoneCard,
+    LifestylePhoneRecharge,
     UserProfile,
 )
 from app.schemas.lifestyle import (
@@ -24,6 +25,8 @@ from app.schemas.lifestyle import (
     CarrierRead,
     PhoneCardCreate,
     PhoneCardRead,
+    PhoneRechargeCreate,
+    PhoneRechargeRead,
 )
 
 router = APIRouter()
@@ -115,6 +118,37 @@ def _phone_extra(api_router: APIRouter):
                 )
             )
         card.bill_paid_this_month = True
+        db.commit()
+        db.refresh(card)
+        return card
+
+    @api_router.post("/{item_id}/recharge")
+    def recharge(
+        item_id: int,
+        payload: PhoneRechargeCreate,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """充值：增加手机号余额并记录充值流水。"""
+        card = db.scalars(
+            select(LifestylePhoneCard).where(
+                LifestylePhoneCard.id == item_id,
+                LifestylePhoneCard.user_id == user.id,
+            )
+        ).first()
+        if not card:
+            raise HTTPException(status_code=404, detail="手机卡不存在")
+        today = payload.recharge_date or date.today()
+        db.add(
+            LifestylePhoneRecharge(
+                phone_card_id=item_id,
+                user_id=user.id,
+                amount=payload.amount,
+                recharge_date=today,
+                note=payload.note,
+            )
+        )
+        card.balance = (card.balance or 0) + payload.amount
         db.commit()
         db.refresh(card)
         return card
@@ -231,5 +265,17 @@ bill_router = crud_router(
 )
 
 
-for sub in (phone_router, bank_router, carrier_router, bill_router):
+recharge_router = crud_router(
+    prefix="/lifestyle/phone-recharges",
+    tag="lifestyle-phone-recharges",
+    model=LifestylePhoneRecharge,
+    create_schema=PhoneRechargeCreate,
+    read_schema=PhoneRechargeRead,
+    order_by=LifestylePhoneRecharge.id,
+    order_dir="desc",
+    date_column="recharge_date",
+)
+
+
+for sub in (phone_router, bank_router, carrier_router, bill_router, recharge_router):
     router.include_router(sub)

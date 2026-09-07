@@ -129,6 +129,18 @@ class LifestyleCardBill(TimestampMixin, UserOwned, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class LifestylePhoneRecharge(TimestampMixin, UserOwned, Base):
+    """卡片管理-充值记录：手机号卡的充值流水。"""
+
+    __tablename__ = "lifestyle_phone_recharges"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phone_card_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联手机卡
+    amount: Mapped[float] = mapped_column(Float)  # 充值金额
+    recharge_date: Mapped[date] = mapped_column(Date)  # 充值日期
+    note: Mapped[str | None] = mapped_column(Text)
+
+
 class LifestyleLifeReport(TimestampMixin, UserOwned, Base):
     """生活报告：按月聚合各生活模块数据生成的报告，支持 PDF 导出。"""
 
