@@ -454,9 +454,9 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             ) : (
               payments.map((p) => (
                 <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
-                  <div className="min-w-0">
-                    <div className="font-medium">{p.repay_date}</div>
-                    {p.note && <div className="truncate text-xs text-muted-foreground">{p.note}</div>}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium shrink-0">{p.repay_date}</span>
+                    {p.note && <span className="truncate text-muted-foreground">· {p.note}</span>}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="font-medium text-green-600">{fmtMoney(p.amount)}</span>
