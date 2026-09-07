@@ -72,6 +72,15 @@ type CardBill = {
   note?: string
 }
 
+type PhoneRecharge = {
+  id: number
+  phone_card_id: number
+  amount: number
+  recharge_date: string
+  note?: string
+  created_at: string
+}
+
 type PhoneStats = {
   total: number
   active: number
@@ -105,6 +114,7 @@ const TAB_META = [
   { key: 'bank', label: '银行卡', icon: Landmark },
   { key: 'carrier', label: '运营商', icon: BadgeCheck },
   { key: 'bill', label: '扣账账单', icon: ListChecks },
+  { key: 'recharge', label: '充值记录', icon: Coins },
 ] as const
 
 const operators = ['中国移动', '中国联通', '中国电信', '虚拟运营商']
@@ -365,6 +375,7 @@ export function CardsPage() {
   const [phoneRefresh, setPhoneRefresh] = useState(0)
   const [bankRefresh, setBankRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
+  const [rechargeRefresh, setRechargeRefresh] = useState(0)
 
   const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
   const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
@@ -457,6 +468,26 @@ export function CardsPage() {
     },
   ]
 
+  const rechargeFields: FieldDef[] = [
+    {
+      key: 'phone_card_id',
+      label: '手机号',
+      type: 'select',
+      required: true,
+      options: Object.entries(phoneMap).map(([id, num]) => ({ value: id, label: num })),
+    },
+    { key: 'amount', label: '充值金额', type: 'number', step: '0.01', min: 0.01, required: true },
+    { key: 'recharge_date', label: '充值日期', type: 'date', required: true },
+    { key: 'note', label: '备注', type: 'textarea', full: true },
+  ]
+
+  const rechargeColumns: ColumnDef<PhoneRecharge>[] = [
+    { key: 'phone', label: '手机号', render: (r) => phoneMap[r.phone_card_id] ?? `#${r.phone_card_id}` },
+    { key: 'amount', label: '金额', render: (r) => fmt(r.amount) },
+    { key: 'recharge_date', label: '充值日期', render: (r) => r.recharge_date ?? '—' },
+    { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
+  ]
+
   const doDeduct = async (id: number) => {
     try {
       const rep = await api.post<PhoneCard>(`/lifestyle/phone-cards/${id}/deduct`)
@@ -495,6 +526,7 @@ export function CardsPage() {
       setRechargeDate('')
       setRechargeNote('')
       setPhoneRefresh((v) => v + 1)
+      setRechargeRefresh((v) => v + 1)
     } catch (e) {
       toast.error('充值失败', { description: (e as Error).message })
     } finally {
@@ -682,6 +714,18 @@ export function CardsPage() {
               </StatRow>
             ) : null
           }
+        />
+      )}
+
+      {tab === 'recharge' && (
+        <RecordManager<PhoneRecharge>
+          title=""
+          description=""
+          apiPath="/lifestyle/phone-recharges"
+          fields={rechargeFields}
+          columns={rechargeColumns}
+          refreshKey={rechargeRefresh}
+          onMutate={() => setRechargeRefresh((v) => v + 1)}
         />
       )}
 
