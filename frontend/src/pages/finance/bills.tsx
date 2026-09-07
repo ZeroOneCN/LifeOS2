@@ -514,6 +514,10 @@ function HousingTab() {
                 const incurredMonth = tPaid + uPaid
                 const days = houseDays(h)
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
+                // 整段已发生成本 = 全部已交期次 + 全部已缴水电 + 杂费
+                const allTermsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                const allUtilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
+                const totalSpent = allTermsPaid + allUtilsPaid + houseFees(h)
                 return (
                   <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
                     {/* 头部：名称 + 状态 */}
@@ -527,15 +531,18 @@ function HousingTab() {
                       </Badge>
                     </div>
 
-                    {/* 主信息：月租 + 居住周期 */}
-                    <div className="mt-3 flex items-baseline justify-between">
-                      <p className="text-2xl font-bold leading-none text-emerald-600">
-                        {fmt(h.actual_monthly_rent || 0)}
+                    {/* 主信息：整段总花费（大字） + 月租/居住周期（小字） */}
+                    <div className="mt-3">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">总花费</p>
+                      <p className="mt-1 text-2xl font-bold leading-none text-emerald-600">
+                        {totalSpent > 0 ? fmt(totalSpent) : '—'}
                       </p>
-                      <p className="text-xs text-muted-foreground">{termLabel} · {days} 天</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        月租 {fmt(h.actual_monthly_rent || 0)} · {termLabel} · {days} 天
+                      </p>
                     </div>
 
-                    {/* 当月已发生成本（高亮） */}
+                    {/* 当月已发生成本（小字提示） */}
                     <div className="mt-2 flex items-center justify-between rounded-md bg-amber-50 px-2 py-1.5">
                       <span className="text-xs text-amber-700">当月已发生</span>
                       <span className="text-sm font-semibold text-amber-700">{fmt(incurredMonth)}</span>
