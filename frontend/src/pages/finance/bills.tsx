@@ -476,23 +476,22 @@ function HousingTab() {
       {stats && (
         <>
           {(() => {
-            // 统一使用后端 stats.month 作为当月口径
-            const mPrefix = (stats?.month ?? '').slice(0, 7)
-            const [y, mo] = mPrefix.split('-').map(Number)
-            const mStart = new Date(y, (mo || 1) - 1, 1)
-            const mEnd = new Date(y, (mo || 1), 0) // 当月最后一天
-            // 当月实际居住总天数
-            const daysInMonth = stats.houses.reduce((s, h) => s + houseDaysInMonth(h, mStart, mEnd), 0)
-            // 当月已发生成本 = Σ 各套当月已交期次 + Σ 各套当月已缴水电
-            const incurred = stats.houses.reduce((s, h) => s + houseIncurredInMonth(h, mPrefix), 0)
-            const avgDaily = daysInMonth ? incurred / daysInMonth : 0
+            // 整段历史口径：与住房卡片主信息保持一致
+            const totalDays = stats.houses.reduce((s, h) => s + houseDays(h), 0)
+            // 整段总花费 = 全部已交期次 + 全部已缴水电 + 全部杂费
+            const totalSpent = stats.houses.reduce((s, h) => {
+              const tPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((a, t) => a + t.amount, 0)
+              const uPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((a, u) => a + u.amount, 0)
+              return s + tPaid + uPaid + houseFees(h)
+            }, 0)
+            const avgDaily = totalDays ? totalSpent / totalDays : 0
             const occupiedCount = stats.houses.filter((h) => !h.move_out_date).length
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={stats.month} className="text-indigo-500" />
-                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint={`当月折算`} className="text-emerald-500" />
-                <StatCard icon={Wallet} label="当月已发生成本" value={fmt(incurred)} hint="已交期次+已缴水电" className="text-amber-500" />
-                <StatCard icon={Wallet} label="折算月租" value={fmt(avgDaily * 30)} hint={daysInMonth ? `${daysInMonth} 天 × 单日 ${fmt(avgDaily)}` : '当月无居住天数'} className="text-red-500" />
+                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-indigo-500" />
+                <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-emerald-500" />
+                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-blue-500" />
+                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-red-500" />
               </section>
             )
           })()}
