@@ -1396,7 +1396,7 @@ function LoanTab() {
   const [loanMonth, setLoanMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
   const [repayments, setRepayments] = useState<Repayment[]>([])
 
-  const [pfDialog, setPfDialog] = useState(false)
+  const [pfAddDialog, setPfAddDialog] = useState(false)
   const [newPf, setNewPf] = useState<Record<string, string>>({})
   const [pfEdit, setPfEdit] = useState<null | LoanPlatform>(null)
   const [pfEditForm, setPfEditForm] = useState<Record<string, string>>({})
@@ -1474,6 +1474,7 @@ function LoanTab() {
         note: newPf.note || null,
       })
       toast.success('平台已添加')
+      setPfAddDialog(false)
     } catch (e) {
       toast.error('添加失败', { description: (e as Error).message })
     }
@@ -1658,7 +1659,7 @@ function LoanTab() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle className="text-lg font-medium">借款平台</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => setPfDialog(true)}><Plus /> 管理平台</Button>
+          <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {platformStats?.platforms.map((p) => (
@@ -1817,33 +1818,22 @@ function LoanTab() {
         </DialogContent>
       </Dialog>
 
-      {/* 平台管理弹窗 */}
-      <Dialog open={pfDialog} onOpenChange={setPfDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>借款平台管理</DialogTitle><DialogDescription>添加借款平台并设置账单日、还款日与额度。</DialogDescription></DialogHeader>
+      {/* 新增平台弹窗 */}
+      <Dialog open={pfAddDialog} onOpenChange={setPfAddDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>新增借款平台</DialogTitle><DialogDescription>添加借款平台并设置账单日、还款日与额度。</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Input value={newPf.name ?? ''} onChange={(e) => setNewPf({ ...newPf, name: e.target.value })} placeholder="平台名称" />
-              <Input value={newPf.bill_day ?? ''} onChange={(e) => setNewPf({ ...newPf, bill_day: e.target.value })} placeholder="账单日(1-31)" />
+            <div className="space-y-2"><Label>平台名称 <span className="text-destructive">*</span></Label><Input value={newPf.name ?? ''} onChange={(e) => setNewPf({ ...newPf, name: e.target.value })} placeholder="平台名称" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>账单日(1-31)</Label><Input type="number" min={1} max={31} value={newPf.bill_day ?? ''} onChange={(e) => setNewPf({ ...newPf, bill_day: e.target.value })} placeholder="如 15" /></div>
+              <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={newPf.due_day ?? ''} onChange={(e) => setNewPf({ ...newPf, due_day: e.target.value })} placeholder="如 25" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Input value={newPf.due_day ?? ''} onChange={(e) => setNewPf({ ...newPf, due_day: e.target.value })} placeholder="还款日(1-31)" />
-              <Input value={newPf.credit_limit ?? ''} onChange={(e) => setNewPf({ ...newPf, credit_limit: e.target.value })} placeholder="额度" />
-            </div>
-            <Button className="w-full" onClick={addPlatform}><Plus /> 添加平台</Button>
-            <div className="grid grid-cols-2 gap-2">
-              {platforms.map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span className="min-w-0">{p.name} {p.bill_day ? `· 账单日${p.bill_day}` : ''} {p.due_day ? `· 还款日${p.due_day}` : ''}</span>
-                  <div className="flex shrink-0 gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => { setPfEdit(p); setPfEditForm({ name: p.name, bill_day: String(p.bill_day ?? ''), due_day: String(p.due_day ?? ''), credit_limit: String(p.credit_limit ?? '') }); }} title="编辑"><Pencil className="size-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)} title="删除"><Trash2 className="size-3.5" /></Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={newPf.credit_limit ?? ''} onChange={(e) => setNewPf({ ...newPf, credit_limit: e.target.value })} placeholder="可选" /></div>
           </div>
-          <DialogFooter><Button onClick={() => setPfDialog(false)}>关闭</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPfAddDialog(false)}>取消</Button>
+            <Button onClick={addPlatform} disabled={saving}>{saving && <Loader2 className="animate-spin" />}确认添加</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
