@@ -231,6 +231,8 @@ export function TravelPage() {
   const [payDialog, setPayDialog] = useState(false)
   const [newPay, setNewPay] = useState('')
   const [paySaving, setPaySaving] = useState(false)
+  const [payEdit, setPayEdit] = useState<PayChannel | null>(null)
+  const [payEditForm, setPayEditForm] = useState('')
 
   // 行程总结编辑
   const [summaryEdit, setSummaryEdit] = useState<Ledger | null>(null)
@@ -287,6 +289,19 @@ export function TravelPage() {
       toast.success('支付方式已删除')
     } catch (e) {
       toast.error('删除失败', { description: (e as Error).message })
+    }
+  }
+  const savePayChannelEdit = async () => {
+    const name = payEditForm.trim()
+    if (!name || !payEdit) return
+    try {
+      await api.update('/finance/travel/payment-channels', payEdit.id, { name })
+      setPayEdit(null)
+      setPayEditForm('')
+      await loadPayChannels()
+      toast.success('支付方式已更新')
+    } catch (e) {
+      toast.error('更新失败', { description: (e as Error).message })
     }
   }
 
@@ -595,7 +610,7 @@ export function TravelPage() {
 
       {/* 支付方式设置弹窗 */}
       <Dialog open={payDialog} onOpenChange={setPayDialog}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>支付方式设置</DialogTitle>
             <DialogDescription>管理旅行明细的支付方式，只能从这里选择。</DialogDescription>
@@ -605,17 +620,40 @@ export function TravelPage() {
               <Input value={newPay} onChange={(e) => setNewPay(e.target.value)} placeholder="输入支付方式" onKeyDown={(e) => e.key === 'Enter' && addPayChannel()} />
               <Button onClick={addPayChannel} disabled={paySaving}>{paySaving && <Loader2 className="size-4 animate-spin" />}添加</Button>
             </div>
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {payChannels.map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span>{p.name}</span>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePayChannel(p.id)}><Trash2 /></Button>
+                  <span className="min-w-0">{p.name}</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => { setPayEdit(p); setPayEditForm(p.name); }} title="编辑"><Pencil className="size-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePayChannel(p.id)} title="删除"><Trash2 className="size-3.5" /></Button>
+                  </div>
                 </div>
               ))}
-              {payChannels.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无支付方式</p>}
+              {payChannels.length === 0 && <div className="col-span-2 py-4 text-center text-sm text-muted-foreground">暂无支付方式</div>}
             </div>
           </div>
           <DialogFooter><Button onClick={() => setPayDialog(false)}>关闭</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 支付方式编辑弹窗 */}
+      <Dialog open={payEdit !== null} onOpenChange={(o) => !o && setPayEdit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>编辑支付方式</DialogTitle>
+            <DialogDescription>修改支付方式名称。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>支付方式</Label>
+              <Input value={payEditForm} onChange={(e) => setPayEditForm(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPayEdit(null)}>取消</Button>
+              <Button onClick={savePayChannelEdit}>保存</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
