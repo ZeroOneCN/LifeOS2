@@ -291,9 +291,7 @@ export function TravelPage() {
   }
 
   useEffect(() => {
-    loadLedgers().then((items) => {
-      if (items.length > 0 && !currentLedger) setCurrentLedger(String(items[0].id))
-    })
+    loadLedgers()
     loadPayChannels()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realtimeTick])
@@ -486,13 +484,14 @@ export function TravelPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={currentLedger} onValueChange={(v) => { setCurrentLedger(v); setPage(1) }}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="选择行程" /></SelectTrigger>
+            <SelectTrigger className="w-44"><SelectValue placeholder="全部账本" /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="">全部账本</SelectItem>
               {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button variant="outline" size="icon" title="新建行程" onClick={openCreateLedger}><Plus /></Button>
-          <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger}><Trash2 /></Button>
+          <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger} disabled={!currentLedger}><Trash2 /></Button>
           <Button variant="outline" size="icon" title="支付方式设置" onClick={() => setPayDialog(true)}><Settings2 /></Button>
           <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); setReportLedger(currentLedger || ''); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
@@ -714,14 +713,14 @@ export function TravelPage() {
               <Select value={reportLedger} onValueChange={(v) => { setReportLedger(v); setReport(null) }}>
                 <SelectTrigger className="w-56"><SelectValue placeholder="选择一个行程生成报告" /></SelectTrigger>
                 <SelectContent position="popper" className="z-[60]">
+                  <SelectItem value="">全部行程</SelectItem>
                   {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
-                  {ledgers.length === 0 && <SelectItem value="" disabled>暂无行程，请先新建行程</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>&nbsp;</Label>
-              <Button onClick={generateReport} disabled={reportLoading || !reportLedger}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
+              <Button onClick={generateReport} disabled={reportLoading}>{reportLoading ? <Loader2 className="animate-spin" /> : <Plus />}生成并保存</Button>
             </div>
           </div>
 
