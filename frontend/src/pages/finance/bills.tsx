@@ -1834,7 +1834,7 @@ function LoanTab() {
             <div className="grid grid-cols-2 gap-2">
               {platforms.map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">{p.name} {p.bill_day ? `· 账单日${p.bill_day}` : ''} {p.due_day ? `· 还款日${p.due_day}` : ''}</span>
+                  <span className="min-w-0">{p.name} {p.bill_day ? `· 账单日${p.bill_day}` : ''} {p.due_day ? `· 还款日${p.due_day}` : ''}</span>
                   <div className="flex shrink-0 gap-1">
                     <Button variant="ghost" size="icon" onClick={() => { setPfEdit(p); setPfEditForm({ name: p.name, bill_day: String(p.bill_day ?? ''), due_day: String(p.due_day ?? ''), credit_limit: String(p.credit_limit ?? '') }); }} title="编辑"><Pencil className="size-3.5" /></Button>
                     <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)} title="删除"><Trash2 className="size-3.5" /></Button>
