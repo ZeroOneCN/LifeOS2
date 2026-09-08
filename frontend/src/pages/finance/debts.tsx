@@ -919,7 +919,15 @@ function StatCard({ icon: Icon, label, value, className }: { icon: typeof Wallet
 type TabKey = 'debt' | 'invest' | 'memo' | 'rate'
 
 export function DebtsPage() {
-  const [tab, setTab] = useState<TabKey>('debt')
+  const TAB_KEY = 'lifeos_debts_tab'
+  const [tab, setTabState] = useState<TabKey>(() => {
+    const saved = localStorage.getItem(TAB_KEY)
+    return saved === 'debt' || saved === 'invest' || saved === 'memo' || saved === 'rate' ? saved : 'debt'
+  })
+  const setTab = (t: TabKey) => {
+    setTabState(t)
+    localStorage.setItem(TAB_KEY, t)
+  }
   const [currencies, setCurrencies] = useState<Currency[]>([])
   const [currency, setCurrency] = useState<Currency | null>(null)
 

@@ -1355,7 +1355,6 @@ function LoanTab() {
   const [billStats, setBillStats] = useState<LoanBillStats | null>(null)
   const [loanMonth, setLoanMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
   const [repayments, setRepayments] = useState<Repayment[]>([])
-  const [selectedBill, setSelectedBill] = useState<number | null>(null)
 
   const [pfDialog, setPfDialog] = useState(false)
   const [newPf, setNewPf] = useState<Record<string, string>>({})
@@ -1366,6 +1365,9 @@ function LoanTab() {
   const [billForm, setBillForm] = useState<Record<string, string>>({})
   const [repayDialog, setRepayDialog] = useState<null | LoanBill>(null)
   const [repayForm, setRepayForm] = useState<Record<string, string>>({})
+  const [repayViewDialog, setRepayViewDialog] = useState<number | null>(null)  // 查看还款记录的 bill_id
+  const [repayEditDialog, setRepayEditDialog] = useState<Repayment | null>(null)
+  const [repayEditForm, setRepayEditForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -1401,16 +1403,12 @@ function LoanTab() {
     loadBills()
     loadRepStats()
   }, [realtimeTick])
-  useEffect(() => {
-    loadRepayments(selectedBill)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBill])
 
   const refresh = async () => {
     await loadBills()
     await loadPlatforms()
     loadRepStats()
-    if (selectedBill) await loadRepayments(selectedBill)
+    if (repayViewDialog) await loadRepayments(repayViewDialog)
   }
 
   const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '—'
@@ -1571,6 +1569,34 @@ function LoanTab() {
       })
     }
   }
+  const openEditRepay = (r: Repayment) => {
+    setRepayEditForm({ repay_date: r.repay_date, amount: String(r.amount), discount: String(r.discount ?? 0), method: r.method ?? '', note: r.note ?? '' })
+    setRepayEditDialog(r)
+  }
+  const submitEditRepay = async () => {
+    if (!repayEditDialog) return
+    const amt = Number(repayEditForm.amount)
+    if (amt <= 0) { toast.error('金额必须大于 0'); return }
+    const payload = {
+      bill_id: repayEditDialog.bill_id!,
+      repay_date: repayEditForm.repay_date,
+      amount: amt,
+      discount: Number(repayEditForm.discount) || 0,
+      method: repayEditForm.method || null,
+      note: repayEditForm.note || null,
+    }
+    setSaving(true)
+    try {
+      await api.update('/finance/repayments', repayEditDialog.id, payload)
+      setRepayEditDialog(null)
+      await refresh()
+      toast.success('还款记录已修改')
+    } catch (e) {
+      toast.error('保存失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -1646,8 +1672,8 @@ function LoanTab() {
                 const remaining = b.amount - b.paid_amount
                 const interest = b.interest ?? 0
                 return (
-                  <TableRow key={b.id} className={selectedBill === b.id ? 'bg-blue-50/60' : ''}>
-                    <TableCell onClick={() => setSelectedBill(selectedBill === b.id ? null : b.id)} className="cursor-pointer font-medium">{platformName(b.platform_id)}</TableCell>
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
                     <TableCell className="text-right">
@@ -1661,6 +1687,7 @@ function LoanTab() {
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }} title="查看还款记录"><FileText className="size-3.5" /></Button>
                         {remaining > 0 && (
                           <Button size="sm" onClick={() => openRepay(b)} className="h-7 gap-1 px-2 text-xs"><Banknote className="size-3.5" />还款</Button>
                         )}
@@ -1694,26 +1721,24 @@ function LoanTab() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-medium">还款记录</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {selectedBill ? `当前查看：${platformName(bills.find((b) => b.id === selectedBill)?.platform_id)} · ${bills.find((b) => b.id === selectedBill)?.bill_month ?? ''}` : '点击账单行的平台名称查看该账单的还款记录'}
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
+      {/* 还款记录查看弹窗 */}
+      <Dialog open={repayViewDialog !== null} onOpenChange={(o) => !o && setRepayViewDialog(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>还款记录</DialogTitle>
+            <DialogDescription>
+              {repayViewDialog ? `${platformName(bills.find((b) => b.id === repayViewDialog)?.platform_id)} · ${bills.find((b) => b.id === repayViewDialog)?.bill_month ?? ''}` : ''}
+            </DialogDescription>
+          </DialogHeader>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead>
-                {selectedBill && <TableHead className="w-16 text-right">操作</TableHead>}
+                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!selectedBill ? (
-                <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">请选择账单查看还款记录</TableCell></TableRow>
-              ) : repayments.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+              {repayments.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
               ) : repayments.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{r.repay_date}</TableCell>
@@ -1722,14 +1747,35 @@ function LoanTab() {
                   <TableCell>{r.method ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 /></Button>
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEditRepay(r)} title="修改"><Pencil className="size-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)} title="删除"><Trash2 className="size-3.5" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
+
+      {/* 还款记录编辑弹窗 */}
+      <Dialog open={repayEditDialog !== null} onOpenChange={(o) => !o && setRepayEditDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>修改还款记录</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2"><Label>还款日期</Label><Input type="date" value={repayEditForm.repay_date ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, repay_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>实付金额</Label><Input type="number" min={0} step="0.01" value={repayEditForm.amount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>优惠</Label><Input type="number" min={0} step="0.01" value={repayEditForm.discount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, discount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款方式</Label><Input value={repayEditForm.method ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, method: e.target.value })} placeholder="如：支付宝、微信" /></div>
+            <div className="space-y-2"><Label>备注</Label><Input value={repayEditForm.note ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, note: e.target.value })} /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setRepayEditDialog(null)}>取消</Button>
+              <Button onClick={submitEditRepay} disabled={saving}>{saving ? <><Loader2 className="mr-1 size-4 animate-spin" />保存中</> : '保存修改'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 平台管理弹窗 */}
       <Dialog open={pfDialog} onOpenChange={setPfDialog}>
@@ -1848,7 +1894,15 @@ function LoanTab() {
 /* ---------------- 页面 ---------------- */
 
 export function BillsPage() {
-  const [tab, setTab] = useState<TabKey>('loan')
+  const TAB_KEY = 'lifeos_bills_tab'
+  const [tab, setTabState] = useState<TabKey>(() => {
+    const saved = localStorage.getItem(TAB_KEY)
+    return saved === 'housing' || saved === 'subscription' || saved === 'loan' ? saved : 'loan'
+  })
+  const setTab = (t: TabKey) => {
+    setTabState(t)
+    localStorage.setItem(TAB_KEY, t)
+  }
   const tabs: { key: TabKey; label: string; icon: typeof Home }[] = [
     { key: 'loan', label: '网贷借还', icon: Banknote },
     { key: 'housing', label: '房租水电', icon: Home },
