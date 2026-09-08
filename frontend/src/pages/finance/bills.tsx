@@ -1721,12 +1721,12 @@ function LoanTab() {
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
                     <TableCell className="text-right">
-                      <div>{fmt(b.amount)}</div>
-                      {interest > 0 && <div className="text-xs text-amber-600">利息 {fmt(interest)}</div>}
+                      <span>{fmt(b.amount)}</span>
+                      {interest > 0 && <span className="text-xs text-amber-600 ml-1">/{fmt(interest)} 息</span>}
                     </TableCell>
                     <TableCell className={`text-right ${remaining > 0 ? '' : ''}`}>
-                      <div>{fmt(b.paid_amount)}</div>
-                      <div className={`text-xs ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>剩余 {fmt(remaining)}</div>
+                      <span>{fmt(b.paid_amount)}</span>
+                      <span className={`text-xs ml-1 ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>/{fmt(remaining)} 余</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
