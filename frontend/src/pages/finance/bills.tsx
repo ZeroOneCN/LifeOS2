@@ -1687,9 +1687,9 @@ function LoanTab() {
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }} title="查看还款记录"><FileText className="size-3.5" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }} title="查看还款记录"><ListTree className="size-3.5" /></Button>
                         {remaining > 0 && (
-                          <Button size="sm" onClick={() => openRepay(b)} className="h-7 gap-1 px-2 text-xs"><Banknote className="size-3.5" />还款</Button>
+                          <Button variant="ghost" size="icon" onClick={() => openRepay(b)} title="还款"><Banknote className="size-3.5" /></Button>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
