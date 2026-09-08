@@ -138,6 +138,8 @@ function HousingTab() {
   const [channels, setChannels] = useState<RentChannel[]>([])
   const [channelDialog, setChannelDialog] = useState(false)
   const [newChannel, setNewChannel] = useState('')
+  const [channelEdit, setChannelEdit] = useState<RentChannel | null>(null)
+  const [channelEditForm, setChannelEditForm] = useState('')
   const [termsByHouse, setTermsByHouse] = useState<Record<number, RentTerm[]>>({})
   const [termDialog, setTermDialog] = useState<null | { housing_id: number }>(null)
   const [termForm, setTermForm] = useState<{ amount: string; due_date: string; paid: boolean }>({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true })
@@ -192,6 +194,21 @@ function HousingTab() {
       toast.success('租房渠道已删除')
     } catch (e) {
       toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const saveChannelEdit = async () => {
+    const name = channelEditForm.trim()
+    if (!name || !channelEdit) return
+    try {
+      await api.update('/finance/rent-channels', channelEdit.id, { name })
+      setChannelEdit(null)
+      setChannelEditForm('')
+      await loadChannels()
+      toast.success('租房渠道已更新')
+    } catch (e) {
+      toast.error('更新失败', {
         description: e instanceof Error ? e.message : '请稍后重试',
       })
     }
@@ -960,7 +977,7 @@ function HousingTab() {
 
       {/* 租房渠道设置弹窗 */}
       <Dialog open={channelDialog} onOpenChange={setChannelDialog}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>租房渠道设置</DialogTitle>
             <DialogDescription>管理租房渠道，用于新增/编辑住房时下拉选择。</DialogDescription>
@@ -970,19 +987,42 @@ function HousingTab() {
               <Input value={newChannel} onChange={(e) => setNewChannel(e.target.value)} placeholder="输入渠道名称" onKeyDown={(e) => e.key === 'Enter' && addChannel()} />
               <Button onClick={addChannel}><Plus /> 添加</Button>
             </div>
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {channels.map((c) => (
                 <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span>{c.name}</span>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)}><Trash2 /></Button>
+                  <span className="min-w-0 truncate">{c.name}</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => { setChannelEdit(c); setChannelEditForm(c.name); }} title="编辑"><Pencil className="size-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)} title="删除"><Trash2 className="size-3.5" /></Button>
+                  </div>
                 </div>
               ))}
-              {channels.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无渠道</p>}
+              {channels.length === 0 && <div className="col-span-2 py-4 text-center text-sm text-muted-foreground">暂无渠道</div>}
             </div>
           </div>
           <DialogFooter>
             <Button onClick={() => setChannelDialog(false)}>关闭</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 渠道编辑弹窗 */}
+      <Dialog open={channelEdit !== null} onOpenChange={(o) => !o && setChannelEdit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>编辑租房渠道</DialogTitle>
+            <DialogDescription>修改渠道名称。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>渠道名称</Label>
+              <Input value={channelEditForm} onChange={(e) => setChannelEditForm(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setChannelEdit(null)}>取消</Button>
+              <Button onClick={saveChannelEdit}>保存</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1791,11 +1831,14 @@ function LoanTab() {
               <Input value={newPf.credit_limit ?? ''} onChange={(e) => setNewPf({ ...newPf, credit_limit: e.target.value })} placeholder="额度" />
             </div>
             <Button className="w-full" onClick={addPlatform}><Plus /> 添加平台</Button>
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-2">
               {platforms.map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span>{p.name} {p.bill_day ? `· 账单日${p.bill_day}` : ''} {p.due_day ? `· 还款日${p.due_day}` : ''}</span>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)}><Trash2 /></Button>
+                  <span className="min-w-0 truncate">{p.name} {p.bill_day ? `· 账单日${p.bill_day}` : ''} {p.due_day ? `· 还款日${p.due_day}` : ''}</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => { setPfEdit(p); setPfEditForm({ name: p.name, bill_day: String(p.bill_day ?? ''), due_day: String(p.due_day ?? ''), credit_limit: String(p.credit_limit ?? '') }); }} title="编辑"><Pencil className="size-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)} title="删除"><Trash2 className="size-3.5" /></Button>
+                  </div>
                 </div>
               ))}
             </div>
