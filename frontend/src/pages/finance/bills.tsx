@@ -1666,17 +1666,20 @@ function LoanTab() {
             <div key={p.id} className="rounded-lg border p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{p.name}</span>
-                <div className="flex items-center gap-1">
-                  <Badge variant="outline">额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</Badge>
+                <div className="flex shrink-0 gap-0.5">
                   <Button variant="ghost" size="icon" className="h-6 w-6" title="编辑平台" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="删除平台" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button>
                 </div>
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                账单日 {p.bill_day ?? '—'} · 还款日 {p.due_day ?? '—'} · {p.bill_count} 笔账单
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                <span>账单日 {p.bill_day ?? '—'}</span>
+                <span>还款日 {p.due_day ?? '—'}</span>
+                <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
+                <span>{p.bill_count} 笔账单</span>
               </div>
               <div className="mt-2 flex justify-between">
                 <span>累计欠款 <b>{fmt(p.total_owed)}</b></span>
-                <span className={p.remaining > 0 ? 'text-red-600' : 'text-green-600'}>待还 {fmt(p.remaining)}</span>
+                <span className={p.remaining > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>待还 {fmt(p.remaining)}</span>
               </div>
             </div>
           ))}
