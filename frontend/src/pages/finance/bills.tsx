@@ -1695,7 +1695,7 @@ function LoanTab() {
           <CardTitle className="text-lg font-medium">网贷账单（含利息）</CardTitle>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" title="上一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button>
-            <span className="min-w-[72px] text-center text-sm font-medium">{loanMonth}</span>
+            <Input type="month" value={loanMonth} onChange={(e) => setLoanMonth(e.target.value)} className="h-8 w-[140px] text-center text-sm font-medium" />
             <Button variant="ghost" size="icon" title="下一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button>
             <Button size="sm" variant="outline" onClick={() => { const n = new Date(); setLoanMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             <Button onClick={openBillCreate} className="ml-1"><Plus /> 新增账单</Button>
