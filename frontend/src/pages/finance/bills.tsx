@@ -1461,6 +1461,8 @@ function LoanTab() {
   const monthBills = bills.filter((b) => b.bill_month.slice(0, 7) === loanMonth)
   const thisMonth = new Date().toISOString().slice(0, 7)
   const thisMonthBills = bills.filter((b) => b.bill_month.slice(0, 7) === thisMonth)
+  const thisMonthPrincipal = thisMonthBills.reduce((s, b) => s + b.amount, 0)
+  const thisMonthInterest = thisMonthBills.reduce((s, b) => s + (b.interest || 0), 0)
   const thisMonthTotal = thisMonthBills.reduce((s, b) => s + b.amount + (b.interest || 0), 0)
   const thisMonthRemaining = thisMonthBills.reduce((s, b) => s + (b.amount + (b.interest || 0) - b.paid_amount), 0)
   const addPlatform = async () => {
@@ -1643,7 +1645,7 @@ function LoanTab() {
     <div className="flex flex-col gap-4">
       {platformStats && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 合计 ${fmt(thisMonthTotal)}`} className="text-red-500" />
+          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-red-500" />
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
           <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600" />
