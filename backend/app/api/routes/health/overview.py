@@ -20,6 +20,23 @@ from app.models import (
 router = APIRouter(prefix="/health/overview", tags=["health-overview"])
 
 
+def _med_taken(m: HealthMedication) -> bool:
+    """判断某条用药记录当天是否已服用（早/午/晚任一餐已服即为已服）。"""
+    return bool(m.taken_breakfast or m.taken_lunch or m.taken_dinner)
+
+
+def _med_dosage_desc(m: HealthMedication) -> str | None:
+    """将早/午/晚剂量拼成可读描述，如“早1 午2 晚3”；无剂量返回 None。"""
+    parts = []
+    if m.dose_breakfast:
+        parts.append(f"早{m.dose_breakfast}")
+    if m.dose_lunch:
+        parts.append(f"午{m.dose_lunch}")
+    if m.dose_dinner:
+        parts.append(f"晚{m.dose_dinner}")
+    return " ".join(parts) or None
+
+
 def _serialize_vitals(r: HealthVitalsSleep | None) -> dict | None:
     if r is None:
         return None
@@ -105,7 +122,7 @@ def overview(
         durations = [r.sleep_duration_min for r in week_sleep if r.sleep_duration_min]
         sleep_avg = round(sum(durations) / len(durations)) if durations else None
 
-    taken_meds = [m for m in today_meds if m.taken]
+    taken_meds = [m for m in today_meds if _med_taken(m)]
     return {
         "latest_steps": (
             {
@@ -138,9 +155,9 @@ def overview(
                 {
                     "id": m.id,
                     "medicine_name": m.medicine_name,
-                    "dosage": m.dosage,
+                    "dosage": _med_dosage_desc(m),
                     "frequency": m.frequency,
-                    "taken": m.taken,
+                    "taken": _med_taken(m),
                 }
                 for m in today_meds
             ],
