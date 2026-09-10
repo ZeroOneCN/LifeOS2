@@ -1461,10 +1461,9 @@ function LoanTab() {
   const monthBills = bills.filter((b) => b.bill_month.slice(0, 7) === loanMonth)
   const thisMonth = new Date().toISOString().slice(0, 7)
   const thisMonthBills = bills.filter((b) => b.bill_month.slice(0, 7) === thisMonth)
-  const thisMonthPrincipal = thisMonthBills.reduce((s, b) => s + b.amount, 0)
+  const thisMonthPrincipal = thisMonthBills.reduce((s, b) => s + (b.amount - (b.interest || 0)), 0)
   const thisMonthInterest = thisMonthBills.reduce((s, b) => s + (b.interest || 0), 0)
-  const thisMonthTotal = thisMonthBills.reduce((s, b) => s + b.amount + (b.interest || 0), 0)
-  const thisMonthRemaining = thisMonthBills.reduce((s, b) => s + (b.amount + (b.interest || 0) - b.paid_amount), 0)
+  const thisMonthRemaining = thisMonthBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
   const addPlatform = async () => {
     const name = newPf.name?.trim()
     if (!name) return
