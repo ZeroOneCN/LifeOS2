@@ -17,14 +17,26 @@ from app.core.database import Base
 from app.models.mixins import UserOwned
 
 
+def _now():
+    """应用层当前时间，作为时间戳默认值兜底。"""
+    return datetime.now()
+
+
 class TimestampMixin:
-    """公共时间戳字段。"""
+    """公共时间戳字段。
+
+    server_default 仅影响建表 DDL；对 create_all 之前已建好、缺少默认值的存量表，
+    依赖 Python 端的 default 兜底，确保新增记录一定写入时间戳，避免响应校验报 500。
+    """
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now()
+        DateTime, server_default=func.now(), default=_now
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        default=_now,
     )
 
 

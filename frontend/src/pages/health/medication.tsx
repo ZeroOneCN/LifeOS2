@@ -396,8 +396,18 @@ export function MedicationPage() {
     }
   }
 
-  const setMed = (k: keyof typeof MED_EMPTY, v: string | boolean) =>
+  const setMed = (k: keyof typeof MED_EMPTY, v: string | boolean) => {
+    // 录入早/午/晚剂量时自动联动“已服”开关：剂量>0 自动置为已服，
+    // 清空/归 0 则自动视为未服，减少手动勾选。
+    const meal = Object.keys(PILLS_KEY).find((m) => PILLS_KEY[m as keyof typeof PILLS_KEY] === k)
+    if (meal) {
+      const takenKey = TAKEN_KEY[meal] as keyof typeof MED_EMPTY
+      const hasDose = Number(v || 0) > 0
+      setMedForm((f) => ({ ...f, [k]: v, [takenKey]: hasDose }))
+      return
+    }
     setMedForm((f) => ({ ...f, [k]: v }))
+  }
   const setPur = (k: keyof typeof PUR_EMPTY, v: string) => setPurForm((f) => ({ ...f, [k]: v }))
   const setStock = (k: keyof typeof STOCK_EMPTY, v: string) => setStockForm((f) => ({ ...f, [k]: v }))
 
