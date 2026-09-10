@@ -55,7 +55,9 @@ type FinanceOverviewData = {
 }
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const usdFmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 const signFmt = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `-${fmt(Math.abs(n))}` : fmt(n))
+const usdSignFmt = (n: number) => (n > 0 ? `+${usdFmt(n)}` : n < 0 ? `-${usdFmt(Math.abs(n))}` : usdFmt(n))
 
 function StatCard({
   icon: Icon,
@@ -151,7 +153,7 @@ export function FinanceOverviewPage() {
         <StatCard icon={HandCoins} label="累计待还" value={fmt(data.outstanding_loans + data.outstanding_debt)} hint={`网贷 ${fmt(data.outstanding_loans)} + 民间 ${fmt(data.outstanding_debt)}`} />
         <StatCard icon={Home} label="组合房租" value={fmt(data.categories.find((c) => c.label === '住房月租')?.amount ?? 0)} hint="当月折算" />
         <StatCard icon={Banknote} label="借贷往来" value={fmt(data.lend_total)} hint={`借出 ${fmt(data.lend_total)} / 借入 ${fmt(data.borrow_total)}`} />
-        <StatCard icon={TrendingUp} label="投资盈亏" value={signFmt(data.invest_pnl)} hint={`共 ${data.invest_count} 项持仓`} />
+        <StatCard icon={TrendingUp} label="投资盈亏" value={usdSignFmt(data.invest_pnl)} hint={`共 ${data.invest_count} 项持仓`} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
