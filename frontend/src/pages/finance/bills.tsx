@@ -1427,6 +1427,8 @@ function LoanTab() {
       total = res.total
       page += 1
     } while (all.length < total)
+    // 固定排序：先按平台ID，再按月，避免同一月份内平台出现顺序跳动
+    all.sort((a, b) => (a.platform_id ?? 0) - (b.platform_id ?? 0) || a.bill_month.localeCompare(b.bill_month))
     setBills(all)
     api.stats<LoanBillStats>('/finance/loan-bills').then(setBillStats).catch(() => null)
   }
