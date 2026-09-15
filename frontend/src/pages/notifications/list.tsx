@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell, CheckCircle2, Loader2, Mail } from 'lucide-react'
+import { Bell, CheckCircle2, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import {
@@ -28,7 +28,6 @@ type NotificationRecord = {
 
 type NotificationStats = {
   total: number
-  unread: number
   today: number
   by_category: { category: string; count: number }[]
   trend: { notify_date: string; count: number }[]
@@ -100,8 +99,7 @@ export function NotificationList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard icon={Mail} label="未读提醒" value={String(stats?.unread ?? '—')} className="text-blue-500" />
+      <section className="grid gap-4 sm:grid-cols-2">
         <StatCard icon={Bell} label="今日提醒" value={String(stats?.today ?? '—')} className="text-amber-500" />
         <StatCard icon={CheckCircle2} label="提醒总数" value={String(stats?.total ?? '—')} className="text-green-500" />
       </section>

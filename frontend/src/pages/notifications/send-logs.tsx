@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Eye, Loader2, RefreshCw } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -15,15 +22,39 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
 
+type NotificationBrief = {
+  title: string
+  content?: string | null
+  category?: string
+  source?: string | null
+  notify_date?: string | null
+}
+
 type Log = {
   id: number
   notification_id: number | null
   channel_type: string
   channel_id: number | null
+  channel_name?: string | null
   status: string
   error?: string | null
   sent_at?: string | null
   created_at: string
+  notification?: NotificationBrief | null
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  email: '邮件',
+  dingtalk: '钉钉',
+  feishu: '飞书',
+  workwechat: '企业微信',
+  tgbot: 'Telegram',
+  webhook: 'Webhook',
+}
+
+/** 时间格式化：ISO 转 "YYYY-MM-DD HH:mm:ss"，空值返回占位符。 */
+function formatTime(v?: string | null) {
+  return v ? v.slice(0, 19).replace('T', ' ') : '—'
 }
 
 export function SendLogPanel() {
@@ -34,6 +65,7 @@ export function SendLogPanel() {
   const [page, setPage] = useState(1)
   const [status, setStatus] = useState('')
   const [type, setType] = useState('')
+  const [detail, setDetail] = useState<Log | null>(null)
   const pageSize = 10
 
   const load = useCallback(async () => {
@@ -96,7 +128,7 @@ export function SendLogPanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">发送记录</CardTitle>
-          <CardDescription>各渠道外发的历史记录与失败原因</CardDescription>
+          <CardDescription>各渠道外发的历史记录与失败原因，点击记录查看详情</CardDescription>
         </CardHeader>
         <CardContent className={`space-y-2 transition-opacity duration-200 ${loading && logs.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
           {logs.length === 0 ? (
@@ -109,7 +141,12 @@ export function SendLogPanel() {
             )
           ) : (
             logs.map((log) => (
-              <div key={log.id} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
+              <div
+                key={log.id}
+                onClick={() => setDetail(log)}
+                title="点击查看详情"
+                className="group flex cursor-pointer items-start justify-between gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-muted/60"
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <Badge
@@ -121,7 +158,9 @@ export function SendLogPanel() {
                     >
                       {log.status === 'sent' ? '成功' : '失败'}
                     </Badge>
-                    <span className="text-sm font-medium">{log.channel_type}</span>
+                    <span className="text-sm font-medium">
+                      {CHANNEL_LABELS[log.channel_type] ?? log.channel_type}
+                    </span>
                     {log.notification_id != null && (
                       <span className="text-xs text-muted-foreground">
                         通知 #{log.notification_id}
@@ -129,11 +168,12 @@ export function SendLogPanel() {
                     )}
                   </div>
                   {log.status === 'failed' && log.error && (
-                    <p className="mt-1 break-words text-xs text-destructive">{log.error}</p>
+                    <p className="mt-1 line-clamp-2 break-words text-xs text-destructive">{log.error}</p>
                   )}
                 </div>
-                <div className="shrink-0 text-xs text-muted-foreground">
-                  {log.sent_at ? log.sent_at.slice(0, 19).replace('T', ' ') : log.created_at.slice(0, 19).replace('T', ' ')}
+                <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                  {log.sent_at ? formatTime(log.sent_at) : formatTime(log.created_at)}
+                  <Eye className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
               </div>
             ))
@@ -145,6 +185,76 @@ export function SendLogPanel() {
           </div>
         )}
       </Card>
+
+      <Dialog open={detail != null} onOpenChange={(open) => { if (!open) setDetail(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>发送详情</DialogTitle>
+          </DialogHeader>
+          {detail && (
+            <>
+              <div className="flex items-center gap-2">
+                <Badge
+                  className={
+                    detail.status === 'sent'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }
+                >
+                  {detail.status === 'sent' ? '成功' : '失败'}
+                </Badge>
+                <span className="text-sm font-medium">
+                  {CHANNEL_LABELS[detail.channel_type] ?? detail.channel_type}
+                  {detail.channel_name ? ` · ${detail.channel_name}` : ''}
+                </span>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">通知标题</p>
+                  <p className="mt-0.5 break-words font-medium">
+                    {detail.notification?.title ?? (detail.notification_id != null ? `通知 #${detail.notification_id}` : '—')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">通知内容</p>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-muted-foreground">
+                    {detail.notification?.content || '—'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">通知分类</p>
+                    <p className="mt-0.5 break-words">{detail.notification?.category || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">通知日期</p>
+                    <p className="mt-0.5 break-words">{detail.notification?.notify_date || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">发送时间</p>
+                    <p className="mt-0.5 break-words">{formatTime(detail.sent_at)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">记录时间</p>
+                    <p className="mt-0.5 break-words">{formatTime(detail.created_at)}</p>
+                  </div>
+                </div>
+                {detail.status === 'failed' && detail.error && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">失败原因</p>
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-destructive">
+                      {detail.error}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetail(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
