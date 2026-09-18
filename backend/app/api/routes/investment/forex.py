@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
@@ -600,6 +601,167 @@ def parse_trade_rows(rows, seen_keys: set | None = None) -> tuple[list[Investmen
     return records, skipped
 
 
+# --------------------------------------------------------------------------
+# 资金出入金 sheet 解析（xlsx 第二个 sheet）
+# --------------------------------------------------------------------------
+# 表头模糊匹配：中文 / 英文（统一小写）
+_FUND_HEADER_MAP = {
+    "时间": "record_date", "日期": "record_date", "日期时间": "record_date",
+    "发生日期": "record_date", "交易日期": "record_date",
+    "time": "record_date", "date": "record_date", "datetime": "record_date",
+    "类型": "record_type", "操作类型": "record_type", "操作": "record_type",
+    "type": "record_type", "operation": "record_type",
+    "金额": "amount", "金额(usd)": "amount", "交易金额": "amount",
+    "amount": "amount", "balance": None,  # 结余列忽略
+    "备注": "note", "摘要": "note", "说明": "note",
+    "note": "note", "comment": "note",
+}
+
+_FUND_TYPE_MAP = {
+    "deposit": "deposit", "deposits": "deposit", "credit": "deposit",
+    "入金": "deposit", "存款": "deposit", "充值": "deposit",
+    "withdraw": "withdraw", "withdrawal": "withdraw", "withdrawals": "withdraw",
+    "debit": "withdraw", "出金": "withdraw", "提款": "withdraw", "取款": "withdraw", "提现": "withdraw",
+    "bonus": "experience", "experience": "experience",
+    "赠金": "experience", "体验金": "experience",
+    "体验金亏损": "experience", "bonus_loss": "experience",
+    "体验金失效": "experience", "体验金过期": "experience", "bonus_expired": "experience",
+}
+
+# 类型含这些关键词时，体验金金额按负数入库（亏损/失效，对应统计语义）
+_FUND_LOSS_KEYWORDS = ("亏损", "失效", "过期", "loss", "expired")
+
+
+def _map_fund_type(raw) -> str | None:
+    """把资金类型值（中文/英文）映射为 deposit / withdraw / experience。"""
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    return _FUND_TYPE_MAP.get(s)
+
+
+def _num_currency(value, default: float | None = None):
+    """解析金额：忽略货币符号与千分位逗号，兼容负号与小数。"""
+    if value is None:
+        return default
+    s = str(value).strip()
+    m = re.search(r"-?\d+(?:[.,]\d+)*", s)
+    if not m:
+        return default
+    try:
+        return float(m.group(0).replace(",", ""))
+    except ValueError:
+        return default
+
+
+def _fund_unique_key(rec: InvestmentFundRecord):
+    """资金记录唯一键：类型 + 金额 + 日期 + 备注。"""
+    return (rec.record_type, round(rec.amount, 2), rec.record_date, rec.note or "")
+
+
+def _fund_header_cols(rows):
+    """在前 5 行内寻找命中资金表头最多的行，返回 (表头行索引, 字段列索引)。"""
+    best_idx, best_score, best_cols = None, 0, None
+    for idx, row in enumerate(rows[:5]):
+        if row is None:
+            continue
+        header = [str(c).strip().lower() if c is not None else "" for c in row]
+        cols: dict[str, int] = {}
+        score = 0
+        for i, h in enumerate(header):
+            field = _FUND_HEADER_MAP.get(h)
+            if field is None:
+                continue
+            score += 1
+            cols.setdefault(field, i)
+        if score > best_score:
+            best_idx, best_score, best_cols = idx, score, cols
+    if best_idx is None or best_score < 2:
+        return None, None
+    return best_idx, best_cols
+
+
+def _detect_sheet_type(title: str, rows) -> str:
+    """识别 sheet 类型：'trade'（交易明细）/ 'fund'（资金出入金）/ ''（无法识别）。
+
+    按表头命中分数判定：交易表头命中数 >= 资金表头命中数 且 >=1 时为交易表；
+    否则资金表头命中 >=2 时为资金表；sheet 名含资金关键字时优先按资金表处理。
+    """
+    # 资金表头命中数（前 5 行内寻找表头行）
+    fund_idx, fund_cols = _fund_header_cols(rows)
+    fund_score = len(fund_cols) if fund_cols else 0
+    # 交易表头命中数（首行）
+    trade_score = 0
+    if rows:
+        header = [str(c).strip() if c is not None else "" for c in rows[0]]
+        trade_score = sum(1 for h in header if h in _HEADER_MAP)
+
+    t = (title or "").strip().lower()
+    if any(k in t for k in ("fund", "money", "资金", "出入金", "入金", "出金", "资本")):
+        return "fund"
+    if trade_score >= 1 and trade_score >= fund_score:
+        return "trade"
+    if fund_score >= 2:
+        return "fund"
+    return ""
+
+
+def parse_fund_rows(rows, seen_keys: set | None = None) -> tuple[list[InvestmentFundRecord], int]:
+    """把资金出入金 sheet 解析为资金记录列表。返回 (records, skipped)。
+
+    表头（模糊匹配）：时间/日期/发生日期 | 类型/操作类型 | 金额 | 备注/摘要
+    类型值：入金/deposit → deposit；出金/withdraw → withdraw；体验金/赠金/bonus → experience
+
+    支持去重：传入 seen_keys 时跳过其中已存在的记录并计入 skipped；
+    若不传，则只做文件内去重（同一文件内重复行）。
+    """
+    if not rows:
+        return [], 0
+    header_idx, col_idx = _fund_header_cols(rows)
+    if header_idx is None:
+        return [], 0
+
+    def get(raw, key):
+        i = col_idx.get(key)
+        if i is None or i >= len(raw):
+            return None
+        return raw[i]
+
+    seen = set() if seen_keys is None else set(seen_keys)
+    records, skipped = [], 0
+    for raw in rows[header_idx + 1:]:
+        if raw is None or all(c is None or str(c).strip() == "" for c in raw):
+            continue
+        record_type = _map_fund_type(get(raw, "record_type"))
+        amount = _num_currency(get(raw, "amount"))
+        if not record_type or amount is None:
+            skipped += 1
+            continue
+        # 入金/出金金额统一存正数（统计按类型相减）；
+        # 体验金亏损/失效/过期存负数（统计按 bonus_loss / bonus_expired 处理）
+        if record_type in ("deposit", "withdraw"):
+            amount = abs(amount)
+        elif record_type == "experience":
+            type_raw = str(get(raw, "record_type") or "").strip().lower()
+            if any(k in type_raw for k in _FUND_LOSS_KEYWORDS):
+                amount = -abs(amount)
+        note_raw = get(raw, "note")
+        note = str(note_raw).strip() if note_raw is not None and str(note_raw).strip() else None
+        rec = InvestmentFundRecord(
+            record_type=record_type,
+            amount=round(amount, 2),
+            record_date=_coerce_date(get(raw, "record_date")),
+            note=note,
+        )
+        key = _fund_unique_key(rec)
+        if key in seen:
+            skipped += 1
+            continue
+        seen.add(key)
+        records.append(rec)
+    return records, skipped
+
+
 @router.post("/import")
 async def import_xlsx(
     mode: str = Query("append", pattern="^(append|replace)$"),
@@ -607,7 +769,11 @@ async def import_xlsx(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    """导入 MT5 导出的 xlsx。表头：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注"""
+    """导入 MT5 导出的 xlsx（支持多 sheet，按表头/sheet 名自动识别）。
+
+    Sheet 1 交易明细：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注
+    Sheet 2 资金出入金：时间/日期|类型|金额|备注（入金/出金/体验金）
+    """
     try:
         from openpyxl import load_workbook
     except ImportError:
@@ -619,25 +785,61 @@ async def import_xlsx(
     content = await file.read()
     try:
         wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
-        ws = wb.active
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"无法解析 Excel 文件：{exc}")
 
-    rows = list(ws.iter_rows(values_only=True))
-    # 已入库记录的唯一键集合：用于跨文件去重（防止重复导入）
-    existing_recs = db.scalars(
-        select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
-    ).all()
-    existing_keys = {_trade_unique_key(r) for r in existing_recs}
-    records, skipped = parse_trade_rows(rows, seen_keys=existing_keys)
-    for rec in records:
-        rec.user_id = current_user.id
+    if mode == "replace":
+        # 覆盖模式：以文件为准，先清空交易与资金，再全量导入
+        db.query(InvestmentForex).filter(
+            InvestmentForex.user_id == current_user.id
+        ).delete()
+        db.query(InvestmentFundRecord).filter(
+            InvestmentFundRecord.user_id == current_user.id
+        ).delete()
+        db.flush()
+        trade_seen, fund_seen = set(), set()
+    else:
+        # 已入库记录的唯一键集合：用于跨文件去重（防止重复导入）
+        existing_recs = db.scalars(
+            select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
+        ).all()
+        trade_seen = {_trade_unique_key(r) for r in existing_recs}
+        existing_fund_recs = db.scalars(
+            select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
+        ).all()
+        fund_seen = {_fund_unique_key(r) for r in existing_fund_recs}
 
-    if records:
-        if mode == "replace":
-            db.query(InvestmentForex).filter(
-                InvestmentForex.user_id == current_user.id
-            ).delete()
-        db.add_all(records)
+    trade_records: list[InvestmentForex] = []
+    fund_records: list[InvestmentFundRecord] = []
+    skipped = 0
+    for ws in wb.worksheets:
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows:
+            continue
+        sheet_type = _detect_sheet_type(ws.title, rows)
+        if sheet_type == "fund":
+            recs, skip = parse_fund_rows(rows, seen_keys=fund_seen)
+            for r in recs:
+                r.user_id = current_user.id
+                fund_seen.add(_fund_unique_key(r))
+            fund_records.extend(recs)
+            skipped += skip
+        elif sheet_type == "trade":
+            recs, skip = parse_trade_rows(rows, seen_keys=trade_seen)
+            for r in recs:
+                r.user_id = current_user.id
+                trade_seen.add(_trade_unique_key(r))
+            trade_records.extend(recs)
+            skipped += skip
+        # 其余无法识别的 sheet 忽略
+
+    if trade_records or fund_records:
+        db.add_all(trade_records)
+        db.add_all(fund_records)
         db.commit()
-    return {"imported": len(records), "skipped": skipped}
+    return {
+        "imported": len(trade_records) + len(fund_records),
+        "trade_imported": len(trade_records),
+        "fund_imported": len(fund_records),
+        "skipped": skipped,
+    }

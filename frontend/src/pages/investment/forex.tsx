@@ -866,8 +866,11 @@ function ImportButton({ onDone }: { onDone: () => void }) {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await api.upload<{ imported: number; skipped: number }>(`/investment/forex/import?mode=${mode}`, fd)
-      toast.success('导入完成', { description: `成功导入 ${res.imported} 条，跳过 ${res.skipped} 条` })
+      const res = await api.upload<{ imported: number; trade_imported: number; fund_imported: number; skipped: number }>(
+        `/investment/forex/import?mode=${mode}`,
+        fd,
+      )
+      toast.success('导入完成', { description: `成功导入交易 ${res.trade_imported} 条、资金 ${res.fund_imported} 条，跳过 ${res.skipped} 条` })
       onDone()
     } catch (err) {
       toast.error('导入失败', { description: (err as Error).message })
