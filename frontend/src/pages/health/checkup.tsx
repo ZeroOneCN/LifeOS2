@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { PieChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -486,6 +486,22 @@ export function CheckupPage() {
             </CardContent>
           </Card>
         </div>
+
+      {(sc && (sc.normal > 0 || sc.high > 0 || sc.low > 0)) && (
+        <PieChartCard
+          title="指标结果分布"
+          data={[
+            { name: '正常', value: sc.normal },
+            { name: '偏高', value: sc.high },
+            { name: '偏低', value: sc.low },
+          ].filter((d) => d.value > 0)}
+          dataKey="value"
+          nameKey="name"
+          height={240}
+          centerValue={String((sc.normal || 0) + (sc.high || 0) + (sc.low || 0))}
+          centerLabel="已判定指标"
+        />
+      )}
 
       {(stats?.items?.length ?? 0) > 0 && (
         <Card>

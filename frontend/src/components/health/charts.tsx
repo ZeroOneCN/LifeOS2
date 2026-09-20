@@ -7,6 +7,8 @@ import {
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -231,6 +233,181 @@ export function BarChartCard({
               </Bar>
             ))}
           </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 默认饼图配色：一组对深色友好的鲜艳色 */
+const DEFAULT_PIE_COLORS = [
+  '#6366f1',
+  '#16a34a',
+  '#f59e0b',
+  '#dc2626',
+  '#06b6d4',
+  '#8b5cf6',
+  '#ec4899',
+  '#84cc16',
+  '#f97316',
+  '#14b8a6',
+]
+
+const DEFAULT_PIE_OUTER_RADIUS = '80%'
+const DEFAULT_PIE_INNER_RADIUS = '55%'
+
+/**
+ * 饼图卡片：展示分类占比。自带深色 tooltip（复用 TOOLTIP_STYLE），
+ * 扇区使用透明描边避免深色下出现黑色边框，支持悬停扇区外扩高亮与中心汇总文案。
+ *
+ * @param title     卡片标题
+ * @param data      构成饼图的数组，每项包含 nameKey 与 dataKey 两个字段
+ * @param dataKey   数值字段名（扇区大小依据）
+ * @param nameKey   标签字段名
+ * @param labels    可选：按 nameKey 值覆盖图例/悬浮文案
+ * @param height    图表高度，默认 240
+ * @param colors    可选：扇区颜色数组，缺省用一组深色友好色
+ * @param onClick   可选：点击扇区回调用 payload（对应该项数据）
+ * @param centerValue  可选：饼图中心显示总量文案
+ * @param centerLabel  可选：饼图中心总量说明文案
+ * @returns 渲染完成的饼图卡片 JSX（空数据时显示占位）
+ */
+export function PieChartCard({
+  title,
+  data,
+  dataKey,
+  nameKey,
+  labels,
+  height = 240,
+  colors = DEFAULT_PIE_COLORS,
+  onClick,
+  centerValue,
+  centerLabel,
+}: {
+  title: string
+  data: Record<string, unknown>[]
+  dataKey: string
+  nameKey: string
+  labels?: Record<string, string>
+  height?: number
+  colors?: string[]
+  onClick?: (payload: Record<string, unknown>) => void
+  centerValue?: string
+  centerLabel?: string
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+
+  // 当前数据解析后的名称（支持 labels 覆盖，用于图例与悬浮）
+  const displayName = (raw: unknown) => {
+    const s = String(raw)
+    return labels?.[s] ?? s
+  }
+
+  // 总量用于计算占比
+  const total = data.reduce((sum, d) => sum + (Number(d[dataKey] ?? 0) || 0), 0)
+
+  // Tooltip formatter：显示原始数值 + 该分类占总量的百分比
+  const tooltipFormatter = (value: unknown, name: unknown) => {
+    const num = Number(value ?? 0)
+    const pct = total > 0 ? (num / total) * 100 : 0
+    return [
+      `${Number.isInteger(num) ? num : num.toFixed(2)}（${pct.toFixed(1)}%）`,
+      displayName(name),
+    ]
+  }
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center text-sm text-muted-foreground" style={{ height }}>
+            暂无数据
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={height}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey={dataKey}
+              nameKey={nameKey}
+              innerRadius={DEFAULT_PIE_INNER_RADIUS}
+              outerRadius={DEFAULT_PIE_OUTER_RADIUS}
+              paddingAngle={2}
+              stroke="transparent"
+              onMouseEnter={(_, idx) => setActiveIndex(idx)}
+              onMouseLeave={() => setActiveIndex(null)}
+              onClick={
+                onClick
+                  ? (entry) => {
+                      onClick(entry?.payload ?? {})
+                    }
+                  : undefined
+              }
+            >
+              {data.map((d, i) => {
+                const active = activeIndex != null && activeIndex === i
+                return (
+                  <Cell
+                    key={i}
+                    fill={colors[i % colors.length]}
+                    stroke="transparent"
+                    style={onClick ? { cursor: 'pointer' } : undefined}
+                    outerRadius={
+                      active ? '78%' : DEFAULT_PIE_OUTER_RADIUS
+                    }
+                    innerRadius={
+                      active ? '52%' : DEFAULT_PIE_INNER_RADIUS
+                    }
+                  />
+                )
+              })}
+            </Pie>
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={tooltipFormatter} />
+            {data.length > 0 && (
+              <Legend
+                wrapperStyle={{ fontSize: 12 }}
+                formatter={(value) => displayName(value)}
+              />
+            )}
+            {centerValue != null && (
+              <text
+                x="50%"
+                y="46%"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="var(--popover-foreground)"
+                fontSize="20"
+                fontWeight="600"
+              >
+                {centerValue}
+              </text>
+            )}
+            {centerLabel != null && (
+              <text
+                x="50%"
+                y="56%"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="var(--muted-foreground)"
+                fontSize="12"
+              >
+                {centerLabel}
+              </text>
+            )}
+          </PieChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
 import {
   Card,
   CardContent,
@@ -264,11 +265,11 @@ export function UserCenterPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="birthday">生日</Label>
-              <Input
+              <DatePicker
                 id="birthday"
-                type="date"
                 value={form.birthday ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, birthday: e.target.value }))}
+                onChange={(v) => setForm((f) => ({ ...f, birthday: v }))}
+                placeholder="选择生日"
               />
             </div>
             <div className="space-y-2">
