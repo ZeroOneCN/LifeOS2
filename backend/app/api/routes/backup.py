@@ -42,6 +42,22 @@ class BackupFileInfo(BaseModel):
     modified_at: str
 
 
+class BackupFilePage(BaseModel):
+    items: list[BackupFileInfo]
+    total: int
+    page: int
+    page_size: int
+
+
+class BackupPreview(BaseModel):
+    filename: str
+    ext: str
+    size: int
+    size_display: str
+    content: str
+    truncated: bool
+
+
 # ── 定时备份模型 ──────────────────────────────────────────────────────────
 
 class ScheduleCreate(BaseModel):
@@ -126,12 +142,29 @@ def export_data(
     })
 
 
-@router.get("/exports", response_model=list[BackupFileInfo])
+@router.get("/exports", response_model=BackupFilePage)
 def list_backups(
+    page: int = 1,
+    page_size: int = 10,
     user: UserProfile = Depends(get_current_user),
 ):
-    """列出所有已生成的备份文件。"""
-    return backup_service.list_backup_files()
+    """分页列出所有已生成的备份文件。"""
+    items, total = backup_service.list_backup_files(page, page_size)
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/exports/{filename}/preview", response_model=BackupPreview)
+def preview_backup(
+    filename: str,
+    user: UserProfile = Depends(get_current_user),
+):
+    """在线预览备份文件内容（支持 .sql / .json，超大文件自动截断）。"""
+    try:
+        return backup_service.preview_backup_file(filename)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="备份文件不存在")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/exports/{filename}")

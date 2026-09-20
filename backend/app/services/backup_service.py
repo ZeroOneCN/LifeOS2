@@ -21,6 +21,9 @@ from app.models.backup import BackupLog
 BACKUP_DIR = Path(__file__).resolve().parent.parent.parent / "backups"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
+# 在线预览最大读取字节数，超出部分自动截断
+MAX_PREVIEW_BYTES = 2 * 1024 * 1024
+
 
 # ---------------------------------------------------------------------------
 # 工具函数
@@ -282,10 +285,21 @@ def _export_sql_pure_python(
     return sql, filename
 
 
-def list_backup_files() -> list[dict[str, Any]]:
-    """列出备份目录中的所有备份文件。"""
+def list_backup_files(
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[dict[str, Any]], int]:
+    """分页列出备份目录中的所有备份文件。
+
+    Args:
+        page: 页码，从 1 开始
+        page_size: 每页数量
+
+    Returns:
+        (当前页文件列表, 文件总数)
+    """
     if not BACKUP_DIR.exists():
-        return []
+        return [], 0
     files = []
     for f in sorted(BACKUP_DIR.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
         if f.is_file():
@@ -296,7 +310,45 @@ def list_backup_files() -> list[dict[str, Any]]:
                 "size_display": _fmt_size(stat.st_size),
                 "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             })
-    return files
+    total = len(files)
+    start = (page - 1) * page_size
+    return files[start : start + page_size], total
+
+
+def preview_backup_file(filename: str) -> dict[str, Any]:
+    """读取备份文件内容用于在线预览（超大文件自动截断）。
+
+    Args:
+        filename: 备份文件名
+
+    Returns:
+        预览结果字典，包含 filename/ext/size/size_display/content/truncated
+    """
+    filepath = BACKUP_DIR / filename
+    if not filepath.exists() or not filepath.is_file():
+        raise FileNotFoundError(f"备份文件 {filename} 不存在")
+    resolved = filepath.resolve()
+    if not str(resolved).startswith(str(BACKUP_DIR.resolve())):
+        raise ValueError("不允许预览备份目录外的文件")
+    ext = filepath.suffix.lower()
+    if ext not in (".sql", ".json"):
+        raise ValueError("仅支持预览 .sql / .json 格式的备份文件")
+
+    size = filepath.stat().st_size
+    truncated = size > MAX_PREVIEW_BYTES
+    with open(filepath, "rb") as f:
+        raw = f.read(MAX_PREVIEW_BYTES)
+    content = raw.decode("utf-8", errors="replace")
+    if truncated:
+        content += "\n\n-- 内容过长，已截断显示（完整内容请下载后查看）\n"
+    return {
+        "filename": filename,
+        "ext": ext,
+        "size": size,
+        "size_display": _fmt_size(size),
+        "content": content,
+        "truncated": truncated,
+    }
 
 
 def delete_backup_file(filename: str) -> None:

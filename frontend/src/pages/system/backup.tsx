@@ -18,10 +18,12 @@ import {
   Pause,
   Pencil,
   ScrollText,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
+import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import {
@@ -71,6 +73,22 @@ type BackupFile = {
   size: number
   size_display: string
   modified_at: string
+}
+
+type BackupPage = {
+  items: BackupFile[]
+  total: number
+  page: number
+  page_size: number
+}
+
+type BackupPreview = {
+  filename: string
+  ext: string
+  size: number
+  size_display: string
+  content: string
+  truncated: boolean
 }
 
 type ImportResult = {
@@ -225,6 +243,15 @@ export function BackupPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
+  // 备份管理：分页
+  const [backupTotal, setBackupTotal] = useState(0)
+  const [backupPage, setBackupPage] = useState(1)
+  const backupPageSize = 10
+  // SQL 在线预览
+  const [previewFile, setPreviewFile] = useState<BackupFile | null>(null)
+  const [previewContent, setPreviewContent] = useState<BackupPreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
   // 新增/编辑定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
@@ -262,8 +289,11 @@ export function BackupPage() {
   const loadBackups = async () => {
     setLoadingBackups(true)
     try {
-      const data = await api.query<BackupFile[]>('/backup/exports')
-      setBackups(data)
+      const data = await api.query<BackupPage>(
+        `/backup/exports?page=${backupPage}&page_size=${backupPageSize}`
+      )
+      setBackups(data.items)
+      setBackupTotal(data.total)
     } catch {
       toast.error('加载备份文件列表失败')
     } finally {
@@ -296,12 +326,12 @@ export function BackupPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realtimeTick])
 
-  // 切换 Tab 时刷新对应数据
+  // 切换 Tab 或备份分页变化时刷新对应数据
   useEffect(() => {
     if (tab === 'logs') loadLogs()
     if (tab === 'manage') loadBackups()
     if (tab === 'schedule') loadSchedules()
-  }, [tab])
+  }, [tab, backupPage])
 
   useEffect(() => {
     if (tab === 'logs') loadLogs()
@@ -424,9 +454,31 @@ export function BackupPage() {
     try {
       await api.del(`/backup/exports/${encodeURIComponent(filename)}`)
       toast.success(`备份文件 ${filename} 已删除`)
-      loadBackups()
+      // 若当前页删除后为空且非第一页，则回退一页
+      if (backups.length === 1 && backupPage > 1) {
+        setBackupPage((p) => p - 1)
+      } else {
+        loadBackups()
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
+  const handlePreviewBackup = async (f: BackupFile) => {
+    setPreviewFile(f)
+    setPreviewContent(null)
+    setPreviewLoading(true)
+    try {
+      const data = await api.query<BackupPreview>(
+        `/backup/exports/${encodeURIComponent(f.filename)}/preview`
+      )
+      setPreviewContent(data)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '预览失败')
+      setPreviewFile(null)
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -1193,7 +1245,7 @@ export function BackupPage() {
                 备份文件列表
               </CardTitle>
               <CardDescription>
-                管理已生成的备份文件，可下载或删除
+                管理已生成的备份文件，支持在线预览 SQL、下载或删除，共 {backupTotal} 个文件
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1230,6 +1282,17 @@ export function BackupPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              {f.filename.toLowerCase().endsWith('.sql') && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  title="在线预览"
+                                  onClick={() => handlePreviewBackup(f)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1256,10 +1319,53 @@ export function BackupPage() {
                   </Table>
                 </div>
               )}
+              {/* 分页 */}
+              {backupTotal > backupPageSize && (
+                <div className="mt-4">
+                  <PaginationBar
+                    page={backupPage}
+                    totalPages={Math.max(1, Math.ceil(backupTotal / backupPageSize))}
+                    total={backupTotal}
+                    onPageChange={setBackupPage}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
+
+      {/* ── SQL 在线预览弹窗 ── */}
+      <Dialog open={!!previewFile} onOpenChange={(v) => { if (!v) setPreviewFile(null) }}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>SQL 在线预览</DialogTitle>
+            <DialogDescription>
+              {previewFile?.filename ?? ''}
+              {previewContent ? ` · ${previewContent.size_display}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {previewLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted/50 p-4 font-mono text-xs leading-relaxed whitespace-pre break-all">
+              {previewContent?.content ?? ''}
+            </pre>
+          )}
+          {previewContent?.truncated && (
+            <p className="text-xs text-amber-600">
+              内容过长，已截断显示（完整内容请下载后查看）
+            </p>
+          )}
+          <DialogFooter showCloseButton={false}>
+            <Button variant="outline" onClick={() => setPreviewFile(null)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
