@@ -108,10 +108,10 @@ const MODULE_NAMES: Record<string, string> = {
 }
 
 const ACTION_META: Record<string, { name: string; className: string; icon: LucideIcon }> = {
-  create: { name: '新增', className: 'bg-green-100 text-green-700', icon: Plus },
-  update: { name: '更新', className: 'bg-blue-100 text-blue-700', icon: Pencil },
-  patch: { name: '部分更新', className: 'bg-yellow-100 text-yellow-700', icon: Pencil },
-  delete: { name: '删除', className: 'bg-red-100 text-red-700', icon: Trash2 },
+  create: { name: '新增', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300', icon: Plus },
+  update: { name: '更新', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300', icon: Pencil },
+  patch: { name: '部分更新', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300', icon: Pencil },
+  delete: { name: '删除', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300', icon: Trash2 },
 }
 
 function formatTime(iso: string) {
@@ -313,7 +313,7 @@ export function ActivityLogsPage() {
               {items.map((row) => {
                 const meta = ACTION_META[row.action] ?? {
                   name: row.action,
-                  className: 'bg-gray-100 text-gray-600',
+                  className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
                   icon: Activity,
                 }
                 const Icon = meta.icon

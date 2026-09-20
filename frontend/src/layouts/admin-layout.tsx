@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 
 import { AppSidebar } from '@/components/app-sidebar'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -63,6 +64,9 @@ export function AdminLayout() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </header>
         <div key={pathname} className="page-enter flex flex-1 flex-col gap-4 p-4">
           <Outlet />

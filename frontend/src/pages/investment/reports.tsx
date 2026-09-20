@@ -199,11 +199,11 @@ export function InvestmentReportsPage() {
       </div>
 
       {preview && (
-        <Card className="border-indigo-200">
+        <Card className="border-indigo-200 dark:border-indigo-500/40">
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b pb-3">
             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setPreviewCollapsed((v) => !v)}>
               <div className="flex items-center gap-2">
-                <ChevronDown className={`size-4 shrink-0 text-indigo-600 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
+                <ChevronDown className={`size-4 shrink-0 text-indigo-600 dark:text-indigo-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
                 <CardTitle className="text-base">{preview.title}</CardTitle>
               </div>
               {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
@@ -242,7 +242,7 @@ export function InvestmentReportsPage() {
                 <div key={r.id} className="flex items-start justify-between gap-3 rounded-lg border p-3 hover:bg-muted/40">
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => loadDetail(r.id)}>
                     <div className="flex items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-indigo-600" />
+                      <FileText className="size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}</div>

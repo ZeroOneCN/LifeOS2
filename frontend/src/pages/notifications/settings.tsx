@@ -118,7 +118,7 @@ export function ReminderSettingsPanel() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{d.name}</span>
-                      <Badge className="bg-purple-100 text-purple-700">{d.category}</Badge>
+                      <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">{d.category}</Badge>
                     </div>
                     <Switch
                       checked={d.enabled}

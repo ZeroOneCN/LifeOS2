@@ -235,9 +235,9 @@ export function ChannelsPanel() {
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{ch.name}</span>
                           {ch.enabled ? (
-                            <Badge className="bg-green-100 text-green-700">启用</Badge>
+                            <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">启用</Badge>
                           ) : (
-                            <Badge className="bg-gray-100 text-gray-500">停用</Badge>
+                            <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400">停用</Badge>
                           )}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">

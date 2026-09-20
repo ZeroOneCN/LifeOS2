@@ -99,10 +99,10 @@ const fields: FieldDef[] = [
 ]
 
 const statusMeta: Record<string, { label: string; className: string }> = {
-  in_use: { label: '使用中', className: 'bg-green-100 text-green-700' },
-  loaned: { label: '借出', className: 'bg-blue-100 text-blue-700' },
-  lost: { label: '丢失', className: 'bg-red-100 text-red-700' },
-  recycled: { label: '已淘汰', className: 'bg-gray-100 text-gray-500' },
+  in_use: { label: '使用中', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  loaned: { label: '借出', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  lost: { label: '丢失', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  recycled: { label: '已淘汰', className: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400' },
 }
 
 function usageDays(r: ItemRecord): number {
@@ -138,9 +138,9 @@ const columns: ColumnDef<ItemRecord>[] = [
     label: '来源',
     render: (r) =>
       r.source === 'shopping' ? (
-        <Badge className="bg-purple-100 text-purple-700">购物同步</Badge>
+        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">购物同步</Badge>
       ) : (
-        <Badge className="bg-slate-100 text-slate-600">手动</Badge>
+        <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">手动</Badge>
       ),
   },
   {

@@ -236,7 +236,7 @@ export function LifestyleReportsPage() {
             >
               <div className="flex items-center gap-2">
                 <ChevronDown
-                  className={`size-4 shrink-0 text-rose-600 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
+                  className={`size-4 shrink-0 text-rose-600 dark:text-rose-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
                 <CardTitle className="text-base">{preview.title}</CardTitle>
               </div>
@@ -295,7 +295,7 @@ export function LifestyleReportsPage() {
                 >
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => loadDetail(r.id)}>
                     <div className="flex items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-rose-600" />
+                      <FileText className="size-4 shrink-0 text-rose-600 dark:text-rose-400" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">

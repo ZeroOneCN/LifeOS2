@@ -55,9 +55,9 @@ const fields: FieldDef[] = [
 ]
 
 const priorityMeta: Record<string, { label: string; className: string }> = {
-  high: { label: '高', className: 'bg-red-100 text-red-700' },
-  medium: { label: '中', className: 'bg-amber-100 text-amber-700' },
-  low: { label: '低', className: 'bg-blue-100 text-blue-700' },
+  high: { label: '高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  medium: { label: '中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  low: { label: '低', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
 }
 
 const columns: ColumnDef<TodoRecord>[] = [
@@ -76,9 +76,9 @@ const columns: ColumnDef<TodoRecord>[] = [
     label: '状态',
     render: (r) =>
       r.done ? (
-        <Badge className="bg-green-100 text-green-700">已完成</Badge>
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已完成</Badge>
       ) : (
-        <Badge className="bg-amber-100 text-amber-700">待办</Badge>
+        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待办</Badge>
       ),
   },
 ]

@@ -114,7 +114,7 @@ function StatCard({
   pnl?: boolean
 }) {
   const numeric = Number(value.replace(/[.-]/g, '').replace(/,/g, ''))
-  const color = pnl ? (numeric >= 0 ? 'text-emerald-600' : 'text-red-600') : money ? 'text-emerald-600' : ''
+  const color = pnl ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : money ? 'text-emerald-600 dark:text-emerald-400' : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -278,7 +278,7 @@ export function HomePage() {
                     <div className="text-sm font-medium">{b.bill_type}</div>
                     <div className="text-xs text-muted-foreground">到期 {b.due_date ?? '—'}</div>
                   </div>
-                  <span className="text-sm font-medium text-red-600">{fmt(b.remaining ?? b.amount)}</span>
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">{fmt(b.remaining ?? b.amount)}</span>
                 </div>
               ))}
               {fin.pending_utils.map((u) => (
@@ -287,7 +287,7 @@ export function HomePage() {
                     <div className="text-sm font-medium">{u.bill_type}</div>
                     <div className="text-xs text-muted-foreground">到期 {u.due_date ?? '—'}</div>
                   </div>
-                  <span className="text-sm font-medium text-red-600">{fmt(u.amount)}</span>
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">{fmt(u.amount)}</span>
                 </div>
               ))}
               {fin.pending_reminders.map((r) => (
@@ -316,7 +316,7 @@ export function HomePage() {
                   </div>
                 </div>
                 {t.priority && (
-                  <Badge className={t.priority === 'high' ? 'bg-red-100 text-red-700' : t.priority === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}>
+                  <Badge className={t.priority === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' : t.priority === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-muted text-muted-foreground'}>
                     {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}
                   </Badge>
                 )}
@@ -347,9 +347,9 @@ export function HomePage() {
                   </div>
                   <Badge className={
                     (i.expire_date && new Date(`${i.expire_date}T00:00:00`) < new Date())
-                      ? 'bg-red-100 text-red-700'
+                      ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
                       : i.days_left <= 7
-                        ? 'bg-amber-100 text-amber-700'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
                         : 'bg-muted text-muted-foreground'
                   }>
                     {i.days_left <= 0 ? '已过期' : `剩 ${i.days_left} 天`}

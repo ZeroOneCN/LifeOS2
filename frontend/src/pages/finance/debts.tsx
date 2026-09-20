@@ -57,12 +57,12 @@ type Currency = { id: number; currency: string; name?: string; rate_to_cny: numb
 type Fmt = (cny: number) => string
 
 const directionMeta: Record<string, { label: string; className: string }> = {
-  lend: { label: '借出', className: 'bg-blue-100 text-blue-700' },
-  borrow: { label: '借入', className: 'bg-amber-100 text-amber-700' },
+  lend: { label: '借出', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  borrow: { label: '借入', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
 }
 const statusMeta: Record<string, { label: string; className: string }> = {
-  active: { label: '进行中', className: 'bg-blue-100 text-blue-700' },
-  settled: { label: '已结清', className: 'bg-green-100 text-green-700' },
+  active: { label: '进行中', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  settled: { label: '已结清', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
 }
 
 const investCategories = ['美股', '港股', '外汇', '加密货币-合约', '加密货币-现货', '加密货币-钱包(Alpha)']
@@ -85,10 +85,10 @@ type DebtRecord = {
 type DebtPayment = { id: number; debt_id: number; repay_date: string; amount: number; note?: string }
 const channelOptions = ['现金', '银行转账', '微信', '支付宝', '其他']
 const channelMeta: Record<string, { className: string }> = {
-  现金: { className: 'bg-zinc-100 text-zinc-700' },
-  银行转账: { className: 'bg-sky-100 text-sky-700' },
-  微信: { className: 'bg-emerald-100 text-emerald-700' },
-  支付宝: { className: 'bg-blue-100 text-blue-700' },
+  现金: { className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300' },
+  银行转账: { className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
+  微信: { className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  支付宝: { className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
   其他: { className: 'bg-muted text-muted-foreground' },
 }
 type DebtStats = {
@@ -292,23 +292,23 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Wallet} label="民间债务总数" value={String(stats?.total ?? 0)} />
-            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-green-600" />
-            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-red-600" />
-            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-red-600" />
+            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-green-600 dark:text-green-400" />
+            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-red-600 dark:text-red-400" />
+            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-red-600 dark:text-red-400" />
           </section>
 
           {(stats?.overdue ?? 0) > 0 && (
-            <Card className="border-red-200 bg-red-50">
+            <Card className="border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-700">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-300">
                   <AlertTriangle className="size-4" /> 已逾期 {stats?.overdue ?? 0} 笔待处理
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 {(stats?.overdue_list ?? []).map((o, i) => (
-                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 px-3 py-1.5">
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 dark:bg-white/5 px-3 py-1.5">
                     <span>{o.name}{o.counterparty ? `（${o.counterparty}）` : ''}<Badge className={`ml-2 ${directionMeta[o.direction]?.className}`}>{directionMeta[o.direction]?.label}</Badge></span>
-                    <span className="text-muted-foreground">到期 {o.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmtMoney(o.remaining)}</span></span>
+                    <span className="text-muted-foreground">到期 {o.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmtMoney(o.remaining)}</span></span>
                   </div>
                 ))}
               </CardContent>
@@ -318,21 +318,21 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 
       {/* 网贷只读同步 */}
       {loanSync && loanSync.platform_count > 0 && (
-        <Card className="border-indigo-200 bg-indigo-50/60">
+        <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
               <Receipt className="size-4" /> 网贷欠款同步（来源：账单管理 · 网贷借还）
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {loanSync.platforms.map((p) => (
-                <Badge key={p.platform_id} variant="outline" className="bg-white/80">
-                  {p.name}：<span className="font-medium text-red-600">{fmtMoney(p.remaining)}</span>
+                <Badge key={p.platform_id} variant="outline" className="bg-white/80 dark:bg-white/5">
+                  {p.name}：<span className="font-medium text-red-600 dark:text-red-400">{fmtMoney(p.remaining)}</span>
                   <span className="text-muted-foreground">（{p.bill_count} 笔）</span>
                 </Badge>
               ))}
-              <Badge className="bg-indigo-100 text-indigo-700">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
+              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
             </div>
           </CardContent>
         </Card>
@@ -370,7 +370,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                   <TableCell>{d.channel ? <Badge variant="outline" className={channelMeta[d.channel]?.className}>{d.channel}</Badge> : '—'}</TableCell>
                   <TableCell className="text-right">{fmtMoney(d.amount)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{paid > 0 ? fmtMoney(paid) : '—'}</TableCell>
-                  <TableCell className={`text-right font-medium ${remaining(d) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtMoney(remaining(d))}</TableCell>
+                  <TableCell className={`text-right font-medium ${remaining(d) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmtMoney(remaining(d))}</TableCell>
                   <TableCell className="text-right">
                     <div className="font-medium">{intr > 0 ? fmtMoney(intr) : '—'}</div>
                     {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
@@ -479,11 +479,11 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
               </div>
               <div className="rounded-lg bg-muted p-2 text-center">
                 <div className="text-xs text-muted-foreground">已还</div>
-                <div className="text-sm font-semibold text-green-600">{fmtMoney(hasPaid(detailTarget))}</div>
+                <div className="text-sm font-semibold text-green-600 dark:text-green-400">{fmtMoney(hasPaid(detailTarget))}</div>
               </div>
               <div className="rounded-lg bg-muted p-2 text-center">
                 <div className="text-xs text-muted-foreground">剩余</div>
-                <div className={`text-sm font-semibold ${remaining(detailTarget) > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmtMoney(remaining(detailTarget))}</div>
+                <div className={`text-sm font-semibold ${remaining(detailTarget) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmtMoney(remaining(detailTarget))}</div>
               </div>
             </div>
           )}
@@ -498,7 +498,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     {p.note && <span className="truncate text-muted-foreground">· {p.note}</span>}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <span className="font-medium text-green-600">{fmtMoney(p.amount)}</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{fmtMoney(p.amount)}</span>
                     {detailTarget && (
                       <>
                         <Button variant="ghost" size="icon" className="size-7" title="修改明细" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button>
@@ -608,9 +608,9 @@ function InvestTab() {
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Wallet} label="投资平台数" value={`${stats.count} 个`} />
-            <StatCard icon={ArrowUpCircle} label="整体盈亏" value={usd(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-green-600' : 'text-red-600'} />
-            <StatCard icon={ArrowUpCircle} label="盈利合计" value={usd(stats.profit)} className="text-green-600" />
-            <StatCard icon={ArrowDownCircle} label="亏损合计" value={usd(stats.loss)} className="text-red-600" />
+            <StatCard icon={ArrowUpCircle} label="整体盈亏" value={usd(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} />
+            <StatCard icon={ArrowUpCircle} label="盈利合计" value={usd(stats.profit)} className="text-green-600 dark:text-green-400" />
+            <StatCard icon={ArrowDownCircle} label="亏损合计" value={usd(stats.loss)} className="text-red-600 dark:text-red-400" />
           </section>
           {stats.by_category.length > 0 && (
             <Card>
@@ -619,7 +619,7 @@ function InvestTab() {
                 <div className="flex flex-wrap gap-2">
                   {stats.by_category.map((c) => (
                     <Badge key={c.category} variant="outline">
-                      {c.category}：<span className={c.amount >= 0 ? 'text-green-600' : 'text-red-600'}>{usd(c.amount)}</span>
+                      {c.category}：<span className={c.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{usd(c.amount)}</span>
                     </Badge>
                   ))}
                 </div>
@@ -653,7 +653,7 @@ function InvestTab() {
                       {iv.category.split(',').filter((c) => c.trim()).map((c) => <Badge key={c} variant="outline">{c.trim()}</Badge>)}
                     </div>
                   </TableCell>
-                  <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>{usd(iv.pnl)}</TableCell>
+                  <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{usd(iv.pnl)}</TableCell>
                   <TableCell className="max-w-[160px] truncate text-muted-foreground" title={iv.note ?? ''}>{iv.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -871,7 +871,7 @@ function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
                   <Button size="sm" variant="ghost" onClick={resetToCny}>当前显示：人民币</Button>
                 )}
                 {c.currency !== 'CNY' && (
-                  <Button size="sm" variant="ghost" onClick={() => setCurrency(c)} className={currency?.currency === c.currency ? 'text-indigo-600' : ''}>
+                  <Button size="sm" variant="ghost" onClick={() => setCurrency(c)} className={currency?.currency === c.currency ? 'text-indigo-600 dark:text-indigo-400' : ''}>
                     {currency?.currency === c.currency ? '当前显示' : '设为显示'}
                   </Button>
                 )}

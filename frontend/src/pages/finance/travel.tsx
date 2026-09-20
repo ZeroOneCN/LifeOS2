@@ -115,7 +115,7 @@ function ReportContent({ content }: { content?: ContentSection[] }) {
           return <p key={i} className="whitespace-pre-wrap text-sm text-muted-foreground">{s.text}</p>
         return (
           <div key={i}>
-            {s.label && <div className="mb-1 text-xs font-semibold text-indigo-600">{s.label}</div>}
+            {s.label && <div className="mb-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">{s.label}</div>}
             <div className="overflow-hidden rounded-lg border">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[280px] text-sm">
@@ -532,9 +532,9 @@ export function TravelPage() {
         const cur = ledgers.find((l) => l.id === Number(currentLedger))
         if (!cur) return null
         return (
-          <Card className="border-indigo-200 bg-indigo-50/50">
+          <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/50 dark:bg-indigo-500/10">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
                 <TrendingUp className="size-4" /> 行程总结 · {cur.name}
               </CardTitle>
               <Button variant="ghost" size="sm" onClick={() => { setSummaryText(cur.note ?? ''); setSummaryEdit(cur) }}>
@@ -587,7 +587,7 @@ export function TravelPage() {
                     <TableCell><Badge variant="secondary">{row.category}</Badge></TableCell>
                     <TableCell>{row.item}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(row.original_price)}</TableCell>
-                    <TableCell className="text-right text-green-600">{row.discount > 0 ? `-${fmt(row.discount)}` : '—'}</TableCell>
+                    <TableCell className="text-right text-green-600 dark:text-green-400">{row.discount > 0 ? `-${fmt(row.discount)}` : '—'}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(row.actual_price)}</TableCell>
                     <TableCell className="text-muted-foreground">{row.transport_info ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.payment_method ?? '—'}</TableCell>
@@ -767,7 +767,7 @@ export function TravelPage() {
               <div className="flex items-start justify-between gap-2">
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setReportCollapsed((v) => !v)}>
                   <div className="flex items-center gap-1">
-                    <ChevronDown className={`size-4 text-indigo-600 transition-transform ${reportCollapsed ? '-rotate-90' : ''}`} />
+                    <ChevronDown className={`size-4 text-indigo-600 dark:text-indigo-400 transition-transform ${reportCollapsed ? '-rotate-90' : ''}`} />
                     <span className="font-medium">{report.title}</span>
                   </div>
                   {report.summary && <p className="mt-1 text-sm text-muted-foreground">{report.summary}</p>}

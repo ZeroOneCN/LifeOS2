@@ -1355,7 +1355,7 @@ export function BackupPage() {
             </pre>
           )}
           {previewContent?.truncated && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-amber-600 dark:text-amber-400">
               内容过长，已截断显示（完整内容请下载后查看）
             </p>
           )}

@@ -118,7 +118,7 @@ export function AccountSettingsPage() {
             <span className="flex items-center gap-1.5">
               密码状态：
               {settings?.has_password ? (
-                <Badge className="bg-green-100 text-green-700">已设置</Badge>
+                <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已设置</Badge>
               ) : (
                 <Badge variant="outline">未设置</Badge>
               )}

@@ -34,12 +34,12 @@ type NotificationStats = {
 }
 
 const categoryStyle: Record<string, string> = {
-  系统: 'bg-blue-100 text-blue-700',
-  健康: 'bg-green-100 text-green-700',
-  财务: 'bg-amber-100 text-amber-700',
-  生活: 'bg-purple-100 text-purple-700',
-  投资: 'bg-cyan-100 text-cyan-700',
-  其他: 'bg-gray-100 text-gray-600',
+  系统: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  健康: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+  财务: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  生活: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
+  投资: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300',
+  其他: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
 }
 
 function StatCard({

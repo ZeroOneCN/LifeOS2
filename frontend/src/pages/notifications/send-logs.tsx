@@ -152,8 +152,8 @@ export function SendLogPanel() {
                     <Badge
                       className={
                         log.status === 'sent'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
                       }
                     >
                       {log.status === 'sent' ? '成功' : '失败'}
@@ -197,8 +197,8 @@ export function SendLogPanel() {
                 <Badge
                   className={
                     detail.status === 'sent'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                      : 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
                   }
                 >
                   {detail.status === 'sent' ? '成功' : '失败'}

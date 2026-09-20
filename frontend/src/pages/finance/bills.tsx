@@ -550,7 +550,7 @@ function HousingTab() {
                     {/* 主信息：整段总花费（大字） + 月租/居住周期（小字） */}
                     <div className="mt-3">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">总花费</p>
-                      <p className="mt-1 text-2xl font-bold leading-none text-emerald-600">
+                      <p className="mt-1 text-2xl font-bold leading-none text-emerald-600 dark:text-emerald-400">
                         {totalSpent > 0 ? fmt(totalSpent) : '—'}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -559,9 +559,9 @@ function HousingTab() {
                     </div>
 
                     {/* 平均单日成本 */}
-                    <div className="mt-2 flex items-center justify-between rounded-md bg-blue-50 px-2 py-1.5">
-                      <span className="text-xs text-blue-700">平均单日</span>
-                      <span className="text-sm font-semibold text-blue-700">{daily > 0 ? fmt(daily) : '—'}</span>
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-blue-50 dark:bg-blue-500/10 px-2 py-1.5">
+                      <span className="text-xs text-blue-700 dark:text-blue-300">平均单日</span>
+                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">{daily > 0 ? fmt(daily) : '—'}</span>
                     </div>
 
                     {/* 操作按钮 */}
@@ -607,7 +607,7 @@ function HousingTab() {
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
-                  <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}</TableCell>
+                  <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" title="明细/编辑" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button>
@@ -715,7 +715,7 @@ function HousingTab() {
                           <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className={`text-xs ${t.paid ? 'text-green-600' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
+                          <span className={`text-xs ${t.paid ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
                           <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button>
                         </div>
@@ -745,7 +745,7 @@ function HousingTab() {
                             <div className="truncate font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</div>
                             <div className="mt-0.5 flex items-center gap-1.5">
                               <span className="font-medium">{fmt(u.amount)}</span>
-                              {u.paid ? <Badge className="bg-green-100 text-green-700">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700">待缴</Badge>}
+                              {u.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
@@ -855,7 +855,7 @@ function HousingTab() {
                             <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
                             <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
                           </div>
-                          {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700">待缴</Badge>}
+                          {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
                         </div>
                       ))}
                     </div>
@@ -882,7 +882,7 @@ function HousingTab() {
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-2 text-muted-foreground">
                               <span>{fmt(t.amount)}</span>
                               {t.due_date ? <span>到期 {t.due_date}</span> : null}
-                              {t.paid ? <Badge className="bg-green-100 text-green-700">已交</Badge> : <Badge className="bg-amber-100 text-amber-700">未交</Badge>}
+                              {t.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已交</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未交</Badge>}
                             </div>
                           </div>
                         ))}
@@ -956,7 +956,7 @@ function HousingTab() {
                     <span className="font-medium">{u.fee_type}</span>
                     <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
                     {u.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {u.due_date}</span>}
-                    {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700">待缴</Badge>}
+                    {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button variant="ghost" size="icon" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
@@ -1073,9 +1073,9 @@ function durationLabel(start?: string, end?: string): string {
   return `${totalDays}天`
 }
 const subStatusMeta: Record<string, { label: string; className: string }> = {
-  active: { label: '生效中', className: 'bg-green-100 text-green-700' },
-  expired: { label: '已过期', className: 'bg-red-100 text-red-700' },
-  cancelled: { label: '已取消', className: 'bg-gray-100 text-gray-600' },
+  active: { label: '生效中', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  expired: { label: '已过期', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  cancelled: { label: '已取消', className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' },
 }
 
 type Subscription = {
@@ -1212,11 +1212,11 @@ function SubscriptionTab() {
             </Card>
           )}
           {stats.upcoming.length > 0 && (
-            <Card className="border-amber-200 bg-amber-50">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700">即将续费提醒</CardTitle></CardHeader>
+            <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">即将续费提醒</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 {stats.upcoming.map((u) => (
-                  <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 px-3 py-1.5">
+                  <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 dark:bg-white/5 px-3 py-1.5">
                     <span>{u.name} <Badge variant="outline">{u.category}</Badge></span>
                     <span className="text-muted-foreground">续费 {u.next_renewal} · {fmt(u.amount)}</span>
                   </div>
@@ -1259,7 +1259,7 @@ function SubscriptionTab() {
                   <TableCell className="text-muted-foreground">{dur}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(s.amount)}</TableCell>
                   <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
-                  <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
+                  <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
                   <TableCell><Badge className={subStatusMeta[s.status]?.className}>{subStatusMeta[s.status]?.label ?? s.status}</Badge></TableCell>
                   <TableCell className="max-w-[160px] truncate text-muted-foreground" title={s.note ?? ''}>{s.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
@@ -1382,9 +1382,9 @@ type LoanBillStats = {
 type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
 
 const billStatusMeta: Record<string, { label: string; className: string }> = {
-  pending: { label: '待还', className: 'bg-amber-100 text-amber-700' },
-  partial: { label: '部分已还', className: 'bg-blue-100 text-blue-700' },
-  cleared: { label: '已结清', className: 'bg-green-100 text-green-700' },
+  pending: { label: '待还', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  partial: { label: '部分已还', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  cleared: { label: '已结清', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
 }
 
 function LoanTab() {
@@ -1649,12 +1649,12 @@ function LoanTab() {
           <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-red-500" />
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
-          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600" />
+          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600 dark:text-green-400" />
           <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
           <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
           <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
           <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
-          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-green-600" />
+          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-green-600 dark:text-green-400" />
         </section>
       )}
 
@@ -1682,7 +1682,7 @@ function LoanTab() {
               </div>
               <div className="mt-2 flex justify-between">
                 <span>累计欠款 <b>{fmt(p.total_owed)}</b></span>
-                <span className={p.remaining > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>待还 {fmt(p.remaining)}</span>
+                <span className={p.remaining > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400 font-medium'}>待还 {fmt(p.remaining)}</span>
               </div>
             </div>
           ))}
@@ -1725,11 +1725,11 @@ function LoanTab() {
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <span>{fmt(b.amount)}</span>
-                      {interest > 0 && <span className="text-amber-600 ml-1">/{fmt(interest)} 息</span>}
+                      {interest > 0 && <span className="text-amber-600 dark:text-amber-400 ml-1">/{fmt(interest)} 息</span>}
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <span>{fmt(b.paid_amount)}</span>
-                      <span className={`ml-1 ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>/{fmt(remaining)} 余</span>
+                      <span className={`ml-1 ${remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>/{fmt(remaining)} 余</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
@@ -1752,15 +1752,15 @@ function LoanTab() {
 
       {/* 还款记录 */}
       {(billStats?.upcoming ?? []).length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700">近期待还（30 天内）</CardTitle></CardHeader>
+        <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">近期待还（30 天内）</CardTitle></CardHeader>
           <CardContent className="space-y-1.5 text-sm">
             {billStats?.upcoming.map((u) => (
-              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 border border-red-200' : 'bg-white/70'}`}>
+              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40' : 'bg-white/70 dark:bg-white/5'}`}>
                 <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge></span>
                 <span className="text-muted-foreground">
-                  {u.overdue ? <span className="text-red-600 font-semibold">已逾期 · </span> : ''}
-                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700">{fmt(u.remaining)}</span>
+                  {u.overdue ? <span className="text-red-600 dark:text-red-400 font-semibold">已逾期 · </span> : ''}
+                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmt(u.remaining)}</span>
                 </span>
               </div>
             ))}
@@ -1790,7 +1790,7 @@ function LoanTab() {
                 <TableRow key={r.id}>
                   <TableCell>{r.repay_date}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
-                  <TableCell className="text-right text-green-600">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                  <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
                   <TableCell>{r.method ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
@@ -1895,7 +1895,7 @@ function LoanTab() {
               <div className="rounded-lg border px-3 py-2 text-sm font-medium">
                 {fmt(actualPay())}
                 {(Number(repayForm.discount) || 0) > 0 && (
-                  <span className="ml-2 text-xs text-green-600">优惠抵减 {fmt(Number(repayForm.discount))}</span>
+                  <span className="ml-2 text-xs text-green-600 dark:text-green-400">优惠抵减 {fmt(Number(repayForm.discount))}</span>
                 )}
               </div>
             </div>

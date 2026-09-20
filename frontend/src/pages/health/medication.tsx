@@ -492,7 +492,7 @@ export function MedicationPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日已服</div>
-              <div className="mt-1 text-2xl font-semibold text-green-600">{stats?.today?.taken_count ?? 0} 粒</div>
+              <div className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">{stats?.today?.taken_count ?? 0} 粒</div>
             </CardContent>
           </Card>
           <Card>
@@ -510,7 +510,7 @@ export function MedicationPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">低库存药品</div>
-              <div className="mt-1 text-2xl font-semibold text-red-600">{lowCount}</div>
+              <div className="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">{lowCount}</div>
             </CardContent>
           </Card>
         </div>
@@ -590,7 +590,7 @@ export function MedicationPage() {
                         const taken = row[TAKEN_KEY[meal]] as boolean
                         return (
                           <TableCell key={meal}>
-                            <span className={dose ? (taken ? 'font-medium text-green-600' : 'font-medium') : 'text-muted-foreground'}>
+                            <span className={dose ? (taken ? 'font-medium text-green-600 dark:text-green-400' : 'font-medium') : 'text-muted-foreground'}>
                               {dose || '—'}
                             </span>
                           </TableCell>
@@ -603,11 +603,11 @@ export function MedicationPage() {
                             const dose = row[PILLS_KEY[meal]] as number
                             if (!dose) return null
                             return taken ? (
-                              <Badge key={meal} className="bg-green-100 text-green-700">
+                              <Badge key={meal} className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">
                                 {MEAL_LABEL[meal]}已服
                               </Badge>
                             ) : (
-                              <Badge key={meal} className="bg-amber-100 text-amber-700">
+                              <Badge key={meal} className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                                 {MEAL_LABEL[meal]}未服
                               </Badge>
                             )
@@ -779,9 +779,9 @@ export function MedicationPage() {
                       <TableCell>{row.threshold ?? '—'} 粒</TableCell>
                       <TableCell>
                         {row.is_low ? (
-                          <Badge className="bg-red-100 text-red-700"><AlertTriangle className="mr-1 size-3" />低库存</Badge>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"><AlertTriangle className="mr-1 size-3" />低库存</Badge>
                         ) : (
-                          <Badge className="bg-green-100 text-green-700">充足</Badge>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">充足</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">

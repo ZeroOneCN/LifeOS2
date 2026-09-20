@@ -228,7 +228,7 @@ export function FinanceReportsPage() {
       </div>
 
       {preview && (
-        <Card className="border-emerald-200">
+        <Card className="border-emerald-200 dark:border-emerald-500/40">
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b pb-3">
             <button
               type="button"
@@ -237,7 +237,7 @@ export function FinanceReportsPage() {
             >
               <div className="flex items-center gap-2">
                 <ChevronDown
-                  className={`size-4 shrink-0 text-emerald-600 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
+                  className={`size-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
                 <CardTitle className="text-base">{preview.title}</CardTitle>
               </div>
@@ -310,7 +310,7 @@ export function FinanceReportsPage() {
                     onClick={() => loadDetail(r.id)}
                   >
                     <div className="flex items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-emerald-600" />
+                      <FileText className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">

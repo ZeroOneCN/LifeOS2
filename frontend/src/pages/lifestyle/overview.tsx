@@ -93,9 +93,9 @@ function SectionCard({ title, to, children }: { title: string; to?: string; chil
 }
 
 const priortyMeta: Record<string, { label: string; className: string }> = {
-  high: { label: '高', className: 'bg-red-100 text-red-700' },
-  medium: { label: '中', className: 'bg-amber-100 text-amber-700' },
-  low: { label: '低', className: 'bg-blue-100 text-blue-700' },
+  high: { label: '高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  medium: { label: '中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  low: { label: '低', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
 }
 
 export function LifestyleOverviewPage() {
@@ -189,7 +189,7 @@ export function LifestyleOverviewPage() {
                     </div>
                   </div>
                   <Badge
-                    className={item.days_left <= 7 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}
+                    className={item.days_left <= 7 ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'}
                   >
                     剩 {item.days_left} 天
                   </Badge>
@@ -244,7 +244,7 @@ export function LifestyleOverviewPage() {
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">本月累计扣账</span>
-              <span className="font-medium text-red-600">{fmt(data.month_deduct)}</span>
+              <span className="font-medium text-red-600 dark:text-red-400">{fmt(data.month_deduct)}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">有效物品日均成本（平均）</span>
@@ -270,7 +270,7 @@ export function LifestyleOverviewPage() {
                 )}
                 <Link
                   to="/lifestyle/reports"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-600 hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
                 >
                   <CalendarClock className="size-3.5" />
                   前往生活报告

@@ -82,7 +82,7 @@ function StatCard({
         <Icon className="size-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600' : ''} ${earn ? (numeric >= 0 ? 'text-emerald-600' : 'text-red-600') : ''}`}>
+        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earn ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
           {value}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}

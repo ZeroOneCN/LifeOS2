@@ -109,7 +109,7 @@ export function TemplatesPanel() {
                   <CardTitle className="text-sm font-medium">{t.name}</CardTitle>
                   <CardDescription>{t.source}</CardDescription>
                 </div>
-                <Badge className="bg-blue-100 text-blue-700">{t.category}</Badge>
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{t.category}</Badge>
               </CardHeader>
               <CardContent className="space-y-2">
                 <p className="text-sm">

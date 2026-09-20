@@ -12,7 +12,7 @@ export function NotFoundPage() {
             页面不存在或已被移除
           </p>
           <Button asChild>
-            <Link to="/dashboard">返回工作台</Link>
+            <Link to="/home">返回首页</Link>
           </Button>
         </CardContent>
       </Card>

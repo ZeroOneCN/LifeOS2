@@ -139,7 +139,7 @@ const fmtVal = (n: number) =>
 const fmtPnl = (n: number) =>
   `${n >= 0 ? '+' : ''}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 const pnlCls = (n: number) =>
-  n >= 0 ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600'
+  n >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'
 const fmtHolding = (min?: number) => {
   if (min == null) return '—'
   if (min < 60) return `${min}分`
@@ -183,9 +183,9 @@ const tradeColumns: ColumnDef<ForexRecord>[] = [
     label: '订单类型',
     render: (r) =>
       r.order_type === 'buy' ? (
-        <Badge className="bg-green-100 text-green-700">做多 Buy</Badge>
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">做多 Buy</Badge>
       ) : (
-        <Badge className="bg-red-100 text-red-700">做空 Sell</Badge>
+        <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">做空 Sell</Badge>
       ),
   },
   { key: 'open_price', label: '开仓价格' },
@@ -323,8 +323,8 @@ function TradingCalendar() {
               <div className="text-[11px] text-muted-foreground">交易日（盈/亏）</div>
               <div className="text-sm font-semibold">
                 {data.summary.trading_days}日
-                <span className="ml-1 text-emerald-600">+{data.summary.win_days}</span>
-                <span className="text-red-600">-{data.summary.loss_days}</span>
+                <span className="ml-1 text-emerald-600 dark:text-emerald-400">+{data.summary.win_days}</span>
+                <span className="text-red-600 dark:text-red-400">-{data.summary.loss_days}</span>
               </div>
             </div>
             <div className="rounded-lg border bg-muted/40 px-2 py-2">
@@ -345,8 +345,8 @@ function TradingCalendar() {
                   d.count === 0
                     ? 'bg-muted/40 text-muted-foreground'
                     : d.pnl >= 0
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : 'bg-red-50 border-red-200'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/40'
+                      : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/40'
                 }`}
               >
                 <span className="self-start text-xs font-medium">{d.day}</span>
@@ -468,12 +468,12 @@ function PositionCalculator({ equity }: { equity?: number }) {
 
   const statusBadge =
     result == null
-      ? { text: '待输入', cls: 'bg-gray-100 text-gray-600' }
+      ? { text: '待输入', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' }
       : result.status === 'danger'
-        ? { text: '已爆仓/强平', cls: 'bg-red-100 text-red-700' }
+        ? { text: '已爆仓/强平', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' }
         : result.status === 'warn'
-          ? { text: '预警', cls: 'bg-amber-100 text-amber-700' }
-          : { text: '正常', cls: 'bg-emerald-100 text-emerald-700' }
+          ? { text: '预警', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' }
+          : { text: '正常', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' }
 
   return (
     <div className="flex flex-col gap-4">
@@ -590,7 +590,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
                 </div>
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">总保证金</div>
-                  <div className="text-lg font-semibold text-indigo-600">{fmtVal(result.totalMargin)}</div>
+                  <div className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">{fmtVal(result.totalMargin)}</div>
                 </div>
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">可用保证金</div>
@@ -624,16 +624,16 @@ function PositionCalculator({ equity }: { equity?: number }) {
                       <TableCell className="font-medium">{p.symbol}</TableCell>
                       <TableCell>
                         {p.direction === 'buy' ? (
-                          <Badge className="bg-green-100 text-green-700">多</Badge>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">多</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-700">空</Badge>
+                          <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">空</Badge>
                         )}
                       </TableCell>
                       <TableCell>{p.open}</TableCell>
                       <TableCell>{p.lots}</TableCell>
                       <TableCell>1:{p.lev}</TableCell>
                       <TableCell className="text-right">{fmtVal(p.notional)}</TableCell>
-                      <TableCell className="text-right text-indigo-600">{fmtVal(p.margin)}</TableCell>
+                      <TableCell className="text-right text-indigo-600 dark:text-indigo-400">{fmtVal(p.margin)}</TableCell>
                       <TableCell className="text-right font-medium">
                         {p.liqPrice != null && Number.isFinite(p.liqPrice) ? p.liqPrice.toFixed(p.open < 10 ? 4 : 2) : '—'}
                       </TableCell>
@@ -735,25 +735,25 @@ function FundsSection() {
           <Card className="border-green-200">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">累计入金</span>
-              <Badge className="bg-green-100 text-green-700">{stats ? fmtVal(stats.deposit) : '—'}</Badge>
+              <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">{stats ? fmtVal(stats.deposit) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-red-200">
+          <Card className="border-red-200 dark:border-red-500/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">累计出金</span>
-              <Badge className="bg-red-100 text-red-700">{stats ? fmtVal(stats.withdraw) : '—'}</Badge>
+              <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">{stats ? fmtVal(stats.withdraw) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-amber-200">
+          <Card className="border-amber-200 dark:border-amber-500/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">体验金</span>
-              <Badge className="bg-amber-100 text-amber-700">{stats ? fmtVal(stats.experience) : '—'}</Badge>
+              <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{stats ? fmtVal(stats.experience) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-indigo-200">
+          <Card className="border-indigo-200 dark:border-indigo-500/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">净投入</span>
-              <Badge className="bg-indigo-100 text-indigo-700">{stats ? fmtVal(stats.net) : '—'}</Badge>
+              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{stats ? fmtVal(stats.net) : '—'}</Badge>
             </CardContent>
           </Card>
         </div>
@@ -766,16 +766,16 @@ function FundsSection() {
               <div key={r.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
                 <div className="flex items-center gap-3">
                   {r.record_type === 'deposit' ? (
-                    <ArrowDownToLine className="size-4 text-green-600" />
+                    <ArrowDownToLine className="size-4 text-green-600 dark:text-green-400" />
                   ) : r.record_type === 'withdraw' ? (
-                    <ArrowUpFromLine className="size-4 text-red-600" />
+                    <ArrowUpFromLine className="size-4 text-red-600 dark:text-red-400" />
                   ) : (
                     <Gift className="size-4 text-amber-500" />
                   )}
                   <div>
                     <div className="text-sm font-medium">
                       {fundTypes.find((t) => t.value === r.record_type)?.label}
-                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmtVal(r.amount)}</span>
+                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtVal(r.amount)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">{r.record_date}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
@@ -904,7 +904,7 @@ function ImportButton({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 function StatCard({ icon: Icon, label, value, hint, accent = false }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; accent?: boolean }) {
   const numeric = Number(value.replace(/[^0-9.-]/g, ''))
-  const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-emerald-600' : 'text-red-600') : ''
+  const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -912,7 +912,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false }: { icon: ty
         <Icon className="size-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600' : ''} ${earningsStyle}`}>{value}</div>
+        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earningsStyle}`}>{value}</div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

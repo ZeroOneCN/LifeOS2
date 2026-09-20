@@ -219,7 +219,7 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       <div className="flex items-center gap-1.5">
         <span className="font-medium">{r.phone_number}</span>
         {r.billing_type !== 'monthly' && (
-          <Badge className="bg-slate-100 text-slate-600">
+          <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">
             {billingTypes.find((b) => b.value === r.billing_type)?.label ?? r.billing_type}
           </Badge>
         )}
@@ -253,9 +253,9 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
     label: '本月扣账',
     render: (r) =>
       r.bill_paid_this_month ? (
-        <Badge className="bg-green-100 text-green-700">已扣账</Badge>
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
       ) : (
-        <Badge className="bg-amber-100 text-amber-700">未扣账</Badge>
+        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未扣账</Badge>
       ),
   },
   {
@@ -306,7 +306,7 @@ const bankColumns: ColumnDef<BankCard>[] = [
     key: 'card_category',
     label: '类型',
     render: (r) => (
-      <Badge className={r.card_category === 'credit' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}>
+      <Badge className={r.card_category === 'credit' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'}>
         {r.card_category === 'credit' ? '信用卡' : '储蓄卡'}
       </Badge>
     ),
@@ -342,13 +342,13 @@ const carrierColumns: ColumnDef<Carrier>[] = [
 
 function metaClass(status: string): string {
   const map: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    frozen: 'bg-amber-100 text-amber-700',
-    expired: 'bg-red-100 text-red-700',
-    disabled: 'bg-gray-100 text-gray-500',
-    closed: 'bg-gray-100 text-gray-500',
+    active: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+    frozen: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+    expired: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+    disabled: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
+    closed: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
   }
-  return map[status] ?? 'bg-gray-100 text-gray-500'
+  return map[status] ?? 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'
 }
 
 function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: number }) {
@@ -459,9 +459,9 @@ export function CardsPage() {
       label: '状态',
       render: (r) =>
         r.paid ? (
-          <Badge className="bg-green-100 text-green-700">已扣账</Badge>
+          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
         ) : (
-          <Badge className="bg-amber-100 text-amber-700">待扣</Badge>
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待扣</Badge>
         ),
     },
   ]
@@ -561,7 +561,7 @@ export function CardsPage() {
                 variant="ghost"
                 size="icon"
                 title="充值"
-                className="text-emerald-600"
+                className="text-emerald-600 dark:text-emerald-400"
                 onClick={() => openRecharge(r.id)}
               >
                 <Coins className="size-4" />
@@ -571,7 +571,7 @@ export function CardsPage() {
                   variant="ghost"
                   size="icon"
                   title="记录当月扣账"
-                  className="text-indigo-600"
+                  className="text-indigo-600 dark:text-indigo-400"
                   onClick={() => doDeduct(r.id)}
                 >
                   <Banknote className="size-4" />
@@ -635,7 +635,7 @@ export function CardsPage() {
                 {rechargeRecords.map((r) => (
                   <div key={r.id} className="flex items-center justify-between rounded bg-muted/30 px-2.5 py-1.5 text-xs">
                     <span className="text-muted-foreground">{r.recharge_date}</span>
-                    <span className="font-semibold text-emerald-600">{fmt(r.amount)}</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(r.amount)}</span>
                     {r.note && <span className="text-muted-foreground">{r.note}</span>}
                   </div>
                 ))}

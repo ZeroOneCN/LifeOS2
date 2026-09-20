@@ -43,10 +43,10 @@ type AggregateItem = {
 type Aggregate = { total: number; pending: number; overdue: number; items: AggregateItem[] }
 
 const sourceMeta: Record<string, { label: string; className: string; icon: typeof Inbox }> = {
-  订阅: { label: '服务订阅', className: 'bg-indigo-100 text-indigo-700', icon: Repeat },
-  水电气: { label: '水电账单', className: 'bg-sky-100 text-sky-700', icon: Zap },
-  网贷: { label: '网贷账单', className: 'bg-red-100 text-red-700', icon: Banknote },
-  手动: { label: '手动提醒', className: 'bg-gray-100 text-gray-600', icon: User },
+  订阅: { label: '服务订阅', className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300', icon: Repeat },
+  水电气: { label: '水电账单', className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300', icon: Zap },
+  网贷: { label: '网贷账单', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300', icon: Banknote },
+  手动: { label: '手动提醒', className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400', icon: User },
 }
 
 const categories = ['缴费', '还款', '订阅', '保险', '其他']
@@ -92,9 +92,9 @@ const columns: ColumnDef<ReminderRecord>[] = [
     label: '状态',
     render: (r) =>
       r.status === 'done' ? (
-        <Badge className="bg-green-100 text-green-700">已完成</Badge>
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已完成</Badge>
       ) : (
-        <Badge className="bg-amber-100 text-amber-700">待处理</Badge>
+        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待处理</Badge>
       ),
   },
 ]
@@ -191,20 +191,20 @@ export function RemindersPage() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {aggPaged.map((it, i) => {
-                    const meta = sourceMeta[it.source] ?? { label: it.source_label, className: 'bg-gray-100 text-gray-600', icon: Inbox }
+                    const meta = sourceMeta[it.source] ?? { label: it.source_label, className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400', icon: Inbox }
                     const Icon = meta.icon
                     const isOverdue = it.status === 'overdue'
                     return (
                       <div
                         key={`${i}-${it.title}`}
-                        className={`flex flex-col gap-1.5 rounded-md border p-3 text-sm ${isOverdue ? 'border-red-200 bg-red-50' : 'bg-white'}`}
+                        className={`flex flex-col gap-1.5 rounded-md border p-3 text-sm ${isOverdue ? 'border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10' : 'bg-white dark:bg-secondary'}`}
                       >
                         <span className="flex items-center gap-1.5">
                           <span className={`flex size-5 items-center justify-center rounded-full shrink-0 ${meta.className}`}>
                             <Icon className="size-3" />
                           </span>
                           <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0">{meta.label}</Badge>
-                          {isOverdue && <Badge className="bg-red-100 text-red-700 text-[10px] leading-none px-1.5 py-0 ml-auto">已逾期</Badge>}
+                          {isOverdue && <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 text-[10px] leading-none px-1.5 py-0 ml-auto">已逾期</Badge>}
                         </span>
                         <span className="font-medium truncate" title={it.title}>{it.title}</span>
                         {it.amount != null && <span className="text-xs text-muted-foreground">{fmt(it.amount)}</span>}

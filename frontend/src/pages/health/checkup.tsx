@@ -85,9 +85,9 @@ type RecordItemForm = {
 }
 
 const resultMeta: Record<string, { label: string; className: string }> = {
-  normal: { label: '正常', className: 'bg-green-100 text-green-700' },
-  high: { label: '偏高', className: 'bg-red-100 text-red-700' },
-  low: { label: '偏低', className: 'bg-amber-100 text-amber-700' },
+  normal: { label: '正常', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  high: { label: '偏高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  low: { label: '偏低', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
 }
 
 function judge(value: string, lo?: number | null, hi?: number | null): string {
@@ -464,13 +464,13 @@ export function CheckupPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">异常指标</div>
-              <div className="mt-1 text-2xl font-semibold text-red-600">{stats?.abnormal_count ?? 0} 项</div>
+              <div className="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">{stats?.abnormal_count ?? 0} 项</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">正常</div>
-              <div className="mt-1 text-2xl font-semibold text-green-600">{sc?.normal ?? 0} 项</div>
+              <div className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">{sc?.normal ?? 0} 项</div>
             </CardContent>
           </Card>
           <Card>
