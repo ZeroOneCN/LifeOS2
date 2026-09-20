@@ -60,6 +60,16 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
 
+/** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
+const tooltipStyle = {
+  backgroundColor: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: '0.5rem',
+  color: 'var(--popover-foreground)',
+  fontSize: '12px',
+  boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+}
+
 // ---------------------------------------------------------------------------
 // 类型
 // ---------------------------------------------------------------------------
@@ -235,12 +245,12 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} />
-        <Tooltip formatter={(value) => fmtPnl(Number(value))} />
+        <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: '#6b7280' }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke="#16a34a" fill="url(#gEquityPos)" />
         <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke="#dc2626" fill="url(#gEquityNeg)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#111827" strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#71717a" strokeWidth={1.5} dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   )
@@ -799,7 +809,7 @@ function FundsSection() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="deposit" name="入金" fill="#16a34a" radius={[3, 3, 0, 0]} />
               <Bar dataKey="withdraw" name="出金" fill="#dc2626" radius={[3, 3, 0, 0]} />
@@ -1011,7 +1021,7 @@ export function ForexPage() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip />
+                        <Tooltip contentStyle={tooltipStyle} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                           {stats.by_symbol.map((d, i) => (

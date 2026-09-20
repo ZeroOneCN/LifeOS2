@@ -20,6 +20,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
+/** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
+const tooltipStyle = {
+  backgroundColor: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: '0.5rem',
+  color: 'var(--popover-foreground)',
+  fontSize: '12px',
+  boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+}
+
 type OverviewData = {
   summary: {
     account_value: number
@@ -110,12 +120,12 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} />
-        <Tooltip formatter={(value) => fmtPnl(Number(value))} />
+        <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke="#16a34a" fill="url(#gPosO)" />
         <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke="#dc2626" fill="url(#gNegO)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#111827" strokeWidth={1.5} dot={false} />
+        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#71717a" strokeWidth={1.5} dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   )
@@ -195,7 +205,7 @@ export function InvestmentOverviewPage() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
+                <Tooltip contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                   {data.by_symbol.slice(0, 12).map((d, i) => (
@@ -218,7 +228,7 @@ export function InvestmentOverviewPage() {
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
+              <Tooltip contentStyle={tooltipStyle} />
               <Bar dataKey="amount" name="净盈亏" radius={[2, 2, 0, 0]}>
                 {data.daily_pnl.map((d, i) => (
                   <Cell key={i} fill={d.amount >= 0 ? '#16a34a' : '#dc2626'} />

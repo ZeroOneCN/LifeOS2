@@ -158,3 +158,21 @@
       }
     }
 }
+
+/* ===== Recharts 深色适配：坐标轴刻度 / 网格线 / 悬停光标使用主题变量，
+   自动跟随 浅色↔深色 切换（刻度 fill 为 SVG 属性，故在此统一覆盖而非逐页传参）===== */
+.recharts-cartesian-axis-tick text {
+  fill: var(--muted-foreground);
+}
+.recharts-cartesian-grid line {
+  stroke: var(--border);
+}
+.recharts-tooltip-cursor {
+  fill: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+.recharts-active-dot {
+  fill: var(--chart-1);
+}
+.recharts-legend-item-text {
+  color: var(--muted-foreground);
+}

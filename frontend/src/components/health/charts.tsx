@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   Bar,
   BarChart,
@@ -30,6 +30,17 @@ type Series = { key: string; name: string; color?: string }
 export type StatsDays = number | 'all'
 
 const STORAGE_KEY = 'lifeos_stats_days'
+
+/** Recharts Tooltip 深色适配：内联样式优先于 CSS，故在此用主题变量（真 DOM 节点可解析 var）。
+    深色下若沿用默认白底+继承浅色文字，会导致"浅字白底"同色不可见。 */
+const TOOLTIP_STYLE: CSSProperties = {
+  backgroundColor: 'var(--popover)',
+  border: '1px solid var(--border)',
+  borderRadius: '0.5rem',
+  color: 'var(--popover-foreground)',
+  fontSize: '12px',
+  boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+}
 
 function readDefaultStatsDays(): StatsDays {
   try {
@@ -135,7 +146,7 @@ export function LineChartCard({
               allowDecimals={!intTick}
               tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
             />
-            <Tooltip />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {series.map((s) => (
               <Line
@@ -192,7 +203,7 @@ export function BarChartCard({
               allowDecimals={!intTick}
               tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
             />
-            <Tooltip />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             {series.map((s) => (
               <Bar
