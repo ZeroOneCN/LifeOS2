@@ -272,7 +272,7 @@ type CalendarData = {
   }
 }
 
-function TradingCalendar() {
+function TradingCalendar({ refreshKey }: { refreshKey: number }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7))
   const [data, setData] = useState<CalendarData | null>(null)
 
@@ -281,7 +281,7 @@ function TradingCalendar() {
       .query<CalendarData>(`/investment/forex/calendar?month=${encodeURIComponent(month)}`)
       .then(setData)
       .catch(() => setData(null))
-  }, [month])
+  }, [month, refreshKey])
 
   const monthOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = []
@@ -1007,7 +1007,7 @@ export function ForexPage() {
                     <EquityChart data={stats?.equity_trend ?? []} />
                   </CardContent>
                 </Card>
-                <TradingCalendar />
+                <TradingCalendar refreshKey={refresh} />
               </section>
 
               {stats && stats.by_symbol.length > 0 && (
