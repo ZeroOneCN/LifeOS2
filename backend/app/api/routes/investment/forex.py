@@ -764,15 +764,15 @@ def parse_fund_rows(rows, seen_keys: set | None = None) -> tuple[list[Investment
 
 @router.post("/import")
 async def import_xlsx(
-    mode: str = Query("append", pattern="^(append|replace)$"),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    """导入 MT5 导出的 xlsx（支持多 sheet，按表头/sheet 名自动识别）。
+    """追加导入 MT5 导出的 xlsx（仅增量，不做覆盖，避免误操作）。
 
     Sheet 1 交易明细：日期时间|交易品种|订单类型|开仓价格|手数|手续费|平仓价格|盈亏金额|隔夜费|开仓时间|平仓时间|持仓时间|备注
     Sheet 2 资金出入金：时间/日期|类型|金额|备注（入金/出金/体验金）
+    已存在的记录按唯一键自动去重跳过。
     """
     try:
         from openpyxl import load_workbook
@@ -788,26 +788,15 @@ async def import_xlsx(
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"无法解析 Excel 文件：{exc}")
 
-    if mode == "replace":
-        # 覆盖模式：以文件为准，先清空交易与资金，再全量导入
-        db.query(InvestmentForex).filter(
-            InvestmentForex.user_id == current_user.id
-        ).delete()
-        db.query(InvestmentFundRecord).filter(
-            InvestmentFundRecord.user_id == current_user.id
-        ).delete()
-        db.flush()
-        trade_seen, fund_seen = set(), set()
-    else:
-        # 已入库记录的唯一键集合：用于跨文件去重（防止重复导入）
-        existing_recs = db.scalars(
-            select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
-        ).all()
-        trade_seen = {_trade_unique_key(r) for r in existing_recs}
-        existing_fund_recs = db.scalars(
-            select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
-        ).all()
-        fund_seen = {_fund_unique_key(r) for r in existing_fund_recs}
+    # 已入库记录的唯一键集合：用于去重（防止重复导入）
+    existing_recs = db.scalars(
+        select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
+    ).all()
+    trade_seen = {_trade_unique_key(r) for r in existing_recs}
+    existing_fund_recs = db.scalars(
+        select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
+    ).all()
+    fund_seen = {_fund_unique_key(r) for r in existing_fund_recs}
 
     trade_records: list[InvestmentForex] = []
     fund_records: list[InvestmentFundRecord] = []

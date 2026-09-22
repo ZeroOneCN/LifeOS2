@@ -868,7 +868,6 @@ function FundsSection() {
 // ---------------------------------------------------------------------------
 function ImportButton({ onDone }: { onDone: () => void }) {
   const [importing, setImporting] = useState(false)
-  const [mode, setMode] = useState<'append' | 'replace'>('append')
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -877,7 +876,7 @@ function ImportButton({ onDone }: { onDone: () => void }) {
       const fd = new FormData()
       fd.append('file', file)
       const res = await api.upload<{ imported: number; trade_imported: number; fund_imported: number; skipped: number }>(
-        `/investment/forex/import?mode=${mode}`,
+        '/investment/forex/import',
         fd,
       )
       toast.success('导入完成', { description: `成功导入交易 ${res.trade_imported} 条、资金 ${res.fund_imported} 条，跳过 ${res.skipped} 条` })
@@ -891,15 +890,6 @@ function ImportButton({ onDone }: { onDone: () => void }) {
   }
   return (
     <div className="flex items-center gap-2">
-      <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-        <SelectTrigger className="w-28">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="append">增量导入</SelectItem>
-          <SelectItem value="replace">覆盖导入</SelectItem>
-        </SelectContent>
-      </Select>
       <Button disabled={importing} onClick={() => document.getElementById('forex-import-input')?.click()}>
         {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
         导入 xlsx
