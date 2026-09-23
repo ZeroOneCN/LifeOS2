@@ -121,6 +121,8 @@ type ForexStats = {
     max_single_loss?: number | null
     max_day_profit?: number | null
     max_day_loss?: number | null
+    max_day_profit_date?: string | null
+    max_day_loss_date?: string | null
     max_drawdown: number
     max_drawdown_pct: number
     profit_factor?: number
@@ -1034,8 +1036,8 @@ export function ForexPage() {
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard icon={TrendingUp} label="单笔最大盈利" value={a.max_single_profit != null ? fmtPnl(a.max_single_profit) : '—'} valueCls={a.max_single_profit != null ? pnlCls(a.max_single_profit) : ''} />
                   <StatCard icon={TrendingDown} label="单笔最大亏损" value={a.max_single_loss != null ? fmtPnl(a.max_single_loss) : '—'} valueCls={a.max_single_loss != null ? pnlCls(a.max_single_loss) : ''} />
-                  <StatCard icon={CalendarRange} label="单天最大盈利" value={a.max_day_profit != null ? fmtPnl(a.max_day_profit) : '—'} valueCls={a.max_day_profit != null ? pnlCls(a.max_day_profit) : ''} />
-                  <StatCard icon={CalendarDays} label="单天最大亏损" value={a.max_day_loss != null ? fmtPnl(a.max_day_loss) : '—'} valueCls={a.max_day_loss != null ? pnlCls(a.max_day_loss) : ''} />
+                  <StatCard icon={CalendarRange} label="单天最大盈利" value={a.max_day_profit != null ? fmtPnl(a.max_day_profit) : '—'} valueCls={a.max_day_profit != null ? pnlCls(a.max_day_profit) : ''} hint={a.max_day_profit_date || undefined} />
+                  <StatCard icon={CalendarDays} label="单天最大亏损" value={a.max_day_loss != null ? fmtPnl(a.max_day_loss) : '—'} valueCls={a.max_day_loss != null ? pnlCls(a.max_day_loss) : ''} hint={a.max_day_loss_date || undefined} />
                 </section>
               )}
 
