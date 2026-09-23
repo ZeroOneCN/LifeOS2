@@ -363,9 +363,17 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     for t in trend_window:
         daily_pnl[_trade_date(t)] = round(daily_pnl[_trade_date(t)] + nets[t.id], 2)
 
-    # 单笔最大盈利/亏损（正盈利、负亏损）、单天最大盈利/亏损（记录对应交易日）
-    max_single_profit = round(max(wins), 2) if wins else None
-    max_single_loss = round(min(losses), 2) if losses else None
+    # 单笔最大盈利/亏损（正盈利、负亏损，记录对应交易日）、单天最大盈利/亏损（记录对应交易日）
+    max_single_profit = max_single_loss = None
+    max_single_profit_date = max_single_loss_date = None
+    if wins:
+        max_single_profit = round(max(wins), 2)
+        mp_t = next(t for t in closed if nets[t.id] == max_single_profit)
+        max_single_profit_date = _trade_date(mp_t).isoformat()
+    if losses:
+        max_single_loss = round(min(losses), 2)
+        ml_t = next(t for t in closed if nets[t.id] == max_single_loss)
+        max_single_loss_date = _trade_date(ml_t).isoformat()
     max_day_profit = max_day_loss = None
     max_day_profit_date = max_day_loss_date = None
     if daily_net:
@@ -402,6 +410,8 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
             "avg_loss": avg_loss,
             "max_single_profit": max_single_profit,
             "max_single_loss": max_single_loss,
+            "max_single_profit_date": max_single_profit_date,
+            "max_single_loss_date": max_single_loss_date,
             "max_day_profit": max_day_profit,
             "max_day_loss": max_day_loss,
             "max_day_profit_date": max_day_profit_date,
