@@ -19,6 +19,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   CalendarDays,
+  CalendarRange,
   Download,
   Gift,
   HardHat,
@@ -28,6 +29,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  TrendingDown,
   TrendingUp,
   Upload,
 } from 'lucide-react'
@@ -115,6 +117,10 @@ type ForexStats = {
   analysis: {
     avg_win?: number
     avg_loss?: number
+    max_single_profit?: number | null
+    max_single_loss?: number | null
+    max_day_profit?: number | null
+    max_day_loss?: number | null
     max_drawdown: number
     max_drawdown_pct: number
     profit_factor?: number
@@ -902,7 +908,7 @@ function ImportButton({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 // 页面
 // ---------------------------------------------------------------------------
-function StatCard({ icon: Icon, label, value, hint, accent = false }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; accent?: boolean }) {
+function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '' }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; accent?: boolean; valueCls?: string }) {
   const numeric = Number(value.replace(/[^0-9.-]/g, ''))
   const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''
   return (
@@ -912,7 +918,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false }: { icon: ty
         <Icon className="size-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earningsStyle}`}>{value}</div>
+        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earningsStyle} ${valueCls}`}>{value}</div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
@@ -1022,6 +1028,15 @@ export function ForexPage() {
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
+              )}
+
+              {a && (
+                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard icon={TrendingUp} label="单笔最大盈利" value={a.max_single_profit != null ? fmtPnl(a.max_single_profit) : '—'} valueCls={a.max_single_profit != null ? pnlCls(a.max_single_profit) : ''} />
+                  <StatCard icon={TrendingDown} label="单笔最大亏损" value={a.max_single_loss != null ? fmtPnl(a.max_single_loss) : '—'} valueCls={a.max_single_loss != null ? pnlCls(a.max_single_loss) : ''} />
+                  <StatCard icon={CalendarRange} label="单天最大盈利" value={a.max_day_profit != null ? fmtPnl(a.max_day_profit) : '—'} valueCls={a.max_day_profit != null ? pnlCls(a.max_day_profit) : ''} />
+                  <StatCard icon={CalendarDays} label="单天最大亏损" value={a.max_day_loss != null ? fmtPnl(a.max_day_loss) : '—'} valueCls={a.max_day_loss != null ? pnlCls(a.max_day_loss) : ''} />
+                </section>
               )}
 
               {a && (
