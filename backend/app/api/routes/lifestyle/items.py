@@ -243,5 +243,6 @@ router = crud_router(
     read_schema=ItemRead,
     order_by=LifestyleItem.purchase_date,
     stats_func=_item_stats,
+    search_columns=["item_name", "category", "location", "note"],
     extra_routes=_items_extra,
 )

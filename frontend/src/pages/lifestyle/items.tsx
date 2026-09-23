@@ -288,6 +288,8 @@ export function ItemsPage() {
         columns={columns}
         refreshKey={refresh}
         onMutate={() => setRefresh((v) => v + 1)}
+        searchable
+        searchPlaceholder="搜索物品 / 分类 / 位置…"
         enableBatch
         batchToolbar={(ids, clearSelection) => (
           <Button variant="outline" size="sm" onClick={() => openBatchEdit(ids, clearSelection)}>

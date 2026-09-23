@@ -3,7 +3,7 @@ from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -36,6 +36,7 @@ def crud_router(
     date_column: str | None = None,
     stats_func: Callable[[Session, int, int], dict] | None = None,
     extra_routes: Callable[[APIRouter], None] | None = None,
+    search_columns: list[str] | None = None,
 ) -> APIRouter:
     """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
 
@@ -53,6 +54,7 @@ def crud_router(
         page_size: int = Query(20, ge=1, le=100),
         start: date | None = None,
         end: date | None = None,
+        search_text: str | None = None,
         db: Session = Depends(get_db),
         current_user: UserProfile = Depends(get_current_user),
     ):
@@ -65,6 +67,13 @@ def crud_router(
                 stmt = stmt.where(col >= start)
             if end:
                 stmt = stmt.where(col <= end)
+        if search_columns and search_text and search_text.strip():
+            kw = f"%{search_text.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    *[getattr(model, c).ilike(kw) for c in search_columns]
+                )
+            )
         total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         sort_cols = order_by if isinstance(order_by, (list, tuple)) else [order_by]
         order_clauses = [c if order_dir == "asc" else c.desc() for c in sort_cols]

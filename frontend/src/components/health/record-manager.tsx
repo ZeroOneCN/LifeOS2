@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -85,6 +85,10 @@ type RecordManagerProps<T extends { id: number }> = {
   enableBatch?: boolean
   /** 批量操作工具栏，选中项目后显示在表格上方 */
   batchToolbar?: (selectedIds: number[], clearSelection: () => void) => ReactNode
+  /** 是否启用关键字搜索（配合后端 search_text 全局模糊搜索） */
+  searchable?: boolean
+  /** 搜索框占位提示 */
+  searchPlaceholder?: string
 }
 
 const PAGE_SIZE = 10
@@ -112,6 +116,8 @@ export function RecordManager<T extends { id: number }>({
   onMutate,
   enableBatch = false,
   batchToolbar,
+  searchable = false,
+  searchPlaceholder = '搜索…',
 }: RecordManagerProps<T>) {
   const [items, setItems] = useState<T[]>([])
   const [total, setTotal] = useState(0)
@@ -126,6 +132,7 @@ export function RecordManager<T extends { id: number }>({
     const n = new Date()
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
   })
+  const [keyword, setKeyword] = useState('')
 
   // 无感实时：每 30 秒 + 窗口聚焦 + 数据变更时自动刷新列表
   const realtimeTick = useRealtime(30_000)
@@ -186,6 +193,9 @@ export function RecordManager<T extends { id: number }>({
         params.start = `${month}-01`
         params.end = `${month}-${last}`
       }
+      if (searchable && keyword.trim()) {
+        params.extra = { ...params.extra, search_text: keyword.trim() }
+      }
       const res = await api.list<T>(apiPath, params)
       setItems(res.items)
       setTotal(res.total)
@@ -197,7 +207,12 @@ export function RecordManager<T extends { id: number }>({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey, month, realtimeTick])
+  }, [page, refreshKey, month, realtimeTick, keyword])
+
+  const onSearchChange = (v: string) => {
+    setKeyword(v)
+    setPage(1)
+  }
 
   const openCreate = () => {
     setEditing(null)
@@ -292,6 +307,28 @@ export function RecordManager<T extends { id: number }>({
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); jumpMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             </div>
           ) : null}
+          {searchable && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={keyword}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-9 w-56 pl-8"
+              />
+              {keyword && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
+                  onClick={() => onSearchChange('')}
+                  title="清除搜索"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              )}
+            </div>
+          )}
           {headerExtra}
           <Button onClick={openCreate}>
             <Plus /> 新增记录
