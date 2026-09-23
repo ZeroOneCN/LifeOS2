@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -320,24 +320,19 @@ export function ItemsPage() {
                 <MiniStat label="过期/临期" value={`${chartStats.expired} 已过 / ${chartStats.expiring} 临期`} />
                 <MiniStat label="日均成本(有效)" value={chartStats.avg_daily_cost ? fmt(chartStats.avg_daily_cost) + '/天' : '—'} />
               </div>
-            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
-              <BarChartCard
-                title={`物品分类统计（共 ${stats?.total ?? 0} 件 · 总值 ${stats ? fmt(stats.total_value) : ''}）`}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <DistCard
+                title={`物品分类·共 ${stats?.total ?? 0} 件`}
+                subtitle={stats ? `总值 ${fmt(stats.total_value)}` : undefined}
                 data={byCategory}
-                xKey="category"
-                series={[{ key: 'count', name: '数量', color: '#6366f1' }]}
               />
-              <BarChartCard
+              <DistCard
                 title="物品状态分布"
                 data={byStatus}
-                xKey="status"
-                series={[{ key: 'count', name: '数量', color: '#f59e0b' }]}
               />
-              <BarChartCard
+              <DistCard
                 title="来源分布"
                 data={bySource}
-                xKey="source"
-                series={[{ key: 'count', name: '数量', color: '#a855f7' }]}
               />
             </div>
           </>
@@ -415,6 +410,48 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border bg-card px-4 py-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
+  )
+}
+
+function DistCard({
+  title,
+  subtitle,
+  data,
+}: {
+  title: string
+  subtitle?: string
+  data: { count: number; [k: string]: unknown }[]
+}) {
+  const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-sm font-semibold">{title}</div>
+        {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+      </div>
+      {total === 0 ? (
+        <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {data.map((d) => {
+            const name = String(d[Object.keys(d).find((k) => k !== 'count') ?? ''] ?? '—')
+            const count = d.count ?? 0
+            const pct = Math.round((count / total) * 100)
+            return (
+              <li key={name}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{name}</span>
+                  <span className="font-medium">{count} 件 · {pct}%</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
