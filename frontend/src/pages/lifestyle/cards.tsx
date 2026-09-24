@@ -17,7 +17,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
   type ColumnDef,
@@ -369,6 +369,50 @@ function MiniStat({ icon: Icon, label, value }: { icon?: typeof Smartphone; labe
   )
 }
 
+function DistCard({
+  title,
+  subtitle,
+  data,
+}: {
+  title: string
+  subtitle?: string
+  data: { count: number; [k: string]: unknown }[]
+}) {
+  const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-sm font-semibold">{title}</div>
+          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+        </div>
+        {total === 0 ? (
+          <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {data.map((d) => {
+              const name = String(d[Object.keys(d).find((k) => k !== 'count') ?? ''] ?? '—')
+              const count = d.count ?? 0
+              const pct = Math.round((count / total) * 100)
+              return (
+                <li key={name}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{name}</span>
+                    <span className="font-medium">{count} 张 · {pct}%</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function CardsPage() {
   const [tab, setTab] = useState<(typeof TAB_META)[number]['key']>('phone')
   const [phoneRefresh, setPhoneRefresh] = useState(0)
@@ -591,9 +635,9 @@ export function CardsPage() {
                   <MiniStat label="本月未扣账" value={`${phoneStats.unpaid_this_month}张`} />
                 </div>
                 <div className="grid gap-4 lg:grid-cols-3">
-                  <BarChartCard title="运营商分布" data={phoneStats.by_operator} xKey="operator" series={[{ key: 'count', name: '数量', color: '#4f46e5' }]} />
-                  <BarChartCard title="状态分布" data={phoneChartByStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#0ea5e9' }]} />
-                  <BarChartCard title="付费方式" data={phoneChartBilling} xKey="billing_type" series={[{ key: 'count', name: '数量', color: '#f59e0b' }]} />
+                  <DistCard title="运营商分布" data={phoneStats.by_operator} />
+                  <DistCard title="状态分布" data={phoneChartByStatus} />
+                  <DistCard title="付费方式" data={phoneChartBilling} />
                 </div>
               </>
             ) : null
@@ -670,9 +714,9 @@ export function CardsPage() {
                   <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
                 </StatRow>
                 <div className="grid gap-4 lg:grid-cols-3">
-                  <BarChartCard title="银行分布" data={bankStats.by_bank} xKey="bank" series={[{ key: 'count', name: '数量', color: '#0891b2' }]} />
-                  <BarChartCard title="卡类型" data={bankChartCategory} xKey="card_category" series={[{ key: 'count', name: '数量', color: '#7c3aed' }]} />
-                  <BarChartCard title="状态分布" data={bankChartStatus} xKey="status" series={[{ key: 'count', name: '数量', color: '#059669' }]} />
+                  <DistCard title="银行分布" data={bankStats.by_bank} />
+                  <DistCard title="卡类型" data={bankChartCategory} />
+                  <DistCard title="状态分布" data={bankChartStatus} />
                 </div>
               </>
             ) : null
