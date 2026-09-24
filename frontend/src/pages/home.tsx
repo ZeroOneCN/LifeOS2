@@ -17,6 +17,7 @@ import {
   ShoppingCart,
   Timer,
   TrendingUp,
+  Utensils,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -129,6 +130,29 @@ function StatCard({
   )
 }
 
+/* 指标分组：小标题 + 单行卡片网格。按中心分组可避免不同域指标混排成孤行 */
+function StatGroup({
+  icon: Icon,
+  title,
+  cols,
+  children,
+}: {
+  icon: LucideIcon
+  title: string
+  cols: string
+  children: React.ReactNode
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className="size-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-muted-foreground">{title}</h2>
+      </div>
+      <div className={cols}>{children}</div>
+    </section>
+  )
+}
+
 function ReminderCard({
   icon: Icon,
   title,
@@ -158,7 +182,7 @@ function ReminderCard({
           </Link>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">{children}</CardContent>
+      <CardContent className="max-h-72 space-y-2 overflow-y-auto">{children}</CardContent>
     </Card>
   )
 }
@@ -248,21 +272,29 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* 关键指标 */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Wallet} label="本月支出" value={fmt(fin?.month_expense ?? 0)} hint="含购/旅/水电/订阅/租/贷" money />
-        <StatCard icon={HandCoins} label="累计待还" value={fmt(outstanding)} hint={`网贷 ${fmt(fin?.outstanding_loans ?? 0)} + 民间 ${fmt(fin?.outstanding_debt ?? 0)}`} />
-        <StatCard icon={TrendingUp} label="投资净收益" value={signFmt(inv?.summary.net_profit ?? 0)} hint={`账户净值 ${fmt(inv?.summary.account_value ?? 0)}`} pnl />
-        <StatCard icon={CircleDollarSign} label="投资胜率" value={`${inv?.summary.win_rate ?? 0}%`} hint={`共 ${inv?.summary.trade_count ?? 0} 笔交易`} />
-        <StatCard icon={Footprints} label="近期步数" value={`${num(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
-        <StatCard icon={Timer} label="近期运动" value={`${health?.exercise_count ?? 0} 次`} hint="近 30 天记录" />
-        <StatCard icon={Flame} label="膳食摄入" value={`${num(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
-        <StatCard icon={Flame} label="运动消耗" value={`${num(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
-        <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${health.latest_body.weight_kg} kg` : '—'} hint={health?.latest_body?.bmi ? `BMI ${health.latest_body.bmi}` : '暂无记录'} />
-        <StatCard icon={CaseSensitive} label="待办事项" value={`${life?.todo_pending ?? 0} 项`} hint={life?.todo_overdue ? `其中 ${life.todo_overdue} 项已逾期` : '暂无逾期'} />
-        <StatCard icon={Package} label="临期物品" value={`${life?.item_expiring ?? 0} 项`} hint={life?.item_expired ? `另有 ${life.item_expired} 项已过期` : '30 天内到期'} />
-        <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${life?.phone_total ?? 0} 张 · 银行卡 ${life?.bank_total ?? 0} 张`} />
-        <StatCard icon={CreditCard} label="本月扣款" value={fmt(life?.month_deduct ?? 0)} hint="生活卡片类月度支出" />
+      {/* 关键指标：按中心分组，每组单行排布，避免卡片混排产生孤行 */}
+      <section className="flex flex-col gap-6">
+        <StatGroup icon={Wallet} title="财务与投资" cols="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <StatCard icon={Wallet} label="本月支出" value={fmt(fin?.month_expense ?? 0)} hint="含购/旅/水电/订阅/租/贷" money />
+          <StatCard icon={HandCoins} label="累计待还" value={fmt(outstanding)} hint={`网贷 ${fmt(fin?.outstanding_loans ?? 0)} + 民间 ${fmt(fin?.outstanding_debt ?? 0)}`} />
+          <StatCard icon={TrendingUp} label="投资净收益" value={signFmt(inv?.summary.net_profit ?? 0)} hint={`账户净值 ${fmt(inv?.summary.account_value ?? 0)}`} pnl />
+          <StatCard icon={CircleDollarSign} label="投资胜率" value={`${inv?.summary.win_rate ?? 0}%`} hint={`共 ${inv?.summary.trade_count ?? 0} 笔交易`} />
+          <StatCard icon={CreditCard} label="本月扣款" value={fmt(life?.month_deduct ?? 0)} hint="生活卡片类月度支出" />
+        </StatGroup>
+
+        <StatGroup icon={HeartPulse} title="健康" cols="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+          <StatCard icon={Footprints} label="近期步数" value={`${num(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
+          <StatCard icon={Timer} label="近期运动" value={`${health?.exercise_count ?? 0} 次`} hint="近 30 天记录" />
+          <StatCard icon={Utensils} label="膳食摄入" value={`${num(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
+          <StatCard icon={Flame} label="运动消耗" value={`${num(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
+          <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${health.latest_body.weight_kg} kg` : '—'} hint={health?.latest_body?.bmi ? `BMI ${health.latest_body.bmi}` : '暂无记录'} />
+        </StatGroup>
+
+        <StatGroup icon={Package} title="生活" cols="grid gap-4 grid-cols-2 md:grid-cols-3">
+          <StatCard icon={CaseSensitive} label="待办事项" value={`${life?.todo_pending ?? 0} 项`} hint={life?.todo_overdue ? `其中 ${life.todo_overdue} 项已逾期` : '暂无逾期'} />
+          <StatCard icon={Package} label="临期物品" value={`${life?.item_expiring ?? 0} 项`} hint={life?.item_expired ? `另有 ${life.item_expired} 项已过期` : '30 天内到期'} />
+          <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${life?.phone_total ?? 0} 张 · 银行卡 ${life?.bank_total ?? 0} 张`} />
+        </StatGroup>
       </section>
 
       {/* 待办与提醒 */}
@@ -367,7 +399,7 @@ export function HomePage() {
           <HeartPulse className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-muted-foreground">功能中心快捷入口</h2>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
           {centers.map((center) => (
             <Link key={center.title} to={center.children[0].url} className="h-full">
               <Card className="h-full transition-colors hover:bg-muted/60">
