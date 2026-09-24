@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
 
@@ -228,22 +228,42 @@ export function ActivityLogsPage() {
         />
       </section>
 
-      {byAction.length > 0 || trend.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <BarChartCard
-            title="操作类型分布"
-            data={byAction.map((a) => ({ action: ACTION_META[a.action]?.name ?? a.action, count: a.count }))}
-            xKey="action"
-            series={[{ key: 'count', name: '次数', color: '#6366f1' }]}
-          />
-          <LineChartCard
-            title="近30天操作趋势"
-            data={trend}
-            xKey="log_date"
-            series={[{ key: 'count', name: '操作数', color: '#0ea5e9' }]}
-          />
-        </div>
-      ) : null}
+      {byAction.length > 0 && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {byAction.map((a) => {
+            const meta = ACTION_META[a.action] ?? {
+              name: a.action,
+              className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
+              icon: Activity,
+            }
+            const Icon = meta.icon
+            return (
+              <Card key={a.action}>
+                <CardContent className="flex items-center gap-3 p-6">
+                  <span
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xl font-semibold leading-tight">{a.count}</div>
+                    <div className="truncate text-xs text-muted-foreground">{meta.name}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </section>
+      )}
+
+      {trend.length > 0 && (
+        <LineChartCard
+          title="近30天操作趋势"
+          data={trend}
+          xKey="log_date"
+          series={[{ key: 'count', name: '操作数', color: '#0ea5e9' }]}
+        />
+      )}
 
       <Card>
         <CardHeader className="pb-2">
