@@ -5,6 +5,7 @@ import { ThemeProvider } from 'next-themes'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/lib/auth'
+import { SiteConfigProvider } from '@/lib/site-config'
 import { router } from '@/router'
 import './index.css'
 
@@ -16,10 +17,12 @@ createRoot(document.getElementById('root')!).render(
       enableSystem
       disableTransitionOnChange
     >
-      <AuthProvider>
-        <RouterProvider router={router} />
-        <Toaster />
-      </AuthProvider>
+      <SiteConfigProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </AuthProvider>
+      </SiteConfigProvider>
     </ThemeProvider>
   </TooltipProvider>,
 )

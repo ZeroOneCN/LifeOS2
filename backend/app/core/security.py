@@ -86,3 +86,10 @@ def get_current_user(
     if profile is None:
         raise HTTPException(status_code=401, detail="用户不存在，请重新登录")
     return profile
+
+
+def get_current_admin(user: UserProfile = Depends(get_current_user)) -> UserProfile:
+    """在登录校验基础上要求管理员身份，用于系统级配置的写操作。"""
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可执行该操作")
+    return user

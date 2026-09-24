@@ -65,6 +65,8 @@ MODULE_NAMES = {
     "notifications/channels": "通知渠道",
     "notifications/settings": "提醒设置",
     "notifications/templates": "通知模板",
+    "site-config": "系统设置",
+    "site-config/reset": "系统设置",
 }
 
 ACTION_NAMES = {"create": "新增", "update": "更新", "patch": "部分更新", "delete": "删除"}

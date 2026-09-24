@@ -14,18 +14,20 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth'
+import { resolveLogo, useSiteConfig } from '@/lib/site-config'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
+  const { config } = useSiteConfig()
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    document.title = '数字化生活助手-登录'
-  }, [])
+    document.title = `${config.site_title}-登录`
+  }, [config.site_title])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,12 +52,12 @@ export function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <img
-            src="/favicon.svg"
-            alt="数字化生活助手"
+            src={resolveLogo(config.logo)}
+            alt={config.site_title}
             className="mx-auto mb-2 size-10"
           />
-          <CardTitle className="text-xl">登录 数字化生活助手</CardTitle>
-          <CardDescription>使用你的账号登录以继续</CardDescription>
+          <CardTitle className="text-xl">{config.login_title}</CardTitle>
+          <CardDescription>{config.login_subtitle}</CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
           <CardContent className="space-y-4">

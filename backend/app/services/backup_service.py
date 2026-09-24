@@ -147,6 +147,7 @@ TABLE_LABELS: dict[str, str] = {
     "user_profile": "用户信息",
     "scheduled_backups": "定时备份计划",
     "backup_logs": "备份执行日志",
+    "site_config": "系统品牌配置",
 }
 
 

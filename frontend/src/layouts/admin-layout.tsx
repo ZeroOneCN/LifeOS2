@@ -17,6 +17,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { findNavEntry } from '@/config/navigation'
+import { useSiteConfig } from '@/lib/site-config'
 
 // 底部用户入口等不在侧边栏导航中的页面标题
 const PAGE_TITLES: Record<string, string> = {
@@ -24,20 +25,18 @@ const PAGE_TITLES: Record<string, string> = {
   '/user-center/settings': '账号设置',
 }
 
-// 网页标签标题前缀（品牌名）
-const BRAND = '数字化生活助手'
-
 export function AdminLayout() {
   const { pathname } = useLocation()
+  const { config } = useSiteConfig()
   const found = findNavEntry(pathname)
   const sectionTitle = found?.section.title
   const showSection = found ? !found.section.system : false
   const pageTitle = found?.entry.title ?? PAGE_TITLES[pathname] ?? '页面'
 
-  // 按当前页面自动更新网页标签标题
+  // 按当前页面自动更新网页标签标题（品牌名取自系统设置）
   useEffect(() => {
-    document.title = `${BRAND}-${pageTitle}`
-  }, [pageTitle])
+    document.title = `${config.site_title}-${pageTitle}`
+  }, [config.site_title, pageTitle])
 
   return (
     <SidebarProvider>

@@ -14,10 +14,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth'
+import { resolveLogo, useSiteConfig } from '@/lib/site-config'
 
 export function RegisterPage() {
   const navigate = useNavigate()
   const { register } = useAuth()
+  const { config } = useSiteConfig()
   const [account, setAccount] = useState('')
   const [nickname, setNickname] = useState('')
   const [password, setPassword] = useState('')
@@ -26,8 +28,8 @@ export function RegisterPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    document.title = '数字化生活助手-注册'
-  }, [])
+    document.title = `${config.site_title}-注册`
+  }, [config.site_title])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,12 +62,12 @@ export function RegisterPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <img
-            src="/favicon.svg"
-            alt="数字化生活助手"
+            src={resolveLogo(config.logo)}
+            alt={config.site_title}
             className="mx-auto mb-2 size-10"
           />
-          <CardTitle className="text-xl">注册 数字化生活助手</CardTitle>
-          <CardDescription>创建账号以使用数字化生活助手</CardDescription>
+          <CardTitle className="text-xl">{config.register_title}</CardTitle>
+          <CardDescription>{config.register_subtitle}</CardDescription>
         </CardHeader>
         <form onSubmit={submit}>
           <CardContent className="space-y-4">

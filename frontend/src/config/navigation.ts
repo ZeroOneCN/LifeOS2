@@ -20,6 +20,7 @@ import {
   Pill,
   Plane,
   Receipt,
+  Settings,
   ShoppingCart,
   Target,
   TrendingUp,
@@ -51,6 +52,7 @@ export const navigation: NavSection[] = [
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History },
       { title: '数据备份', url: '/backup', icon: Database },
+      { title: '系统设置', url: '/system-settings', icon: Settings },
     ],
   },
   {

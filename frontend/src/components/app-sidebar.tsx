@@ -21,6 +21,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { navigation, type NavSection } from '@/config/navigation'
+import { resolveLogo, useSiteConfig } from '@/lib/site-config'
 
 /** 业务中心分区渲染为可折叠子菜单；系统区保持平铺。 */
 function SidebarSection({ section }: { section: NavSection }) {
@@ -105,17 +106,19 @@ function SidebarSection({ section }: { section: NavSection }) {
 }
 
 export function AppSidebar() {
+  const { config } = useSiteConfig()
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex h-10 items-center gap-2.5 px-2">
           <img
-            src="/favicon.svg"
-            alt="数字化生活助手"
+            src={resolveLogo(config.logo)}
+            alt={config.site_title}
             className="size-7 shrink-0"
           />
           <span className="font-heading text-lg font-semibold leading-tight group-data-[collapsible=icon]:hidden">
-            数字化生活助手
+            {config.site_title}
           </span>
         </div>
       </SidebarHeader>

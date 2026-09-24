@@ -16,6 +16,7 @@ from app.api.routes import (
     motivation,
     notification,
     notifications,
+    site_config,
     user,
 )
 from app.core.config import settings
@@ -74,6 +75,7 @@ app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
 app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
+app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
