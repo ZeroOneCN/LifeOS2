@@ -10,9 +10,11 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
+  type PieSectorShapeProps,
 } from 'recharts'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -255,6 +257,22 @@ const DEFAULT_PIE_COLORS = [
 
 const DEFAULT_PIE_OUTER_RADIUS = '80%'
 const DEFAULT_PIE_INNER_RADIUS = '55%'
+/** 悬停扇区相对基准半径的外扩像素值，用于形成放大反馈 */
+const PIE_HOVER_OUTER_OFFSET = 6
+
+/**
+ * 饼图扇区渲染：悬停（active）时外扩半径形成放大反馈。
+ * recharts 内部由 Tooltip 的悬停状态驱动 active 扇区并通过 isActive 传入，
+ * 因此无需自行维护悬停索引；扇区颜色来自 <Cell> 的 fill。
+ */
+const renderPieSector = ({ isActive, ...sector }: PieSectorShapeProps) => (
+  <Sector
+    {...sector}
+    outerRadius={
+      isActive ? sector.outerRadius + PIE_HOVER_OUTER_OFFSET : sector.outerRadius
+    }
+  />
+)
 
 /**
  * 饼图卡片：展示分类占比。自带深色 tooltip（复用 TOOLTIP_STYLE），
@@ -295,8 +313,6 @@ export function PieChartCard({
   centerValue?: string
   centerLabel?: string
 }) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null)
-
   // 当前数据解析后的名称（支持 labels 覆盖，用于图例与悬浮）
   const displayName = (raw: unknown) => {
     const s = String(raw)
@@ -347,8 +363,7 @@ export function PieChartCard({
               outerRadius={DEFAULT_PIE_OUTER_RADIUS}
               paddingAngle={2}
               stroke="transparent"
-              onMouseEnter={(_, idx) => setActiveIndex(idx)}
-              onMouseLeave={() => setActiveIndex(null)}
+              shape={renderPieSector}
               onClick={
                 onClick
                   ? (entry) => {
@@ -357,23 +372,14 @@ export function PieChartCard({
                   : undefined
               }
             >
-              {data.map((d, i) => {
-                const active = activeIndex != null && activeIndex === i
-                return (
-                  <Cell
-                    key={i}
-                    fill={colors[i % colors.length]}
-                    stroke="transparent"
-                    style={onClick ? { cursor: 'pointer' } : undefined}
-                    outerRadius={
-                      active ? '78%' : DEFAULT_PIE_OUTER_RADIUS
-                    }
-                    innerRadius={
-                      active ? '52%' : DEFAULT_PIE_INNER_RADIUS
-                    }
-                  />
-                )
-              })}
+              {data.map((_, i) => (
+                <Cell
+                  key={i}
+                  fill={colors[i % colors.length]}
+                  stroke="transparent"
+                  style={onClick ? { cursor: 'pointer' } : undefined}
+                />
+              ))}
             </Pie>
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={tooltipFormatter} />
             {data.length > 0 && (

@@ -527,7 +527,6 @@ function HousingTab() {
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {pagedHouses.map((h) => {
-                const mPrefix = (stats?.month ?? '').slice(0, 7)
                 const days = houseDays(h)
                 const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
                 // 整段已发生成本 = 全部已交期次 + 全部已缴水电 + 杂费
@@ -1590,7 +1589,6 @@ function LoanTab() {
     if (!(await confirm())) return
     try {
       await api.remove('/finance/loan-bills', b.id)
-      if (selectedBill === b.id) setSelectedBill(null)
       await refresh()
       toast.success('账单已删除')
     } catch (e) {

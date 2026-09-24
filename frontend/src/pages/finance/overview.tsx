@@ -55,7 +55,6 @@ type FinanceOverviewData = {
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 const usdFmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-const signFmt = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `-${fmt(Math.abs(n))}` : fmt(n))
 const usdSignFmt = (n: number) => (n > 0 ? `+${usdFmt(n)}` : n < 0 ? `-${usdFmt(Math.abs(n))}` : usdFmt(n))
 
 function StatCard({
