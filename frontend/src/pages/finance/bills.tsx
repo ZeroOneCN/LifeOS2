@@ -4,6 +4,7 @@ import {
   Building,
   Calendar,
   CheckCircle2,
+  Check,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -16,6 +17,7 @@ import {
   Repeat,
   Trash2,
   Wallet,
+  X,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -1108,6 +1110,8 @@ function SubscriptionTab() {
   const [dialog, setDialog] = useState<null | { editing?: Subscription }>(null)
   const [catDialog, setCatDialog] = useState(false)
   const [newCategory, setNewCategory] = useState('')
+  const [catEditId, setCatEditId] = useState<number | null>(null)
+  const [catEditName, setCatEditName] = useState('')
   const [form, setForm] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
@@ -1144,9 +1148,24 @@ function SubscriptionTab() {
       await loadCategories()
       toast.success('订阅分类已删除')
     } catch (e) {
-      toast.error('删除失败', {
-        description: e instanceof Error ? e.message : '请稍后重试',
-      })
+      toast.error('删除失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    }
+  }
+  const startEditCat = (c: SubCategory) => {
+    setCatEditId(c.id)
+    setCatEditName(c.name)
+  }
+  const saveCatEdit = async () => {
+    if (catEditId == null) return
+    const name = catEditName.trim()
+    if (!name) { setCatEditId(null); return }
+    try {
+      await api.update('/finance/subscription-categories', catEditId, { name })
+      setCatEditId(null)
+      await loadCategories()
+      toast.success('订阅分类已更新')
+    } catch (e) {
+      toast.error('更新失败', { description: e instanceof Error ? e.message : '请稍后重试' })
     }
   }
 
@@ -1338,9 +1357,25 @@ function SubscriptionTab() {
             </div>
             <div className="space-y-1.5">
               {categories.map((c) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span>{c.name}</span>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button>
+                <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                  {catEditId === c.id ? (
+                    <>
+                      <Input value={catEditName} onChange={(e) => setCatEditName(e.target.value)} autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && saveCatEdit()} className="min-w-0 flex-1" />
+                      <div className="flex shrink-0 gap-0.5">
+                        <Button size="icon" variant="ghost" onClick={saveCatEdit} title="保存"><Check /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => setCatEditId(null)} title="取消"><X /></Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      <div className="flex shrink-0 gap-0.5">
+                        <Button variant="ghost" size="icon" onClick={() => startEditCat(c)} title="编辑"><Pencil /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)} title="删除"><Trash2 /></Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               {categories.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无分类</p>}
