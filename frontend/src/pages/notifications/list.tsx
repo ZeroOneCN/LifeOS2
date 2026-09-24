@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
@@ -96,6 +95,16 @@ export function NotificationList() {
 
   const byCategory = stats?.by_category ?? []
   const trend = stats?.trend ?? []
+  const categoryTotal = byCategory.reduce((sum, c) => sum + c.count, 0)
+
+  // 近7日提醒（按自然日补齐，趋势数据为近30天按日的计数）
+  const trendMap = new Map(trend.map((t) => [t.notify_date, t.count]))
+  const today = new Date()
+  const recentDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (6 - i))
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { key, label: key.slice(5), count: trendMap.get(key) ?? 0, isToday: i === 6 }
+  })
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,18 +115,56 @@ export function NotificationList() {
 
       {byCategory.length > 0 || trend.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          <BarChartCard
-            title="提醒类型分布"
-            data={byCategory}
-            xKey="category"
-            series={[{ key: 'count', name: '数量', color: '#6366f1' }]}
-          />
-          <LineChartCard
-            title="近30天提醒趋势"
-            data={trend}
-            xKey="notify_date"
-            series={[{ key: 'count', name: '提醒数', color: '#0ea5e9' }]}
-          />
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">提醒类型分布</CardTitle>
+              <CardDescription>近30天各类型提醒数量与占比</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {byCategory.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">暂无数据</p>
+              ) : (
+                <ul className="space-y-2">
+                  {byCategory.map((c) => {
+                    const pct = categoryTotal > 0 ? Math.round((c.count / categoryTotal) * 100) : 0
+                    return (
+                      <li key={c.category}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{c.category}</span>
+                          <span className="font-medium">{c.count} 条 · {pct}%</span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">近7日提醒</CardTitle>
+              <CardDescription>最近一周每日提醒数量</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="grid grid-cols-2 gap-2">
+                {recentDays.map((d) => (
+                  <li
+                    key={d.key}
+                    className="flex items-center justify-between rounded-lg border px-3 py-2"
+                  >
+                    <span className="truncate text-sm text-muted-foreground">
+                      {d.label}{d.isToday ? '（今天）' : ''}
+                    </span>
+                    <span className="shrink-0 text-sm font-medium">{d.count} 条</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         </div>
       ) : null}
 
