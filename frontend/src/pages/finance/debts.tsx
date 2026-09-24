@@ -50,7 +50,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { PieChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
 type Currency = { id: number; currency: string; name?: string; rate_to_cny: number; symbol?: string }
@@ -94,7 +94,6 @@ const channelMeta: Record<string, { className: string }> = {
 type DebtStats = {
   total: number; active: number; settled: number
   borrow_total: number; lend_total: number; outstanding: number; overdue: number
-  by_direction: { direction: string; label: string; amount: number }[]
   by_status: { status: string; label: string; count: number }[]
   overdue_list: { name: string; counterparty?: string; direction: string; remaining: number; due_date?: string }[]
 }
@@ -296,18 +295,6 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-red-600 dark:text-red-400" />
             <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-red-600 dark:text-red-400" />
           </section>
-
-          {stats?.by_direction && stats.by_direction.length > 0 && (
-            <PieChartCard
-              title="借出 / 借入金额占比"
-              data={(stats.by_direction).map((d) => ({ ...d, amount: Math.abs(d.amount) }))}
-              dataKey="amount"
-              nameKey="label"
-              height={240}
-              centerValue={fmtMoney(stats.lend_total + stats.borrow_total)}
-              centerLabel="借贷合计"
-            />
-          )}
 
           {(stats?.overdue ?? 0) > 0 && (
             <Card className="border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10">

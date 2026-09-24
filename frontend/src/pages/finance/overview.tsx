@@ -22,7 +22,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { BarChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
@@ -157,23 +156,47 @@ export function FinanceOverviewPage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        {data.categories.length > 0 && (
-          <BarChartCard
-            title="本月支出构成"
-            data={data.categories.map((c) => ({ name: c.label, value: c.amount }))}
-            xKey="name"
-            series={[{ key: 'value', name: '支出', color: '#0f766e' }]}
-          />
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">本月支出构成</CardTitle>
+            <CardDescription>按类别汇总本月支出</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {data.categories.length > 0 ? (
+              <ul className="grid grid-cols-2 gap-2">
+                {data.categories.map((c) => (
+                  <li key={c.label} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <span className="truncate text-sm text-muted-foreground">{c.label}</span>
+                    <span className="shrink-0 text-sm font-medium">{fmt(c.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">暂无支出数据</p>
+            )}
+          </CardContent>
+        </Card>
 
-        {data.week_trend.length > 0 && (
-          <BarChartCard
-            title="近 7 天支出趋势"
-            data={data.week_trend}
-            xKey="date"
-            series={[{ key: 'amount', name: '支出', color: '#ef4444' }]}
-          />
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">近 7 天支出趋势</CardTitle>
+            <CardDescription>每日支出金额</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {data.week_trend.length > 0 ? (
+              <ul className="grid grid-cols-2 gap-2">
+                {data.week_trend.map((d) => (
+                  <li key={d.date} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <span className="truncate text-sm text-muted-foreground">{d.date}</span>
+                    <span className="shrink-0 text-sm font-medium">{fmt(d.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">暂无趋势数据</p>
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">

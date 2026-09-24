@@ -47,7 +47,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
@@ -522,7 +522,25 @@ export function TravelPage() {
             <StatCard icon={Plane} label="明细笔数" value={`${stats.count} 笔`} />
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
-            <BarChartCard title="按分类支出" data={stats.by_category} xKey="category" series={[{ key: 'amount', name: '实付', color: '#4f46e5' }]} />
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">按分类支出</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats.by_category.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">暂无分类数据</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {stats.by_category.map((c) => (
+                      <div key={c.category} className="flex flex-col gap-0.5 rounded-lg border px-3 py-2">
+                        <span className="text-xs text-muted-foreground">{c.category}</span>
+                        <span className="text-base font-semibold">{fmt(c.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             <LineChartCard title="月度开支趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '实付', color: '#ef4444' }]} />
           </section>
         </>

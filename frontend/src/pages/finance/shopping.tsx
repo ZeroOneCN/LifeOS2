@@ -42,7 +42,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -373,7 +373,25 @@ export function ShoppingPage() {
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
             <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: '#ef4444' }]} />
-            <BarChartCard title="按平台消费" data={stats.by_platform} xKey="platform" series={[{ key: 'amount', name: '金额', color: '#4f46e5' }]} />
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">按平台消费</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats.by_platform.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">暂无消费平台</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {stats.by_platform.map((p) => (
+                      <div key={p.platform_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                        <span className="truncate text-sm text-muted-foreground">{p.platform}</span>
+                        <span className="shrink-0 text-sm font-medium">{fmt(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </section>
           {stats.by_ledger.length > 0 && (
             <Card>

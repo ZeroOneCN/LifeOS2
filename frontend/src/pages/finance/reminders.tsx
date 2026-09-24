@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { PieChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import {
@@ -156,16 +156,6 @@ export function RemindersPage() {
       ]
     : []
 
-  // 按待办来源聚合数量，用于展示「各来源待办占比」
-  const sourceAgg = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const it of agg?.items ?? []) {
-      const label = sourceMeta[it.source]?.label ?? it.source_label ?? it.source
-      map.set(label, (map.get(label) ?? 0) + 1)
-    }
-    return Array.from(map, ([label, count]) => ({ label, count }))
-  }, [agg])
-
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap items-end justify-between gap-3">
@@ -190,18 +180,6 @@ export function RemindersPage() {
               </Card>
             ))}
           </section>
-
-          {sourceAgg.length > 0 && (
-            <PieChartCard
-              title="各来源待办占比"
-              data={sourceAgg}
-              dataKey="count"
-              nameKey="label"
-              height={240}
-              centerValue={String(agg?.total ?? 0)}
-              centerLabel="待办总数"
-            />
-          )}
 
           <Card>
             <CardHeader className="pb-2">
