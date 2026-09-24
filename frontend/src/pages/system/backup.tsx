@@ -66,6 +66,8 @@ import { api } from '@/lib/api'
 type TableInfo = {
   name: string
   count: number
+  label: string | null
+  mapped: boolean
 }
 
 type BackupFile = {
@@ -134,66 +136,6 @@ type LogPage = {
   total: number
   page: number
   page_size: number
-}
-
-const TABLE_LABELS: Record<string, string> = {
-  health_vitals_sleep: '睡眠体征',
-  health_fitness: '健身运动',
-  health_diet: '饮食记录',
-  health_body: '身体指标',
-  health_steps: '步数统计',
-  health_step_setting: '步数设置',
-  health_checkup: '体检指标',
-  health_checkup_template: '体检模板',
-  health_checkup_panel: '体检面板',
-  health_checkup_panel_item: '体检面板项目',
-  health_medication: '用药记录',
-  health_med_purchase: '购药记录',
-  health_med_stock: '药品库存',
-  health_reports: '健康报告',
-  finance_shopping_records: '购物记录',
-  finance_shopping_platforms: '购物平台',
-  finance_shopping_ledgers: '购物账本',
-  finance_travel_ledgers: '旅行账本',
-  finance_travel_details: '旅行明细',
-  finance_travel_payment_channels: '旅行支付方式',
-  finance_travel_reports: '旅行报告',
-  finance_housing: '住房信息',
-  finance_rent_channels: '租金渠道',
-  finance_rent_terms: '付款期次',
-  finance_utilities: '水电账单',
-  finance_subscriptions: '订阅续费',
-  finance_subscription_categories: '订阅分类',
-  finance_loan_platforms: '借款平台',
-  finance_loan_bills: '借款账单',
-  finance_repayments: '还款记录',
-  finance_reminders: '账单提醒',
-  finance_planning: '财务规划',
-  finance_debts: '债务管理',
-  finance_debt_payments: '债务还款',
-  finance_investments: '投资记录',
-  finance_memos: '备忘录',
-  finance_currencies: '货币汇率',
-  finance_reports: '财务报告',
-  lifestyle_items: '物品追踪',
-  lifestyle_phone_cards: '手机号管理',
-  lifestyle_bank_cards: '银行卡管理',
-  lifestyle_carriers: '运营商平台',
-  lifestyle_card_bills: '卡账单',
-  lifestyle_life_reports: '生活报告',
-  lifestyle_todos: '待办清单',
-  investment_forex: '外汇交易',
-  investment_fund_records: '基金记录',
-  investment_reports: '投资报告',
-  notifications: '通知记录',
-  notification_channels: '通知渠道',
-  notification_templates: '通知模板',
-  feature_reminder_settings: '功能提醒设置',
-  notification_send_logs: '发送日志',
-  activity_logs: '活动日志',
-  user_profile: '用户信息',
-  scheduled_backups: '定时备份计划',
-  backup_logs: '备份执行日志',
 }
 
 const CRON_PRESETS = [
@@ -687,8 +629,13 @@ export function BackupPage() {
                           )}
                         </span>
                         <div className="min-w-0 flex-1 truncate">
-                          <div className="truncate" title={TABLE_LABELS[t.name] || t.name}>
-                          {TABLE_LABELS[t.name] || t.name}
+                          <div className="flex items-center gap-1 truncate" title={t.mapped ? t.label ?? t.name : `${t.name}（未配置中文名）`}>
+                            <span className="truncate">{t.label ?? t.name}</span>
+                            {!t.mapped && (
+                              <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                未配置中文名
+                              </Badge>
+                            )}
                           </div>
                           <div className="text-muted-foreground text-xs">
                             {t.count} 条
@@ -857,12 +804,24 @@ export function BackupPage() {
                       {Object.entries(importResult.tables)
                         .filter(([, count]) => count > 0)
                         .sort((a, b) => b[1] - a[1])
-                        .map(([tableName, count]) => (
-                          <TableRow key={tableName}>
-                            <TableCell>{TABLE_LABELS[tableName] || tableName}</TableCell>
-                            <TableCell className="text-right">{count}</TableCell>
-                          </TableRow>
-                        ))}
+                        .map(([tableName, count]) => {
+                          const info = tables.find((t) => t.name === tableName)
+                          return (
+                            <TableRow key={tableName}>
+                              <TableCell>
+                                <span className="inline-flex items-center gap-1.5">
+                                  {info?.label ?? tableName}
+                                  {info && !info.mapped && (
+                                    <Badge variant="outline" className="px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                      未配置中文名
+                                    </Badge>
+                                  )}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">{count}</TableCell>
+                            </TableRow>
+                          )
+                        })}
                     </TableBody>
                   </Table>
                 </div>

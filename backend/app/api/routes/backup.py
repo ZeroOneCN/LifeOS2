@@ -33,6 +33,8 @@ class ImportReq(BaseModel):
 class TableInfo(BaseModel):
     name: str
     count: int
+    label: str | None = None  # 中文名，未映射时为 None
+    mapped: bool = False  # 是否已配置中文映射
 
 
 class BackupFileInfo(BaseModel):

@@ -86,8 +86,77 @@ def _backup_filename(kind: str, suffix: str = ".json") -> str:
 # 核心导出 / 导入逻辑
 # ---------------------------------------------------------------------------
 
+# 数据表中文名映射（唯一数据源）：
+# 所有新增的数据表必须在此补充中文映射，否则备份页面会将未映射的表标记为「未配置中文名」。
+TABLE_LABELS: dict[str, str] = {
+    "health_vitals_sleep": "睡眠体征",
+    "health_fitness": "健身运动",
+    "health_diet": "饮食记录",
+    "health_body": "身体指标",
+    "health_steps": "步数统计",
+    "health_step_setting": "步数设置",
+    "health_checkup": "体检指标",
+    "health_checkup_template": "体检模板",
+    "health_checkup_panel": "体检面板",
+    "health_checkup_panel_item": "体检面板项目",
+    "health_medication": "用药记录",
+    "health_med_purchase": "购药记录",
+    "health_med_stock": "药品库存",
+    "health_reports": "健康报告",
+    "finance_shopping_records": "购物记录",
+    "finance_shopping_platforms": "购物平台",
+    "finance_shopping_ledgers": "购物账本",
+    "finance_travel_ledgers": "旅行账本",
+    "finance_travel_details": "旅行明细",
+    "finance_travel_payment_channels": "旅行支付方式",
+    "finance_travel_reports": "旅行报告",
+    "finance_housing": "住房信息",
+    "finance_rent_channels": "租金渠道",
+    "finance_rent_terms": "付款期次",
+    "finance_utilities": "水电账单",
+    "finance_subscriptions": "订阅续费",
+    "finance_subscription_categories": "订阅分类",
+    "finance_loan_platforms": "借款平台",
+    "finance_loan_bills": "借款账单",
+    "finance_repayments": "还款记录",
+    "finance_reminders": "账单提醒",
+    "finance_planning": "财务规划",
+    "finance_debts": "债务管理",
+    "finance_debt_payments": "债务还款",
+    "finance_investments": "投资记录",
+    "finance_memos": "备忘录",
+    "finance_currencies": "货币汇率",
+    "finance_reports": "财务报告",
+    "lifestyle_items": "物品追踪",
+    "lifestyle_phone_cards": "手机号管理",
+    "lifestyle_phone_recharges": "手机卡充值",
+    "lifestyle_bank_cards": "银行卡管理",
+    "lifestyle_carriers": "运营商平台",
+    "lifestyle_card_bills": "卡账单",
+    "lifestyle_life_reports": "生活报告",
+    "lifestyle_todos": "待办清单",
+    "investment_forex": "外汇交易",
+    "investment_fund_records": "基金记录",
+    "investment_reports": "投资报告",
+    "notifications": "通知记录",
+    "notification_channels": "通知渠道",
+    "notification_templates": "通知模板",
+    "feature_reminder_settings": "功能提醒设置",
+    "notification_send_logs": "发送日志",
+    "activity_logs": "活动日志",
+    "user_profile": "用户信息",
+    "scheduled_backups": "定时备份计划",
+    "backup_logs": "备份执行日志",
+}
+
+
 def get_table_list(db: Session) -> list[dict[str, Any]]:
-    """获取数据库所有表名及行数（仅业务表，排除系统表）。"""
+    """获取数据库所有表名及行数（仅业务表，排除系统表），附中文映射信息。
+
+    Returns:
+        每项包含 name（表名）、count（行数）、label（中文名，未映射为 None）、
+        mapped（是否已配置中文映射）
+    """
     inspector = inspect(db.bind)
     all_tables = inspector.get_table_names()
     # 排除 SQLAlchemy 内部表
@@ -97,7 +166,12 @@ def get_table_list(db: Session) -> list[dict[str, Any]]:
         if table in skip:
             continue
         count = db.scalar(text(f"SELECT COUNT(*) FROM `{table}`"))
-        result.append({"name": table, "count": count or 0})
+        result.append({
+            "name": table,
+            "count": count or 0,
+            "label": TABLE_LABELS.get(table),
+            "mapped": table in TABLE_LABELS,
+        })
     result.sort(key=lambda r: r["name"])
     return result
 
