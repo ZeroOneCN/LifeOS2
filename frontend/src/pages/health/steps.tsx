@@ -219,33 +219,38 @@ export function StepsPage() {
     if (dialogOpen && !editing) stepsInputRef.current?.focus()
   }, [dialogOpen, editing, form.period])
 
+  // 提交锁：网络卡顿时防止多次点击/回车堆积出多个并发请求（后端另有唯一性校验兜底）
+  const savingRef = useRef(false)
+
   // 新增录入时：保存当前条后自动跳到下一个时间段连续录入；最后一个时段保存后关闭
   const submit = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     const payload = {
       record_date: form.record_date,
       period: form.period,
       steps: Number(form.steps),
     }
-    // 新增去重：该日期已存在的时间段禁止重复添加
-    if (!editing && form.record_date && form.period) {
-      try {
-        const existing = await api.list<StepsRecord>('/health/steps', {
-          page: 1,
-          page_size: 100,
-          start: form.record_date,
-          end: form.record_date,
-        })
-        const dup = existing.items.find((r) => r.period === form.period)
-        if (dup) {
-          setFormError(`该日期已存在 ${periodLabel(form.period)} 的步数记录，请勿重复添加`)
-          return
-        }
-      } catch {
-        /* 校验失败不阻断 */
-      }
-    }
-    setSaving(true)
     try {
+      // 新增去重：该日期已存在的时间段禁止重复添加（本地校验；网络异常时跳过，后端 409 兜底）
+      if (!editing && form.record_date && form.period) {
+        try {
+          const existing = await api.list<StepsRecord>('/health/steps', {
+            page: 1,
+            page_size: 100,
+            start: form.record_date,
+            end: form.record_date,
+          })
+          const dup = existing.items.find((r) => r.period === form.period)
+          if (dup) {
+            setFormError(`该日期已存在 ${periodLabel(form.period)} 的步数记录，请勿重复添加`)
+            return
+          }
+        } catch {
+          /* 网络异常跳过本地校验，交由后端唯一性校验兜底 */
+        }
+      }
       if (editing) {
         await api.update('/health/steps', editing.id, payload)
         setDialogOpen(false)
@@ -267,10 +272,22 @@ export function StepsPage() {
       await load()
       setRefresh((r) => r + 1)
     } catch (e) {
-      toast.error(editing ? '更新失败' : '保存失败', {
-        description: e instanceof Error ? e.message : '请稍后重试',
-      })
+      const msg = e instanceof Error ? e.message : '请稍后重试'
+      if (msg.includes('已存在')) {
+        // 后端唯一性校验(409)拦截：在表单内提示，保留数据等待用户调整
+        setFormError(msg)
+      } else if (e instanceof TypeError) {
+        // fetch 网络异常：明确告知未保存成功，数据保留可重试
+        toast.error('网络连接异常，保存未成功', {
+          description: '请检查网络后重试，当前填写的数据已保留',
+        })
+      } else {
+        toast.error(editing ? '更新失败' : '保存失败', {
+          description: msg,
+        })
+      }
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }

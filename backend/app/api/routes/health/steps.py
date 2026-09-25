@@ -251,4 +251,7 @@ router = crud_router(
     date_column="record_date",
     stats_func=_steps_stats,
     extra_routes=_register_fixed,
+    # 同一天同一时间段只允许一条记录，新增/编辑均做业务唯一性校验，防止网络重试堆积导致重复入库
+    conflict_fields=["record_date", "period"],
+    conflict_msg="该日期已存在相同时间段的步数记录，请勿重复添加",
 )
