@@ -298,13 +298,14 @@ async def import_xlsx(
             return None
         return raw[i]
 
-    # 去重键集合：优先按订单号，无订单号则按 日期+商品+总价 兜底
+    # 去重键集合：订单号+日期+商品+总价 的内容指纹。
+    # 注意：同一个订单号常对应多行（同订单不同商品分开写），因此不能仅按订单号去重，
+    # 否则会把同订单其他商品行误判为重复而跳过。
     existing_rows = db.scalars(
         select(FinanceShoppingRecord).where(FinanceShoppingRecord.user_id == user.id)
     ).all()
-    order_keys = {r.order_no for r in existing_rows if r.order_no}
-    content_keys = {
-        (str(r.record_date), str(r.product_name).strip(), round(r.total_price, 2))
+    existing_keys = {
+        (r.order_no or "", str(r.record_date), str(r.product_name).strip(), round(r.total_price, 2))
         for r in existing_rows
     }
 
@@ -329,17 +330,12 @@ async def import_xlsx(
         order_no = str(get(raw, "order_no")).strip() if get(raw, "order_no") else None
         unit = get(raw, "unit_price")
 
-        # 去重：命中已有记录则跳过（同一文件内重复也防重）
-        dup = bool(order_no and order_no in order_keys)
-        if not dup and not order_no:
-            dup = (str(rec_date_d), product_s, total_val) in content_keys
-        if dup:
+        # 去重：按内容指纹命中已有记录则跳过（同一文件内重复也防重）
+        key = (order_no or "", str(rec_date_d), product_s, total_val)
+        if key in existing_keys:
             skipped += 1
             continue
-        if order_no:
-            order_keys.add(order_no)
-        else:
-            content_keys.add((str(rec_date_d), product_s, total_val))
+        existing_keys.add(key)
 
         records.append(
             FinanceShoppingRecord(
