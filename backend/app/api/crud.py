@@ -74,6 +74,7 @@ def crud_router(
     search_columns: list[str] | None = None,
     conflict_fields: list[str] | None = None,
     conflict_msg: str | None = None,
+    list_transform: Callable[[list, Session, int], list] | None = None,
 ) -> APIRouter:
     """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
 
@@ -82,6 +83,8 @@ def crud_router(
     extra_routes: 在动态路由 /{item_id} 之前注册的固定路由，其内部触库端点需自行依赖 get_current_user 并过滤。
     conflict_fields: 业务唯一性字段。新增时若同用户已存在相同字段值的记录则返回 409；
     更新时排除自身（防止编辑未改值时报冲突）。conflict_msg 为冲突提示文案。
+    list_transform: 列表返回前的派生处理，签名 `(items, db, user_id)`，可用于以当月账单等
+    实时数据覆盖模型存储的字段值（如 bill_paid_this_month），返回处理后的 items。
     """
 
     router = APIRouter(prefix=prefix, tags=[tag])
@@ -121,6 +124,8 @@ def crud_router(
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()
+        if list_transform:
+            rows = list_transform(rows, db, current_user.id)
         return PageOut(items=rows, total=total, page=page, page_size=page_size)
 
     if stats_func:

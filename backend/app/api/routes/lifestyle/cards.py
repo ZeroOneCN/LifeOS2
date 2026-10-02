@@ -62,7 +62,7 @@ def _phone_stats(db: Session, days: int, user_id: int) -> dict:
         "balance_total": round(sum(r.balance or 0 for r in rows), 2),
         "month_deduct": round(sum(b.amount for b in bills), 2),
         "month_deduct_count": len(bills),
-        "unpaid_this_month": sum(1 for r in rows if not r.bill_paid_this_month),
+        "unpaid_this_month": sum(1 for r in rows if r.id not in {b.phone_card_id for b in bills}),
         "billing_type": [
             {"billing_type": k, "count": v}
             for k, v in sorted(by_billing.items(), key=lambda x: -x[1])
@@ -76,6 +76,30 @@ def _phone_stats(db: Session, days: int, user_id: int) -> dict:
             for k, v in sorted(by_status.items(), key=lambda x: -x[1])
         ],
     }
+
+
+def _phone_list_transform(items: list, db: Session, user_id: int) -> list:
+    """以当月实际账单派生 bill_paid_this_month，避免跨月后仍停留在上月「已扣账」状态。
+
+    该字段是业务状态，存储值在跨月时不会自动复位；统一改为读取当月是否有扣账账单记录，
+    新的一月开始（尚无当月账单）时自然回到「未扣账」，扣账按钮重新可用。
+    """
+    if not items:
+        return items
+    month_start = date.today().replace(day=1)
+    ids = [i.id for i in items]
+    paid_ids = set(
+        db.scalars(
+            select(LifestyleCardBill.phone_card_id).where(
+                LifestyleCardBill.user_id == user_id,
+                LifestyleCardBill.phone_card_id.in_(ids),
+                LifestyleCardBill.bill_month == month_start,
+            )
+        ).all()
+    )
+    for item in items:
+        item.bill_paid_this_month = item.id in paid_ids
+    return items
 
 
 def _phone_extra(api_router: APIRouter):
@@ -180,6 +204,7 @@ phone_router = crud_router(
     order_by=LifestylePhoneCard.open_date,
     order_dir="asc",
     stats_func=_phone_stats,
+    list_transform=_phone_list_transform,
     extra_routes=_phone_extra,
 )
 

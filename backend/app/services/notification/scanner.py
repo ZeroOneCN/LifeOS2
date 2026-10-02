@@ -21,6 +21,7 @@ from app.models.finance import (
 from app.services.med_stock import compute_med_stock_list
 from app.models.lifestyle import (
     LifestyleBankCard,
+    LifestyleCardBill,
     LifestyleItem,
     LifestylePhoneCard,
     LifestyleTodo,
@@ -302,14 +303,24 @@ def _scan_item_expire(db: Session, advance: int, user_id: int) -> list[dict]:
 
 def _scan_phone_bill(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
-    rows = db.scalars(
-        select(LifestylePhoneCard).where(
-            LifestylePhoneCard.status == "active",
-            LifestylePhoneCard.user_id == user_id,
-            LifestylePhoneCard.bill_day.isnot(None),
-            LifestylePhoneCard.bill_paid_this_month.is_(False),
-        )
-    ).all()
+    month_start = today.replace(day=1)
+    # 本月已有扣账账单的卡视为已扣账，不重复提醒（存储的 bill_paid_this_month 跨月不会复位）
+    paid_ids = set(
+        db.scalars(
+            select(LifestyleCardBill.phone_card_id).where(
+                LifestyleCardBill.user_id == user_id,
+                LifestyleCardBill.bill_month >= month_start,
+            )
+        ).all()
+    )
+    stmt = select(LifestylePhoneCard).where(
+        LifestylePhoneCard.status == "active",
+        LifestylePhoneCard.user_id == user_id,
+        LifestylePhoneCard.bill_day.isnot(None),
+    )
+    if paid_ids:
+        stmt = stmt.where(LifestylePhoneCard.id.not_in(paid_ids))
+    rows = db.scalars(stmt).all()
     out = []
     for r in rows:
         bill_day = _next_day_of_month(today, r.bill_day)

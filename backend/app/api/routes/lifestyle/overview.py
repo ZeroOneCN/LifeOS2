@@ -70,7 +70,9 @@ def overview(
         )
     ).all()
     month_deduct = sum(b.amount for b in month_bills)
-    unpaid_this_month = sum(1 for p in phones if not p.bill_paid_this_month)
+    # 「本月未扣账」以当月实际账单为准，而非存储的 bill_paid_this_month（跨月不会自动复位）
+    month_paid_ids = {b.phone_card_id for b in month_bills}
+    unpaid_this_month = sum(1 for p in phones if p.id not in month_paid_ids)
 
     # ---------- 待办 ----------
     todos = db.scalars(
