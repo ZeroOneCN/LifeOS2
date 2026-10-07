@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import {
   BarChartCard,
   LineChartCard,
@@ -132,7 +132,7 @@ const columns: ColumnDef<VitalsRecord>[] = [
 export function VitalsSleepPage() {
   const [days, setDays] = useState<StatsDays>(7)
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<VitalsStats>('/health/vitals-sleep', days, refresh)
+  const { data: stats } = useStats<VitalsStats>('/health/vitals-sleep', days, refresh)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
 

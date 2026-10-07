@@ -26,6 +26,7 @@ from app.models.lifestyle import (
     LifestylePhoneCard,
     LifestyleTodo,
 )
+from app.models.health import HealthCheckup
 from app.models.notification import Notification
 from app.models.notification_center import (
     FeatureReminderSetting,
@@ -393,6 +394,64 @@ def _scan_med_stock(db: Session, _advance: int, user_id: int) -> list[dict]:
     return out
 
 
+def _scan_checkup_due(db: Session, advance: int, user_id: int) -> list[dict]:
+    """体检到期提醒：基于最近一次体检日期，推算下一次年度体检日。"""
+    today = date.today()
+    latest = db.scalar(
+        select(HealthCheckup.check_date)
+        .where(HealthCheckup.user_id == user_id)
+        .order_by(HealthCheckup.check_date.desc())
+        .limit(1)
+    )
+    if not latest:
+        return []
+    next_checkup = _add_months(latest, 12)
+    if not _is_within(next_checkup, today, advance):
+        return []
+    return [
+        {
+            "source_id": 0,
+            "dedup_key": f"checkup:{next_checkup.isoformat()}",
+            "title_ctx": {"next_date": next_checkup.isoformat()},
+            "content_ctx": {
+                "last_date": latest.isoformat(),
+                "next_date": next_checkup.isoformat(),
+                "days_left": (next_checkup - today).days,
+            },
+        }
+    ]
+
+
+def _scan_card_expire(db: Session, advance: int, user_id: int) -> list[dict]:
+    """证件到期提醒：银行卡有效期到期。"""
+    today = date.today()
+    due = today + timedelta(days=advance)
+    rows = db.scalars(
+        select(LifestyleBankCard).where(
+            LifestyleBankCard.status == "active",
+            LifestyleBankCard.user_id == user_id,
+            LifestyleBankCard.expire_date.isnot(None),
+            LifestyleBankCard.expire_date >= today,
+            LifestyleBankCard.expire_date <= due,
+        )
+    ).all()
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "source_id": r.id,
+                "title_ctx": {"card_name": r.card_name, "expire_date": r.expire_date.isoformat()},
+                "content_ctx": {
+                    "card_name": r.card_name,
+                    "bank": r.bank or "",
+                    "expire_date": r.expire_date.isoformat(),
+                    "days_left": (r.expire_date - today).days,
+                },
+            }
+        )
+    return out
+
+
 SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_subscription_due": _scan_subscription,
     "finance_utility_due": _scan_utility,
@@ -403,7 +462,9 @@ SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "lifestyle_item_expire": _scan_item_expire,
     "lifestyle_phone_bill": _scan_phone_bill,
     "lifestyle_bankcard_due": _scan_bankcard_due,
+    "lifestyle_card_expire": _scan_card_expire,
     "health_med_stock": _scan_med_stock,
+    "health_checkup_due": _scan_checkup_due,
 }
 
 

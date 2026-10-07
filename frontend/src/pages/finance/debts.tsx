@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -105,7 +105,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
   const realtimeTick = useRealtime(30_000)
-  const stats = useStats<DebtStats>('/finance/debts', days, refresh)
+  const { data: stats } = useStats<DebtStats>('/finance/debts', days, refresh)
   const [items, setItems] = useState<DebtRecord[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)

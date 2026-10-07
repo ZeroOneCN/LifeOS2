@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cache import get as cache_get, set as cache_set
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import (
@@ -31,6 +32,11 @@ def overview(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ) -> dict:
+    cache_key = f"finance:overview:{user.id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     today = date.today()
     month_start = today.replace(day=1)
     # 计算当月天数，用于组合房租按天折算
@@ -221,7 +227,7 @@ def overview(
     categories = [c for c in categories if c["amount"] > 0]
     categories.sort(key=lambda c: -c["amount"])
 
-    return {
+    result = {
         "month_expense": round(month_expense, 2),
         "month_purchase_count": len(month_shopping),
         "month_travel_count": len(month_travel),
@@ -285,6 +291,8 @@ def overview(
             for r in active_plans
         ],
     }
+    cache_set(cache_key, result, 30)
+    return result
 
 
 def expiry_of(s: FinanceSubscription) -> date:

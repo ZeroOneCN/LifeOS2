@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import {
   Library,
   Loader2,
@@ -139,7 +139,7 @@ export function CheckupPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
   const realtimeTick = useRealtime(30_000)
-  const stats = useStats<CheckupStats>('/health/checkup', days, refresh)
+  const { data: stats } = useStats<CheckupStats>('/health/checkup', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 

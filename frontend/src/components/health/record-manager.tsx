@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, type ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useRecordList } from '@/hooks/use-record-list'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -197,6 +198,50 @@ export function RecordManager<T extends { id: number }>({
     }
   }
 
+  /** 导出当前筛选条件下的全部记录为 CSV 文件。 */
+  const exportCsv = async () => {
+    try {
+      const params: Parameters<typeof api.list>[1] = { page: 1, page_size: 10000 }
+      if (monthMode) {
+        const [yy, mm] = month.split('-').map(Number)
+        const last = new Date(yy, mm, 0).getDate()
+        params.start = `${month}-01`
+        params.end = `${month}-${String(last).padStart(2, '0')}`
+      }
+      if (searchable && keyword.trim()) {
+        params.extra = { search_text: keyword.trim() }
+      }
+      const res = await api.list<T>(apiPath, params)
+      if (!res.items.length) {
+        toast.info('没有可导出的数据')
+        return
+      }
+      const headers = columns.map((c) => c.key)
+      const headerLabel = columns.map((c) => c.label)
+      const rows = res.items.map((item) =>
+        headers.map((h) => {
+          const val = (item as Record<string, unknown>)[h]
+          const s = val === null || val === undefined ? '' : String(val)
+          // CSV 转义：含逗号/引号/换行时用双引号包裹，内部引号转义
+          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+        }).join(','),
+      )
+      const csv = '\uFEFF' + [headerLabel.join(','), ...rows].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${title}_${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`已导出 ${res.items.length} 条记录`)
+    } catch (e) {
+      toast.error('导出失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
   const openCreate = () => {
     setEditing(null)
     const initial: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, '']))
@@ -313,6 +358,9 @@ export function RecordManager<T extends { id: number }>({
             </div>
           )}
           {headerExtra}
+          <Button variant="outline" onClick={exportCsv} title="导出当前筛选数据为 CSV">
+            <Download /> 导出
+          </Button>
           <Button onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
@@ -365,14 +413,25 @@ export function RecordManager<T extends { id: number }>({
             >
               {items.length === 0 ? (
                 loading ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length + 1 + batchColSpan}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      <Loader2 className="mx-auto size-5 animate-spin" />
-                    </TableCell>
-                  </TableRow>
+                  <>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {enableBatch && (
+                          <TableCell className="w-10">
+                            <Skeleton className="size-4" />
+                          </TableCell>
+                        )}
+                        {columns.map((col) => (
+                          <TableCell key={col.key}>
+                            <Skeleton className="h-4 w-[80%]" />
+                          </TableCell>
+                        ))}
+                        <TableCell className="w-24">
+                          <Skeleton className="h-8 w-20" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ) : (
                   <TableRow>
                     <TableCell

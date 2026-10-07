@@ -19,6 +19,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RefreshRequest(BaseModel):
+    """刷新访问令牌请求。"""
+
+    refresh_token: str
+
+
 class UserMe(BaseModel):
     """当前登录用户信息（不暴露密码哈希）。"""
 
@@ -39,5 +45,13 @@ class TokenResponse(BaseModel):
     """登录/注册成功后的令牌与用户信息。"""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserMe
+
+
+class TokenRefreshResponse(BaseModel):
+    """刷新令牌成功后的响应。"""
+
+    access_token: str
+    token_type: str = "bearer"

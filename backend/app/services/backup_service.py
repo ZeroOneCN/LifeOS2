@@ -148,6 +148,7 @@ TABLE_LABELS: dict[str, str] = {
     "scheduled_backups": "定时备份计划",
     "backup_logs": "备份执行日志",
     "site_config": "系统品牌配置",
+    "user_sessions": "用户会话",
 }
 
 

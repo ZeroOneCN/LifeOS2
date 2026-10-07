@@ -11,7 +11,7 @@ function broadcastDataChanged() {
   }
 }
 
-const AUTH_EXEMPT = ['/auth/login', '/auth/register']
+const AUTH_EXEMPT = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout']
 
 function authHeaders(extra?: HeadersInit): HeadersInit {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -22,17 +22,58 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
 
 function handleUnauthorized(path: string) {
   localStorage.removeItem('lifeos_token')
+  localStorage.removeItem('lifeos_refresh_token')
   const current = window.location.pathname
   if (!AUTH_EXEMPT.some((p) => path.startsWith(p)) && !current.startsWith('/login') && !current.startsWith('/register')) {
     window.location.href = '/login'
   }
 }
 
+// 刷新令牌进行中的 Promise，避免并发刷新
+let _refreshPromise: Promise<string | null> | null = null
+
+/** 使用 refresh_token 换取新的 access_token，成功后更新本地存储。 */
+async function refreshAccessToken(): Promise<string | null> {
+  if (_refreshPromise) return _refreshPromise
+  const refreshToken = localStorage.getItem('lifeos_refresh_token')
+  if (!refreshToken) return null
+  _refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      localStorage.setItem('lifeos_token', data.access_token)
+      return data.access_token
+    } catch {
+      return null
+    } finally {
+      _refreshPromise = null
+    }
+  })()
+  return _refreshPromise
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: authHeaders(options?.headers),
-    ...options,
-  })
+  const doRequest = (token?: string) => {
+    const headers = authHeaders(options?.headers) as Record<string, string>
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    return fetch(`${BASE}${path}`, { headers, ...options })
+  }
+
+  let res = await doRequest()
+
+  // 401 且非 auth 接口：尝试刷新令牌后重试一次
+  if (res.status === 401 && !AUTH_EXEMPT.some((p) => path.startsWith(p))) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      res = await doRequest(newToken)
+    }
+  }
+
   if (res.status === 401) handleUnauthorized(path)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -157,6 +198,9 @@ export const api = {
   },
   stats: <T>(path: string, days: number | 'all' = 30) =>
     request<T>(`${path}/stats?days=${days === 'all' ? 0 : days}`),
+  /** 按日期范围拉取统计数据（用于周期对比）。 */
+  statsRange: <T>(path: string, start: string, end: string) =>
+    request<T>(`${path}/stats?days=0&start=${start}&end=${end}`),
   download: async (path: string, fallbackName = 'download.pdf') => {
     const headers: Record<string, string> = {}
     const token = localStorage.getItem('lifeos_token')

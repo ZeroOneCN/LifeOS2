@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -420,9 +420,9 @@ export function CardsPage() {
   const [billRefresh, setBillRefresh] = useState(0)
 
   const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
-  const phoneStats = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
-  const bankStats = useStats<BankStats>('/lifestyle/bank-cards', days, bankRefresh)
-  const billStats = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
+  const { data: phoneStats } = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
+  const { data: bankStats } = useStats<BankStats>('/lifestyle/bank-cards', days, bankRefresh)
+  const { data: billStats } = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
 
   // 手机号「运营商」下拉从运营商平台设置动态加载，保证与平台数据一致
   const [carrierNames, setCarrierNames] = useState<{ value: string; label: string }[]>([])

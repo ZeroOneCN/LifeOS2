@@ -16,11 +16,13 @@ from app.api.routes import (
     motivation,
     notification,
     notifications,
+    reports,
     site_config,
     user,
 )
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
+from app.core.db_indexes import ensure_composite_indexes
 from app.middleware.activity_logger import ActivityLoggerMiddleware
 from app.services.notification.scheduler import start_scheduler, stop_scheduler
 from app.services.notification.seed import ensure_seed
@@ -37,6 +39,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_seed(db)
+        ensure_composite_indexes(db)
         db.commit()
     finally:
         db.close()
@@ -76,6 +79,7 @@ app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
+app.include_router(reports.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

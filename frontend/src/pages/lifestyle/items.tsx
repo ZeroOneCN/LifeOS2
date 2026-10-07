@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+﻿import { useState, useRef } from 'react'
 import { Loader2, ShoppingCart, PenBox } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -169,7 +169,7 @@ export function ItemsPage() {
   // refresh 用于同步后重新拉取统计
   const [refresh, setRefresh] = useState(0)
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
-  const stats = useStats<ItemStats>('/lifestyle/items', days, refresh)
+  const { data: stats } = useStats<ItemStats>('/lifestyle/items', days, refresh)
   const byCategory = stats?.by_category ?? []
   const byStatus = (stats?.by_status ?? []).map((s) => ({
     status: statusMeta[s.status]?.label ?? s.status,

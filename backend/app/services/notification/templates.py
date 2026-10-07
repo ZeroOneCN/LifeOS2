@@ -112,6 +112,22 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "药品「{medicine_name}」当前库存 {stock}，低于阈值 {threshold}，请及时补货。",
         "药品库存不足提醒",
     ),
+    (
+        "health_checkup_due",
+        "健康",
+        "体检到期",
+        "【体检到期】{next_date}",
+        "您上次体检日期为 {last_date}，建议下次体检日期 {next_date}（剩余 {days_left} 天），请提前预约。",
+        "年度体检到期提醒",
+    ),
+    (
+        "lifestyle_card_expire",
+        "生活",
+        "证件到期",
+        "【证件到期】{card_name} {expire_date}",
+        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，剩余 {days_left} 天，请及时联系银行换发新卡。",
+        "银行卡有效期到期提醒",
+    ),
 ]
 
 

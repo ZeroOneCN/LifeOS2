@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { AlertCircle, CheckCircle2, ListChecks } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -110,7 +110,7 @@ function StatChip({
 export function TodosPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<TodoStats>('/lifestyle/todos', days, refresh)
+  const { data: stats } = useStats<TodoStats>('/lifestyle/todos', days, refresh)
   const byPriority = stats?.by_priority ?? []
 
   return (

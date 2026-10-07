@@ -41,6 +41,8 @@ const AccountSettingsPage = lazy(() => import('@/pages/account-settings').then((
 const BackupPage = lazy(() => import('@/pages/system/backup').then((m) => ({ default: m.BackupPage })))
 const SiteSettingsPage = lazy(() => import('@/pages/system/site-settings').then((m) => ({ default: m.SiteSettingsPage })))
 const UserCenterPage = lazy(() => import('@/pages/user-center').then((m) => ({ default: m.UserCenterPage })))
+const ComprehensiveReportPage = lazy(() => import('@/pages/dashboard/comprehensive').then((m) => ({ default: m.ComprehensiveReportPage })))
+const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
 
 /** 懒加载页面的统一加载占位：居中旋转图标，避免白屏闪烁。 */
 function PageLoader() {
@@ -84,6 +86,8 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/investment/overview': <InvestmentOverviewPage />,
   '/investment/forex': <ForexPage />,
   '/investment/reports': <InvestmentReportsPage />,
+  '/dashboard/comprehensive': <ComprehensiveReportPage />,
+  '/sessions': <SessionsPage />,
   '/notifications': <NotificationsPage />,
   '/activity-logs': <ActivityLogsPage />,
   '/backup': <BackupPage />,

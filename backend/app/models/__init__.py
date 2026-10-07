@@ -67,6 +67,7 @@ from app.models.notification_center import (
 )
 from app.models.site_config import SiteConfig
 from app.models.user import UserProfile
+from app.models.user_session import UserSession
 
 __all__ = [
     "ScheduledBackup",
@@ -128,5 +129,6 @@ __all__ = [
     "NotificationSendLog",
     "ActivityLog",
     "UserProfile",
+    "UserSession",
     "SiteConfig",
 ]

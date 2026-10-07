@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cache import get as cache_get, set as cache_set
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import (
@@ -34,6 +35,11 @@ def overview(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ) -> dict:
+    cache_key = f"lifestyle:overview:{user.id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     today = date.today()
     month_start = today.replace(day=1)
 
@@ -96,7 +102,7 @@ def overview(
             "summary": rep.summary,
         }
 
-    return {
+    result = {
         "item_total": len(items),
         "item_in_use": len(in_use_items),
         "item_value": round(total_value, 2),
@@ -136,3 +142,5 @@ def overview(
         ],
         "latest_report": latest_report,
     }
+    cache_set(cache_key, result, 30)
+    return result

@@ -25,7 +25,9 @@ DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
     ("lifestyle_item_expire", "物品保质期", "生活", False),
     ("lifestyle_phone_bill", "手机卡月租扣账", "生活", False),
     ("lifestyle_bankcard_due", "银行卡还款日", "生活", False),
+    ("lifestyle_card_expire", "证件到期", "生活", False),
     ("health_med_stock", "药品低库存", "健康", False),
+    ("health_checkup_due", "体检到期", "健康", False),
 ]
 
 

@@ -165,6 +165,11 @@ def stop_scheduler() -> None:
         logger.info("定时备份调度器已停止")
 
 
+def is_running() -> bool:
+    """返回定时备份调度器是否正在运行。"""
+    return _scheduler is not None and _scheduler.running
+
+
 def reload_schedules() -> None:
     """在增删改任务后重新加载调度（无需重启服务）。"""
     logger.info("定时备份任务已变更，调度器将在下次扫描时自动生效")

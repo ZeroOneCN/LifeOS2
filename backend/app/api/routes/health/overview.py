@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.cache import get as cache_get, set as cache_set
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import (
@@ -61,6 +62,11 @@ def _serialize_vitals(r: HealthVitalsSleep | None) -> dict | None:
 def overview(
     db: Session = Depends(get_db), user: UserProfile = Depends(get_current_user)
 ) -> dict:
+    cache_key = f"health:overview:{user.id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     today = date.today()
     week_ago = today - timedelta(days=6)
 
@@ -123,7 +129,7 @@ def overview(
         sleep_avg = round(sum(durations) / len(durations)) if durations else None
 
     taken_meds = [m for m in today_meds if _med_taken(m)]
-    return {
+    result = {
         "latest_steps": (
             {
                 "id": latest_steps.id,
@@ -197,3 +203,5 @@ def overview(
             ),
         },
     }
+    cache_set(cache_key, result, 30)
+    return result

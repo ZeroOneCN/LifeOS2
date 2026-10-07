@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes.investment.forex import compute_forex_stats
+from app.core.cache import get as cache_get, set as cache_set
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import InvestmentFundRecord, InvestmentForex, InvestmentReport, UserProfile
@@ -13,6 +14,11 @@ router = APIRouter(prefix="/investment/overview", tags=["investment-overview"])
 @router.get("")
 def overview(db: Session = Depends(get_db),
              current_user: UserProfile = Depends(get_current_user)):
+    cache_key = f"investment:overview:{current_user.id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     stats = compute_forex_stats(db, days=365, user_id=current_user.id)
     report_count = db.scalar(
         select(func.count()).select_from(
@@ -35,7 +41,7 @@ def overview(db: Session = Depends(get_db),
     summary = stats["summary"]
     analysis = stats["analysis"]
 
-    return {
+    result = {
         "summary": summary,
         "analysis": analysis,
         "equity_trend": stats["equity_trend"],
@@ -46,3 +52,5 @@ def overview(db: Session = Depends(get_db),
         "total_records": total_records,
         "fund_count": fund_count,
     }
+    cache_set(cache_key, result, 30)
+    return result

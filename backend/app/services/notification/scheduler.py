@@ -65,3 +65,8 @@ def stop_scheduler() -> None:
         _scheduler.shutdown(wait=False)
         _scheduler = None
         logger.info("通知提醒扫描调度器已停止")
+
+
+def is_running() -> bool:
+    """返回通知提醒调度器是否正在运行。"""
+    return _scheduler is not None and _scheduler.running

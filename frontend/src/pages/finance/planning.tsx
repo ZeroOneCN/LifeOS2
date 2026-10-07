@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
@@ -99,7 +99,7 @@ const columns: ColumnDef<PlanRecord>[] = [
 export function PlanningPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<PlanStats>('/finance/planning', days, refresh)
+  const { data: stats } = useStats<PlanStats>('/finance/planning', days, refresh)
   const byType = stats?.by_type ?? []
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -100,7 +100,7 @@ export function FitnessPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
   const realtimeTick = useRealtime(30_000)
-  const stats = useStats<FitnessStats>('/health/fitness', days, refresh)
+  const { data: stats } = useStats<FitnessStats>('/health/fitness', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 

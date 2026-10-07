@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -129,7 +129,7 @@ export function RemindersPage() {
   const realtimeTick = useRealtime(30_000)
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
-  const stats = useStats<ReminderStats>('/finance/reminders', days, refresh)
+  const { data: stats } = useStats<ReminderStats>('/finance/reminders', days, refresh)
   const [agg, setAgg] = useState<Aggregate | null>(null)
   const [aggPage, setAggPage] = useState(1)
 

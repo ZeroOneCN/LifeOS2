@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -108,7 +108,7 @@ export function BodyPage() {
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [refresh, setRefresh] = useState(0)
   const realtimeTick = useRealtime(30_000)
-  const stats = useStats<BodyStats>('/health/body', days, refresh)
+  const { data: stats } = useStats<BodyStats>('/health/body', days, refresh)
   const PAGE_SIZE = 10
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const gender = form.gender === 'female' ? 'female' : 'male'

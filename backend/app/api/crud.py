@@ -80,7 +80,7 @@ def crud_router(
     order_by,
     order_dir: str = "desc",
     date_column: str | None = None,
-    stats_func: Callable[[Session, int, int], dict] | None = None,
+    stats_func: Callable[..., dict] | None = None,
     extra_routes: Callable[[APIRouter], None] | None = None,
     search_columns: list[str] | None = None,
     conflict_fields: list[str] | None = None,
@@ -144,10 +144,12 @@ def crud_router(
         @router.get("/stats")
         def stats(
             days: int = Query(30, ge=0, le=365),
+            start: date | None = None,
+            end: date | None = None,
             db: Session = Depends(get_db),
             current_user: UserProfile = Depends(get_current_user),
         ):
-            return stats_func(db, days, current_user.id)
+            return stats_func(db, days, current_user.id, start=start, end=end)
 
     # 固定静态路由（/estimate、/settings 等）必须在 /{item_id} 之前注册
     if extra_routes:

@@ -10,6 +10,7 @@ import {
 import { api } from '@/lib/api'
 
 const TOKEN_KEY = 'lifeos_token'
+const REFRESH_TOKEN_KEY = 'lifeos_refresh_token'
 
 export type AuthUser = {
   id: number
@@ -28,6 +29,15 @@ export function getToken(): string | null {
 export function setToken(token: string | null) {
   if (token) localStorage.setItem(TOKEN_KEY, token)
   else localStorage.removeItem(TOKEN_KEY)
+}
+
+export function getRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY)
+}
+
+export function setRefreshToken(token: string | null) {
+  if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token)
+  else localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
 type UserMe = AuthUser & {
@@ -78,22 +88,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh])
 
   const login = useCallback(async (account: string, password: string) => {
-    const data = await api.post<{ access_token: string; user: UserMe }>('/auth/login', {
-      account,
-      password,
-    })
+    const data = await api.post<{ access_token: string; refresh_token: string; user: UserMe }>(
+      '/auth/login',
+      { account, password },
+    )
     setToken(data.access_token)
+    setRefreshToken(data.refresh_token)
     setUser(toAuthUser(data.user))
     setUserLoaded(true)
   }, [])
 
   const register = useCallback(
     async (account: string, nickname: string, password: string) => {
-      const data = await api.post<{ access_token: string; user: UserMe }>(
+      const data = await api.post<{ access_token: string; refresh_token: string; user: UserMe }>(
         '/auth/register',
         { account, nickname, password },
       )
       setToken(data.access_token)
+      setRefreshToken(data.refresh_token)
       setUser(toAuthUser(data.user))
       setUserLoaded(true)
     },
@@ -101,7 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   const logout = useCallback(() => {
+    const refreshToken = getRefreshToken()
+    // 异步通知后端删除会话，失败不影响本地登出
+    if (refreshToken) {
+      api.post('/auth/logout', { refresh_token: refreshToken }).catch(() => {})
+    }
     setToken(null)
+    setRefreshToken(null)
     setUser(null)
     setUserLoaded(false)
     window.location.href = '/login'
