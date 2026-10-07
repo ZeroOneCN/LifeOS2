@@ -352,7 +352,6 @@ export function ShoppingPage() {
   }
 
   const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '未分类'
-  const categoryName = (id?: number) => categories.find((c) => c.id === id)?.name ?? '—'
 
   // 分类管理操作
   const openCreateCategory = () => {

@@ -65,8 +65,8 @@ export type ListParams = {
   page_size?: number
   start?: string
   end?: string
-  /** 额外的过滤参数（如账本 id、平台 id 等） */
-  extra?: Record<string, string | number | undefined>
+  /** 额外的过滤参数（如账本 id、平台 id、布尔标志等） */
+  extra?: Record<string, string | number | boolean | undefined>
 }
 
 export const api = {
@@ -116,6 +116,24 @@ export const api = {
   },
   remove: async (path: string, id: number) => {
     const res = await request<void>(`${path}/${id}`, { method: 'DELETE' })
+    broadcastDataChanged()
+    return res
+  },
+  /** 批量删除：传入 ID 列表，后端仅删除当前用户归属的记录。 */
+  batchRemove: async (path: string, ids: number[]) => {
+    const res = await request<void>(`${path}/batch`, {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    })
+    broadcastDataChanged()
+    return res
+  },
+  /** 批量更新：对指定 ID 列表批量设置相同字段值。 */
+  batchUpdate: async <T>(path: string, ids: number[], fields: Record<string, unknown>) => {
+    const res = await request<T[]>(`${path}/batch`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ids, fields }),
+    })
     broadcastDataChanged()
     return res
   },

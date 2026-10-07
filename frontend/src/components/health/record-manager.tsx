@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useRealtime } from '@/hooks/use-realtime'
+import { useRecordList } from '@/hooks/use-record-list'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
@@ -35,7 +35,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { api, type ListParams } from '@/lib/api'
+import { api } from '@/lib/api'
 
 export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
 
@@ -119,23 +119,21 @@ export function RecordManager<T extends { id: number }>({
   searchable = false,
   searchPlaceholder = '搜索…',
 }: RecordManagerProps<T>) {
-  const [items, setItems] = useState<T[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<T | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [month, setMonth] = useState(() => {
-    const n = new Date()
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
-  })
-  const [keyword, setKeyword] = useState('')
 
-  // 无感实时：每 30 秒 + 窗口聚焦 + 数据变更时自动刷新列表
-  const realtimeTick = useRealtime(30_000)
+  // 列表加载逻辑统一委托给 useRecordList Hook（分页/月份过滤/搜索/实时刷新）
+  const { items, total, page, setPage, loading, month, setMonth, keyword, setKeyword, load } =
+    useRecordList<T>({
+      apiPath,
+      pageSize: PAGE_SIZE,
+      monthMode,
+      searchable,
+      refreshKey,
+    })
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const { confirm, dialog: confirmDialog } = useConfirm({
@@ -147,10 +145,6 @@ export function RecordManager<T extends { id: number }>({
     const [y, mm] = m.split('-').map(Number)
     const dt = new Date(y, mm - 1 + delta, 1)
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
-  }
-  const jumpMonth = (m: string) => {
-    setMonth(m)
-    setPage(1)
   }
 
   // 翻页时清空选择
@@ -182,36 +176,25 @@ export function RecordManager<T extends { id: number }>({
 
   const batchColSpan = enableBatch ? 1 : 0
 
-  const load = async () => {
-    // 翻页/刷新时保留旧数据渲染（仅首载显示加载占位），避免高度变化引起抖动
-    setLoading(true)
+  /** 批量删除选中项：调用后端批量删除接口，成功后清空选择并刷新。 */
+  const batchRemove = async () => {
+    if (!(await confirm({
+      title: '批量删除',
+      description: `确定删除选中的 ${selectedIds.size} 条记录吗？此操作不可恢复。`,
+    }))) return
     try {
-      const params: ListParams = { page, page_size: PAGE_SIZE }
-      if (monthMode) {
-        const [yy, mm] = month.split('-').map(Number)
-        const last = String(new Date(yy, mm, 0).getDate()).padStart(2, '0')
-        params.start = `${month}-01`
-        params.end = `${month}-${last}`
-      }
-      if (searchable && keyword.trim()) {
-        params.extra = { ...params.extra, search_text: keyword.trim() }
-      }
-      const res = await api.list<T>(apiPath, params)
-      setItems(res.items)
-      setTotal(res.total)
-    } finally {
-      setLoading(false)
+      await api.batchRemove(apiPath, [...selectedIds])
+      setSelectedIds(new Set())
+      // 删除后若当前页为空且非首页，回退一页
+      if (items.length === selectedIds.size && page > 1) setPage(page - 1)
+      else await load()
+      onMutate?.()
+      toast.success(`已删除 ${selectedIds.size} 条记录`)
+    } catch (e) {
+      toast.error('批量删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
     }
-  }
-
-  useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey, month, realtimeTick, keyword])
-
-  const onSearchChange = (v: string) => {
-    setKeyword(v)
-    setPage(1)
   }
 
   const openCreate = () => {
@@ -301,10 +284,10 @@ export function RecordManager<T extends { id: number }>({
         <div className="flex items-center gap-2">
           {monthMode ? (
             <div className="flex items-center gap-1 rounded-lg border p-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="上一月" onClick={() => jumpMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="上一月" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
               <span className="min-w-[72px] text-center text-sm font-medium">{month}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="下一月" onClick={() => jumpMonth(shiftMonth(month, 1))}><ChevronRight /></Button>
-              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); jumpMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="下一月" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight /></Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); setMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             </div>
           ) : null}
           {searchable && (
@@ -312,7 +295,7 @@ export function RecordManager<T extends { id: number }>({
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={keyword}
-                onChange={(e) => onSearchChange(e.target.value)}
+                onChange={(e) => setKeyword(e.target.value)}
                 placeholder={searchPlaceholder}
                 className="h-9 w-56 pl-8"
               />
@@ -321,7 +304,7 @@ export function RecordManager<T extends { id: number }>({
                   variant="ghost"
                   size="icon"
                   className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
-                  onClick={() => onSearchChange('')}
+                  onClick={() => setKeyword('')}
                   title="清除搜索"
                 >
                   <X className="size-3.5" />
@@ -338,13 +321,16 @@ export function RecordManager<T extends { id: number }>({
 
       {extra}
 
-      {enableBatch && selectedIds.size > 0 && batchToolbar && (
+      {enableBatch && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-2.5">
           <span className="text-sm text-muted-foreground">
             已选 <strong className="text-foreground">{selectedIds.size}</strong> 项
           </span>
           <div className="ml-auto flex items-center gap-2">
-            {batchToolbar([...selectedIds], clearSelection)}
+            {batchToolbar?.([...selectedIds], clearSelection)}
+            <Button variant="destructive" size="sm" onClick={batchRemove}>
+              <Trash2 /> 批量删除
+            </Button>
             <Button variant="ghost" size="icon" className="size-7" onClick={clearSelection} title="取消选择">
               <X />
             </Button>

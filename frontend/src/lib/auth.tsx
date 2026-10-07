@@ -42,6 +42,8 @@ function toAuthUser(u: UserMe): AuthUser {
 type AuthContextValue = {
   user: AuthUser | null
   isAuthed: boolean
+  /** 用户信息是否已加载完成（token 存在但 user 为 null 时表示正在拉取） */
+  userLoaded: boolean
   login: (account: string, password: string) => Promise<void>
   register: (account: string, nickname: string, password: string) => Promise<void>
   logout: () => void
@@ -52,11 +54,13 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [userLoaded, setUserLoaded] = useState(false)
   const isAuthed = !!getToken()
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
       setUser(null)
+      setUserLoaded(true)
       return
     }
     try {
@@ -64,6 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(toAuthUser(me))
     } catch {
       setUser(null)
+    } finally {
+      setUserLoaded(true)
     }
   }, [])
 
@@ -78,6 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
     setToken(data.access_token)
     setUser(toAuthUser(data.user))
+    setUserLoaded(true)
   }, [])
 
   const register = useCallback(
@@ -88,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       )
       setToken(data.access_token)
       setUser(toAuthUser(data.user))
+      setUserLoaded(true)
     },
     [],
   )
@@ -95,12 +103,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setToken(null)
     setUser(null)
+    setUserLoaded(false)
     window.location.href = '/login'
   }, [])
 
   const value = useMemo(
-    () => ({ user, isAuthed, login, register, logout, refresh }),
-    [user, isAuthed, login, register, logout, refresh],
+    () => ({ user, isAuthed, userLoaded, login, register, logout, refresh }),
+    [user, isAuthed, userLoaded, login, register, logout, refresh],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

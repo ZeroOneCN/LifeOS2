@@ -1,42 +1,60 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 
-import { RequireAuth, GuestOnly } from '@/components/auth-guard'
+import { RequireAuth, RequireAdmin, GuestOnly } from '@/components/auth-guard'
 import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
-import { ActivityLogsPage } from '@/pages/activity-logs'
-import { BillsPage } from '@/pages/finance/bills'
-import { DebtsPage } from '@/pages/finance/debts'
-import { FinanceOverviewPage } from '@/pages/finance/overview'
-import { ForexPage } from '@/pages/investment/forex'
-import { InvestmentOverviewPage } from '@/pages/investment/overview'
-import { InvestmentReportsPage } from '@/pages/investment/reports'
-import { FinanceReportsPage } from '@/pages/finance/reports'
-import { PlanningPage } from '@/pages/finance/planning'
-import { RemindersPage } from '@/pages/finance/reminders'
-import { ShoppingPage } from '@/pages/finance/shopping'
-import { TravelPage } from '@/pages/finance/travel'
-import { HomePage } from '@/pages/home'
-import { CheckupPage } from '@/pages/health/checkup'
-import { FitnessTabsPage } from '@/pages/health/fitness-tabs'
-import { HealthOverviewPage } from '@/pages/health/overview'
-import { MedicationPage } from '@/pages/health/medication'
-import { ReportsPage } from '@/pages/health/reports'
-import { StepsPage } from '@/pages/health/steps'
-import { VitalsSleepPage } from '@/pages/health/vitals-sleep'
-import { ItemsPage } from '@/pages/lifestyle/items'
-import { CardsPage } from '@/pages/lifestyle/cards'
-import { LifestyleOverviewPage } from '@/pages/lifestyle/overview'
-import { LifestyleReportsPage } from '@/pages/lifestyle/reports'
-import { TodosPage } from '@/pages/lifestyle/todos'
-import { NotFoundPage } from '@/pages/not-found'
-import { NotificationsPage } from '@/pages/notifications'
-import { PlaceholderPage } from '@/pages/placeholder'
-import { AccountSettingsPage } from '@/pages/account-settings'
-import { BackupPage } from '@/pages/system/backup'
-import { SiteSettingsPage } from '@/pages/system/site-settings'
-import { UserCenterPage } from '@/pages/user-center'
 import { LoginPage } from '@/pages/login'
 import { RegisterPage } from '@/pages/register'
+
+// 登录/注册页保持同步导入（首屏需立即可用），其余业务页面全部懒加载以减小首屏 JS 体积
+const ActivityLogsPage = lazy(() => import('@/pages/activity-logs').then((m) => ({ default: m.ActivityLogsPage })))
+const BillsPage = lazy(() => import('@/pages/finance/bills').then((m) => ({ default: m.BillsPage })))
+const DebtsPage = lazy(() => import('@/pages/finance/debts').then((m) => ({ default: m.DebtsPage })))
+const FinanceOverviewPage = lazy(() => import('@/pages/finance/overview').then((m) => ({ default: m.FinanceOverviewPage })))
+const ForexPage = lazy(() => import('@/pages/investment/forex').then((m) => ({ default: m.ForexPage })))
+const InvestmentOverviewPage = lazy(() => import('@/pages/investment/overview').then((m) => ({ default: m.InvestmentOverviewPage })))
+const InvestmentReportsPage = lazy(() => import('@/pages/investment/reports').then((m) => ({ default: m.InvestmentReportsPage })))
+const FinanceReportsPage = lazy(() => import('@/pages/finance/reports').then((m) => ({ default: m.FinanceReportsPage })))
+const PlanningPage = lazy(() => import('@/pages/finance/planning').then((m) => ({ default: m.PlanningPage })))
+const RemindersPage = lazy(() => import('@/pages/finance/reminders').then((m) => ({ default: m.RemindersPage })))
+const ShoppingPage = lazy(() => import('@/pages/finance/shopping').then((m) => ({ default: m.ShoppingPage })))
+const TravelPage = lazy(() => import('@/pages/finance/travel').then((m) => ({ default: m.TravelPage })))
+const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.HomePage })))
+const CheckupPage = lazy(() => import('@/pages/health/checkup').then((m) => ({ default: m.CheckupPage })))
+const FitnessTabsPage = lazy(() => import('@/pages/health/fitness-tabs').then((m) => ({ default: m.FitnessTabsPage })))
+const HealthOverviewPage = lazy(() => import('@/pages/health/overview').then((m) => ({ default: m.HealthOverviewPage })))
+const MedicationPage = lazy(() => import('@/pages/health/medication').then((m) => ({ default: m.MedicationPage })))
+const ReportsPage = lazy(() => import('@/pages/health/reports').then((m) => ({ default: m.ReportsPage })))
+const StepsPage = lazy(() => import('@/pages/health/steps').then((m) => ({ default: m.StepsPage })))
+const VitalsSleepPage = lazy(() => import('@/pages/health/vitals-sleep').then((m) => ({ default: m.VitalsSleepPage })))
+const ItemsPage = lazy(() => import('@/pages/lifestyle/items').then((m) => ({ default: m.ItemsPage })))
+const CardsPage = lazy(() => import('@/pages/lifestyle/cards').then((m) => ({ default: m.CardsPage })))
+const LifestyleOverviewPage = lazy(() => import('@/pages/lifestyle/overview').then((m) => ({ default: m.LifestyleOverviewPage })))
+const LifestyleReportsPage = lazy(() => import('@/pages/lifestyle/reports').then((m) => ({ default: m.LifestyleReportsPage })))
+const TodosPage = lazy(() => import('@/pages/lifestyle/todos').then((m) => ({ default: m.TodosPage })))
+const NotFoundPage = lazy(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })))
+const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
+const PlaceholderPage = lazy(() => import('@/pages/placeholder').then((m) => ({ default: m.PlaceholderPage })))
+const AccountSettingsPage = lazy(() => import('@/pages/account-settings').then((m) => ({ default: m.AccountSettingsPage })))
+const BackupPage = lazy(() => import('@/pages/system/backup').then((m) => ({ default: m.BackupPage })))
+const SiteSettingsPage = lazy(() => import('@/pages/system/site-settings').then((m) => ({ default: m.SiteSettingsPage })))
+const UserCenterPage = lazy(() => import('@/pages/user-center').then((m) => ({ default: m.UserCenterPage })))
+
+/** 懒加载页面的统一加载占位：居中旋转图标，避免白屏闪烁。 */
+function PageLoader() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <Loader2 className="size-8 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
+
+/** 用 Suspense 包裹懒加载组件，统一加载态。 */
+function withSuspense(element: React.ReactNode) {
+  return <Suspense fallback={<PageLoader />}>{element}</Suspense>
+}
 
 // 已实现具体功能的页面，其余菜单项统一使用占位页。
 const implementedPages: Record<string, React.ReactNode> = {
@@ -74,19 +92,26 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/user-center/settings': <AccountSettingsPage />,
 }
 
+// 需要管理员权限的页面路径
+const ADMIN_PATHS = new Set(['/system-settings', '/backup', '/activity-logs'])
+
 const placeholderRoutes = navigation.flatMap((section) =>
   section.children
     .filter((entry) => entry.url !== '/home')
-    .map((entry) => ({
-      path: entry.url,
-      element:
-        implementedPages[entry.url] ?? (
-          <PlaceholderPage
-            title={entry.title}
-            description={`${entry.title} 模块规划中，具体功能将逐步实现。`}
-          />
-        ),
-    })),
+    .map((entry) => {
+      const page = implementedPages[entry.url] ?? (
+        <PlaceholderPage
+          title={entry.title}
+          description={`${entry.title} 模块规划中，具体功能将逐步实现。`}
+        />
+      )
+      return {
+        path: entry.url,
+        element: ADMIN_PATHS.has(entry.url)
+          ? withSuspense(<RequireAdmin>{page}</RequireAdmin>)
+          : withSuspense(page),
+      }
+    }),
 )
 
 export const router = createBrowserRouter([
@@ -100,11 +125,11 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: '/', element: <Navigate to="/home" replace /> },
-      { path: '/home', element: <HomePage /> },
-      { path: '/user-center', element: <UserCenterPage /> },
-      { path: '/user-center/settings', element: <AccountSettingsPage /> },
+      { path: '/home', element: withSuspense(<HomePage />) },
+      { path: '/user-center', element: withSuspense(<UserCenterPage />) },
+      { path: '/user-center/settings', element: withSuspense(<AccountSettingsPage />) },
       ...placeholderRoutes,
-      { path: '*', element: <NotFoundPage /> },
+      { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
   },
 ])

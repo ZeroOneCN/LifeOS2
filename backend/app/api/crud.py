@@ -1,8 +1,8 @@
 from datetime import date, timedelta
-from typing import Callable
+from typing import Any, Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,17 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import UserProfile
 from app.schemas.health import PageOut
+
+
+class BatchIds(BaseModel):
+    """批量操作的 ID 列表请求体。"""
+    ids: list[int] = Field(..., min_length=1, max_length=200)
+
+
+class BatchUpdate(BaseModel):
+    """批量更新请求体：对指定 ID 列表批量设置相同字段值。"""
+    ids: list[int] = Field(..., min_length=1, max_length=200)
+    fields: dict[str, Any]
 
 
 def _owned_get(db: Session, model, item_id: int, user_id: int):
@@ -141,6 +152,44 @@ def crud_router(
     # 固定静态路由（/estimate、/settings 等）必须在 /{item_id} 之前注册
     if extra_routes:
         extra_routes(router)
+
+    @router.delete("/batch", status_code=204)
+    def batch_delete_items(
+        payload: BatchIds,
+        db: Session = Depends(get_db),
+        current_user: UserProfile = Depends(get_current_user),
+    ):
+        """批量删除：仅删除当前用户归属的记录，忽略不存在或非本人的 ID。"""
+        ids = list(set(payload.ids))
+        stmt = select(model).where(model.id.in_(ids))
+        if user_owned:
+            stmt = stmt.where(model.user_id == current_user.id)
+        rows = db.scalars(stmt).all()
+        for row in rows:
+            db.delete(row)
+        db.commit()
+        return None
+
+    @router.patch("/batch", response_model=list[read_schema])
+    def batch_update_items(
+        payload: BatchUpdate,
+        db: Session = Depends(get_db),
+        current_user: UserProfile = Depends(get_current_user),
+    ):
+        """批量更新：对指定 ID 列表批量设置相同字段值，仅更新当前用户归属的记录。"""
+        ids = list(set(payload.ids))
+        stmt = select(model).where(model.id.in_(ids))
+        if user_owned:
+            stmt = stmt.where(model.user_id == current_user.id)
+        rows = db.scalars(stmt).all()
+        for row in rows:
+            for key, value in payload.fields.items():
+                if hasattr(model, key):
+                    setattr(row, key, value)
+        db.commit()
+        for row in rows:
+            db.refresh(row)
+        return rows
 
     @router.get("/{item_id}", response_model=read_schema)
     def get_item(
