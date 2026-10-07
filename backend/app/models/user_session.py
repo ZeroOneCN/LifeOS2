@@ -12,7 +12,7 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user_profile.id", ondelete="CASCADE"), index=True)
     # 刷新令牌的哈希（不存明文，泄露后无法直接使用）
     refresh_token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     # 设备/浏览器标识（可选，来自 User-Agent 摘要）
