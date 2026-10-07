@@ -104,6 +104,7 @@ TABLE_LABELS: dict[str, str] = {
     "health_med_stock": "药品库存",
     "health_reports": "健康报告",
     "finance_shopping_records": "购物记录",
+    "finance_shopping_categories": "购物分类",
     "finance_shopping_platforms": "购物平台",
     "finance_shopping_ledgers": "购物账本",
     "finance_travel_ledgers": "旅行账本",
