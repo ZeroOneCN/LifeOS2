@@ -39,10 +39,23 @@ class ShoppingCreate(BaseModel):
     unit_price: float | None = Field(None, ge=0)
     order_no: str | None = None
     ledger_id: int | None = None
+    category_id: int | None = None
     note: str | None = None
 
 
 class ShoppingRead(ShoppingCreate, ORMRead):
+    pass
+
+
+class ShoppingCategoryCreate(BaseModel):
+    name: str
+    keywords: list[str] = Field(default_factory=list)
+    exclude: list[str] = Field(default_factory=list)
+    priority: int = 0
+    is_fallback: bool = False
+
+
+class ShoppingCategoryRead(ShoppingCategoryCreate, ORMRead):
     pass
 
 

@@ -47,6 +47,19 @@ class FinanceShoppingLedger(TimestampMixin, UserOwned, Base):
     name: Mapped[str] = mapped_column(String(64), index=True)  # 账本名称
 
 
+class FinanceShoppingCategory(TimestampMixin, UserOwned, Base):
+    """购物分类：用于智能归类购物记录，支持关键词匹配与排除词。"""
+
+    __tablename__ = "finance_shopping_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(32), index=True)  # 分类名称
+    keywords: Mapped[str | None] = mapped_column(Text)  # 命中关键词 JSON 数组
+    exclude: Mapped[str | None] = mapped_column(Text)  # 排除关键词 JSON 数组
+    priority: Mapped[int] = mapped_column(Integer, default=0)  # 多命中同分时的优先级
+    is_fallback: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否为兜底分类（未识别品）
+
+
 class FinanceShoppingRecord(TimestampMixin, UserOwned, Base):
     """购物记录：具体的购物明细，支持多账本与 xlsx 批量导入。"""
 
@@ -61,6 +74,7 @@ class FinanceShoppingRecord(TimestampMixin, UserOwned, Base):
     unit_price: Mapped[float | None] = mapped_column(Float)  # 单价
     order_no: Mapped[str | None] = mapped_column(String(64), index=True)  # 订单号
     ledger_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 账本 id
+    category_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 分类 id
     note: Mapped[str | None] = mapped_column(Text)
 
 

@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from io import BytesIO
@@ -10,12 +11,15 @@ from app.api.crud import crud_router
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import (
+    FinanceShoppingCategory,
     FinanceShoppingLedger,
     FinanceShoppingPlatform,
     FinanceShoppingRecord,
     UserProfile,
 )
 from app.schemas.finance import (
+    ShoppingCategoryCreate,
+    ShoppingCategoryRead,
     ShoppingCreate,
     ShoppingLedgerCreate,
     ShoppingLedgerRead,
@@ -24,6 +28,7 @@ from app.schemas.finance import (
     ShoppingRead,
 )
 from app.schemas.health import PageOut
+from app.services.shopping_classifier import classify_for_user
 
 # 平台 / 账本：标准 CRUD
 platforms_router = crud_router(
@@ -45,6 +50,112 @@ ledgers_router = crud_router(
 )
 
 
+# 分类：自定义路由（keywords/exclude 为 JSON 数组，需在 Text 与 list 之间序列化）
+def _cat_to_read(cat: FinanceShoppingCategory) -> dict:
+    """将分类模型转为可读 dict（keywords/exclude 解析为 list）。"""
+    return {
+        "id": cat.id,
+        "name": cat.name,
+        "keywords": json.loads(cat.keywords) if cat.keywords else [],
+        "exclude": json.loads(cat.exclude) if cat.exclude else [],
+        "priority": cat.priority,
+        "is_fallback": cat.is_fallback,
+        "created_at": cat.created_at,
+        "updated_at": cat.updated_at,
+    }
+
+
+categories_router = APIRouter(prefix="/finance/shopping/categories", tags=["finance-shopping"])
+
+
+@categories_router.get("", response_model=list[ShoppingCategoryRead])
+def list_categories(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """列出当前用户全部分类（按优先级倒序、id 升序）。"""
+    rows = db.scalars(
+        select(FinanceShoppingCategory)
+        .where(FinanceShoppingCategory.user_id == user.id)
+        .order_by(FinanceShoppingCategory.priority.desc(), FinanceShoppingCategory.id.asc())
+    ).all()
+    return [_cat_to_read(r) for r in rows]
+
+
+@categories_router.post("", response_model=ShoppingCategoryRead, status_code=201)
+def create_category(
+    payload: ShoppingCategoryCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """新增分类。"""
+    # 若设为兜底，先取消其他兜底
+    if payload.is_fallback:
+        db.query(FinanceShoppingCategory).filter(
+            FinanceShoppingCategory.user_id == user.id,
+            FinanceShoppingCategory.is_fallback.is_(True),
+        ).update({"is_fallback": False})
+    obj = FinanceShoppingCategory(
+        name=payload.name,
+        keywords=json.dumps(payload.keywords, ensure_ascii=False),
+        exclude=json.dumps(payload.exclude, ensure_ascii=False),
+        priority=payload.priority,
+        is_fallback=payload.is_fallback,
+        user_id=user.id,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return _cat_to_read(obj)
+
+
+@categories_router.put("/{item_id}", response_model=ShoppingCategoryRead)
+def update_category(
+    item_id: int,
+    payload: ShoppingCategoryCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """更新分类。"""
+    obj = db.get(FinanceShoppingCategory, item_id)
+    if not obj or obj.user_id != user.id:
+        raise HTTPException(status_code=404, detail="分类不存在")
+    if payload.is_fallback:
+        db.query(FinanceShoppingCategory).filter(
+            FinanceShoppingCategory.user_id == user.id,
+            FinanceShoppingCategory.id != item_id,
+            FinanceShoppingCategory.is_fallback.is_(True),
+        ).update({"is_fallback": False})
+    obj.name = payload.name
+    obj.keywords = json.dumps(payload.keywords, ensure_ascii=False)
+    obj.exclude = json.dumps(payload.exclude, ensure_ascii=False)
+    obj.priority = payload.priority
+    obj.is_fallback = payload.is_fallback
+    db.commit()
+    db.refresh(obj)
+    return _cat_to_read(obj)
+
+
+@categories_router.delete("/{item_id}", status_code=204)
+def delete_category(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """删除分类（同时将引用该分类的记录 category_id 置空）。"""
+    obj = db.get(FinanceShoppingCategory, item_id)
+    if not obj or obj.user_id != user.id:
+        raise HTTPException(status_code=404, detail="分类不存在")
+    # 解除记录引用
+    db.query(FinanceShoppingRecord).filter(
+        FinanceShoppingRecord.user_id == user.id,
+        FinanceShoppingRecord.category_id == item_id,
+    ).update({"category_id": None})
+    db.delete(obj)
+    db.commit()
+    return None
+
+
 # 记录：自定义路由（支持账本过滤 / 统计 / 导入）
 records_router = APIRouter(prefix="/finance/shopping/records", tags=["finance-shopping"])
 
@@ -56,6 +167,8 @@ def list_records(
     start: date | None = None,
     end: date | None = None,
     ledger_id: int | None = None,
+    category_id: int | None = None,
+    uncategorized: bool = Query(False, description="仅查看未分类记录"),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
@@ -66,6 +179,10 @@ def list_records(
         stmt = stmt.where(FinanceShoppingRecord.record_date <= end)
     if ledger_id:
         stmt = stmt.where(FinanceShoppingRecord.ledger_id == ledger_id)
+    if category_id is not None:
+        stmt = stmt.where(FinanceShoppingRecord.category_id == category_id)
+    if uncategorized:
+        stmt = stmt.where(FinanceShoppingRecord.category_id.is_(None))
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
         stmt.order_by(FinanceShoppingRecord.record_date.desc())
@@ -96,6 +213,7 @@ def records_stats(
     monthly: dict[str, float] = defaultdict(float)
     by_platform: dict[int, float] = defaultdict(float)
     by_ledger: dict[int, float] = defaultdict(float)
+    by_category: dict[int, float] = defaultdict(float)
 
     platform_names = {
         p.id: p.name
@@ -109,6 +227,12 @@ def records_stats(
             select(FinanceShoppingLedger).where(FinanceShoppingLedger.user_id == user.id)
         ).all()
     }
+    category_names = {
+        c.id: c.name
+        for c in db.scalars(
+            select(FinanceShoppingCategory).where(FinanceShoppingCategory.user_id == user.id)
+        ).all()
+    }
 
     for r in rows:
         monthly[r.record_date.strftime("%Y-%m")] += r.total_price
@@ -116,6 +240,8 @@ def records_stats(
             by_platform[r.platform_id] += r.total_price
         if r.ledger_id:
             by_ledger[r.ledger_id] += r.total_price
+        if r.category_id:
+            by_category[r.category_id] += r.total_price
 
     return {
         "total": round(total, 2),
@@ -130,6 +256,10 @@ def records_stats(
         "by_ledger": [
             {"ledger_id": lid, "ledger": ledger_names.get(lid, "未分类"), "amount": round(a, 2)}
             for lid, a in sorted(by_ledger.items(), key=lambda x: -x[1])
+        ],
+        "by_category": [
+            {"category_id": cid, "category": category_names.get(cid, "未分类"), "amount": round(a, 2)}
+            for cid, a in sorted(by_category.items(), key=lambda x: -x[1])
         ],
     }
 
@@ -190,6 +320,7 @@ _FIELD_ALIASES = {
     "unit_price": ["单价"],
     "order_no": ["订单号"],
     "ledger_name": ["账本"],
+    "category_name": ["分类", "类别"],
 }
 
 
@@ -278,6 +409,18 @@ async def import_xlsx(
             select(FinanceShoppingLedger).where(FinanceShoppingLedger.user_id == user.id)
         ).all()
     }
+    # 分类名 -> id，用于导入时解析 xlsx 中的「分类」列
+    category_cache = {
+        c.name: c.id
+        for c in db.scalars(
+            select(FinanceShoppingCategory).where(FinanceShoppingCategory.user_id == user.id)
+        ).all()
+    }
+    # 加载全部分类供自动分类使用
+    all_categories = db.scalars(
+        select(FinanceShoppingCategory).where(FinanceShoppingCategory.user_id == user.id)
+    ).all()
+    from app.services.shopping_classifier import classify_product
 
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
@@ -329,6 +472,7 @@ async def import_xlsx(
         spec = str(get(raw, "spec")).strip() if get(raw, "spec") else None
         order_no = str(get(raw, "order_no")).strip() if get(raw, "order_no") else None
         unit = get(raw, "unit_price")
+        category_name = str(get(raw, "category_name")).strip() if get(raw, "category_name") else ""
 
         # 去重：按内容指纹命中已有记录则跳过（同一文件内重复也防重）
         key = (order_no or "", str(rec_date_d), product_s, total_val)
@@ -336,6 +480,13 @@ async def import_xlsx(
             skipped += 1
             continue
         existing_keys.add(key)
+
+        # 分类：优先使用 xlsx 中的「分类」列；否则按商品名称自动分类
+        category_id = None
+        if category_name and category_name in category_cache:
+            category_id = category_cache[category_name]
+        elif all_categories:
+            category_id = classify_product(product_s, all_categories)
 
         records.append(
             FinanceShoppingRecord(
@@ -349,6 +500,7 @@ async def import_xlsx(
                 ledger_id=_resolve_name(ledger_name, ledger_cache, FinanceShoppingLedger, "name", db, user.id)
                 if ledger_name
                 else ledger_param,
+                category_id=category_id,
                 note=None,
                 user_id=user.id,
             )

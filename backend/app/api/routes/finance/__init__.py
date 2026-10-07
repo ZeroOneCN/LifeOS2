@@ -22,6 +22,7 @@ for sub in (
     overview.router,
     shopping.platforms_router,
     shopping.ledgers_router,
+    shopping.categories_router,
     shopping.records_router,
     shopping.import_router,
     travel.router,
