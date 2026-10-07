@@ -54,9 +54,10 @@ def _build_token_response(
     profile: UserProfile, db: Session, device: str | None = None, ip: str | None = None
 ) -> TokenResponse:
     """根据用户记录组装令牌响应（注册即登录），并创建会话记录。"""
-    access = create_access_token(profile.id, profile.username)
     refresh = create_refresh_token(profile.id)
-    _create_session(db, profile.id, refresh, device, ip)
+    session = _create_session(db, profile.id, refresh, device, ip)
+    db.flush()  # 拿到 session.id
+    access = create_access_token(profile.id, profile.username, session.id)
     db.commit()
     return TokenResponse(
         access_token=access,
@@ -164,7 +165,7 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return TokenRefreshResponse(
-        access_token=create_access_token(profile.id, profile.username)
+        access_token=create_access_token(profile.id, profile.username, session.id)
     )
 
 

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models import UserProfile
+from app.models import UserProfile, UserSession
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -50,12 +50,21 @@ def username_exists(db: Session, username: str, exclude_id: int | None = None) -
     return db.scalar(stmt) is not None
 
 
-def create_access_token(user_id: int, username: str | None) -> str:
-    """生成 JWT 访问令牌（短期，默认 2 小时）。"""
+def create_access_token(user_id: int, username: str | None, session_id: int | None = None) -> str:
+    """生成 JWT 访问令牌（短期，默认 2 小时）。
+
+    session_id 用于强制下线校验：验证时需确认该会话仍存在，否则视为已登出。
+    """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    payload = {"sub": str(user_id), "username": username, "exp": expire, "type": "access"}
+    payload = {
+        "sub": str(user_id),
+        "username": username,
+        "exp": expire,
+        "type": "access",
+        "sid": session_id,
+    }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
@@ -98,7 +107,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> UserProfile:
-    """解析 JWT 并返回当前登录用户；无效/过期/不存在均返回 401。"""
+    """解析 JWT 并返回当前登录用户；无效/过期/不存在/会话已撤销均返回 401。"""
     if credentials is None:
         raise HTTPException(status_code=401, detail="未登录，请先登录")
     payload = decode_token(credentials.credentials)
@@ -110,6 +119,13 @@ def get_current_user(
     profile = db.get(UserProfile, int(user_id))
     if profile is None:
         raise HTTPException(status_code=401, detail="用户不存在，请重新登录")
+
+    # 会话校验：若令牌携带 sid，则确认对应会话仍存在（被强制下线的会话已被删除）
+    session_id = payload.get("sid")
+    if session_id is not None:
+        session = db.get(UserSession, int(session_id))
+        if session is None:
+            raise HTTPException(status_code=401, detail="登录已失效，请重新登录")
     return profile
 
 
