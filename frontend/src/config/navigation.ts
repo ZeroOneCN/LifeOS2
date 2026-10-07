@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   Bell,
   CandlestickChart,
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   Home,
   LayoutDashboard,
   ListTodo,
+  Monitor,
   MoonStar,
   Package,
   PieChart,
@@ -49,9 +51,11 @@ export const navigation: NavSection[] = [
     system: true,
     children: [
       { title: '系统首页', url: '/home', icon: Home },
+      { title: '综合报告', url: '/dashboard/comprehensive', icon: BarChart3 },
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History },
       { title: '数据备份', url: '/backup', icon: Database },
+      { title: '会话管理', url: '/sessions', icon: Monitor },
       { title: '系统设置', url: '/system-settings', icon: Settings },
     ],
   },
