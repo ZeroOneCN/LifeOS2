@@ -132,6 +132,8 @@ export const router = createBrowserRouter([
       { path: '/home', element: withSuspense(<HomePage />) },
       { path: '/user-center', element: withSuspense(<UserCenterPage />) },
       { path: '/user-center/settings', element: withSuspense(<AccountSettingsPage />) },
+      { path: '/sessions', element: withSuspense(<SessionsPage />) },
+      { path: '/dashboard/comprehensive', element: withSuspense(<ComprehensiveReportPage />) },
       ...placeholderRoutes,
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
