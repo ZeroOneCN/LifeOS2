@@ -41,7 +41,6 @@ const AccountSettingsPage = lazy(() => import('@/pages/account-settings').then((
 const BackupPage = lazy(() => import('@/pages/system/backup').then((m) => ({ default: m.BackupPage })))
 const SiteSettingsPage = lazy(() => import('@/pages/system/site-settings').then((m) => ({ default: m.SiteSettingsPage })))
 const UserCenterPage = lazy(() => import('@/pages/user-center').then((m) => ({ default: m.UserCenterPage })))
-const ComprehensiveReportPage = lazy(() => import('@/pages/dashboard/comprehensive').then((m) => ({ default: m.ComprehensiveReportPage })))
 const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
 const LoginAuditPage = lazy(() => import('@/pages/login-audit').then((m) => ({ default: m.LoginAuditPage })))
 
@@ -87,7 +86,6 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/investment/overview': <InvestmentOverviewPage />,
   '/investment/forex': <ForexPage />,
   '/investment/reports': <InvestmentReportsPage />,
-  '/dashboard/comprehensive': <ComprehensiveReportPage />,
   '/sessions': <SessionsPage />,
   '/login-audit': <LoginAuditPage />,
   '/notifications': <NotificationsPage />,
@@ -135,7 +133,6 @@ export const router = createBrowserRouter([
       { path: '/user-center', element: withSuspense(<UserCenterPage />) },
       { path: '/user-center/settings', element: withSuspense(<AccountSettingsPage />) },
       { path: '/sessions', element: withSuspense(<SessionsPage />) },
-      { path: '/dashboard/comprehensive', element: withSuspense(<ComprehensiveReportPage />) },
       ...placeholderRoutes,
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],

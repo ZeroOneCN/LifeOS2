@@ -61,6 +61,11 @@ def _is_within(due: date, today: date, advance: int) -> bool:
     return today <= due <= today + timedelta(days=advance)
 
 
+# 状态值英文 → 中文映射（用于通知内容展示）
+SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "已取消"}
+LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
+
+
 def _next_day_of_month(today: date, day: int) -> date:
     """返回从今天起最近的一个指定日（含本月；过期则跳下月）。"""
     d = min(day, _days_in_month(today.year, today.month))
@@ -103,7 +108,7 @@ def _scan_subscription(db: Session, advance: int, user_id: int) -> list[dict]:
                     "due_date": due.isoformat(),
                     "days_left": (due - today).days,
                     "amount": _money(r.amount),
-                    "status": r.status,
+                    "status": SUB_STATUS_MAP.get(r.status, r.status),
                 },
             }
         )
@@ -166,14 +171,14 @@ def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
                 "due_date": r.due_date.isoformat(),
             },
             "content_ctx": {
-                "platform": platforms.get(r.platform_id, "网贷"),
-                "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
-                "amount": _money(r.amount),
-                "due_date": r.due_date.isoformat(),
-                "days_left": (r.due_date - today).days,
-                "paid_amount": _money(r.paid_amount),
-                "status": r.status,
-            },
+                    "platform": platforms.get(r.platform_id, "网贷"),
+                    "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
+                    "amount": _money(r.amount),
+                    "due_date": r.due_date.isoformat(),
+                    "days_left": (r.due_date - today).days,
+                    "paid_amount": _money(r.paid_amount),
+                    "status": LOAN_STATUS_MAP.get(r.status, r.status),
+                },
         }
         # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
         if r.due_date == today:

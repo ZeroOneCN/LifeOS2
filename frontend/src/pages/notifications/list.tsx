@@ -41,6 +41,29 @@ const categoryStyle: Record<string, string> = {
   其他: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
 }
 
+// 来源 feature_key → 中文名称映射（source 存储格式为 {feature_key}:{dedup_key}）
+const SOURCE_LABELS: Record<string, string> = {
+  finance_subscription_due: '服务订阅到期',
+  finance_utility_due: '水电燃气到期',
+  finance_loan_due: '网贷还款',
+  finance_reminder_due: '账单提醒',
+  finance_debt_due: '债务到期',
+  lifestyle_todo_due: '待办到期',
+  lifestyle_item_expire: '物品保质期',
+  lifestyle_phone_bill: '手机卡月租',
+  lifestyle_bankcard_due: '银行卡还款',
+  health_med_stock: '药品低库存',
+  health_checkup_due: '体检到期',
+  lifestyle_card_expire: '证件到期',
+}
+
+/** 将存储的 source（如 health_med_stock:1）转换为中文来源名称。 */
+function getSourceLabel(source: string | undefined): string {
+  if (!source) return '—'
+  const key = source.split(':')[0]
+  return SOURCE_LABELS[key] ?? key
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -201,7 +224,7 @@ export function NotificationList() {
                       </p>
                     )}
                     <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
-                      <span>{row.source ?? '—'}</span>
+                      <span>{getSourceLabel(row.source)}</span>
                       <span>{row.notify_date}</span>
                     </div>
                   </div>

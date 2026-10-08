@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Bell,
   CandlestickChart,
   ClipboardList,
@@ -54,7 +53,6 @@ export const navigation: NavSection[] = [
     system: true,
     children: [
       { title: '系统首页', url: '/home', icon: Home },
-      { title: '综合报告', url: '/dashboard/comprehensive', icon: BarChart3 },
       { title: '通知中心', url: '/notifications', icon: Bell },
       { title: '活动日志', url: '/activity-logs', icon: History, adminOnly: true },
       { title: '安全审计', url: '/login-audit', icon: Shield, adminOnly: true },
