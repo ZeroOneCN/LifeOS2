@@ -1562,13 +1562,15 @@ function LoanTab() {
   }
   const openBillCreate = () => {
     const pfId = platforms[0] ? String(platforms[0].id) : ''
-    setBillForm({ platform_id: pfId, bill_month: loanMonth, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
+    setBillForm({ platform_id: pfId, bill_month: `${loanMonth}-01`, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
     setBillDialog({})
   }
   const saveBill = async () => {
+    // 规范化 bill_month：确保为 YYYY-MM-DD 格式（MonthPicker 返回 YYYY-MM-01，但若只有 YYYY-MM 则补 -01）
+    const billMonth = /^\d{4}-\d{2}$/.test(billForm.bill_month) ? `${billForm.bill_month}-01` : billForm.bill_month
     const payload = {
       platform_id: billForm.platform_id ? Number(billForm.platform_id) : null,
-      bill_month: billForm.bill_month, due_date: billForm.due_date || null,
+      bill_month: billMonth, due_date: billForm.due_date || null,
       amount: Number(billForm.amount), interest: billForm.interest ? Number(billForm.interest) : 0,
       paid_amount: Number(billForm.paid_amount || 0),
       status: billForm.status, note: billForm.note || null,
