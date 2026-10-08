@@ -18,6 +18,8 @@ COMPOSITE_INDEXES: list[tuple[str, str, list[str]]] = [
     ("lifestyle_card_bill", "ix_cardbill_user_month", ["user_id", "bill_month"]),
     ("activity_logs", "ix_activity_user_created", ["user_id", "created_at"]),
     ("notifications", "ix_notif_user_date", ["user_id", "notify_date"]),
+    ("login_audits", "ix_loginaudit_account_created", ["account", "created_at"]),
+    ("login_audits", "ix_loginaudit_ip_created", ["ip_address", "created_at"]),
 ]
 
 

@@ -13,6 +13,7 @@ from app.api.routes import (
     health_check,
     investment,
     lifestyle,
+    login_audit,
     motivation,
     notification,
     notifications,
@@ -77,6 +78,7 @@ app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notification.router, prefix=settings.API_V1_PREFIX)
 app.include_router(user.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(login_audit.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports.router, prefix=settings.API_V1_PREFIX)

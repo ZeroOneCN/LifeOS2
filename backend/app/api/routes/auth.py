@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import delete, func, select
@@ -7,20 +7,20 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import (
-    _is_locked,
     account_exists,
-    clear_login_failures,
     create_access_token,
     create_refresh_token,
     decode_token,
     get_current_user,
     hash_password,
     hash_refresh_token,
+    is_account_locked,
     record_login_failure,
+    record_login_success,
     username_exists,
     verify_password,
 )
-from app.models import UserProfile, UserSession
+from app.models import LoginAudit, Notification, UserProfile, UserSession
 from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -32,6 +32,69 @@ from app.schemas.auth import (
 from app.services.notification.seed import ensure_seed
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _client_ip(request: Request) -> str | None:
+    """提取客户端真实 IP：优先取 X-Forwarded-For 首段（反向代理场景），回退到直连 host。"""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+def _notify_brute_force_if_needed(db: Session, ip: str | None) -> None:
+    """同 IP 在暴力破解窗口内失败次数首次达到阈值时，向所有管理员推送告警通知。
+
+    去重：以 `brute_force:{ip}:{date}` 作为 Notification.source，同一天同一 IP 仅告警一次。
+    """
+    if not ip:
+        return
+    window_since = datetime.now() - timedelta(
+        minutes=settings.BRUTE_FORCE_WINDOW_MINUTES
+    )
+    fail_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(LoginAudit)
+            .where(
+                LoginAudit.ip_address == ip,
+                LoginAudit.result.in_(["fail", "locked"]),
+                LoginAudit.created_at >= window_since,
+            )
+        )
+        or 0
+    )
+    if fail_count < settings.BRUTE_FORCE_THRESHOLD:
+        return
+    today = date.today()
+    source_tag = f"brute_force:{ip}:{today.isoformat()}"
+    admins = db.scalars(
+        select(UserProfile).where(UserProfile.is_admin == True)  # noqa: E712
+    ).all()
+    for admin in admins:
+        exists = db.scalar(
+            select(Notification).where(
+                Notification.source == source_tag,
+                Notification.user_id == admin.id,
+            )
+        )
+        if exists:
+            continue
+        note = Notification(
+            user_id=admin.id,
+            title="登录安全告警：检测到暴力破解尝试",
+            content=(
+                f"IP {ip} 在过去 {settings.BRUTE_FORCE_WINDOW_MINUTES} 分钟内"
+                f" 登录失败 {fail_count} 次，已超过阈值 {settings.BRUTE_FORCE_THRESHOLD} 次，"
+                f"请及时核查登录安全审计。"
+            ),
+            category="system",
+            source=source_tag,
+            read=False,
+            notify_date=today,
+        )
+        db.add(note)
+    db.flush()
 
 
 def _create_session(
@@ -53,11 +116,13 @@ def _create_session(
 def _build_token_response(
     profile: UserProfile, db: Session, device: str | None = None, ip: str | None = None
 ) -> TokenResponse:
-    """根据用户记录组装令牌响应（注册即登录），并创建会话记录。"""
+    """根据用户记录组装令牌响应（注册即登录），并创建会话记录与登录成功审计。"""
     refresh = create_refresh_token(profile.id)
     session = _create_session(db, profile.id, refresh, device, ip)
     db.flush()  # 拿到 session.id
     access = create_access_token(profile.id, profile.username, session.id)
+    # 记录登录成功（注册即登录、正常登录均覆盖），用于审计与重置连续失败计数
+    record_login_success(db, profile.account, profile.id, ip, device)
     db.commit()
     return TokenResponse(
         access_token=access,
@@ -103,15 +168,19 @@ def register(
     ensure_seed(db, profile.id)
     db.commit()
 
-    return _build_token_response(profile, db, request.headers.get("user-agent"), request.client.host if request.client else None)
+    return _build_token_response(
+        profile, db, request.headers.get("user-agent"), _client_ip(request)
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """账号密码登录；连续失败 5 次后锁定 15 分钟。"""
+    """账号密码登录；连续失败 5 次后锁定 15 分钟（锁定状态持久化，重启不丢失）。"""
     account = payload.account.strip()
+    ip = _client_ip(request)
+    ua = request.headers.get("user-agent")
 
-    locked, remaining = _is_locked(account)
+    locked, remaining = is_account_locked(db, account)
     if locked:
         raise HTTPException(
             status_code=429,
@@ -126,19 +195,20 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         profile.password_salt or "",
         profile.password_hash,
     ):
-        record_login_failure(account)
-        locked, remaining = _is_locked(account)
-        if locked:
+        reason = "account_not_found" if profile is None else "password_wrong"
+        triggered = record_login_failure(
+            db, account, profile.id if profile else None, ip, ua, reason
+        )
+        # 暴力破解检测：同 IP 跨账号高频失败时向管理员告警
+        _notify_brute_force_if_needed(db, ip)
+        if triggered:
             raise HTTPException(
                 status_code=429,
-                detail=f"连续登录失败次数过多，账号已锁定 {remaining // 60} 分钟",
+                detail=f"连续登录失败次数过多，账号已锁定 {settings.LOGIN_LOCK_MINUTES} 分钟",
             )
         raise HTTPException(status_code=401, detail="账号或密码错误")
 
-    clear_login_failures(account)
-    return _build_token_response(
-        profile, db, request.headers.get("user-agent"), request.client.host if request.client else None
-    )
+    return _build_token_response(profile, db, ua, ip)
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)

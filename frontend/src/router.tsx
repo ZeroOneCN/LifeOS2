@@ -43,6 +43,7 @@ const SiteSettingsPage = lazy(() => import('@/pages/system/site-settings').then(
 const UserCenterPage = lazy(() => import('@/pages/user-center').then((m) => ({ default: m.UserCenterPage })))
 const ComprehensiveReportPage = lazy(() => import('@/pages/dashboard/comprehensive').then((m) => ({ default: m.ComprehensiveReportPage })))
 const SessionsPage = lazy(() => import('@/pages/sessions').then((m) => ({ default: m.SessionsPage })))
+const LoginAuditPage = lazy(() => import('@/pages/login-audit').then((m) => ({ default: m.LoginAuditPage })))
 
 /** 懒加载页面的统一加载占位：居中旋转图标，避免白屏闪烁。 */
 function PageLoader() {
@@ -88,6 +89,7 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/investment/reports': <InvestmentReportsPage />,
   '/dashboard/comprehensive': <ComprehensiveReportPage />,
   '/sessions': <SessionsPage />,
+  '/login-audit': <LoginAuditPage />,
   '/notifications': <NotificationsPage />,
   '/activity-logs': <ActivityLogsPage />,
   '/backup': <BackupPage />,
@@ -97,7 +99,7 @@ const implementedPages: Record<string, React.ReactNode> = {
 }
 
 // 需要管理员权限的页面路径
-const ADMIN_PATHS = new Set(['/system-settings', '/backup', '/activity-logs'])
+const ADMIN_PATHS = new Set(['/system-settings', '/backup', '/activity-logs', '/login-audit'])
 
 const placeholderRoutes = navigation.flatMap((section) =>
   section.children

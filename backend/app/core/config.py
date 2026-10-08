@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # 登录失败锁定阈值（次）与锁定时长（分钟）
     LOGIN_MAX_FAILURES: int = 5
     LOGIN_LOCK_MINUTES: int = 15
+    # 暴力破解检测：近 N 分钟内同一 IP 失败次数 ≥ 阈值则向管理员告警
+    BRUTE_FORCE_WINDOW_MINUTES: int = 30
+    BRUTE_FORCE_THRESHOLD: int = 10
     # mysqldump 可执行文件路径（留空则自动从 PATH 查找）
     MYSQLDUMP_PATH: str = ""
 

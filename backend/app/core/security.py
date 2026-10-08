@@ -7,12 +7,12 @@ from typing import Any
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models import UserProfile, UserSession
+from app.models import LoginAudit, UserProfile, UserSession
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -136,36 +136,105 @@ def get_current_admin(user: UserProfile = Depends(get_current_user)) -> UserProf
     return user
 
 
-# ── 登录失败锁定（内存计数，进程重启后重置） ──────────────────────────────
-
-_login_failures: dict[str, dict[str, Any]] = {}
+# ── 登录失败锁定（基于 login_audits 表持久化，进程重启不丢失） ────────────
 
 
-def _is_locked(account: str) -> tuple[bool, int]:
-    """检查账号是否被锁定，返回 (是否锁定, 剩余锁定秒数)。"""
-    info = _login_failures.get(account)
-    if not info:
+def is_account_locked(db: Session, account: str) -> tuple[bool, int]:
+    """检查账号是否处于锁定状态：锁定窗口内存在 result='locked' 记录。
+
+    返回 (是否锁定, 剩余锁定秒数)。锁定窗口由 LOGIN_LOCK_MINUTES 控制，
+    从最近一次 locked 记录的时间起算。
+    """
+    since = datetime.now() - timedelta(minutes=settings.LOGIN_LOCK_MINUTES)
+    last_locked = db.scalar(
+        select(LoginAudit)
+        .where(
+            LoginAudit.account == account,
+            LoginAudit.result == "locked",
+            LoginAudit.created_at >= since,
+        )
+        .order_by(LoginAudit.created_at.desc())
+        .limit(1)
+    )
+    if not last_locked:
         return False, 0
-    lock_until: datetime = info["lock_until"]
-    if lock_until > datetime.now():
-        remaining = int((lock_until - datetime.now()).total_seconds())
-        return True, remaining
-    # 锁定已过期，清除记录
-    _login_failures.pop(account, None)
+    lock_until = last_locked.created_at + timedelta(
+        minutes=settings.LOGIN_LOCK_MINUTES
+    )
+    now = datetime.now()
+    if lock_until > now:
+        return True, int((lock_until - now).total_seconds())
     return False, 0
 
 
-def record_login_failure(account: str) -> None:
-    """记录一次登录失败，达到阈值后锁定账号。"""
-    info = _login_failures.get(account, {"count": 0, "lock_until": None})
-    info["count"] += 1
-    if info["count"] >= settings.LOGIN_MAX_FAILURES:
-        info["lock_until"] = datetime.now() + timedelta(
-            minutes=settings.LOGIN_LOCK_MINUTES
+def _count_consecutive_failures(db: Session, account: str) -> int:
+    """统计锁定窗口内、自最近一次成功登录之后的连续失败次数。
+
+    若窗口内出现过 success 记录，则计数从 success 之后重新开始；
+    否则统计窗口内全部失败次数。
+    """
+    since = datetime.now() - timedelta(minutes=settings.LOGIN_LOCK_MINUTES)
+    rows = db.scalars(
+        select(LoginAudit)
+        .where(
+            LoginAudit.account == account,
+            LoginAudit.created_at >= since,
         )
-    _login_failures[account] = info
+        .order_by(LoginAudit.created_at.asc())
+    ).all()
+    count = 0
+    for r in rows:
+        if r.result == "success":
+            count = 0
+        else:  # fail / locked
+            count += 1
+    return count
 
 
-def clear_login_failures(account: str) -> None:
-    """登录成功后清除该账号的失败计数。"""
-    _login_failures.pop(account, None)
+def record_login_failure(
+    db: Session,
+    account: str,
+    user_id: int | None = None,
+    ip: str | None = None,
+    ua: str | None = None,
+    reason: str | None = None,
+) -> bool:
+    """记录一次登录失败，达到阈值则写入锁定标记。
+
+    Returns:
+        是否触发账号锁定（True 表示本次失败使账号进入锁定状态）。
+    """
+    consecutive = _count_consecutive_failures(db, account)
+    is_lock = (consecutive + 1) >= settings.LOGIN_MAX_FAILURES
+    audit = LoginAudit(
+        account=account,
+        user_id=user_id,
+        result="locked" if is_lock else "fail",
+        failure_reason=reason,
+        ip_address=ip,
+        user_agent=ua,
+        lock_triggered=1 if is_lock else 0,
+    )
+    db.add(audit)
+    db.flush()
+    return is_lock
+
+
+def record_login_success(
+    db: Session,
+    account: str,
+    user_id: int,
+    ip: str | None = None,
+    ua: str | None = None,
+) -> None:
+    """记录一次登录成功（用于审计与重置连续失败计数）。"""
+    audit = LoginAudit(
+        account=account,
+        user_id=user_id,
+        result="success",
+        ip_address=ip,
+        user_agent=ua,
+        lock_triggered=0,
+    )
+    db.add(audit)
+    db.flush()

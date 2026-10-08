@@ -58,6 +58,7 @@ MODULE_NAMES = {
     "auth/logout": "退出登录",
     "auth/refresh": "刷新令牌",
     "auth/sessions": "会话管理",
+    "auth/login-audits": "登录审计",
     "backup/export": "数据导出",
     "backup/import": "数据导入",
     "backup/exports": "备份文件",
@@ -94,6 +95,7 @@ class ActivityLoggerMiddleware:
             method in ("POST", "PUT", "PATCH", "DELETE")
             and path.startswith(API_PREFIX)
             and not path.startswith(f"{API_PREFIX}/activity-logs")
+            and not path.startswith(f"{API_PREFIX}/login-audits")
         )
 
         if not should_log:
