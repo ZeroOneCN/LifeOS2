@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="IMAGES/home.jpg" alt="LifeOS V2.0 系统首页" width="100%" />
+  <img src="images/系统首页.png" alt="LifeOS V2.0 系统首页" width="100%" />
 </p>
 
 <h1 align="center">LifeOS V2.0</h1>
@@ -107,7 +107,7 @@ LifeOS 将个人生活的核心维度整合到一个统一平台：记录健康�
 
 ### 系统首页
 
-![系统首页](IMAGES/home.jpg)
+![系统首页](images/系统首页.png)
 
 > 更多模块截图将持续更新。
 
@@ -136,7 +136,7 @@ LifeOS V2.0/
 │   └── backups/         # 数据库备份归档（仅本地，不入库）
 ├── frontend/            # 前端应用（Vite，端口 9015）
 │   └── src/             # 页面与组件源码
-├── IMAGES/              # 文档配图
+├── images/              # 文档配图
 ├── 说明文档.md           # 项目管理载体（规划 / 实施方案 / 进度记录）
 └── README.md
 ```
