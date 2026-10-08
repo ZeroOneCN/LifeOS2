@@ -171,14 +171,14 @@ def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
                 "due_date": r.due_date.isoformat(),
             },
             "content_ctx": {
-                    "platform": platforms.get(r.platform_id, "网贷"),
-                    "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
-                    "amount": _money(r.amount),
-                    "due_date": r.due_date.isoformat(),
-                    "days_left": (r.due_date - today).days,
-                    "paid_amount": _money(r.paid_amount),
-                    "status": LOAN_STATUS_MAP.get(r.status, r.status),
-                },
+                "platform": platforms.get(r.platform_id, "网贷"),
+                "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
+                "amount": _money(r.amount),
+                "due_date": r.due_date.isoformat(),
+                "days_left": (r.due_date - today).days,
+                "paid_amount": _money(r.paid_amount),
+                "status": LOAN_STATUS_MAP.get(r.status, r.status),
+            },
         }
         # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
         if r.due_date == today:
