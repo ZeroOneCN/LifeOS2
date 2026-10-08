@@ -149,8 +149,8 @@ class LifeOSApi:
             if len(all_items) >= total or not items:
                 break
             page += 1
-        # 按平台 ID + 账单月固定排序
-        all_items.sort(key=lambda b: (b.get("platform_id") or 0, b.get("bill_month") or ""))
+        # 按账单月倒序（最新在前），同月份内按平台 ID 升序
+        all_items.sort(key=lambda b: (b.get("bill_month") or "", -(b.get("platform_id") or 0)), reverse=True)
         return all_items
 
     def create_bill(self, payload: dict) -> dict:

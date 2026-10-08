@@ -6,9 +6,12 @@
 - 借款平台 CRUD
 - 网贷账单 CRUD（全量列表 + 平台/状态/月份筛选，无需按月翻页）
 - 账单还款记录 CRUD（选中账单后联动展示）
+
+所有网络请求均在子线程执行，避免阻塞 GUI 主线程导致界面卡死。
 """
+import threading
 import tkinter as tk
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, ttk
 from datetime import date
 
 from api_client import ApiError, LifeOSApi
@@ -27,14 +30,14 @@ def fmt(n) -> str:
 
 
 class LoginDialog(tk.Toplevel):
-    """登录弹窗，输入账号密码与服务器地址。"""
+    """登录弹窗，输入账号密码与服务器地址。登录请求在子线程执行，避免卡死。"""
 
     def __init__(self, master, on_success):
         super().__init__(master)
         self.title("登录 LifeOS")
         self.resizable(False, False)
         self.on_success = on_success
-        self.result = None
+        self._logging_in = False
 
         cfg = load_config()
         self.server_var = tk.StringVar(value=cfg.get("server", DEFAULT_SERVER))
@@ -57,7 +60,8 @@ class LoginDialog(tk.Toplevel):
 
         btns = ttk.Frame(frm)
         btns.grid(row=3, column=0, columnspan=2, pady=(12, 0))
-        ttk.Button(btns, text="登录", command=self._do_login).pack(side="left", padx=4)
+        self.login_btn = ttk.Button(btns, text="登录", command=self._do_login)
+        self.login_btn.pack(side="left", padx=4)
         ttk.Button(btns, text="取消", command=self.destroy).pack(side="left", padx=4)
 
         self.transient(master)
@@ -66,39 +70,56 @@ class LoginDialog(tk.Toplevel):
         self.bind("<Return>", lambda e: self._do_login())
 
     def _do_login(self):
-        """执行登录，成功后回调并关闭弹窗。"""
-        server = self.server_var.get().strip()
+        """在子线程执行登录，避免网络请求阻塞 GUI。"""
+        if self._logging_in:
+            return
         account = self.account_var.get().strip()
         password = self.password_entry.get()
         if not account or not password:
             messagebox.showwarning("提示", "请输入账号和密码", parent=self)
             return
-        api = LifeOSApi()
-        try:
-            api.login(account, password, server=server)
-            self.on_success(api)
-            self.destroy()
-        except ApiError as e:
-            messagebox.showerror("登录失败", str(e), parent=self)
+        self._logging_in = True
+        self.login_btn.config(state="disabled", text="登录中...")
+
+        def worker():
+            api = LifeOSApi()
+            try:
+                api.login(account, password, server=self.server_var.get().strip())
+                self.after(0, lambda: self._on_success(api))
+            except ApiError as e:
+                self.after(0, lambda: self._on_error(str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_success(self, api: LifeOSApi):
+        """登录成功回调。"""
+        self.on_success(api)
+        self.destroy()
+
+    def _on_error(self, msg: str):
+        """登录失败回调，恢复按钮状态。"""
+        self._logging_in = False
+        self.login_btn.config(state="normal", text="登录")
+        messagebox.showerror("登录失败", msg, parent=self)
 
 
 class BillDialog(tk.Toplevel):
-    """账单新增/编辑弹窗。"""
+    """账单新增/编辑弹窗。保存请求在子线程执行。"""
 
-    def __init__(self, master, api, platforms, bill=None):
+    def __init__(self, master, api, platforms, bill=None, on_saved=None):
         super().__init__(master)
         self.title("编辑账单" if bill else "新增账单")
         self.resizable(False, False)
         self.api = api
         self.platforms = platforms
         self.bill = bill
-        self.saved = False
+        self.on_saved = on_saved
+        self._saving = False
 
         pad = {"padx": 8, "pady": 5}
         frm = ttk.Frame(self, padding=16)
         frm.grid(row=0, column=0, sticky="nsew")
 
-        # 平台下拉
         ttk.Label(frm, text="平台").grid(row=0, column=0, sticky="w", **pad)
         self.platform_var = tk.StringVar()
         self.platform_combo = ttk.Combobox(
@@ -110,49 +131,48 @@ class BillDialog(tk.Toplevel):
             pname = next((p["name"] for p in platforms if p["id"] == bill["platform_id"]), "")
             self.platform_combo.set(pname)
 
-        # 账单月
         ttk.Label(frm, text="账单月").grid(row=1, column=0, sticky="w", **pad)
         self.bill_month_var = tk.StringVar(value=(bill.get("bill_month") or "")[:7] if bill else "")
         ttk.Entry(frm, textvariable=self.bill_month_var, width=28).grid(row=1, column=1, **pad)
 
-        # 到期日
         ttk.Label(frm, text="到期日").grid(row=2, column=0, sticky="w", **pad)
         self.due_date_var = tk.StringVar(value=bill.get("due_date") or "" if bill else "")
         ttk.Entry(frm, textvariable=self.due_date_var, width=28).grid(row=2, column=1, **pad)
 
-        # 金额（含息）
         ttk.Label(frm, text="欠款金额(含息)").grid(row=3, column=0, sticky="w", **pad)
         self.amount_var = tk.StringVar(value=str(bill.get("amount") or "") if bill else "")
         ttk.Entry(frm, textvariable=self.amount_var, width=28).grid(row=3, column=1, **pad)
 
-        # 利息
         ttk.Label(frm, text="利息").grid(row=4, column=0, sticky="w", **pad)
         self.interest_var = tk.StringVar(value=str(bill.get("interest") or "") if bill else "")
         ttk.Entry(frm, textvariable=self.interest_var, width=28).grid(row=4, column=1, **pad)
 
-        # 状态
         ttk.Label(frm, text="状态").grid(row=5, column=0, sticky="w", **pad)
-        self.status_var = tk.StringVar(value=bill.get("status") or "pending" if bill else "pending")
+        # 修复：bill 为 None 时直接用默认值，避免 None.get() 崩溃
+        status_val = bill.get("status") if bill else None
+        self.status_var = tk.StringVar(value=status_val or "pending")
         ttk.Combobox(
             frm, textvariable=self.status_var, state="readonly", width=28,
             values=["pending", "partial", "cleared"],
         ).grid(row=5, column=1, **pad)
 
-        # 备注
         ttk.Label(frm, text="备注").grid(row=6, column=0, sticky="w", **pad)
         self.note_var = tk.StringVar(value=bill.get("note") or "" if bill else "")
         ttk.Entry(frm, textvariable=self.note_var, width=28).grid(row=6, column=1, **pad)
 
         btns = ttk.Frame(frm)
         btns.grid(row=7, column=0, columnspan=2, pady=(12, 0))
-        ttk.Button(btns, text="保存", command=self._save).pack(side="left", padx=4)
+        self.save_btn = ttk.Button(btns, text="保存", command=self._save)
+        self.save_btn.pack(side="left", padx=4)
         ttk.Button(btns, text="取消", command=self.destroy).pack(side="left", padx=4)
 
         self.transient(master)
         self.grab_set()
 
     def _save(self):
-        """保存账单，校验后调用后端接口。"""
+        """校验后在子线程保存账单。"""
+        if self._saving:
+            return
         pname = self.platform_var.get()
         platform = next((p for p in self.platforms if p["name"] == pname), None)
         bill_month = self.bill_month_var.get().strip()
@@ -176,27 +196,50 @@ class BillDialog(tk.Toplevel):
                 "status": self.status_var.get(),
                 "note": self.note_var.get().strip() or None,
             }
-            if self.bill:
-                self.api.update_bill(self.bill["id"], payload)
-            else:
-                self.api.create_bill(payload)
-            self.saved = True
-            self.destroy()
-        except (ValueError, ApiError) as e:
-            messagebox.showerror("保存失败", str(e), parent=self)
+        except ValueError:
+            messagebox.showwarning("提示", "金额格式不正确", parent=self)
+            return
+
+        self._saving = True
+        self.save_btn.config(state="disabled", text="保存中...")
+
+        def worker():
+            try:
+                if self.bill:
+                    self.api.update_bill(self.bill["id"], payload)
+                else:
+                    self.api.create_bill(payload)
+                self.after(0, self._on_saved)
+            except ApiError as e:
+                self.after(0, lambda: self._on_error(str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_saved(self):
+        """保存成功回调。"""
+        if self.on_saved:
+            self.on_saved()
+        self.destroy()
+
+    def _on_error(self, msg: str):
+        """保存失败回调，恢复按钮。"""
+        self._saving = False
+        self.save_btn.config(state="normal", text="保存")
+        messagebox.showerror("保存失败", msg, parent=self)
 
 
 class RepaymentDialog(tk.Toplevel):
     """还款记录新增/编辑弹窗。"""
 
-    def __init__(self, master, api, bill, repayment=None):
+    def __init__(self, master, api, bill, repayment=None, on_saved=None):
         super().__init__(master)
         self.title("编辑还款" if repayment else "新增还款")
         self.resizable(False, False)
         self.api = api
         self.bill = bill
         self.repayment = repayment
-        self.saved = False
+        self.on_saved = on_saved
+        self._saving = False
 
         pad = {"padx": 8, "pady": 5}
         frm = ttk.Frame(self, padding=16)
@@ -231,14 +274,17 @@ class RepaymentDialog(tk.Toplevel):
 
         btns = ttk.Frame(frm)
         btns.grid(row=6, column=0, columnspan=2, pady=(12, 0))
-        ttk.Button(btns, text="保存", command=self._save).pack(side="left", padx=4)
+        self.save_btn = ttk.Button(btns, text="保存", command=self._save)
+        self.save_btn.pack(side="left", padx=4)
         ttk.Button(btns, text="取消", command=self.destroy).pack(side="left", padx=4)
 
         self.transient(master)
         self.grab_set()
 
     def _save(self):
-        """保存还款记录。"""
+        """校验后在子线程保存还款记录。"""
+        if self._saving:
+            return
         try:
             payload = {
                 "bill_id": self.bill["id"],
@@ -248,26 +294,47 @@ class RepaymentDialog(tk.Toplevel):
                 "method": self.method_var.get().strip() or None,
                 "note": self.note_var.get().strip() or None,
             }
-            if self.repayment:
-                self.api.update_repayment(self.repayment["id"], payload)
-            else:
-                self.api.create_repayment(payload)
-            self.saved = True
-            self.destroy()
-        except (ValueError, ApiError) as e:
-            messagebox.showerror("保存失败", str(e), parent=self)
+        except ValueError:
+            messagebox.showwarning("提示", "金额格式不正确", parent=self)
+            return
+
+        self._saving = True
+        self.save_btn.config(state="disabled", text="保存中...")
+
+        def worker():
+            try:
+                if self.repayment:
+                    self.api.update_repayment(self.repayment["id"], payload)
+                else:
+                    self.api.create_repayment(payload)
+                self.after(0, self._on_saved)
+            except ApiError as e:
+                self.after(0, lambda: self._on_error(str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_saved(self):
+        if self.on_saved:
+            self.on_saved()
+        self.destroy()
+
+    def _on_error(self, msg: str):
+        self._saving = False
+        self.save_btn.config(state="normal", text="保存")
+        messagebox.showerror("保存失败", msg, parent=self)
 
 
 class PlatformDialog(tk.Toplevel):
     """借款平台新增/编辑弹窗。"""
 
-    def __init__(self, master, api, platform=None):
+    def __init__(self, master, api, platform=None, on_saved=None):
         super().__init__(master)
         self.title("编辑平台" if platform else "新增平台")
         self.resizable(False, False)
         self.api = api
         self.platform = platform
-        self.saved = False
+        self.on_saved = on_saved
+        self._saving = False
 
         pad = {"padx": 8, "pady": 5}
         frm = ttk.Frame(self, padding=16)
@@ -291,14 +358,16 @@ class PlatformDialog(tk.Toplevel):
 
         btns = ttk.Frame(frm)
         btns.grid(row=4, column=0, columnspan=2, pady=(12, 0))
-        ttk.Button(btns, text="保存", command=self._save).pack(side="left", padx=4)
+        self.save_btn = ttk.Button(btns, text="保存", command=self._save)
+        self.save_btn.pack(side="left", padx=4)
         ttk.Button(btns, text="取消", command=self.destroy).pack(side="left", padx=4)
 
         self.transient(master)
         self.grab_set()
 
     def _save(self):
-        """保存平台。"""
+        if self._saving:
+            return
         name = self.name_var.get().strip()
         if not name:
             messagebox.showwarning("提示", "请输入平台名称", parent=self)
@@ -310,14 +379,34 @@ class PlatformDialog(tk.Toplevel):
                 "due_day": int(self.due_day_var.get()) if self.due_day_var.get().strip() else None,
                 "credit_limit": float(self.limit_var.get()) if self.limit_var.get().strip() else None,
             }
-            if self.platform:
-                self.api.update_platform(self.platform["id"], payload)
-            else:
-                self.api.create_platform(payload)
-            self.saved = True
-            self.destroy()
-        except (ValueError, ApiError) as e:
-            messagebox.showerror("保存失败", str(e), parent=self)
+        except ValueError:
+            messagebox.showwarning("提示", "数字格式不正确", parent=self)
+            return
+
+        self._saving = True
+        self.save_btn.config(state="disabled", text="保存中...")
+
+        def worker():
+            try:
+                if self.platform:
+                    self.api.update_platform(self.platform["id"], payload)
+                else:
+                    self.api.create_platform(payload)
+                self.after(0, self._on_saved)
+            except ApiError as e:
+                self.after(0, lambda: self._on_error(str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_saved(self):
+        if self.on_saved:
+            self.on_saved()
+        self.destroy()
+
+    def _on_error(self, msg: str):
+        self._saving = False
+        self.save_btn.config(state="normal", text="保存")
+        messagebox.showerror("保存失败", msg, parent=self)
 
 
 class App(tk.Tk):
@@ -333,6 +422,7 @@ class App(tk.Tk):
         self.platforms: list[dict] = []
         self.bills: list[dict] = []
         self.repayments: list[dict] = []
+        self._loading = False
 
         # 筛选变量
         self.filter_platform = tk.StringVar(value="全部")
@@ -341,6 +431,27 @@ class App(tk.Tk):
 
         self._build_ui()
         self.after(100, self._check_login)
+
+    # ---------- 通用异步执行 ----------
+    def _run_async(self, func, on_success=None, on_error=None):
+        """在子线程执行 func，完成后在主线程回调 on_success(result) 或 on_error(exc)。
+
+        参数：
+            func: 无参可调用对象，在子线程执行。
+            on_success: 成功回调，接收 func 返回值。
+            on_error: 失败回调，接收异常对象；为 None 时弹错误框。
+        """
+        def worker():
+            try:
+                result = func()
+                if on_success:
+                    self.after(0, lambda: on_success(result))
+            except Exception as e:
+                if on_error:
+                    self.after(0, lambda: on_error(e))
+                else:
+                    self.after(0, lambda: messagebox.showerror("错误", str(e)))
+        threading.Thread(target=worker, daemon=True).start()
 
     # ---------- UI 构建 ----------
     def _build_ui(self):
@@ -351,15 +462,14 @@ class App(tk.Tk):
         except tk.TclError:
             pass
 
-        # 顶部状态栏
         top = ttk.Frame(self, padding=(12, 8))
         top.pack(side="top", fill="x")
         self.status_label = ttk.Label(top, text="未登录", foreground="gray")
         self.status_label.pack(side="left")
-        ttk.Button(top, text="刷新", command=self._refresh_all).pack(side="right", padx=4)
+        self.refresh_btn = ttk.Button(top, text="刷新", command=self._refresh_all)
+        self.refresh_btn.pack(side="right", padx=4)
         ttk.Button(top, text="重新登录", command=self._relogin).pack(side="right", padx=4)
 
-        # 标签页
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
@@ -367,11 +477,10 @@ class App(tk.Tk):
         self._build_platforms_tab()
 
     def _build_bills_tab(self):
-        """构建账单管理标签页（上方账单表 + 下方还款表联动）。"""
+        """构建账单管理标签页。"""
         tab = ttk.Frame(self.nb)
         self.nb.add(tab, text="账单与还款")
 
-        # 筛选栏
         filt = ttk.Frame(tab, padding=(0, 0, 0, 8))
         filt.pack(fill="x")
         ttk.Label(filt, text="平台:").pack(side="left", padx=(0, 4))
@@ -390,14 +499,12 @@ class App(tk.Tk):
         ttk.Button(filt, text="筛选", command=self._apply_filter).pack(side="left", padx=4)
         ttk.Button(filt, text="清除", command=self._clear_filter).pack(side="left", padx=4)
 
-        # 操作按钮
         btns = ttk.Frame(filt)
         btns.pack(side="right")
         ttk.Button(btns, text="新增账单", command=self._add_bill).pack(side="left", padx=2)
         ttk.Button(btns, text="编辑账单", command=self._edit_bill).pack(side="left", padx=2)
         ttk.Button(btns, text="删除账单", command=self._delete_bill).pack(side="left", padx=2)
 
-        # 账单表 + 还款表（上下分栏）
         paned = ttk.PanedWindow(tab, orient="vertical")
         paned.pack(fill="both", expand=True)
 
@@ -418,7 +525,6 @@ class App(tk.Tk):
         self.bills_tree.bind("<<TreeviewSelect>>", self._on_bill_select)
         self.bills_tree.bind("<Double-1>", lambda e: self._edit_bill())
 
-        # 还款区域
         rep_frame = ttk.LabelFrame(paned, text="还款记录", padding=6)
         paned.add(rep_frame, weight=2)
 
@@ -470,15 +576,22 @@ class App(tk.Tk):
         """启动时检查是否已有有效 token，无则弹出登录框。"""
         cfg = load_config()
         if cfg.get("token"):
-            api = LifeOSApi()
-            try:
-                api.list_platforms()
-                self.api = api
-                self._on_login_success()
-                return
-            except ApiError:
-                pass
-        self._show_login()
+            self.api = LifeOSApi()
+            # 在子线程验证 token 有效性
+            def verify():
+                try:
+                    self.api.list_platforms()
+                    return True
+                except ApiError:
+                    return False
+            def on_done(ok):
+                if ok:
+                    self._on_login_success(self.api)
+                else:
+                    self._show_login()
+            self._run_async(verify, on_success=on_done)
+        else:
+            self._show_login()
 
     def _show_login(self):
         """显示登录弹窗。"""
@@ -501,25 +614,41 @@ class App(tk.Tk):
 
     # ---------- 数据加载 ----------
     def _refresh_all(self):
-        """刷新平台、账单、还款全部数据。"""
-        if not self.api:
+        """异步刷新平台、账单数据。"""
+        if not self.api or self._loading:
             return
-        try:
-            self.platforms = self.api.list_platforms()
-            self.bills = self.api.list_bills()
+        self._loading = True
+        self.refresh_btn.config(state="disabled", text="加载中...")
+        self.status_label.config(text=f"已登录：{self.api.account} @ {self.api.base_url}（加载中...）", foreground="blue")
+
+        def load():
+            platforms = self.api.list_platforms()
+            bills = self.api.list_bills()
+            return platforms, bills
+
+        def on_done(result):
+            self.platforms, self.bills = result
             self._refresh_platforms_tree()
             self._refresh_bills_tree()
             self.repayments = []
             self._refresh_rep_tree()
-            # 更新筛选平台下拉
             names = ["全部"] + [p["name"] for p in self.platforms]
             self.platform_combo["values"] = names
-        except ApiError as e:
-            if e.status_code == 401:
+            self._loading = False
+            self.refresh_btn.config(state="normal", text="刷新")
+            self.status_label.config(text=f"已登录：{self.api.account} @ {self.api.base_url}", foreground="green")
+
+        def on_error(e):
+            self._loading = False
+            self.refresh_btn.config(state="normal", text="刷新")
+            self.status_label.config(text=f"已登录：{self.api.account} @ {self.api.base_url}", foreground="green")
+            if isinstance(e, ApiError) and e.status_code == 401:
                 messagebox.showinfo("提示", "登录已失效，请重新登录")
                 self._show_login()
             else:
                 messagebox.showerror("加载失败", str(e))
+
+        self._run_async(load, on_success=on_done, on_error=on_error)
 
     def _refresh_platforms_tree(self):
         """刷新平台表格。"""
@@ -583,11 +712,9 @@ class App(tk.Tk):
 
     # ---------- 筛选 ----------
     def _apply_filter(self):
-        """应用筛选条件刷新账单表。"""
         self._refresh_bills_tree()
 
     def _clear_filter(self):
-        """清除筛选条件。"""
         self.filter_platform.set("全部")
         self.filter_status.set("全部")
         self.filter_month.set("")
@@ -595,7 +722,6 @@ class App(tk.Tk):
 
     # ---------- 账单 CRUD ----------
     def _selected_bill(self) -> dict | None:
-        """获取当前选中的账单。"""
         sel = self.bills_tree.selection()
         if not sel:
             return None
@@ -603,51 +729,42 @@ class App(tk.Tk):
         return next((b for b in self.bills if b["id"] == bid), None)
 
     def _add_bill(self):
-        """弹出新增账单弹窗。"""
-        dlg = BillDialog(self, self.api, self.platforms)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        BillDialog(self, self.api, self.platforms, on_saved=self._refresh_all)
 
     def _edit_bill(self):
-        """弹出编辑账单弹窗。"""
         bill = self._selected_bill()
         if not bill:
             messagebox.showinfo("提示", "请先选择一条账单")
             return
-        dlg = BillDialog(self, self.api, self.platforms, bill=bill)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        BillDialog(self, self.api, self.platforms, bill=bill, on_saved=self._refresh_all)
 
     def _delete_bill(self):
-        """删除选中账单。"""
         bill = self._selected_bill()
         if not bill:
             messagebox.showinfo("提示", "请先选择一条账单")
             return
         if not messagebox.askyesno("确认", f"确定删除账单「{self._platform_name(bill.get('platform_id'))} {bill.get('bill_month', '')[:7]}」吗？"):
             return
-        try:
+        def do_delete():
             self.api.delete_bill(bill["id"])
+        def on_done(_):
             self._refresh_all()
-        except ApiError as e:
-            messagebox.showerror("删除失败", str(e))
+        self._run_async(do_delete, on_success=on_done, on_error=lambda e: messagebox.showerror("删除失败", str(e)))
 
     def _on_bill_select(self, _event):
-        """账单行选中时加载其还款记录。"""
+        """账单行选中时异步加载其还款记录。"""
         bill = self._selected_bill()
         if not bill:
             return
-        try:
-            self.repayments = self.api.list_repayments(bill["id"])
+        def load():
+            return self.api.list_repayments(bill["id"])
+        def on_done(reps):
+            self.repayments = reps
             self._refresh_rep_tree()
-        except ApiError as e:
-            messagebox.showerror("加载还款失败", str(e))
+        self._run_async(load, on_success=on_done, on_error=lambda e: messagebox.showerror("加载还款失败", str(e)))
 
     # ---------- 还款 CRUD ----------
     def _selected_repayment(self) -> dict | None:
-        """获取当前选中的还款记录。"""
         sel = self.rep_tree.selection()
         if not sel:
             return None
@@ -655,45 +772,35 @@ class App(tk.Tk):
         return next((r for r in self.repayments if r["id"] == rid), None)
 
     def _add_repayment(self):
-        """新增还款记录。"""
         bill = self._selected_bill()
         if not bill:
             messagebox.showinfo("提示", "请先在上方选择一条账单")
             return
-        dlg = RepaymentDialog(self, self.api, bill)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        RepaymentDialog(self, self.api, bill, on_saved=self._refresh_all)
 
     def _edit_repayment(self):
-        """编辑还款记录。"""
         bill = self._selected_bill()
         rep = self._selected_repayment()
         if not bill or not rep:
             messagebox.showinfo("提示", "请先选择一条还款记录")
             return
-        dlg = RepaymentDialog(self, self.api, bill, repayment=rep)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        RepaymentDialog(self, self.api, bill, repayment=rep, on_saved=self._refresh_all)
 
     def _delete_repayment(self):
-        """删除还款记录。"""
         rep = self._selected_repayment()
         if not rep:
             messagebox.showinfo("提示", "请先选择一条还款记录")
             return
         if not messagebox.askyesno("确认", "确定删除这条还款记录吗？"):
             return
-        try:
+        def do_delete():
             self.api.delete_repayment(rep["id"])
+        def on_done(_):
             self._refresh_all()
-        except ApiError as e:
-            messagebox.showerror("删除失败", str(e))
+        self._run_async(do_delete, on_success=on_done, on_error=lambda e: messagebox.showerror("删除失败", str(e)))
 
     # ---------- 平台 CRUD ----------
     def _selected_platform(self) -> dict | None:
-        """获取当前选中的平台。"""
         sel = self.plat_tree.selection()
         if not sel:
             return None
@@ -701,36 +808,27 @@ class App(tk.Tk):
         return next((p for p in self.platforms if p["id"] == pid), None)
 
     def _add_platform(self):
-        """新增平台。"""
-        dlg = PlatformDialog(self, self.api)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        PlatformDialog(self, self.api, on_saved=self._refresh_all)
 
     def _edit_platform(self):
-        """编辑平台。"""
         p = self._selected_platform()
         if not p:
             messagebox.showinfo("提示", "请先选择一个平台")
             return
-        dlg = PlatformDialog(self, self.api, platform=p)
-        self.wait_window(dlg)
-        if dlg.saved:
-            self._refresh_all()
+        PlatformDialog(self, self.api, platform=p, on_saved=self._refresh_all)
 
     def _delete_platform(self):
-        """删除平台。"""
         p = self._selected_platform()
         if not p:
             messagebox.showinfo("提示", "请先选择一个平台")
             return
         if not messagebox.askyesno("确认", f"确定删除平台「{p.get('name')}」吗？"):
             return
-        try:
+        def do_delete():
             self.api.delete_platform(p["id"])
+        def on_done(_):
             self._refresh_all()
-        except ApiError as e:
-            messagebox.showerror("删除失败", str(e))
+        self._run_async(do_delete, on_success=on_done, on_error=lambda e: messagebox.showerror("删除失败", str(e)))
 
 
 def main():
