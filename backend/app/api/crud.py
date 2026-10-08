@@ -140,6 +140,10 @@ def crud_router(
         return PageOut(items=rows, total=total, page=page, page_size=page_size)
 
     if stats_func:
+        import inspect
+
+        _sig = inspect.signature(stats_func)
+        _accepts = set(_sig.parameters)
 
         @router.get("/stats")
         def stats(
@@ -149,7 +153,12 @@ def crud_router(
             db: Session = Depends(get_db),
             current_user: UserProfile = Depends(get_current_user),
         ):
-            return stats_func(db, days, current_user.id, start=start, end=end)
+            kwargs = {}
+            if "start" in _accepts:
+                kwargs["start"] = start
+            if "end" in _accepts:
+                kwargs["end"] = end
+            return stats_func(db, days, current_user.id, **kwargs)
 
     # 固定静态路由（/estimate、/settings 等）必须在 /{item_id} 之前注册
     if extra_routes:

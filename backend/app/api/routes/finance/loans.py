@@ -1,4 +1,4 @@
-﻿from datetime import date, timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -25,7 +25,7 @@ from app.schemas.finance import (
 router = APIRouter()
 
 
-def _platforms_stats(db: Session, days: int, user_id: int) -> dict:
+def _platforms_stats(db: Session, days: int, user_id: int, start=None, end=None) -> dict:
     platforms = db.scalars(
         select(FinanceLoanPlatform)
         .where(FinanceLoanPlatform.user_id == user_id)
@@ -62,7 +62,7 @@ def _platforms_stats(db: Session, days: int, user_id: int) -> dict:
     }
 
 
-def _bills_stats(db: Session, days: int, user_id: int) -> dict:
+def _bills_stats(db: Session, days: int, user_id: int, start=None, end=None) -> dict:
     today = date.today()
     rows = db.scalars(
         select(FinanceLoanBill).where(FinanceLoanBill.user_id == user_id)
