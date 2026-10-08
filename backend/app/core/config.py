@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     # JWT 签名密钥（生产环境务必修改为随机值）
     JWT_SECRET_KEY: str = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
     JWT_ALGORITHM: str = "HS256"
-    # 访问令牌有效期（分钟），默认 2 小时
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 2
+    # 访问令牌有效期（分钟），默认 24 小时
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 小时
     # 刷新令牌有效期（天），默认 7 天
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     # 登录失败锁定阈值（次）与锁定时长（分钟）
