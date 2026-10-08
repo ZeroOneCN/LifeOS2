@@ -21,7 +21,17 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { navigation, type NavSection } from '@/config/navigation'
+import { useAuth } from '@/lib/auth'
 import { resolveLogo, useSiteConfig } from '@/lib/site-config'
+
+/** 过滤掉非管理员无权限的菜单项。 */
+function filterSection(section: NavSection, isAdmin: boolean): NavSection {
+  if (isAdmin) return section
+  return {
+    ...section,
+    children: section.children.filter((item) => !item.adminOnly),
+  }
+}
 
 /** 业务中心分区渲染为可折叠子菜单；系统区保持平铺。 */
 function SidebarSection({ section }: { section: NavSection }) {
@@ -107,6 +117,8 @@ function SidebarSection({ section }: { section: NavSection }) {
 
 export function AppSidebar() {
   const { config } = useSiteConfig()
+  const { user } = useAuth()
+  const isAdmin = user?.isAdmin ?? false
 
   return (
     <Sidebar collapsible="icon">
@@ -123,9 +135,12 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {navigation.map((section) => (
-          <SidebarSection key={section.title} section={section} />
-        ))}
+        {navigation
+          .map((section) => filterSection(section, isAdmin))
+          .filter((section) => section.children.length > 0)
+          .map((section) => (
+            <SidebarSection key={section.title} section={section} />
+          ))}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

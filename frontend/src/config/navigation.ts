@@ -34,6 +34,8 @@ export type NavEntry = {
   title: string
   url: string
   icon: LucideIcon
+  /** 仅管理员可见（系统设置/备份/活动日志/会话管理等） */
+  adminOnly?: boolean
 }
 
 export type NavSection = {
@@ -53,10 +55,10 @@ export const navigation: NavSection[] = [
       { title: '系统首页', url: '/home', icon: Home },
       { title: '综合报告', url: '/dashboard/comprehensive', icon: BarChart3 },
       { title: '通知中心', url: '/notifications', icon: Bell },
-      { title: '活动日志', url: '/activity-logs', icon: History },
-      { title: '数据备份', url: '/backup', icon: Database },
-      { title: '会话管理', url: '/sessions', icon: Monitor },
-      { title: '系统设置', url: '/system-settings', icon: Settings },
+      { title: '活动日志', url: '/activity-logs', icon: History, adminOnly: true },
+      { title: '数据备份', url: '/backup', icon: Database, adminOnly: true },
+      { title: '会话管理', url: '/sessions', icon: Monitor, adminOnly: true },
+      { title: '系统设置', url: '/system-settings', icon: Settings, adminOnly: true },
     ],
   },
   {
