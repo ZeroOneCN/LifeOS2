@@ -163,7 +163,7 @@ export function LoginAuditPage() {
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">登录安全审计</h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">安全审计</h1>
           <p className="text-sm text-muted-foreground">
             记录所有登录尝试的账号、IP、时间与结果，自动检测暴力破解行为。
           </p>
@@ -192,6 +192,7 @@ export function LoginAuditPage() {
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-600 dark:text-red-400">
               <AlertTriangle className="size-4" /> 暴力破解告警
             </CardTitle>
+
             <CardDescription>以下 IP 在近 {stats?.brute_force_window_minutes} 分钟内登录失败次数超过阈值，请及时核查</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
