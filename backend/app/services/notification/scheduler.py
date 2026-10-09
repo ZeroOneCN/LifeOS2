@@ -33,6 +33,29 @@ def _job() -> None:
         db.close()
 
 
+def _cleanup_expired_sessions() -> None:
+    """每日清理过期的用户会话记录，防止 user_sessions 表无限膨胀。"""
+    from datetime import datetime, timezone
+
+    from sqlalchemy import delete
+
+    from app.models import UserSession
+
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        result = db.execute(
+            delete(UserSession).where(UserSession.expires_at < now)
+        )
+        db.commit()
+        if result.rowcount > 0:
+            logger.info("已清理 %d 条过期会话", result.rowcount)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("过期会话清理失败：%s", exc)
+    finally:
+        db.close()
+
+
 def start_scheduler() -> None:
     global _scheduler
     if _scheduler is not None:
@@ -51,6 +74,17 @@ def start_scheduler() -> None:
         hour=hour,
         minute=minute,
         id="notify_daily_scan",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    # 每日凌晨 3 点清理过期会话，避免 user_sessions 表无限增长
+    _scheduler.add_job(
+        _cleanup_expired_sessions,
+        "cron",
+        hour=3,
+        minute=0,
+        id="cleanup_expired_sessions",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

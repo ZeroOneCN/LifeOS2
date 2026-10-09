@@ -1,4 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
+from collections import defaultdict
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import delete, func, select
@@ -32,6 +34,27 @@ from app.schemas.auth import (
 from app.services.notification.seed import ensure_seed
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# ── IP 级速率限制（内存计数，60 秒窗口内同 IP 最多 10 次登录/注册请求） ────
+_IP_RATE_LIMIT_WINDOW = 60  # 秒
+_IP_RATE_LIMIT_MAX = 10  # 次数
+_ip_request_log: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_ip_rate_limit(ip: str | None) -> None:
+    """检查同 IP 在窗口内请求次数，超限则返回 429。"""
+    if not ip:
+        return
+    now = time.time()
+    cutoff = now - _IP_RATE_LIMIT_WINDOW
+    # 清理过期记录
+    _ip_request_log[ip] = [t for t in _ip_request_log[ip] if t > cutoff]
+    if len(_ip_request_log[ip]) >= _IP_RATE_LIMIT_MAX:
+        raise HTTPException(
+            status_code=429,
+            detail=f"请求过于频繁，请 {_IP_RATE_LIMIT_WINDOW} 秒后重试",
+        )
+    _ip_request_log[ip].append(now)
 
 
 def _client_ip(request: Request) -> str | None:
@@ -138,6 +161,8 @@ def register(
     db: Session = Depends(get_db),
 ):
     """注册账号。首个注册用户自动成为管理员。"""
+    ip = _client_ip(request)
+    _check_ip_rate_limit(ip)
     account = payload.account.strip()
     if not account:
         raise HTTPException(status_code=400, detail="账号不能为空")
@@ -178,6 +203,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     """账号密码登录；连续失败 5 次后锁定 15 分钟（锁定状态持久化，重启不丢失）。"""
     account = payload.account.strip()
     ip = _client_ip(request)
+    _check_ip_rate_limit(ip)
     ua = request.headers.get("user-agent")
 
     locked, remaining = is_account_locked(db, account)

@@ -76,10 +76,8 @@ type RecordManagerProps<T extends { id: number }> = {
   refreshKey?: number
   /** 隐藏内置标题区（主标题已由页面统一在 Tab 上方展示），仅保留右侧操作按钮 */
   hideHeader?: boolean
-  /** 启用按「账单月」分页（仿网贷账单），按 monthField 的月份过滤，头部提供 ‹ › » 翻页 */
+  /** 启用按「账单月」分页（仿网贷账单），按月份过滤，头部提供 ‹ › » 翻页 */
   monthMode?: boolean
-  /** monthMode 生效时用于过滤的日期字段 */
-  monthField?: string
   /** CRUD 成功后回调（新增/编辑/删除），用于页面同步刷新统计图表 */
   onMutate?: () => void
   /** 启用批量选择模式，表格首列渲染 checkbox */
@@ -113,7 +111,6 @@ export function RecordManager<T extends { id: number }>({
   refreshKey,
   hideHeader,
   monthMode,
-  monthField = 'reminder_date',
   onMutate,
   enableBatch = false,
   batchToolbar,
@@ -198,7 +195,7 @@ export function RecordManager<T extends { id: number }>({
     }
   }
 
-  /** 导出当前筛选条件下的全部记录为 CSV 文件。 */
+  /** 导出当前筛选条件下的全部记录为 CSV 文件（上限 10000 条，超限提示）。 */
   const exportCsv = async () => {
     try {
       const params: Parameters<typeof api.list>[1] = { page: 1, page_size: 10000 }
@@ -215,6 +212,12 @@ export function RecordManager<T extends { id: number }>({
       if (!res.items.length) {
         toast.info('没有可导出的数据')
         return
+      }
+      // 数据量超 10000 条时提示用户仅导出了前 10000 条
+      if (res.total > 10000) {
+        toast.warning(`数据共 ${res.total} 条，仅导出前 10000 条`, {
+          description: '请缩小筛选范围后分批导出',
+        })
       }
       const headers = columns.map((c) => c.key)
       const headerLabel = columns.map((c) => c.label)
@@ -245,8 +248,12 @@ export function RecordManager<T extends { id: number }>({
   const openCreate = () => {
     setEditing(null)
     const initial: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, '']))
-    if (monthMode && fields.some((f) => f.key === monthField)) {
-      initial[monthField] = `${month}-01`
+    if (monthMode) {
+      // monthMode 下查找第一个日期类型字段并默认填充当月1日
+      const dateField = fields.find((f) => f.type === 'date')
+      if (dateField) {
+        initial[dateField.key] = `${month}-01`
+      }
     }
     setForm(initial)
     setDialogOpen(true)

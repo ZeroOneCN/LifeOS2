@@ -171,23 +171,29 @@ def _count_consecutive_failures(db: Session, account: str) -> int:
     """统计锁定窗口内、自最近一次成功登录之后的连续失败次数。
 
     若窗口内出现过 success 记录，则计数从 success 之后重新开始；
-    否则统计窗口内全部失败次数。
+    否则统计窗口内全部失败次数。使用 SQL 聚合避免全表加载。
     """
     since = datetime.now() - timedelta(minutes=settings.LOGIN_LOCK_MINUTES)
-    rows = db.scalars(
-        select(LoginAudit)
-        .where(
+    # 查找窗口内最近一次成功登录的时间
+    last_success = db.scalar(
+        select(func.max(LoginAudit.created_at)).where(
             LoginAudit.account == account,
+            LoginAudit.result == "success",
             LoginAudit.created_at >= since,
         )
-        .order_by(LoginAudit.created_at.asc())
-    ).all()
-    count = 0
-    for r in rows:
-        if r.result == "success":
-            count = 0
-        else:  # fail / locked
-            count += 1
+    )
+    # 从最近一次成功之后开始计数；无成功记录则从窗口起始算
+    count_from = last_success if last_success else since
+    count = (
+        db.scalar(
+            select(func.count()).select_from(LoginAudit).where(
+                LoginAudit.account == account,
+                LoginAudit.result.in_(["fail", "locked"]),
+                LoginAudit.created_at >= count_from,
+            )
+        )
+        or 0
+    )
     return count
 
 

@@ -1,6 +1,10 @@
 from functools import lru_cache
+import warnings
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 默认（不安全）密钥，用于本地开发；生产环境必须修改
+_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
 
 
 class Settings(BaseSettings):
@@ -21,7 +25,7 @@ class Settings(BaseSettings):
     # 每日提醒扫描时间（HH:MM），默认每天 0:00 执行
     NOTIFY_SCAN_TIME: str = "00:00"
     # JWT 签名密钥（生产环境务必修改为随机值）
-    JWT_SECRET_KEY: str = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
+    JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"
     # 访问令牌有效期（分钟），默认 24 小时
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 小时
@@ -45,7 +49,14 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    # 启动校验：JWT 密钥仍为默认值时输出警告
+    if s.JWT_SECRET_KEY == _DEFAULT_JWT_SECRET:
+        warnings.warn(
+            "JWT_SECRET_KEY 仍为默认不安全值！生产环境必须在 .env 中设置为随机长字符串。",
+            stacklevel=2,
+        )
+    return s
 
 
 settings = get_settings()

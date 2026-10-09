@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.cache import invalidate as cache_invalidate
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import UserProfile
@@ -179,6 +180,8 @@ def crud_router(
         for row in rows:
             db.delete(row)
         db.commit()
+        if user_owned:
+            cache_invalidate(prefix=f"overview:{current_user.id}:")
         return None
 
     @router.patch("/batch", response_model=list[read_schema])
@@ -198,6 +201,8 @@ def crud_router(
                 if hasattr(model, key):
                     setattr(row, key, value)
         db.commit()
+        if user_owned:
+            cache_invalidate(prefix=f"overview:{current_user.id}:")
         for row in rows:
             db.refresh(row)
         return rows
@@ -233,6 +238,8 @@ def crud_router(
             )
         db.add(obj)
         db.commit()
+        if user_owned:
+            cache_invalidate(prefix=f"overview:{current_user.id}:")
         db.refresh(obj)
         return obj
 
@@ -264,6 +271,8 @@ def crud_router(
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(obj, key, value)
         db.commit()
+        if user_owned:
+            cache_invalidate(prefix=f"overview:{current_user.id}:")
         db.refresh(obj)
         return obj
 
@@ -282,6 +291,8 @@ def crud_router(
             raise HTTPException(status_code=404, detail="记录不存在")
         db.delete(obj)
         db.commit()
+        if user_owned:
+            cache_invalidate(prefix=f"overview:{current_user.id}:")
         return None
 
     return router

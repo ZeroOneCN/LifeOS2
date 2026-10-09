@@ -17,7 +17,6 @@ from app.api.routes import (
     motivation,
     notification,
     notifications,
-    reports,
     site_config,
     user,
 )
@@ -81,7 +80,6 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(login_audit.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
-app.include_router(reports.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

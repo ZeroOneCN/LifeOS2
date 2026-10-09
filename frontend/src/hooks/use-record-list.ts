@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useDeferredValue } from 'react'
 
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type ListParams } from '@/lib/api'
@@ -64,6 +64,8 @@ export function useRecordList<T extends { id: number }>(
   })
 
   const realtimeTick = useRealtime(realtimeInterval)
+  // 防抖：使用 useDeferredValue 延迟 keyword 变化，避免逐字符请求
+  const deferredKeyword = useDeferredValue(keyword)
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -78,8 +80,8 @@ export function useRecordList<T extends { id: number }>(
         params.start = `${month}-01`
         params.end = `${month}-${last}`
       }
-      if (searchable && keyword.trim()) {
-        params.extra = { ...params.extra, search_text: keyword.trim() }
+      if (searchable && deferredKeyword.trim()) {
+        params.extra = { ...params.extra, search_text: deferredKeyword.trim() }
       }
       const res = await api.list<T>(apiPath, params)
       setItems(res.items)
@@ -87,12 +89,12 @@ export function useRecordList<T extends { id: number }>(
     } finally {
       setLoading(false)
     }
-  }, [apiPath, page, pageSize, monthMode, month, searchable, keyword])
+  }, [apiPath, page, pageSize, monthMode, month, searchable, deferredKeyword])
 
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey, month, realtimeTick, keyword])
+  }, [page, refreshKey, month, realtimeTick, deferredKeyword])
 
   const setMonth = useCallback((m: string) => {
     setMonthState(m)

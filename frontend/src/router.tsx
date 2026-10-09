@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 
 import { RequireAuth, RequireAdmin, GuestOnly } from '@/components/auth-guard'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { navigation } from '@/config/navigation'
 import { AdminLayout } from '@/layouts/admin-layout'
 import { LoginPage } from '@/pages/login'
@@ -53,9 +54,13 @@ function PageLoader() {
   )
 }
 
-/** 用 Suspense 包裹懒加载组件，统一加载态。 */
+/** 用 ErrorBoundary + Suspense 包裹懒加载组件，统一加载态与异常兜底。 */
 function withSuspense(element: React.ReactNode) {
-  return <Suspense fallback={<PageLoader />}>{element}</Suspense>
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>{element}</Suspense>
+    </ErrorBoundary>
+  )
 }
 
 // 已实现具体功能的页面，其余菜单项统一使用占位页。
