@@ -73,6 +73,18 @@ def _scan_job() -> None:
             if not _cron_matches(s.cron_expression, now):
                 continue
 
+            # 幂等保护：同一匹配分钟内只执行一次。
+            # last_run_at 持久化于共享数据库，跨进程可见——即使误启动了多个
+            # 后端实例（各自持有调度器），也不会在同一分钟内重复备份。
+            last = s.last_run_at
+            if last is not None and (
+                last.year, last.month, last.day, last.hour, last.minute
+            ) == (now.year, now.month, now.day, now.hour, now.minute):
+                logger.info(
+                    "定时备份 '%s' 本分钟（%s）已执行过，跳过重复触发", s.name, last
+                )
+                continue
+
             status = _execute_backup(s.id, db)
             db.execute(
                 update(ScheduledBackup)
