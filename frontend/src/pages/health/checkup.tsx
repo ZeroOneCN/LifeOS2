@@ -1,7 +1,13 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  Activity,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
+  CheckCircle2,
   Library,
   Loader2,
+  Minus,
   Pencil,
   Plus,
   Trash2,
@@ -39,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { PieChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -57,14 +63,20 @@ type CheckupRecord = {
   note?: string
 }
 
+type TrendPoint = { check_date: string; value?: number | null; result?: string | null }
+
 type CheckupStats = {
   items: {
     item_name: string
     unit?: string
     reference_range?: string
+    ref_low?: number | null
+    ref_high?: number | null
     latest: { check_date: string; value?: number; result?: string } | null
     count: number
+    trend?: TrendPoint[]
   }[]
+  total_count?: number
   abnormal_count: number
   status_counts: { normal: number; high: number; low: number }
   abnormal_items: { check_date: string; value?: number; result?: string }[]
@@ -105,6 +117,122 @@ function fmtRange(lo?: number | null, hi?: number | null): string {
   return `≤${hi}`
 }
 
+/** 结果严重度排序：偏高/偏低（异常）优先，正常次之，未判定最后。 */
+const RESULT_RANK: Record<string, number> = { high: 0, low: 1, normal: 2 }
+
+/** 概览筛选维度。 */
+const OVERVIEW_FILTERS = [
+  { key: 'all', label: '全部' },
+  { key: 'abnormal', label: '异常' },
+  { key: 'normal', label: '正常' },
+] as const
+
+type OverviewFilter = (typeof OVERVIEW_FILTERS)[number]['key']
+
+const STAT_TONE: Record<'danger' | 'success' | 'warn' | 'neutral', string> = {
+  danger: 'text-red-600 dark:text-red-400',
+  success: 'text-green-600 dark:text-green-400',
+  warn: 'text-amber-500',
+  neutral: 'text-foreground',
+}
+
+/** 计算最新一次相对上一次的数值变化；数据不足两次返回 null。 */
+function deltaOf(trend?: TrendPoint[]): number | null {
+  if (!trend || trend.length < 2) return null
+  const cur = trend[trend.length - 1]?.value
+  const prev = trend[trend.length - 2]?.value
+  if (cur == null || prev == null) return null
+  return Number((cur - prev).toFixed(2))
+}
+
+/** 顶部概览统计卡：点击可按该状态筛选下方指标概览。 */
+function StatCard({
+  label,
+  value,
+  tone = 'neutral',
+  icon,
+  active,
+  onClick,
+}: {
+  label: string
+  value: number
+  tone?: 'danger' | 'success' | 'warn' | 'neutral'
+  icon: ReactNode
+  active?: boolean
+  onClick?: () => void
+}) {
+  return (
+    <Card
+      onClick={onClick}
+      className={`transition-colors ${onClick ? 'cursor-pointer hover:border-foreground/25' : ''} ${
+        active ? 'border-primary/60 ring-1 ring-primary/30' : ''
+      }`}
+    >
+      <CardContent className="flex items-center justify-between py-4">
+        <div>
+          <div className="text-sm text-muted-foreground">{label}</div>
+          <div className={`mt-1 text-2xl font-semibold tabular-nums ${STAT_TONE[tone]}`}>
+            {value}
+            <span className="ml-1 text-sm font-normal text-muted-foreground">项</span>
+          </div>
+        </div>
+        <span className={`${STAT_TONE[tone]} opacity-70`}>{icon}</span>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 趋势提示：展示最新值相较上一次的变化方向与幅度。 */
+function TrendHint({ delta }: { delta: number | null }) {
+  if (delta == null) {
+    return <div className="mt-0.5 text-xs text-muted-foreground">首次记录</div>
+  }
+  if (delta === 0) {
+    return (
+      <div className="mt-0.5 flex items-center justify-end gap-0.5 text-xs text-muted-foreground">
+        <Minus className="size-3" /> 持平
+      </div>
+    )
+  }
+  const up = delta > 0
+  return (
+    <div className="mt-0.5 flex items-center justify-end gap-0.5 text-xs text-muted-foreground">
+      {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+      {up ? '+' : ''}
+      {delta}
+    </div>
+  )
+}
+
+/** 指标概览卡：展示单个指标的最新值、参考范围、判定结果与较上次变化。 */
+function IndicatorCard({ item }: { item: CheckupStats['items'][number] }) {
+  const meta = item.latest?.result ? resultMeta[item.latest.result] : undefined
+  const delta = deltaOf(item.trend)
+  const range = item.reference_range || fmtRange(item.ref_low, item.ref_high) || '—'
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium" title={item.item_name}>
+            {item.item_name}
+          </span>
+          {meta && <Badge className={meta.className}>{meta.label}</Badge>}
+        </div>
+        <div className="mt-1 truncate text-xs text-muted-foreground" title={`参考 ${range} · 共 ${item.count} 次`}>
+          参考 {range} · {item.count} 次
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-lg font-semibold tabular-nums">
+          {item.latest?.value != null ? item.latest.value : '—'}
+          <span className="ml-1 text-xs font-normal text-muted-foreground">{item.unit ?? ''}</span>
+        </div>
+        <TrendHint delta={delta} />
+      </div>
+    </div>
+  )
+}
+
 export function CheckupPage() {
   const [items, setItems] = useState<CheckupRecord[]>([])
   const [total, setTotal] = useState(0)
@@ -137,6 +265,7 @@ export function CheckupPage() {
   })
 
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>('all')
   const [refresh, setRefresh] = useState(0)
   const realtimeTick = useRealtime(30_000)
   const { data: stats } = useStats<CheckupStats>('/health/checkup', days, refresh)
@@ -433,6 +562,23 @@ export function CheckupPage() {
     ...panels.map((p) => ({ key: `panel-${p.id}`, panel_name: p.panel_name, items: p.items, builtIn: false as const })),
   ]
 
+  // 指标概览：异常优先排序，支持按状态筛选
+  const overviewItems = useMemo(() => {
+    return [...(stats?.items ?? [])].sort((a, b) => {
+      const ra = RESULT_RANK[a.latest?.result ?? ''] ?? 3
+      const rb = RESULT_RANK[b.latest?.result ?? ''] ?? 3
+      if (ra !== rb) return ra - rb
+      return a.item_name.localeCompare(b.item_name, 'zh-Hans-CN')
+    })
+  }, [stats])
+
+  const filteredOverview = overviewItems.filter((it) => {
+    if (overviewFilter === 'all') return true
+    const r = it.latest?.result
+    if (overviewFilter === 'abnormal') return r === 'high' || r === 'low'
+    return r === 'normal'
+  })
+
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-wrap items-end justify-between gap-3">
@@ -440,7 +586,14 @@ export function CheckupPage() {
           <h1 className="font-heading text-2xl font-semibold tracking-tight">体检指标</h1>
           <p className="text-sm text-muted-foreground">使用组合模板或自由选择指标批量录入，依据参考范围自动判断正常/异常。</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatsPeriodPicker
+            value={days}
+            onChange={(d) => {
+              setDays(d)
+              setGlobalStatsDays(d)
+            }}
+          />
           <Button variant="outline" onClick={openTemplateDialog}>
             <Library /> 模板库({templates.length})
           </Button>
@@ -450,92 +603,83 @@ export function CheckupPage() {
         </div>
       </section>
 
-      <div className="flex justify-end">
-        <StatsPeriodPicker
-          value={days}
-          onChange={(d) => {
-            setDays(d)
-            setGlobalStatsDays(d)
-          }}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="异常指标"
+          value={stats?.abnormal_count ?? 0}
+          tone="danger"
+          icon={<AlertTriangle className="size-6" />}
+          active={overviewFilter === 'abnormal'}
+          onClick={() => setOverviewFilter((v) => (v === 'abnormal' ? 'all' : 'abnormal'))}
+        />
+        <StatCard
+          label="正常"
+          value={sc?.normal ?? 0}
+          tone="success"
+          icon={<CheckCircle2 className="size-6" />}
+          active={overviewFilter === 'normal'}
+          onClick={() => setOverviewFilter((v) => (v === 'normal' ? 'all' : 'normal'))}
+        />
+        <StatCard
+          label="偏高"
+          value={sc?.high ?? 0}
+          tone="danger"
+          icon={<ArrowUpRight className="size-6" />}
+        />
+        <StatCard
+          label="偏低"
+          value={sc?.low ?? 0}
+          tone="warn"
+          icon={<ArrowDownRight className="size-6" />}
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="py-4">
-              <div className="text-sm text-muted-foreground">异常指标</div>
-              <div className="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">{stats?.abnormal_count ?? 0} 项</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <div className="text-sm text-muted-foreground">正常</div>
-              <div className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">{sc?.normal ?? 0} 项</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <div className="text-sm text-muted-foreground">偏高</div>
-              <div className="mt-1 text-2xl font-semibold text-red-500">{sc?.high ?? 0} 项</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <div className="text-sm text-muted-foreground">偏低</div>
-              <div className="mt-1 text-2xl font-semibold text-amber-500">{sc?.low ?? 0} 项</div>
-            </CardContent>
-          </Card>
-        </div>
-
-      {(sc && (sc.normal > 0 || sc.high > 0 || sc.low > 0)) && (
-        <PieChartCard
-          title="指标结果分布"
-          data={[
-            { name: '正常', value: sc.normal },
-            { name: '偏高', value: sc.high },
-            { name: '偏低', value: sc.low },
-          ].filter((d) => d.value > 0)}
-          dataKey="value"
-          nameKey="name"
-          height={240}
-          centerValue={String((sc.normal || 0) + (sc.high || 0) + (sc.low || 0))}
-          centerLabel="已判定指标"
-        />
-      )}
-
-      {(stats?.items?.length ?? 0) > 0 && (
-        <Card>
-          <CardContent className="py-4">
-            <div className="mb-2 text-sm font-medium text-muted-foreground">医院式分析</div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {(stats?.items ?? []).map((item) => (
-                <div key={item.item_name} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <div className="text-sm font-medium">{item.item_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      参考 {item.reference_range ?? '—'} · {item.count} 次
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold">
-                      {item.latest?.value != null ? item.latest.value : '—'}
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">{item.unit ?? ''}</span>
-                    </div>
-                    {item.latest?.result && (
-                      <Badge className={resultMeta[item.latest.result]?.className}>
-                        {resultMeta[item.latest.result]?.label}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+      <Card>
+        <CardContent className="py-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Activity className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium">指标概览</span>
+              <span className="text-xs text-muted-foreground">共 {overviewItems.length} 项 · 异常优先</span>
+            </div>
+            <div className="flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+              {OVERVIEW_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setOverviewFilter(f.key)}
+                  className={`rounded-md px-3 py-1 text-xs transition-colors ${
+                    overviewFilter === f.key
+                      ? 'bg-background font-medium shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {f.label}
+                </button>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          {filteredOverview.length === 0 ? (
+            <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+              {overviewItems.length === 0 ? '暂无体检数据，点击"新增体检记录"开始录入。' : '当前筛选下暂无指标。'}
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {filteredOverview.map((item) => (
+                <IndicatorCard key={item.item_name} item={item} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-0">
+          <div className="flex items-center justify-between px-4 pt-4 pb-2">
+            <div className="text-sm font-medium">检查明细</div>
+            <div className="text-xs text-muted-foreground">共 {total} 条记录</div>
+          </div>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -595,6 +739,7 @@ export function CheckupPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
