@@ -109,7 +109,10 @@ def _phone_extra(api_router: APIRouter):
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
-        """记录一次当月扣账：生成一条扣账账单流水，并标记本月已扣账。"""
+        """记录一次当月扣账：生成一条扣账账单流水、扣减余额，并标记本月已扣账。
+
+        幂等保护：当月已存在扣账账单时不重复生成、也不重复扣减余额。
+        """
         card = db.scalars(
             select(LifestylePhoneCard).where(
                 LifestylePhoneCard.id == item_id,
@@ -140,6 +143,8 @@ def _phone_extra(api_router: APIRouter):
                     note=f"{card.phone_number} 月租自动扣账",
                 )
             )
+            # 实际扣减手机号余额（余额可为负，表示欠费）
+            card.balance = round((card.balance or 0) - fee, 2)
         card.bill_paid_this_month = True
         db.commit()
         db.refresh(card)
