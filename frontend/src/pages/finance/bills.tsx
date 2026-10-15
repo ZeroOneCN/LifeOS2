@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   Repeat,
+  ShieldAlert,
   Trash2,
   Wallet,
   X,
@@ -1471,6 +1472,18 @@ function LoanTab() {
     const diff = Math.round((new Date(`${today}T00:00:00`).getTime() - new Date(`${d}T00:00:00`).getTime()) / 86400000)
     return diff > 0 ? diff : 0
   }
+  // 还款宽限期统一为 3 天（各平台一致）：宽限期内还款不影响征信，超过 3 天将上报征信
+  const GRACE_DAYS = 3
+  // 最后还款日 = 还款日 + 宽限期天数，用于向用户明确宽限期截止日期
+  const graceEndDate = (d?: string) => {
+    if (!d) return ''
+    const t = new Date(`${d}T00:00:00`)
+    t.setDate(t.getDate() + GRACE_DAYS)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`
+  }
+  // 已超出宽限期（将上报征信）的账单数量：用于横幅与弹窗的重点提示
+  const beyondGraceCount = overdueBills.filter((b) => overdueDays(b.due_date) > GRACE_DAYS).length
 
   const loadPlatforms = async () => {
     const res = await api.list<LoanPlatform>('/finance/loan-platforms', { page_size: 100 })
@@ -1708,15 +1721,32 @@ function LoanTab() {
     <div className="flex flex-col gap-4">
       {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
       {overdueBills.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
-          <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
-          <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
-          <span className="text-sm font-medium text-red-700 dark:text-red-300">
-            共 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
-          </span>
-          <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
-            查看逾期明细
-          </Button>
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+          <div className="flex flex-wrap items-center gap-3">
+            <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
+            <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
+            <span className="text-sm font-medium text-red-700 dark:text-red-300">
+              共 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
+            </span>
+            <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
+              查看逾期明细
+            </Button>
+          </div>
+          {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
+            <ShieldAlert className="size-5 shrink-0 text-red-700 dark:text-red-300" />
+            <span className="text-base font-extrabold text-red-700 dark:text-red-300">
+              还款宽限期统一 {GRACE_DAYS} 天，超过 {GRACE_DAYS} 天将上报征信
+            </span>
+            <span className="text-sm font-medium text-red-700/90 dark:text-red-300/90">
+              （宽限期内还款不影响征信，最后还款日为还款日 +{GRACE_DAYS} 天）
+            </span>
+            {beyondGraceCount > 0 && (
+              <span className="ml-auto rounded-md bg-red-600 px-2 py-1 text-sm font-extrabold text-white">
+                已有 {beyondGraceCount} 笔超过宽限期，将影响征信
+              </span>
+            )}
+          </div>
         </div>
       )}
       {platformStats && (
@@ -2008,16 +2038,41 @@ function LoanTab() {
               <AlertTriangle className="size-7 animate-pulse" /> 账单逾期警报
             </DialogTitle>
             <DialogDescription className="text-base text-red-600 dark:text-red-400">
-              以下账单已超过还款日，请立即处理，避免产生逾期费用。
+              以下账单已超过还款日，请立即处理，避免影响征信。
             </DialogDescription>
           </DialogHeader>
+          {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
+          <div className="rounded-lg border-2 border-red-600 bg-red-100 px-4 py-3 dark:bg-red-500/20">
+            <p className="flex items-center gap-2 text-lg font-extrabold text-red-700 dark:text-red-300">
+              <ShieldAlert className="size-5 shrink-0" /> 还款宽限期统一 {GRACE_DAYS} 天，超过 {GRACE_DAYS} 天将上报征信
+            </p>
+            <p className="mt-1 text-sm font-medium text-red-700/90 dark:text-red-300/90">
+              宽限期内还款不影响征信：逾期天数在 {GRACE_DAYS} 天（含）以内仍属宽限期，最后还款日为「还款日 +{GRACE_DAYS} 天」；从第 {GRACE_DAYS + 1} 天起将上报征信。
+            </p>
+            {beyondGraceCount > 0 && (
+              <p className="mt-2">
+                <span className="rounded-md bg-red-600 px-2 py-0.5 text-base font-extrabold text-white">
+                  已有 {beyondGraceCount} 笔超过宽限期，将上报征信，请优先处理
+                </span>
+              </p>
+            )}
+          </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {overdueBills.map((b) => (
               <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-muted/50 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                    {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
+                    {overdueDays(b.due_date) > GRACE_DAYS ? (
+                      <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超宽限期 · 将上报征信</span>
+                    ) : (
+                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-sm font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                        宽限期内 · 剩余 {GRACE_DAYS - overdueDays(b.due_date)} 天
+                      </span>
+                    )}
+                  </p>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    还款日 {b.due_date} · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
+                    还款日 {b.due_date} · 最后还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceEndDate(b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
