@@ -1733,13 +1733,16 @@ function LoanTab() {
             </Button>
           </div>
           {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
-            <ShieldAlert className="size-5 shrink-0 text-red-700 dark:text-red-300" />
-            <span className="text-base font-extrabold text-red-700 dark:text-red-300">
-              还款宽限期统一 {GRACE_DAYS} 天，超过 {GRACE_DAYS} 天将上报征信
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
+            <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+            <span className="text-base font-bold text-gray-900 dark:text-gray-100">
+              还款宽限期统一 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{GRACE_DAYS}</span> 天
             </span>
-            <span className="text-sm font-medium text-red-700/90 dark:text-red-300/90">
-              （宽限期内还款不影响征信，最后还款日为还款日 +{GRACE_DAYS} 天）
+            <span className="text-base font-extrabold text-red-600 dark:text-red-400">
+              超过 {GRACE_DAYS} 天将上报征信
+            </span>
+            <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
+              宽限期内还款不影响征信 · 最后还款日 = 还款日 +{GRACE_DAYS} 天
             </span>
             {beyondGraceCount > 0 && (
               <span className="ml-auto rounded-md bg-red-600 px-2 py-1 text-sm font-extrabold text-white">
@@ -2042,12 +2045,17 @@ function LoanTab() {
             </DialogDescription>
           </DialogHeader>
           {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
-          <div className="rounded-lg border-2 border-red-600 bg-red-100 px-4 py-3 dark:bg-red-500/20">
-            <p className="flex items-center gap-2 text-lg font-extrabold text-red-700 dark:text-red-300">
-              <ShieldAlert className="size-5 shrink-0" /> 还款宽限期统一 {GRACE_DAYS} 天，超过 {GRACE_DAYS} 天将上报征信
+          <div className="rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:border-red-500/60 dark:bg-red-500/10">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
+              <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+              <span className="font-bold text-gray-900 dark:text-gray-100">
+                还款宽限期统一 <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{GRACE_DAYS}</span> 天
+              </span>
+              <span className="font-extrabold text-red-600 dark:text-red-400">超过 {GRACE_DAYS} 天将上报征信</span>
             </p>
-            <p className="mt-1 text-sm font-medium text-red-700/90 dark:text-red-300/90">
-              宽限期内还款不影响征信：逾期天数在 {GRACE_DAYS} 天（含）以内仍属宽限期，最后还款日为「还款日 +{GRACE_DAYS} 天」；从第 {GRACE_DAYS + 1} 天起将上报征信。
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              宽限期内还款不影响征信；最后还款日 = 还款日 + {GRACE_DAYS} 天，从第{' '}
+              <span className="font-semibold text-gray-900 dark:text-gray-100">{GRACE_DAYS + 1}</span> 天起将上报征信。
             </p>
             {beyondGraceCount > 0 && (
               <p className="mt-2">
