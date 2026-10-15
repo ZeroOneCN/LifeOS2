@@ -1712,7 +1712,7 @@ function LoanTab() {
           <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
           <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
           <span className="text-sm font-medium text-red-700 dark:text-red-300">
-            共 <span className="text-lg font-extrabold">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
+            共 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
           </span>
           <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
             查看逾期明细
@@ -2013,16 +2013,16 @@ function LoanTab() {
           </DialogHeader>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {overdueBills.map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-muted/50 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-lg font-bold text-red-700 dark:text-red-300">{platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}</p>
-                  <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                    还款日 {b.due_date} · 已逾期 <span className="text-xl font-extrabold">{overdueDays(b.due_date)}</span> 天
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    还款日 {b.due_date} · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-2xl font-extrabold text-red-600 dark:text-red-400">{fmt(b.amount - b.paid_amount)}</p>
-                  <p className="text-xs font-medium text-red-600/80 dark:text-red-400/80">待还金额</p>
+                  <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(b.amount - b.paid_amount)}</p>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
                 </div>
               </div>
             ))}
