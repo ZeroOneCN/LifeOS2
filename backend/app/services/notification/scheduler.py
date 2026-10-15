@@ -33,6 +33,23 @@ def _job() -> None:
         db.close()
 
 
+def _job_overdue() -> None:
+    """每小时扫描逾期网贷账单并下发提醒（去重键精确到小时，每个小时各提醒一次）。"""
+    db = SessionLocal()
+    try:
+        from app.services.notification.scanner import scan_overdue
+        from app.services.notification.seed import ensure_seed
+
+        ensure_seed(db)
+        summary = scan_overdue(db)
+        db.commit()
+        logger.info("逾期提醒扫描完成：%s", summary)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("逾期提醒扫描失败：%s", exc)
+    finally:
+        db.close()
+
+
 def _cleanup_expired_sessions() -> None:
     """每日清理过期的用户会话记录，防止 user_sessions 表无限膨胀。"""
     from datetime import datetime, timezone
@@ -74,6 +91,16 @@ def start_scheduler() -> None:
         hour=hour,
         minute=minute,
         id="notify_daily_scan",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    # 每小时整点扫描逾期账单（每天每小时提醒）
+    _scheduler.add_job(
+        _job_overdue,
+        "cron",
+        minute=0,
+        id="notify_overdue_hourly",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

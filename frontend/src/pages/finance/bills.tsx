@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  AlertTriangle,
   Banknote,
   Building,
   Calendar,
@@ -1445,6 +1446,32 @@ function LoanTab() {
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
+  // 逾期账单：用于站内重大提醒（弹窗 + 常驻横幅）
+  const overdueBills = useMemo(() => {
+    const n = new Date()
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    return bills
+      .filter((b) => b.status !== 'cleared' && b.due_date && b.due_date < today)
+      .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+  }, [bills])
+  const [overdueAlertOpen, setOverdueAlertOpen] = useState(false)
+  const overdueAlertShown = useRef(false)
+  useEffect(() => {
+    // 进入页面或出现逾期账单时弹出一次重大提醒；关闭后本次停留不再重复弹出
+    if (overdueBills.length > 0 && !overdueAlertShown.current) {
+      overdueAlertShown.current = true
+      setOverdueAlertOpen(true)
+    }
+  }, [overdueBills.length])
+  // 计算逾期天数（按本地日期比较，避免时区偏移导致差一天）
+  const overdueDays = (d?: string) => {
+    if (!d) return 0
+    const n = new Date()
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    const diff = Math.round((new Date(`${today}T00:00:00`).getTime() - new Date(`${d}T00:00:00`).getTime()) / 86400000)
+    return diff > 0 ? diff : 0
+  }
+
   const loadPlatforms = async () => {
     const res = await api.list<LoanPlatform>('/finance/loan-platforms', { page_size: 100 })
     setPlatforms(res.items)
@@ -1679,6 +1706,19 @@ function LoanTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
+      {overdueBills.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+          <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
+          <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
+          <span className="text-sm font-medium text-red-700 dark:text-red-300">
+            共 <span className="text-lg font-extrabold">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
+          </span>
+          <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
+            查看逾期明细
+          </Button>
+        </div>
+      )}
       {platformStats && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-red-500" />
@@ -1956,6 +1996,39 @@ function LoanTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
             <Button onClick={savePfEdit} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 逾期重大提醒弹窗：大字 + 强调色，仅通过「我已知晓」关闭 */}
+      <Dialog open={overdueAlertOpen} onOpenChange={setOverdueAlertOpen}>
+        <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold text-red-600 dark:text-red-400">
+              <AlertTriangle className="size-7 animate-pulse" /> 账单逾期警报
+            </DialogTitle>
+            <DialogDescription className="text-base text-red-600 dark:text-red-400">
+              以下账单已超过还款日，请立即处理，避免产生逾期费用。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {overdueBills.map((b) => (
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+                <div className="min-w-0">
+                  <p className="text-lg font-bold text-red-700 dark:text-red-300">{platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}</p>
+                  <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                    还款日 {b.due_date} · 已逾期 <span className="text-xl font-extrabold">{overdueDays(b.due_date)}</span> 天
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-2xl font-extrabold text-red-600 dark:text-red-400">{fmt(b.amount - b.paid_amount)}</p>
+                  <p className="text-xs font-medium text-red-600/80 dark:text-red-400/80">待还金额</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="destructive" className="w-full text-base font-bold" onClick={() => setOverdueAlertOpen(false)}>我已知晓</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

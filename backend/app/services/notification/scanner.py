@@ -64,6 +64,8 @@ def _is_within(due: date, today: date, advance: int) -> bool:
 # 状态值英文 → 中文映射（用于通知内容展示）
 SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "已取消"}
 LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
+# 网贷还款功能开关键：逾期小时提醒任务只处理该模块
+LOAN_FEATURE_KEY = "finance_loan_due"
 
 
 def _next_day_of_month(today: date, day: int) -> date:
@@ -144,7 +146,20 @@ def _scan_utility(db: Session, advance: int, user_id: int) -> list[dict]:
     return out
 
 
-def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
+def _scan_loan(
+    db: Session, advance: int, user_id: int, overdue_only: bool = False
+) -> list[dict]:
+    """扫描网贷账单提醒。
+
+    参数：
+        db: 数据库会话。
+        advance: 提前提醒天数。
+        user_id: 用户 ID。
+        overdue_only: 为 True 时只返回已逾期的账单（供每小时提醒任务使用），
+            且去重键按“小时”粒度生成，实现每个小时各提醒一次。
+    返回值：
+        待提醒条目列表，每项含 source_id / title_ctx / content_ctx / 可选 dedup_key。
+    """
     today = date.today()
     due = today + timedelta(days=advance)
     rows = db.scalars(
@@ -162,7 +177,12 @@ def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
     }
     out = []
     for r in rows:
-        if r.due_date < today:
+        if overdue_only:
+            # 小时级任务只处理已逾期账单
+            if r.due_date >= today:
+                continue
+        elif r.due_date < today:
+            # 日常扫描跳过逾期账单，由小时级任务专门负责（每天每小时提醒）
             continue
         item = {
             "source_id": r.id,
@@ -176,12 +196,16 @@ def _scan_loan(db: Session, advance: int, user_id: int) -> list[dict]:
                 "amount": _money(r.amount),
                 "due_date": r.due_date.isoformat(),
                 "days_left": (r.due_date - today).days,
+                "days_overdue": (today - r.due_date).days,
                 "paid_amount": _money(r.paid_amount),
                 "status": LOAN_STATUS_MAP.get(r.status, r.status),
             },
         }
-        # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
-        if r.due_date == today:
+        if r.due_date < today:
+            # 逾期：去重键精确到“小时”，确保每个小时各提醒一次
+            item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{datetime.now().hour}"
+        elif r.due_date == today:
+            # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
             item["dedup_key"] = f"{r.id}:due"
         out.append(item)
     return out
@@ -502,8 +526,15 @@ def _resolve_channels(db: Session, setting: FeatureReminderSetting, user_id: int
     )
 
 
-def _scan_user(db: Session, user_id: int) -> dict:
-    """对单个用户执行提醒扫描：按该用户的开关/模板/渠道/数据生成并下发通知。"""
+def _scan_user(db: Session, user_id: int, overdue_only: bool = False) -> dict:
+    """对单个用户执行提醒扫描：按该用户的开关/模板/渠道/数据生成并下发通知。
+
+    参数：
+        db: 数据库会话。
+        user_id: 用户 ID。
+        overdue_only: 为 True 时仅处理网贷逾期账单（供每小时任务调用），
+            其余功能模块一律跳过。
+    """
     today = date.today()
     templates = {
         t.source: t
@@ -523,8 +554,14 @@ def _scan_user(db: Session, user_id: int) -> dict:
         scanner = SCANNERS.get(s.feature_key)
         if not scanner:
             continue
+        # 逾期小时任务只处理网贷账单，其他功能模块跳过
+        if overdue_only and s.feature_key != LOAN_FEATURE_KEY:
+            continue
         try:
-            rows = scanner(db, s.advance_days, user_id)
+            if overdue_only:
+                rows = _scan_loan(db, s.advance_days, user_id, overdue_only=True)
+            else:
+                rows = scanner(db, s.advance_days, user_id)
         except Exception as exc:  # noqa: BLE001
             summary["detail"].append({"feature": s.feature_key, "error": str(exc)})
             continue
@@ -613,4 +650,27 @@ def scan_all(db: Session, user_id: int | None = None) -> dict:
     }
     for uid in user_ids:
         _merge_summaries(summary, _scan_user(db, uid))
+    return summary
+
+
+def scan_overdue(db: Session, user_id: int | None = None) -> dict:
+    """扫描已逾期的网贷账单，按“小时”去重，实现逾期后每天每小时提醒。
+
+    - user_id 指定时：仅扫描该用户。
+    - user_id 为空时：扫描所有用户。
+    仅处理启用了「网贷/房贷还款」提醒开关的用户，未开启则不产生任何通知。
+    """
+    if user_id is not None:
+        return _scan_user(db, user_id, overdue_only=True)
+    user_ids = db.scalars(select(UserProfile.id)).all()
+    summary = {
+        "scanned": 0,
+        "created": 0,
+        "skipped": 0,
+        "sent": 0,
+        "failed": 0,
+        "detail": [],
+    }
+    for uid in user_ids:
+        _merge_summaries(summary, _scan_user(db, uid, overdue_only=True))
     return summary
