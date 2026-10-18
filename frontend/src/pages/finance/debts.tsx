@@ -562,7 +562,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-medium shrink-0">{p.repay_date}</span>
-                    {p.note && <span className="truncate text-muted-foreground">· {p.note}</span>}
+                    {p.note && <Tip label={p.note}><span className="truncate text-muted-foreground">· {p.note}</span></Tip>}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className="text-muted-foreground">还款 {fmtMoney(p.amount || 0)}</span>
