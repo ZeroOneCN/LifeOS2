@@ -243,7 +243,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
-    """使用刷新令牌换取新的访问令牌。"""
+    """使用刷新令牌换取新的访问令牌（滑动续期 + 刷新令牌轮换）。
+
+    每次刷新都会：① 生成新的刷新令牌并更新会话哈希；② 将会话过期时间顺延
+    REFRESH_TOKEN_EXPIRE_DAYS 天。这样只要持续使用，登录状态就不会过期。
+    """
     token_payload = decode_token(payload.refresh_token)
     if token_payload is None or token_payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="刷新令牌无效或已过期")
@@ -262,12 +266,16 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     if profile is None:
         raise HTTPException(status_code=401, detail="用户不存在")
 
-    # 刷新成功后更新会话最后使用时间
+    # 滑动续期：轮换刷新令牌 + 顺延会话过期时间
+    new_refresh = create_refresh_token(profile.id)
+    session.refresh_token_hash = hash_refresh_token(new_refresh)
+    session.expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     session.last_used_at = now
     db.commit()
 
     return TokenRefreshResponse(
-        access_token=create_access_token(profile.id, profile.username, session.id)
+        access_token=create_access_token(profile.id, profile.username, session.id),
+        refresh_token=new_refresh,
     )
 
 

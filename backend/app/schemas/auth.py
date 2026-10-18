@@ -51,7 +51,8 @@ class TokenResponse(BaseModel):
 
 
 class TokenRefreshResponse(BaseModel):
-    """刷新令牌成功后的响应。"""
+    """刷新令牌成功后的响应（含轮换后的新刷新令牌，用于滑动续期）。"""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"

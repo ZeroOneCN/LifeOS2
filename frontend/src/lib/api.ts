@@ -47,6 +47,10 @@ async function refreshAccessToken(): Promise<string | null> {
       if (!res.ok) return null
       const data = await res.json()
       localStorage.setItem('lifeos_token', data.access_token)
+      // 后端采用刷新令牌轮换（滑动续期）：若返回了新刷新令牌需同步落盘
+      if (data.refresh_token) {
+        localStorage.setItem('lifeos_refresh_token', data.refresh_token)
+      }
       return data.access_token
     } catch {
       return null

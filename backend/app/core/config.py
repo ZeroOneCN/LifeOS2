@@ -29,8 +29,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     # 访问令牌有效期（分钟），默认 24 小时
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 小时
-    # 刷新令牌有效期（天），默认 7 天
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # 刷新令牌有效期（天）：默认 365 天，且每次刷新自动顺延（滑动续期），
+    # 只要持续使用即不会自动退出；连续超过该天数未使用才需重新登录
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 365
     # 登录失败锁定阈值（次）与锁定时长（分钟）
     LOGIN_MAX_FAILURES: int = 5
     LOGIN_LOCK_MINUTES: int = 15
