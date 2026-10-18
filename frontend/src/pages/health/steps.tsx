@@ -34,6 +34,7 @@ import {
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Hint } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 
 type StepsRecord = {
@@ -213,6 +214,9 @@ export function StepsPage() {
   }
 
   const stepsInputRef = useRef<HTMLInputElement>(null)
+
+  // 消耗随步数自动计算（步数×0.04），仅展示不可编辑；与后端 auto_distance_calories 口径一致
+  const autoCalories = ((Number(form.steps) || 0) * 0.04).toFixed(1)
 
   // 新增连续录入：对话框打开或时间段切换后聚焦步数输入框，便于直接输入
   useEffect(() => {
@@ -625,16 +629,18 @@ export function StepsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>消耗(kcal)</Label>
+              <Label className="flex items-center gap-1.5">
+                消耗(kcal)
+                <Hint text="消耗随步数自动计算（步数×0.04），不可手动修改" />
+              </Label>
               <Input
                 type="number"
                 min="0"
                 step="0.1"
-                value={((Number(form.steps) || 0) * 0.04).toFixed(1)}
+                value={autoCalories}
                 readOnly
-                placeholder="自动≈步数*0.04"
+                className="cursor-not-allowed bg-muted/50"
               />
-              <p className="text-xs text-muted-foreground">消耗随步数自动计算（步数×0.04），不可手动修改</p>
             </div>
           </div>
           <DialogFooter>
