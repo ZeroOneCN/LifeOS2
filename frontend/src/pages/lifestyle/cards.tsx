@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
+import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -371,16 +371,37 @@ function MiniStat({ icon: Icon, label, value }: { icon?: typeof Smartphone; labe
   )
 }
 
+/** 取分布项的名称：数据对象里除 count 外的唯一键值（如 bank / operator / status）。 */
+function distLabel(d: { count: number; [k: string]: unknown }): string {
+  const key = Object.keys(d).find((k) => k !== 'count')
+  return String((key ? d[key] : undefined) ?? '—')
+}
+
+/**
+ * 分布卡片：以「名称 · 数量 / 占比」列表 + 占比进度条展示分布。
+ *
+ * 条目较多时列表内部滚动（限制高度），避免单张卡片过长把整行撑高、
+ * 造成同组其他卡片出现大片空白。
+ * searchable 时在卡片内提供关键字搜索，便于在长列表中快速定位。
+ */
 function DistCard({
   title,
   subtitle,
   data,
+  searchable = false,
 }: {
   title: string
   subtitle?: string
   data: { count: number; [k: string]: unknown }[]
+  searchable?: boolean
 }) {
+  const [kw, setKw] = useState('')
   const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  const rows = useMemo(() => {
+    const t = kw.trim().toLowerCase()
+    if (!t) return data
+    return data.filter((d) => distLabel(d).toLowerCase().includes(t))
+  }, [data, kw])
   return (
     <Card>
       <CardContent className="p-4">
@@ -388,12 +409,25 @@ function DistCard({
           <div className="text-sm font-semibold">{title}</div>
           {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
         </div>
+        {searchable && total > 0 && (
+          <div className="relative mt-3">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={kw}
+              onChange={(e) => setKw(e.target.value)}
+              placeholder="搜索名称…"
+              className="h-8 pl-7 text-xs"
+            />
+          </div>
+        )}
         {total === 0 ? (
           <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
+        ) : rows.length === 0 ? (
+          <div className="mt-3 text-sm text-muted-foreground">无匹配结果</div>
         ) : (
-          <ul className="mt-3 space-y-2">
-            {data.map((d) => {
-              const name = String(d[Object.keys(d).find((k) => k !== 'count') ?? ''] ?? '—')
+          <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
+            {rows.map((d) => {
+              const name = distLabel(d)
               const count = d.count ?? 0
               const pct = Math.round((count / total) * 100)
               return (
@@ -717,8 +751,8 @@ export function CardsPage() {
                   <MiniStat icon={CreditCard} label="余额合计" value={fmt(bankStats.balance_total)} />
                   <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
                 </StatRow>
-                <div className="grid gap-4 lg:grid-cols-3">
-                  <DistCard title="银行分布" data={bankStats.by_bank} />
+                <div className="grid items-start gap-4 lg:grid-cols-3">
+                  <DistCard title="银行分布" data={bankStats.by_bank} searchable />
                   <DistCard title="卡类型" data={bankChartCategory} />
                   <DistCard title="状态分布" data={bankChartStatus} />
                 </div>
