@@ -25,35 +25,56 @@ DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
     ("lifestyle_item_expire", "物品保质期", "生活", False),
     ("lifestyle_phone_bill", "手机卡月租扣账", "生活", False),
     ("lifestyle_bankcard_due", "银行卡还款日", "生活", False),
-    ("lifestyle_card_expire", "证件到期", "生活", False),
+    ("lifestyle_card_expire", "银行卡有效期", "生活", False),
     ("health_med_stock", "药品低库存", "健康", False),
     ("health_checkup_due", "体检到期", "健康", False),
 ]
 
+# 历史内置功能名称 → 现名称：仅当仍为旧内置名称时更新（用户无法自定义名称），
+# 使存量用户识别更直观。
+LEGACY_FEATURE_RENAMES: dict[str, tuple[str, str]] = {
+    "lifestyle_card_expire": ("证件到期", "银行卡有效期"),
+}
+
 
 def seed_feature_settings(db: Session, user_id: int) -> int:
-    count = db.scalar(
-        select(FeatureReminderSetting).where(
-            FeatureReminderSetting.user_id == user_id
-        ).limit(1)
-    )
-    if count is not None:
-        return 0
-    inserted = 0
-    for key, name, category, enabled in DEFAULT_FEATURES:
-        db.add(
-            FeatureReminderSetting(
-                user_id=user_id,
-                feature_key=key,
-                name=name,
-                category=category,
-                enabled=enabled,
-                advance_days=1,
-                channels="[]",
+    """幂等补种功能提醒开关：补齐缺失的 feature_key，并同步旧内置名称。
+
+    按 feature_key 逐个判断，保证后续版本新增的功能模块（如「银行卡有效期」）
+    也能补种给已注册的老用户，而不是整批跳过。返回新增条数。
+    """
+    rows = {
+        r.feature_key: r
+        for r in db.scalars(
+            select(FeatureReminderSetting).where(
+                FeatureReminderSetting.user_id == user_id
             )
-        )
-        inserted += 1
-    db.commit()
+        ).all()
+    }
+    inserted = 0
+    renamed = 0
+    for key, name, category, enabled in DEFAULT_FEATURES:
+        row = rows.get(key)
+        if row is None:
+            db.add(
+                FeatureReminderSetting(
+                    user_id=user_id,
+                    feature_key=key,
+                    name=name,
+                    category=category,
+                    enabled=enabled,
+                    advance_days=1,
+                    channels="[]",
+                )
+            )
+            inserted += 1
+            continue
+        legacy = LEGACY_FEATURE_RENAMES.get(key)
+        if legacy and row.name == legacy[0]:
+            row.name = legacy[1]
+            renamed += 1
+    if inserted or renamed:
+        db.commit()
     return inserted
 
 

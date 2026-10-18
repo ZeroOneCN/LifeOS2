@@ -14,6 +14,7 @@ from app.models.notification_center import (
     FeatureReminderSetting,
     NotificationChannel,
 )
+from app.services.notification.seed import ensure_seed
 
 router = APIRouter(prefix="/notifications/settings", tags=["notification-settings"])
 
@@ -67,6 +68,8 @@ def list_settings(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # 打开「提醒开关」时先幂等补种：确保后续版本新增的提醒场景（如银行卡有效期）即时可见
+    ensure_seed(db, current_user.id)
     rows = db.scalars(
         select(FeatureReminderSetting)
         .where(FeatureReminderSetting.user_id == current_user.id)

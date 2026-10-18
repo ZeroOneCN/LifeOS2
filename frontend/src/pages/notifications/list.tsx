@@ -54,7 +54,7 @@ const SOURCE_LABELS: Record<string, string> = {
   lifestyle_bankcard_due: '银行卡还款',
   health_med_stock: '药品低库存',
   health_checkup_due: '体检到期',
-  lifestyle_card_expire: '证件到期',
+  lifestyle_card_expire: '银行卡有效期',
 }
 
 /** 将存储的 source（如 health_med_stock:1）转换为中文来源名称。 */

@@ -123,53 +123,73 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
     (
         "lifestyle_card_expire",
         "生活",
-        "证件到期",
-        "【证件到期】{card_name} {expire_date}",
+        "银行卡有效期",
+        "【银行卡有效期】{card_name} {expire_date}",
         "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，{state}，请及时更新卡片信息。",
         "银行卡有效期到期提醒",
     ),
 ]
 
 
-# 内置默认模板文案升级映射：仅当用户模板仍与「旧内置默认文案」完全一致时才替换为新文案，
-# 用户自行编辑过的模板不受影响。用于让已注册用户也同步获得改进后的措辞。
-LEGACY_DEFAULT_UPGRADES: dict[str, tuple[str, str]] = {
+# 内置默认模板升级映射：source -> (旧值, 新值)，字段依次为 name / title_template / content_template。
+# 仅当用户模板对应字段仍与旧内置值一致时才替换，用户自定义过的字段不受影响。
+# 用于让已注册用户也同步获得重命名与改进后的文案。
+LEGACY_DEFAULT_UPGRADES: dict[str, tuple[tuple[str, str, str], tuple[str, str, str]]] = {
     "lifestyle_card_expire": (
-        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，剩余 {days_left} 天，请及时联系银行换发新卡。",
-        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，{state}，请及时更新卡片信息。",
+        (
+            "证件到期",
+            "【证件到期】{card_name} {expire_date}",
+            "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，剩余 {days_left} 天，请及时联系银行换发新卡。",
+        ),
+        (
+            "银行卡有效期",
+            "【银行卡有效期】{card_name} {expire_date}",
+            "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，{state}，请及时更新卡片信息。",
+        ),
     ),
 }
 
+_TEMPLATE_UPGRADE_FIELDS = ("name", "title_template", "content_template")
+
 
 def upgrade_default_templates(db: Session, user_id: int) -> int:
-    """将仍是旧内置默认文案的模板升级为最新默认文案。返回更新条数。"""
+    """将仍是旧内置默认值的模板字段升级为最新默认值。返回更新字段数。"""
     updated = 0
-    for source, (old_content, new_content) in LEGACY_DEFAULT_UPGRADES.items():
+    for source, (old, new) in LEGACY_DEFAULT_UPGRADES.items():
         tpl = db.scalar(
             select(NotificationTemplate).where(
                 NotificationTemplate.user_id == user_id,
                 NotificationTemplate.source == source,
             )
         )
-        if tpl is not None and tpl.content_template == old_content:
-            tpl.content_template = new_content
-            updated += 1
+        if tpl is None:
+            continue
+        for attr, old_val, new_val in zip(_TEMPLATE_UPGRADE_FIELDS, old, new):
+            if getattr(tpl, attr) == old_val:
+                setattr(tpl, attr, new_val)
+                updated += 1
     if updated:
         db.commit()
     return updated
 
 
 def seed_templates(db: Session, user_id: int) -> int:
-    """为指定用户写入内置默认模板（该用户已存在种子则跳过）。返回插入条数。"""
-    count = db.scalar(
-        select(NotificationTemplate).where(
-            NotificationTemplate.user_id == user_id
-        ).limit(1)
+    """为指定用户补种内置默认模板：仅补齐该用户缺失的 source。
+
+    按 source 逐个判断，保证后续版本新增的提醒场景也能补种给老用户，
+    而不是整批跳过。
+    """
+    existing = set(
+        db.scalars(
+            select(NotificationTemplate.source).where(
+                NotificationTemplate.user_id == user_id
+            )
+        ).all()
     )
-    if count is not None:
-        return 0
     inserted = 0
     for source, category, name, title_tpl, content_tpl, note in DEFAULT_TEMPLATES:
+        if source in existing:
+            continue
         db.add(
             NotificationTemplate(
                 user_id=user_id,
@@ -183,7 +203,8 @@ def seed_templates(db: Session, user_id: int) -> int:
             )
         )
         inserted += 1
-    db.commit()
+    if inserted:
+        db.commit()
     return inserted
 
 
