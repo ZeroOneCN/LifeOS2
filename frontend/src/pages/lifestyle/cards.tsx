@@ -381,17 +381,30 @@ function distLabel(d: { count: number; [k: string]: unknown }): string {
 
 /**
  * 分布卡片：以「名称 · 数量 / 占比」列表 + 占比进度条展示分布。
+ *
+ * 当条目数超过 maxVisible 时，默认只展示前 maxVisible 条，底部提供「展开全部 / 收起」切换，
+ * 避免某一路分布过长（如银行分布）把网格内其它卡片挤失衡。
+ *
+ * @param title 卡片标题
+ * @param subtitle 标题右侧的补充说明
+ * @param data 分布数据（每项含 count 与一个名称字段）
+ * @param maxVisible 折叠前默认展示的最大条数，默认 5
  */
 function DistCard({
   title,
   subtitle,
   data,
+  maxVisible = 5,
 }: {
   title: string
   subtitle?: string
   data: { count: number; [k: string]: unknown }[]
+  maxVisible?: number
 }) {
+  const [expanded, setExpanded] = useState(false)
   const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  const canFold = data.length > maxVisible
+  const visible = expanded ? data : data.slice(0, maxVisible)
   return (
     <Card>
       <CardContent className="p-4">
@@ -402,24 +415,35 @@ function DistCard({
         {total === 0 ? (
           <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
         ) : (
-          <ul className="mt-3 space-y-2">
-            {data.map((d) => {
-              const name = distLabel(d)
-              const count = d.count ?? 0
-              const pct = Math.round((count / total) * 100)
-              return (
-                <li key={name}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{name}</span>
-                    <span className="font-medium">{count} 张 · {pct}%</span>
-                  </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+          <>
+            <ul className="mt-3 space-y-2">
+              {visible.map((d) => {
+                const name = distLabel(d)
+                const count = d.count ?? 0
+                const pct = Math.round((count / total) * 100)
+                return (
+                  <li key={name}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{name}</span>
+                      <span className="font-medium">{count} 张 · {pct}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {canFold && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="mt-2 w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {expanded ? '收起' : `展开全部（共 ${data.length} 项）`}
+              </button>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
