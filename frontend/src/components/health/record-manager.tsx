@@ -36,6 +36,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 
 export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
@@ -336,9 +337,9 @@ export function RecordManager<T extends { id: number }>({
         <div className="flex items-center gap-2">
           {monthMode ? (
             <div className="flex items-center gap-1 rounded-lg border p-1">
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="上一月" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
+              <Tip label="上一月"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft /></Button></Tip>
               <span className="min-w-[72px] text-center text-sm font-medium">{month}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="下一月" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight /></Button>
+              <Tip label="下一月"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(shiftMonth(month, 1))}><ChevronRight /></Button></Tip>
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); setMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             </div>
           ) : null}
@@ -352,22 +353,25 @@ export function RecordManager<T extends { id: number }>({
                 className="h-9 w-56 pl-8"
               />
               {keyword && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
-                  onClick={() => setKeyword('')}
-                  title="清除搜索"
-                >
-                  <X className="size-3.5" />
-                </Button>
+                <Tip label="清除搜索">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
+                    onClick={() => setKeyword('')}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </Tip>
               )}
             </div>
           )}
           {headerExtra}
-          <Button variant="outline" onClick={exportCsv} title="导出当前筛选数据为 CSV">
-            <Download /> 导出
-          </Button>
+          <Tip label="导出当前筛选数据为 CSV">
+            <Button variant="outline" onClick={exportCsv}>
+              <Download /> 导出
+            </Button>
+          </Tip>
           <Button onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
@@ -386,9 +390,11 @@ export function RecordManager<T extends { id: number }>({
             <Button variant="destructive" size="sm" onClick={batchRemove}>
               <Trash2 /> 批量删除
             </Button>
-            <Button variant="ghost" size="icon" className="size-7" onClick={clearSelection} title="取消选择">
-              <X />
-            </Button>
+            <Tip label="取消选择">
+              <Button variant="ghost" size="icon" className="size-7" onClick={clearSelection}>
+                <X />
+              </Button>
+            </Tip>
           </div>
         </div>
       )}

@@ -14,6 +14,7 @@ import {
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import {
@@ -159,15 +160,16 @@ export function SiteSettingsPage() {
         </div>
         <div className="flex items-center gap-2">
           {dirty ? <Badge variant="outline">有未保存的修改</Badge> : null}
-          <Button
-            variant="outline"
-            onClick={resetAll}
-            disabled={!isAdmin || resetting || saving}
-            title="恢复为系统内置默认值"
-          >
-            {resetting ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-            恢复默认
-          </Button>
+          <Tip label="恢复为系统内置默认值">
+            <Button
+              variant="outline"
+              onClick={resetAll}
+              disabled={!isAdmin || resetting || saving}
+            >
+              {resetting ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+              恢复默认
+            </Button>
+          </Tip>
           <Button onClick={save} disabled={!isAdmin || saving || !dirty}>
             {saving ? <Loader2 className="animate-spin" /> : <Save />}
             保存

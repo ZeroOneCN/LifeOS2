@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -570,8 +571,8 @@ function HousingTab() {
                     {/* 操作按钮 */}
                     <div className="mt-3 flex items-center justify-end gap-1">
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setViewH(h)}>查看明细</Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" title="编辑" onClick={() => openEdit(h)}><Pencil className="size-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeHousing(h)}><Trash2 className="size-3.5" /></Button>
+                      <Tip label="编辑"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(h)}><Pencil className="size-3.5" /></Button></Tip>
+                      <Tip label="删除"><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeHousing(h)}><Trash2 className="size-3.5" /></Button></Tip>
                     </div>
                   </div>
                 )
@@ -605,7 +606,7 @@ function HousingTab() {
               ) : pagedUtilityGroups.map((g) => (
                 <TableRow key={g.key}>
                   <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
-                  <TableCell className="max-w-[140px] truncate text-muted-foreground" title={houseName(g.housing_id)}>{houseShort(g.housing_id)}</TableCell>
+                  <Tip label={houseName(g.housing_id)}><TableCell className="max-w-[140px] truncate text-muted-foreground">{houseShort(g.housing_id)}</TableCell></Tip>
                   <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
@@ -613,7 +614,7 @@ function HousingTab() {
                   <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" title="明细/编辑" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button>
+                      <Tip label="明细/编辑"><Button variant="ghost" size="icon" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button></Tip>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -720,7 +721,7 @@ function HousingTab() {
                         <div className="flex shrink-0 items-center gap-2">
                           <span className={`text-xs ${t.paid ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
                           <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button>
+                          <Tip label="删除"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button></Tip>
                         </div>
                       </div>
                     ))}
@@ -752,8 +753,8 @@ function HousingTab() {
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                            <Tip label="编辑"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openUEdit(u)}><Pencil /></Button></Tip>
+                            <Tip label="删除"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeUtility(u)}><Trash2 /></Button></Tip>
                           </div>
                         </div>
                       ))}
@@ -830,7 +831,7 @@ function HousingTab() {
                   {rows.map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-2 border-b py-1">
                       <dt className="text-muted-foreground">{k}</dt>
-                      <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+                      <Tip label={v}><dd className="truncate text-right font-medium">{v}</dd></Tip>
                     </div>
                   ))}
                 </dl>
@@ -840,7 +841,7 @@ function HousingTab() {
                     {costRows.map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-2 border-b py-1">
                         <dt className="text-muted-foreground">{k}</dt>
-                        <dd className="truncate text-right font-medium" title={v}>{v}</dd>
+                        <Tip label={v}><dd className="truncate text-right font-medium">{v}</dd></Tip>
                       </div>
                     ))}
                   </dl>
@@ -854,10 +855,10 @@ function HousingTab() {
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       {myUtils.map((u) => (
                         <div key={u.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
-                          <div className="min-w-0 truncate" title={`${u.bill_month.slice(0, 7)} · ${u.fee_type} · ${fmt(u.amount)}`}>
+                          <Tip label={`${u.bill_month.slice(0, 7)} · ${u.fee_type} · ${fmt(u.amount)}`}><div className="min-w-0 truncate">
                             <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
                             <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
-                          </div>
+                          </div></Tip>
                           {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
                         </div>
                       ))}
@@ -962,8 +963,8 @@ function HousingTab() {
                     {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button variant="ghost" size="icon" title="编辑" onClick={() => openUEdit(u)}><Pencil /></Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" title="删除" onClick={() => removeUtility(u)}><Trash2 /></Button>
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => openUEdit(u)}><Pencil /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeUtility(u)}><Trash2 /></Button></Tip>
                   </div>
                 </div>
               ))}
@@ -995,8 +996,8 @@ function HousingTab() {
                 <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                   <span className="min-w-0 truncate">{c.name}</span>
                   <div className="flex shrink-0 gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => { setChannelEdit(c); setChannelEditForm(c.name); }} title="编辑"><Pencil className="size-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)} title="删除"><Trash2 className="size-3.5" /></Button>
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setChannelEdit(c); setChannelEditForm(c.name); }}><Pencil className="size-3.5" /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)}><Trash2 className="size-3.5" /></Button></Tip>
                   </div>
                 </div>
               ))}
@@ -1281,7 +1282,7 @@ function SubscriptionTab() {
                   <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
                   <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
                   <TableCell><Badge className={subStatusMeta[s.status]?.className}>{subStatusMeta[s.status]?.label ?? s.status}</Badge></TableCell>
-                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={s.note ?? ''}>{s.note ?? '—'}</TableCell>
+                  <Tip label={s.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{s.note ?? '—'}</TableCell></Tip>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
@@ -1364,16 +1365,16 @@ function SubscriptionTab() {
                       <Input value={catEditName} onChange={(e) => setCatEditName(e.target.value)} autoFocus
                         onKeyDown={(e) => e.key === 'Enter' && saveCatEdit()} className="min-w-0 flex-1" />
                       <div className="flex shrink-0 gap-0.5">
-                        <Button size="icon" variant="ghost" onClick={saveCatEdit} title="保存"><Check /></Button>
-                        <Button size="icon" variant="ghost" onClick={() => setCatEditId(null)} title="取消"><X /></Button>
+                        <Tip label="保存"><Button size="icon" variant="ghost" onClick={saveCatEdit}><Check /></Button></Tip>
+                        <Tip label="取消"><Button size="icon" variant="ghost" onClick={() => setCatEditId(null)}><X /></Button></Tip>
                       </div>
                     </>
                   ) : (
                     <>
                       <span className="min-w-0 flex-1 truncate">{c.name}</span>
                       <div className="flex shrink-0 gap-0.5">
-                        <Button variant="ghost" size="icon" onClick={() => startEditCat(c)} title="编辑"><Pencil /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)} title="删除"><Trash2 /></Button>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => startEditCat(c)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button></Tip>
                       </div>
                     </>
                   )}
@@ -1778,8 +1779,8 @@ function LoanTab() {
               <div className="flex items-center justify-between">
                 <span className="font-medium">{p.name}</span>
                 <div className="flex shrink-0 gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-6 w-6" title="编辑平台" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="删除平台" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button>
+                  <Tip label="编辑平台"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button></Tip>
+                  <Tip label="删除平台"><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
                 </div>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -1805,9 +1806,9 @@ function LoanTab() {
         <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
           <CardTitle className="text-lg font-medium">网贷账单（含利息）</CardTitle>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" title="上一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button>
+            <Tip label="上一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button></Tip>
             <MonthPicker value={`${loanMonth}-01`} onChange={(v) => setLoanMonth(v.slice(0, 7))} className="h-8 w-[140px]" />
-            <Button variant="ghost" size="icon" title="下一月" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button>
+            <Tip label="下一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button></Tip>
             <Button size="sm" variant="outline" onClick={() => { const n = new Date(); setLoanMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             <Button onClick={openBillCreate} className="ml-1"><Plus /> 新增账单</Button>
           </div>
@@ -1842,9 +1843,9 @@ function LoanTab() {
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }} title="查看还款记录"><ListTree className="size-3.5" /></Button>
+                        <Tip label="查看还款记录"><Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }}><ListTree className="size-3.5" /></Button></Tip>
                         {remaining > 0 && (
-                          <Button variant="ghost" size="icon" onClick={() => openRepay(b)} title="还款"><Banknote className="size-3.5" /></Button>
+                          <Tip label="还款"><Button variant="ghost" size="icon" onClick={() => openRepay(b)}><Banknote className="size-3.5" /></Button></Tip>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
@@ -1903,8 +1904,8 @@ function LoanTab() {
                   <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openEditRepay(r)} title="修改"><Pencil className="size-3.5" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)} title="删除"><Trash2 className="size-3.5" /></Button>
+                      <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
+                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
                     </div>
                   </TableCell>
                 </TableRow>

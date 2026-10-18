@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/table'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Tip } from '@/components/ui/tip'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
 
@@ -510,9 +511,9 @@ function PositionCalculator({ equity }: { equity?: number }) {
               <Label>账户净值（可改）</Label>
               <div className="flex gap-1">
                 <Input type="number" value={equityVal} onChange={(e) => setEquityVal(e.target.value)} placeholder="0" />
-                <Button variant="outline" size="icon" title="重置为实时净值" onClick={() => equity != null && setEquityVal(String(equity))}>
+                <Tip label="重置为实时净值"><Button variant="outline" size="icon" onClick={() => equity != null && setEquityVal(String(equity))}>
                   <RefreshCw className="size-4" />
-                </Button>
+                </Button></Tip>
               </div>
             </div>
             <div className="space-y-1">

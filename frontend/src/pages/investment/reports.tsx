@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { Tip } from '@/components/ui/tip'
 import {
   ReportPeriodPicker,
   type ReportPeriod,
@@ -248,12 +249,12 @@ export function InvestmentReportsPage() {
                     <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}</div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button size="icon" variant="ghost" title="导出 PDF" onClick={() => handleExport(r.id)} disabled={exportingId === r.id}>
+                    <Tip label="导出 PDF"><Button size="icon" variant="ghost" onClick={() => handleExport(r.id)} disabled={exportingId === r.id}>
                       {exportingId === r.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                    </Button>
-                    <Button size="icon" variant="ghost" className="text-destructive" title="删除" onClick={() => handleDelete(r.id)}>
+                    </Button></Tip>
+                    <Tip label="删除"><Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDelete(r.id)}>
                       <Trash2 className="size-4" />
-                    </Button>
+                    </Button></Tip>
                   </div>
                 </div>
               ))}

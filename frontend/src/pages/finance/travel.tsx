@@ -47,6 +47,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
 import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -505,9 +506,9 @@ export function TravelPage() {
               {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" title="新建行程" onClick={openCreateLedger}><Plus /></Button>
-          <Button variant="outline" size="icon" title="删除当前行程" className="text-destructive" onClick={removeLedger} disabled={!currentLedger}><Trash2 /></Button>
-          <Button variant="outline" size="icon" title="支付方式设置" onClick={() => setPayDialog(true)}><Settings2 /></Button>
+          <Tip label="新建行程"><Button variant="outline" size="icon" onClick={openCreateLedger}><Plus /></Button></Tip>
+          <Tip label="删除当前行程"><Button variant="outline" size="icon" className="text-destructive" onClick={removeLedger} disabled={!currentLedger}><Trash2 /></Button></Tip>
+          <Tip label="支付方式设置"><Button variant="outline" size="icon" onClick={() => setPayDialog(true)}><Settings2 /></Button></Tip>
           <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); setReportLedger(currentLedger || ''); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
         </div>
@@ -609,7 +610,7 @@ export function TravelPage() {
                     <TableCell className="text-right font-medium">{fmt(row.actual_price)}</TableCell>
                     <TableCell className="text-muted-foreground">{row.transport_info ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.payment_method ?? '—'}</TableCell>
-                    <TableCell className="max-w-[160px] truncate text-muted-foreground" title={row.note ?? ''}>{row.note ?? '—'}</TableCell>
+                    <Tip label={row.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{row.note ?? '—'}</TableCell></Tip>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
@@ -643,8 +644,8 @@ export function TravelPage() {
                 <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                   <span className="min-w-0">{p.name}</span>
                   <div className="flex shrink-0 gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => { setPayEdit(p); setPayEditForm(p.name); }} title="编辑"><Pencil className="size-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePayChannel(p.id)} title="删除"><Trash2 className="size-3.5" /></Button>
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setPayEdit(p); setPayEditForm(p.name); }}><Pencil className="size-3.5" /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePayChannel(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
                   </div>
                 </div>
               ))}
@@ -791,9 +792,9 @@ export function TravelPage() {
                   {report.summary && <p className="mt-1 text-sm text-muted-foreground">{report.summary}</p>}
                 </button>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => setReportCollapsed((v) => !v)} title={reportCollapsed ? '展开' : '收起'}>
+                  <Tip label={reportCollapsed ? '展开' : '收起'}><Button size="sm" variant="ghost" onClick={() => setReportCollapsed((v) => !v)}>
                     {reportCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-                  </Button>
+                  </Button></Tip>
                   <Button size="sm" variant="outline" onClick={() => exportReport(report.id)} disabled={exportingId === report.id}>
                     {exportingId === report.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                     导出 PDF

@@ -17,6 +17,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
 import { getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import {
   RecordManager,
@@ -601,25 +602,27 @@ export function CardsPage() {
           onMutate={() => setPhoneRefresh((v) => v + 1)}
           rowActions={(r) =>
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                title="充值"
-                className="text-emerald-600 dark:text-emerald-400"
-                onClick={() => openRecharge(r.id)}
-              >
-                <Coins className="size-4" />
-              </Button>
-              {!r.bill_paid_this_month ? (
+              <Tip label="充值">
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="记录当月扣账"
-                  className="text-indigo-600 dark:text-indigo-400"
-                  onClick={() => doDeduct(r.id)}
+                  className="text-emerald-600 dark:text-emerald-400"
+                  onClick={() => openRecharge(r.id)}
                 >
-                  <Banknote className="size-4" />
+                  <Coins className="size-4" />
                 </Button>
+              </Tip>
+              {!r.bill_paid_this_month ? (
+                <Tip label="记录当月扣账">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-indigo-600 dark:text-indigo-400"
+                    onClick={() => doDeduct(r.id)}
+                  >
+                    <Banknote className="size-4" />
+                  </Button>
+                </Tip>
               ) : null}
             </>
           }

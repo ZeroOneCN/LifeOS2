@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { LineChartCard } from '@/components/health/charts'
+import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
 
@@ -359,9 +360,11 @@ export function LoginAuditPage() {
                         </Badge>
                       )}
                       {row.user_agent && (
-                        <span className="text-xs text-muted-foreground" title={row.user_agent}>
-                          UA: {row.user_agent}
-                        </span>
+                        <Tip label={row.user_agent}>
+                          <span className="text-xs text-muted-foreground">
+                            UA: {row.user_agent}
+                          </span>
+                        </Tip>
                       )}
                     </div>
                   </li>

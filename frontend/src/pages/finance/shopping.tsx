@@ -43,6 +43,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
 import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -436,18 +437,18 @@ export function ShoppingPage() {
           <Button variant={uncategorizedOnly ? 'default' : 'outline'} size="sm" onClick={() => { setUncategorizedOnly((v) => !v); setCurrentCategory(''); setPage(1) }}>
             仅未分类
           </Button>
-          <Button variant="outline" size="icon" title="新建账本" onClick={openCreateLedger}>
+          <Tip label="新建账本"><Button variant="outline" size="icon" onClick={openCreateLedger}>
             <Plus />
-          </Button>
-          <Button variant="outline" size="icon" title="账本管理" onClick={() => setLedgerDialog({ mode: 'rename', id: Number(currentLedger), name: ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '' })}>
+          </Button></Tip>
+          <Tip label="账本管理"><Button variant="outline" size="icon" onClick={() => setLedgerDialog({ mode: 'rename', id: Number(currentLedger), name: ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '' })}>
             <BookOpen />
-          </Button>
-          <Button variant="outline" size="icon" title="平台管理" onClick={() => setPlatformDialog(true)}>
+          </Button></Tip>
+          <Tip label="平台管理"><Button variant="outline" size="icon" onClick={() => setPlatformDialog(true)}>
             <Settings2 />
-          </Button>
-          <Button variant="outline" size="icon" title="分类管理" onClick={openCreateCategory}>
+          </Button></Tip>
+          <Tip label="分类管理"><Button variant="outline" size="icon" onClick={openCreateCategory}>
             <Tags />
-          </Button>
+          </Button></Tip>
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
             <Upload /> 导入 xlsx
           </Button>
@@ -751,8 +752,8 @@ export function ShoppingPage() {
                         <span className="text-xs text-muted-foreground">优先级 {c.priority}</span>
                       </div>
                       <div className="flex shrink-0 gap-0.5">
-                        <Button variant="ghost" size="icon" onClick={() => openEditCategory(c)} title="编辑"><Pencil /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)} title="删除"><Trash2 /></Button>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => openEditCategory(c)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button></Tip>
                       </div>
                     </div>
                     {c.keywords.length > 0 && (

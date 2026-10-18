@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -250,19 +251,20 @@ export function ChannelsPanel() {
                           onCheckedChange={(v) => toggleEnable(ch, v)}
                           aria-label="启用/停用"
                         />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => testSend(ch)}
-                          disabled={testingId === ch.id}
-                          title="发送测试通知"
-                        >
-                          {testingId === ch.id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Send className="size-4" />
-                          )}
-                        </Button>
+                        <Tip label="发送测试通知">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => testSend(ch)}
+                            disabled={testingId === ch.id}
+                          >
+                            {testingId === ch.id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Send className="size-4" />
+                            )}
+                          </Button>
+                        </Tip>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(ch)}>
                           <Pencil />
                         </Button>

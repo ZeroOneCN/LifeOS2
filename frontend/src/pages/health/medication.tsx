@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Tip } from '@/components/ui/tip'
 import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { api } from '@/lib/api'
 
@@ -617,12 +618,11 @@ export function MedicationPage() {
                       </TableCell>
                       <TableCell>
                         {row.note ? (
-                          <span
-                            title={row.note}
-                            className="block max-w-64 truncate text-xs text-muted-foreground"
-                          >
-                            {row.note}
-                          </span>
+                          <Tip label={row.note}>
+                            <span className="block max-w-64 truncate text-xs text-muted-foreground">
+                              {row.note}
+                            </span>
+                          </Tip>
                         ) : (
                           '—'
                         )}

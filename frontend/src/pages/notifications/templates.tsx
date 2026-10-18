@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
@@ -124,18 +125,21 @@ export function TemplatesPanel() {
                     {t.is_default ? '系统默认' : '已自定义'}
                   </span>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(t)} title="编辑模板">
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => reset(t)}
-                      title="重置为默认"
-                      className="text-destructive"
-                    >
-                      <RotateCcw />
-                    </Button>
+                    <Tip label="编辑模板">
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(t)}>
+                        <Pencil />
+                      </Button>
+                    </Tip>
+                    <Tip label="重置为默认">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => reset(t)}
+                        className="text-destructive"
+                      >
+                        <RotateCcw />
+                      </Button>
+                    </Tip>
                   </div>
                 </div>
               </CardContent>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronRight, Footprints, MoonStar, Pill, Timer } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Tip } from '@/components/ui/tip'
 import {
   Card,
   CardContent,
@@ -228,15 +229,15 @@ export function HealthOverviewPage() {
                 .filter((t): t is [string, string] => !!t)
                 .map(([label, value]) =>
                   label === '体重' ? (
-                    <Link
-                      key={label}
-                      to="/health/fitness?tab=body"
-                      className="rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
-                      title="点击前往健身运动 → 体重记录"
-                    >
-                      <div className="text-xs text-muted-foreground">{label}</div>
-                      <div className="mt-1 font-medium">{value}</div>
-                    </Link>
+                    <Tip key={label} label="点击前往健身运动 → 体重记录">
+                      <Link
+                        to="/health/fitness?tab=body"
+                        className="rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
+                      >
+                        <div className="text-xs text-muted-foreground">{label}</div>
+                        <div className="mt-1 font-medium">{value}</div>
+                      </Link>
+                    </Tip>
                   ) : (
                     <div key={label} className="rounded-lg bg-muted/50 p-3">
                       <div className="text-xs text-muted-foreground">{label}</div>

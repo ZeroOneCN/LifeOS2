@@ -4,6 +4,7 @@ import { AlertCircle, Banknote, CheckCircle2, Clock, Inbox, Repeat, User, Zap } 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Tip } from '@/components/ui/tip'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -206,7 +207,7 @@ export function RemindersPage() {
                           <Badge variant="outline" className="text-[10px] leading-none px-1.5 py-0">{meta.label}</Badge>
                           {isOverdue && <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 text-[10px] leading-none px-1.5 py-0 ml-auto">已逾期</Badge>}
                         </span>
-                        <span className="font-medium truncate" title={it.title}>{it.title}</span>
+                        <Tip label={it.title}><span className="font-medium truncate">{it.title}</span></Tip>
                         {it.amount != null && <span className="text-xs text-muted-foreground">{fmt(it.amount)}</span>}
                         <span className="text-xs text-muted-foreground">到期 {it.due_date}</span>
                       </div>

@@ -46,6 +46,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -213,14 +214,18 @@ function IndicatorCard({ item }: { item: CheckupStats['items'][number] }) {
     <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium" title={item.item_name}>
-            {item.item_name}
-          </span>
+          <Tip label={item.item_name}>
+            <span className="truncate text-sm font-medium">
+              {item.item_name}
+            </span>
+          </Tip>
           {meta && <Badge className={meta.className}>{meta.label}</Badge>}
         </div>
-        <div className="mt-1 truncate text-xs text-muted-foreground" title={`参考 ${range} · 共 ${item.count} 次`}>
-          参考 {range} · {item.count} 次
-        </div>
+        <Tip label={`参考 ${range} · 共 ${item.count} 次`}>
+          <div className="mt-1 truncate text-xs text-muted-foreground">
+            参考 {range} · {item.count} 次
+          </div>
+        </Tip>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-lg font-semibold tabular-nums">

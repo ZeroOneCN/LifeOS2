@@ -25,6 +25,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { Tip } from '@/components/ui/tip'
 import {
   ReportPeriodPicker,
   type ReportPeriod,
@@ -243,14 +244,15 @@ export function ReportsPage() {
               )}
             </button>
             <div className="flex shrink-0 items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setPreviewCollapsed((v) => !v)}
-                title={previewCollapsed ? '展开' : '收起'}
-              >
-                {previewCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-              </Button>
+              <Tip label={previewCollapsed ? '展开' : '收起'}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setPreviewCollapsed((v) => !v)}
+                >
+                  {previewCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+                </Button>
+              </Tip>
               <Button
                 size="sm"
                 variant="outline"
@@ -317,28 +319,30 @@ export function ReportsPage() {
                     )}
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="导出 PDF"
-                      onClick={() => handleExport(r.id)}
-                      disabled={exportingId === r.id}
-                    >
-                      {exportingId === r.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Download className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      title="删除"
-                      onClick={() => handleDelete(r.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <Tip label="导出 PDF">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleExport(r.id)}
+                        disabled={exportingId === r.id}
+                      >
+                        {exportingId === r.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Download className="size-4" />
+                        )}
+                      </Button>
+                    </Tip>
+                    <Tip label="删除">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => handleDelete(r.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </Tip>
                   </div>
                 </div>
               ))}

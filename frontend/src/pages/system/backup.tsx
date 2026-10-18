@@ -60,6 +60,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
+import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
 
@@ -629,14 +630,16 @@ export function BackupPage() {
                           )}
                         </span>
                         <div className="min-w-0 flex-1 truncate">
-                          <div className="flex items-center gap-1 truncate" title={t.mapped ? t.label ?? t.name : `${t.name}（未配置中文名）`}>
-                            <span className="truncate">{t.label ?? t.name}</span>
-                            {!t.mapped && (
-                              <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
-                                未配置中文名
-                              </Badge>
-                            )}
-                          </div>
+                          <Tip label={t.mapped ? t.label ?? t.name : `${t.name}（未配置中文名）`}>
+                            <div className="flex items-center gap-1 truncate">
+                              <span className="truncate">{t.label ?? t.name}</span>
+                              {!t.mapped && (
+                                <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                  未配置中文名
+                                </Badge>
+                              )}
+                            </div>
+                          </Tip>
                           <div className="text-muted-foreground text-xs">
                             {t.count} 条
                           </div>
@@ -1038,37 +1041,40 @@ export function BackupPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                title="编辑"
-                                onClick={() => handleEditSchedule(s)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                title={s.enabled ? '暂停' : '启用'}
-                                onClick={() => handleToggleSchedule(s.id)}
-                              >
-                                {s.enabled ? (
-                                  <Pause className="h-4 w-4" />
-                                ) : (
-                                  <Play className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                title="删除"
-                                onClick={() => handleDeleteSchedule(s.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <Tip label="编辑">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEditSchedule(s)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </Tip>
+                              <Tip label={s.enabled ? '暂停' : '启用'}>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleToggleSchedule(s.id)}
+                                >
+                                  {s.enabled ? (
+                                    <Pause className="h-4 w-4" />
+                                  ) : (
+                                    <Play className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </Tip>
+                              <Tip label="删除">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteSchedule(s.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </Tip>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1122,17 +1128,21 @@ export function BackupPage() {
                     <TableBody>
                       {logs.map((l) => (
                         <TableRow key={l.id}>
-                          <TableCell className="font-medium max-w-[120px] truncate" title={l.name}>
-                            {l.name}
-                          </TableCell>
+                          <Tip label={l.name}>
+                            <TableCell className="font-medium max-w-[120px] truncate">
+                              {l.name}
+                            </TableCell>
+                          </Tip>
                           <TableCell>
                             <Badge variant="outline" className="font-mono text-xs uppercase">
                               {l.export_format}
                             </Badge>
                           </TableCell>
-                          <TableCell className="max-w-[120px] truncate font-mono text-xs" title={l.filename || ''}>
-                            {l.filename || '-'}
-                          </TableCell>
+                          <Tip label={l.filename || ''}>
+                            <TableCell className="max-w-[120px] truncate font-mono text-xs">
+                              {l.filename || '-'}
+                            </TableCell>
+                          </Tip>
                           <TableCell>
                             {l.status === 'success' ? (
                               <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
@@ -1150,9 +1160,11 @@ export function BackupPage() {
                           </TableCell>
                           <TableCell className="max-w-[300px]">
                             {l.error_message ? (
-                              <span className="block text-xs text-destructive truncate" title={l.error_message}>
-                                {l.error_message}
-                              </span>
+                              <Tip label={l.error_message}>
+                                <span className="block text-xs text-destructive truncate">
+                                  {l.error_message}
+                                </span>
+                              </Tip>
                             ) : (
                               <span className="text-xs text-muted-foreground">-</span>
                             )}
@@ -1232,9 +1244,11 @@ export function BackupPage() {
                     <TableBody>
                       {backups.map((f) => (
                         <TableRow key={f.filename}>
-                          <TableCell className="max-w-[300px] truncate font-mono text-xs" title={f.filename}>
-                            {f.filename}
-                          </TableCell>
+                          <Tip label={f.filename}>
+                            <TableCell className="max-w-[300px] truncate font-mono text-xs">
+                              {f.filename}
+                            </TableCell>
+                          </Tip>
                           <TableCell className="text-muted-foreground text-xs">{f.size_display}</TableCell>
                           <TableCell className="text-muted-foreground text-xs">
                             {formatTime(f.modified_at)}
@@ -1242,34 +1256,37 @@ export function BackupPage() {
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               {f.filename.toLowerCase().endsWith('.sql') && (
+                                <Tip label="在线预览">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handlePreviewBackup(f)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </Tip>
+                              )}
+                              <Tip label="下载">
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
-                                  title="在线预览"
-                                  onClick={() => handlePreviewBackup(f)}
+                                  onClick={() => handleDownloadBackup(f.filename)}
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  <Download className="h-4 w-4" />
                                 </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                title="下载"
-                                onClick={() => handleDownloadBackup(f.filename)}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                title="删除"
-                                onClick={() => handleDeleteBackup(f.filename)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              </Tip>
+                              <Tip label="删除">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteBackup(f.filename)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </Tip>
                             </div>
                           </TableCell>
                         </TableRow>

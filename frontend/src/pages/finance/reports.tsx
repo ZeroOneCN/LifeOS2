@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   ReportPeriodPicker,
@@ -246,18 +247,17 @@ export function FinanceReportsPage() {
               )}
             </button>
             <div className="flex shrink-0 items-center gap-2">
-              <Button
+              <Tip label={previewCollapsed ? '展开' : '收起'}><Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setPreviewCollapsed((v) => !v)}
-                title={previewCollapsed ? '展开' : '收起'}
               >
                 {previewCollapsed ? (
                   <ChevronDown className="size-4" />
                 ) : (
                   <ChevronUp className="size-4" />
                 )}
-              </Button>
+              </Button></Tip>
               <Button
                 size="sm"
                 variant="outline"
@@ -319,10 +319,9 @@ export function FinanceReportsPage() {
                     </div>
                   </button>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button
+                    <Tip label="导出 PDF"><Button
                       size="icon"
                       variant="ghost"
-                      title="导出 PDF"
                       onClick={() => handleExport(r.id)}
                       disabled={exportingId === r.id}
                     >
@@ -331,16 +330,15 @@ export function FinanceReportsPage() {
                       ) : (
                         <Download className="size-4" />
                       )}
-                    </Button>
-                    <Button
+                    </Button></Tip>
+                    <Tip label="删除"><Button
                       size="icon"
                       variant="ghost"
                       className="text-destructive"
-                      title="删除"
                       onClick={() => handleDelete(r.id)}
                     >
                       <Trash2 className="size-4" />
-                    </Button>
+                    </Button></Tip>
                   </div>
                 </div>
               ))}

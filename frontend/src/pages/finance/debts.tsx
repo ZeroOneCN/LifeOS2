@@ -6,7 +6,6 @@ import {
   Banknote,
   Bookmark,
   HandCoins,
-  HelpCircle,
   Landmark,
   ListTree,
   Loader2,
@@ -52,24 +51,8 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Hint, Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
-
-/**
- * 说明提示：问号图标 + 鼠标悬停显示解释文字，避免说明小字单独占用一行。
- * @param text 悬停时展示的说明内容
- * @returns 带 Popover 提示的问号图标
- */
-function Hint({ text }: { text: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <HelpCircle className="size-3.5 shrink-0 cursor-help text-muted-foreground" />
-      </TooltipTrigger>
-      <TooltipContent>{text}</TooltipContent>
-    </Tooltip>
-  )
-}
 
 type Currency = { id: number; currency: string; name?: string; rate_to_cny: number; symbol?: string }
 type Fmt = (cny: number) => string
@@ -427,13 +410,13 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>
-                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={d.note ?? ''}>{d.note ?? '—'}</TableCell>
+                  <Tip label={d.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{d.note ?? '—'}</TableCell></Tip>
                   <TableCell><Badge className={statusMeta[d.status]?.className}>{statusMeta[d.status]?.label}</Badge></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openDetail(d)} title="还款明细"><ListTree /></Button>
+                      <Tip label="还款明细"><Button variant="ghost" size="icon" onClick={() => openDetail(d)}><ListTree /></Button></Tip>
                       {d.status === 'active' && remaining(d) > 0 && (
-                        <Button variant="ghost" size="icon" onClick={() => openRepay(d)} title="还款/收款"><Banknote /></Button>
+                        <Tip label="还款/收款"><Button variant="ghost" size="icon" onClick={() => openRepay(d)}><Banknote /></Button></Tip>
                       )}
                       <Button variant="ghost" size="icon" onClick={() => { setForm({ debt_date: d.debt_date, name: d.name, direction: d.direction, counterparty: d.counterparty ?? '', amount: String(d.amount), remaining: d.remaining != null ? String(d.remaining) : '', interest_rate: d.interest_rate != null ? String(d.interest_rate) : '', interest_total: d.interest_total != null ? String(d.interest_total) : '', channel: d.channel ?? '现金', due_date: d.due_date ?? '', status: d.status, note: d.note ?? '' }); setDialog({ editing: d }) }}><Pencil /></Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(d)}><Trash2 /></Button>
@@ -589,8 +572,8 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     <span className="font-medium text-green-600 dark:text-green-400">实付 {fmtMoney(p.actual ?? ((p.amount || 0) - (p.discount ?? 0)))}</span>
                     {detailTarget && (
                       <>
-                        <Button variant="ghost" size="icon" className="size-7" title="修改明细" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button>
-                        <Button variant="ghost" size="icon" className="size-7 text-destructive" title="删除明细并回滚剩余" onClick={() => deletePayment(p, detailTarget)}><Trash2 className="size-4" /></Button>
+                        <Tip label="修改明细"><Button variant="ghost" size="icon" className="size-7" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button></Tip>
+                        <Tip label="删除明细并回滚剩余"><Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => deletePayment(p, detailTarget)}><Trash2 className="size-4" /></Button></Tip>
                       </>
                     )}
                   </div>
@@ -755,7 +738,7 @@ function InvestTab() {
                     </div>
                   </TableCell>
                   <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{usd(iv.pnl)}</TableCell>
-                  <TableCell className="max-w-[160px] truncate text-muted-foreground" title={iv.note ?? ''}>{iv.note ?? '—'}</TableCell>
+                  <Tip label={iv.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{iv.note ?? '—'}</TableCell></Tip>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', pnl: String(iv.pnl), note: iv.note ?? '' }); setSelCats(iv.category.split(',').map((s) => s.trim()).filter(Boolean)); setDialog({ editing: iv }) }}><Pencil /></Button>
