@@ -279,6 +279,7 @@ const bankFields: FieldDef[] = [
     label: '卡类型',
     type: 'select',
     options: bankTypes,
+    defaultValue: 'debit',
   },
   {
     key: 'card_form',

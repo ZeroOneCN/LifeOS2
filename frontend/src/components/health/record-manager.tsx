@@ -54,6 +54,8 @@ export type FieldDef = {
   full?: boolean
   /** type=digits 时的分组位数，默认每 4 位分隔 */
   groupSize?: number
+  /** 新增记录时该字段的初始值（如 select 的默认选项） */
+  defaultValue?: string
 }
 
 export type ColumnDef<T> = {
@@ -266,7 +268,7 @@ export function RecordManager<T extends { id: number }>({
 
   const openCreate = () => {
     setEditing(null)
-    const initial: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, '']))
+    const initial: Record<string, string> = Object.fromEntries(fields.map((f) => [f.key, f.defaultValue ?? '']))
     if (monthMode) {
       // monthMode 下查找第一个日期类型字段并默认填充当月1日
       const dateField = fields.find((f) => f.type === 'date')
