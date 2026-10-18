@@ -224,12 +224,15 @@ def _bank_stats(db: Session, days: int, user_id: int) -> dict:
 
     by_bank: dict[str, int] = defaultdict(int)
     by_category: dict[str, int] = defaultdict(int)
+    # 按「卡类型 + 银行」交叉计数，供前端筛选某一卡类型下的银行分布
+    by_category_bank: dict[tuple[str, str], int] = defaultdict(int)
     by_status: dict[str, int] = defaultdict(int)
     balance_total = 0.0
     credit_total = 0.0
     for r in rows:
         by_bank[r.bank] += 1
         by_category[r.card_category] += 1
+        by_category_bank[(r.card_category, r.bank)] += 1
         by_status[r.status] += 1
         balance_total += r.balance or 0
         if r.card_category == "credit":
@@ -241,6 +244,10 @@ def _bank_stats(db: Session, days: int, user_id: int) -> dict:
         "balance_total": round(balance_total, 2),
         "credit_total": round(credit_total, 2),
         "by_bank": [{"bank": k, "count": v} for k, v in sorted(by_bank.items(), key=lambda x: -x[1])],
+        "by_bank_category": [
+            {"card_category": c, "bank": b, "count": n}
+            for (c, b), n in sorted(by_category_bank.items(), key=lambda x: -x[1])
+        ],
         "by_category": [
             {"card_category": k, "count": v}
             for k, v in sorted(by_category.items(), key=lambda x: -x[1])

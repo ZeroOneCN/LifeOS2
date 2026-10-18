@@ -101,6 +101,7 @@ type BankStats = {
   balance_total: number
   credit_total: number
   by_bank: { bank: string; count: number }[]
+  by_bank_category: { card_category: string; bank: string; count: number }[]
   by_category: { card_category: string; count: number }[]
   by_status: { status: string; count: number }[]
 }
@@ -271,9 +272,11 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
 ]
 
 const bankFields: FieldDef[] = [
-  { key: 'card_name', label: '卡片名称', type: 'text', required: true },
+  // 卡片别名 = 自己给这张卡起的称呼（便于区分多张同类卡），
+  // 与「银行」（发卡行，用于银行分布统计）职责不同，不要直接填银行名。
+  { key: 'card_name', label: '卡片别名', type: 'text', required: true, placeholder: '如 招行工资卡、中信i白金' },
   { key: 'card_holder', label: '持卡人', type: 'text' },
-  { key: 'bank', label: '银行', type: 'text', required: true, placeholder: '如 招商银行' },
+  { key: 'bank', label: '银行', type: 'text', required: true, placeholder: '发卡银行，如 招商银行' },
   {
     key: 'card_category',
     label: '卡类型',
@@ -303,7 +306,7 @@ const bankFields: FieldDef[] = [
 ]
 
 const bankColumns: ColumnDef<BankCard>[] = [
-  { key: 'card_name', label: '名称' },
+  { key: 'card_name', label: '别名', render: (r) => r.card_name ?? '—' },
   {
     key: 'card_category',
     label: '类型',
@@ -389,11 +392,14 @@ function DistCard({
   subtitle,
   data,
   searchable = false,
+  actions,
 }: {
   title: string
   subtitle?: string
   data: { count: number; [k: string]: unknown }[]
   searchable?: boolean
+  /** 卡片右上角的操作区（如筛选控件），不传则显示 subtitle */
+  actions?: ReactNode
 }) {
   const [kw, setKw] = useState('')
   const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
@@ -405,9 +411,9 @@ function DistCard({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="text-sm font-semibold">{title}</div>
-          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+          {actions ?? (subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>)}
         </div>
         {searchable && total > 0 && (
           <div className="relative mt-3">
@@ -454,6 +460,8 @@ export function CardsPage() {
   const [phoneRefresh, setPhoneRefresh] = useState(0)
   const [bankRefresh, setBankRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
+  /** 银行分布卡片的卡类型筛选：空字符串表示「全部」 */
+  const [bankDistCat, setBankDistCat] = useState('')
 
   const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
   const { data: phoneStats } = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
@@ -494,6 +502,16 @@ export function CardsPage() {
     status: bankStatus.find((x) => x.value === s.status)?.label ?? s.status,
     count: s.count,
   }))
+  // 银行分布数据：按选中的卡类型筛选，空值表示全部
+  const bankDistData = useMemo(
+    () =>
+      bankDistCat
+        ? (bankStats?.by_bank_category ?? [])
+            .filter((b) => b.card_category === bankDistCat)
+            .map((b) => ({ bank: b.bank, count: b.count }))
+        : (bankStats?.by_bank ?? []),
+    [bankStats, bankDistCat],
+  )
 
   // 用于扣账账单中显示手机号
   const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
@@ -752,7 +770,26 @@ export function CardsPage() {
                   <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
                 </StatRow>
                 <div className="grid items-start gap-4 lg:grid-cols-3">
-                  <DistCard title="银行分布" data={bankStats.by_bank} searchable />
+                  <DistCard
+                    title="银行分布"
+                    data={bankDistData}
+                    searchable
+                    actions={
+                      <div className="flex gap-1">
+                        {[{ value: '', label: '全部' }, ...bankTypes].map((o) => (
+                          <Button
+                            key={o.value}
+                            variant={bankDistCat === o.value ? 'secondary' : 'ghost'}
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setBankDistCat(o.value)}
+                          >
+                            {o.label}
+                          </Button>
+                        ))}
+                      </div>
+                    }
+                  />
                   <DistCard title="卡类型" data={bankChartCategory} />
                   <DistCard title="状态分布" data={bankChartStatus} />
                 </div>
