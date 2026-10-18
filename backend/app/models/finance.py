@@ -300,7 +300,8 @@ class FinanceDebtPayment(TimestampMixin, UserOwned, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     debt_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联债务
     repay_date: Mapped[date] = mapped_column(Date, index=True)  # 还款/收款日期
-    amount: Mapped[float] = mapped_column(Float)  # 本次金额
+    amount: Mapped[float] = mapped_column(Float)  # 实付金额
+    discount: Mapped[float | None] = mapped_column(Float, default=0)  # 优惠金额（减免/抵扣券）
     note: Mapped[str | None] = mapped_column(Text)  # 备注
 
 

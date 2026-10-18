@@ -115,16 +115,29 @@ def repay_debt(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清，并记录还款明细。"""
+    """债务还款：借入方向还钱减免，借出方向收款冲减；剩余归零自动结清，并记录还款明细。
+
+    金额语义与「账单管理 · 网贷还款」一致：
+        amount   = 实付金额（实际支出/收到的钱）
+        discount = 优惠金额（减免、抵扣券）
+        本次抵减额度 = amount + discount（优惠同样抵减欠款）
+    """
     debt = db.get(FinanceDebt, item_id)
     if not debt or debt.user_id != user.id:
         raise HTTPException(status_code=404, detail="债务记录不存在")
     if debt.status == "settled":
         raise HTTPException(status_code=400, detail="该债务已结清，无需还款")
+    discount = round(payload.discount or 0, 2)
+    if discount < 0:
+        raise HTTPException(status_code=400, detail="优惠金额不能为负")
+    actual = round(payload.amount, 2)
+    applied = round(actual + discount, 2)  # 本次抵减总额
     current = debt.remaining if debt.remaining is not None else debt.amount
-    if payload.amount > current + 1e-6:
-        raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余 {current:.2f}")
-    debt.remaining = round(current - payload.amount, 2)
+    if applied > current + 1e-6:
+        raise HTTPException(
+            status_code=400, detail=f"实付 + 优惠不能超过剩余 {current:.2f}"
+        )
+    debt.remaining = round(current - applied, 2)
     if debt.remaining <= 1e-6:
         debt.remaining = 0
         debt.status = "settled"
@@ -133,7 +146,8 @@ def repay_debt(
             user_id=user.id,
             debt_id=item_id,
             repay_date=payload.repay_date,
-            amount=round(payload.amount, 2),
+            amount=actual,
+            discount=discount,
             note=payload.note,
         )
     )
@@ -145,7 +159,9 @@ def repay_debt(
         "remaining": debt.remaining,
         "status": debt.status,
         "repay": payload.repay_date,
-        "amount": round(payload.amount, 2),
+        "amount": actual,
+        "discount": discount,
+        "applied": applied,
     }
 
 
@@ -169,7 +185,9 @@ def list_debt_payments(
             "id": r.id,
             "debt_id": r.debt_id,
             "repay_date": r.repay_date,
-            "amount": r.amount,
+            "amount": r.amount,  # 实付
+            "discount": r.discount or 0,  # 优惠
+            "applied": round((r.amount or 0) + (r.discount or 0), 2),  # 本次抵减总额
             "note": r.note,
         }
         for r in rows
@@ -184,7 +202,10 @@ def update_debt_payment(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """修改一笔还款明细：更新日期、金额、备注，并重新同步债务剩余金额。"""
+    """修改一笔还款明细：更新日期、金额（实付/优惠）、备注，并重新同步债务剩余金额。
+
+    金额语义与还款一致：本次抵减额度 = amount(实付) + discount(优惠)。
+    """
     debt = db.get(FinanceDebt, item_id)
     if not debt or debt.user_id != user.id:
         raise HTTPException(status_code=404, detail="债务记录不存在")
@@ -192,19 +213,27 @@ def update_debt_payment(
     if not payment or payment.debt_id != item_id or payment.user_id != user.id:
         raise HTTPException(status_code=404, detail="还款明细不存在")
 
-    # 回滚旧金额，加上新金额重新计算
-    old_amount = payment.amount
-    current = (debt.remaining if debt.remaining is not None else debt.amount) + old_amount
-    if payload.amount > current + 1e-6:
-        raise HTTPException(status_code=400, detail=f"还款金额不能超过剩余 {current:.2f}")
+    # 先回滚旧抵减额，再按新金额重新计算
+    old_applied = (payment.amount or 0) + (payment.discount or 0)
+    discount = round(payload.discount or 0, 2)
+    if discount < 0:
+        raise HTTPException(status_code=400, detail="优惠金额不能为负")
+    actual = round(payload.amount, 2)
+    applied = round(actual + discount, 2)
+    current = (debt.remaining if debt.remaining is not None else debt.amount) + old_applied
+    if applied > current + 1e-6:
+        raise HTTPException(
+            status_code=400, detail=f"实付 + 优惠不能超过剩余 {current:.2f}"
+        )
 
     # 更新还款记录
     payment.repay_date = payload.repay_date
-    payment.amount = round(payload.amount, 2)
+    payment.amount = actual
+    payment.discount = discount
     payment.note = payload.note
 
     # 更新债务剩余
-    debt.remaining = round(current - payload.amount, 2)
+    debt.remaining = round(current - applied, 2)
     if debt.remaining <= 1e-6:
         debt.remaining = 0
         debt.status = "settled"
@@ -212,7 +241,14 @@ def update_debt_payment(
         debt.status = "active"
 
     db.commit()
-    return {"id": debt.id, "remaining": debt.remaining, "status": debt.status}
+    return {
+        "id": debt.id,
+        "remaining": debt.remaining,
+        "status": debt.status,
+        "amount": actual,
+        "discount": discount,
+        "applied": applied,
+    }
 
 
 @router.delete("/finance/debts/{item_id}/payments/{payment_id}")
@@ -229,7 +265,11 @@ def delete_debt_payment(
     payment = db.get(FinanceDebtPayment, payment_id)
     if not payment or payment.debt_id != item_id or payment.user_id != user.id:
         raise HTTPException(status_code=404, detail="还款明细不存在")
-    rest = (debt.remaining if debt.remaining is not None else debt.amount) + payment.amount
+    rest = (
+        (debt.remaining if debt.remaining is not None else debt.amount)
+        + (payment.amount or 0)
+        + (payment.discount or 0)
+    )
     # 回滚不得超过本金总额
     debt.remaining = round(min(rest, debt.amount), 2)
     if debt.remaining > 1e-6 and debt.status == "settled":
