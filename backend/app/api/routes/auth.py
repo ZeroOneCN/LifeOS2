@@ -123,14 +123,18 @@ def _notify_brute_force_if_needed(db: Session, ip: str | None) -> None:
 def _create_session(
     db: Session, user_id: int, refresh_token: str, device: str | None = None, ip: str | None = None
 ) -> UserSession:
-    """创建用户会话记录（存储刷新令牌哈希）。"""
+    """创建用户会话记录（存储刷新令牌哈希）。
+
+    expires_at 统一写入「无时区的 UTC」时间，与 MySQL DATETIME 列读回的值保持一致，
+    避免后续比较时出现 naive/aware 混用导致的 TypeError。
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     session = UserSession(
         user_id=user_id,
         refresh_token_hash=hash_refresh_token(refresh_token),
         device=device,
         ip_address=ip,
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        expires_at=now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     )
     db.add(session)
     return session
@@ -248,7 +252,9 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     session = db.scalar(
         select(UserSession).where(UserSession.refresh_token_hash == token_hash)
     )
-    if session is None or session.expires_at < datetime.now(timezone.utc):
+    # 使用「无时区 UTC」与库中 expires_at 比较，避免 naive/aware 混用
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if session is None or session.expires_at < now:
         raise HTTPException(status_code=401, detail="刷新令牌无效或已过期")
 
     user_id = int(token_payload["sub"])
@@ -257,7 +263,7 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="用户不存在")
 
     # 刷新成功后更新会话最后使用时间
-    session.last_used_at = datetime.now(timezone.utc)
+    session.last_used_at = now
     db.commit()
 
     return TokenRefreshResponse(

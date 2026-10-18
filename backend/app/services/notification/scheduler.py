@@ -60,7 +60,8 @@ def _cleanup_expired_sessions() -> None:
 
     db = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
+        # 与 expires_at 列存储口径一致：使用「无时区 UTC」
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         result = db.execute(
             delete(UserSession).where(UserSession.expires_at < now)
         )
