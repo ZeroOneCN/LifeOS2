@@ -82,7 +82,7 @@ type DebtRecord = {
   status: 'active' | 'settled'
   note?: string
 }
-type DebtPayment = { id: number; debt_id: number; repay_date: string; amount: number; discount?: number; applied?: number; note?: string }
+type DebtPayment = { id: number; debt_id: number; repay_date: string; amount: number; discount?: number; actual?: number; note?: string }
 const channelOptions = ['现金', '银行转账', '微信', '支付宝', '其他']
 const channelMeta: Record<string, { className: string }> = {
   现金: { className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300' },
@@ -190,15 +190,14 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
     setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: String(remaining(d)), discount: '', note: '' })
     setRepayTarget(d)
   }
-  // 实际金额（实付）= 抵扣金额 - 优惠金额，与「账单管理 · 网贷还款」保持一致
+  // 实际金额（实付）= 还款金额（清账额）- 优惠金额，实付为派生展示值
   const actualOf = (amount: string, discount: string) =>
     Math.max(0, (Number(amount) || 0) - (Number(discount) || 0))
   const submitRepay = async () => {
     if (!repayTarget) return
-    const applied = Number(repayForm.amount) || 0
+    const amount = Number(repayForm.amount) || 0  // 本次清账金额
     const discount = Number(repayForm.discount) || 0
-    const actual = applied - discount
-    if (!repayForm.amount || applied <= 0) {
+    if (!repayForm.amount || amount <= 0) {
       toast.error('请填写有效的还款金额')
       return
     }
@@ -206,23 +205,19 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       toast.error('优惠金额不能为负')
       return
     }
-    if (discount > applied) {
+    if (discount > amount) {
       toast.error('优惠金额不能大于还款金额')
       return
     }
-    if (actual <= 0) {
-      toast.error('实际还款金额必须大于 0')
-      return
-    }
     const remain = remaining(repayTarget)
-    if (applied > remain + 1e-6) {
+    if (amount > remain + 1e-6) {
       toast.error('还款金额超过剩余', { description: `剩余 ${fmtMoney(remain)}` })
       return
     }
     setSaving(true)
     try {
       await api.post(`/finance/debts/${repayTarget.id}/repay`, {
-        repay_date: repayForm.repay_date, amount: actual, discount, note: repayForm.note || null,
+        repay_date: repayForm.repay_date, amount, discount, note: repayForm.note || null,
       })
       setRepayTarget(null)
       await load()
@@ -266,7 +261,7 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const openEditPayment = (p: DebtPayment, d: DebtRecord) => {
     setEditPaymentForm({
       repay_date: p.repay_date,
-      amount: String((p.amount || 0) + (p.discount || 0)),  // 抵扣总额 = 实付 + 优惠
+      amount: String(p.amount || 0),  // 还款/清账金额（含优惠部分）
       discount: String(p.discount ?? 0),
       note: p.note ?? '',
     })
@@ -276,30 +271,25 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
   const submitEditPayment = async () => {
     if (!editPaymentTarget) return
     const { debt, payment } = editPaymentTarget
-    const applied = Number(editPaymentForm.amount) || 0
+    const amount = Number(editPaymentForm.amount) || 0  // 本次清账金额
     const discount = Number(editPaymentForm.discount) || 0
-    const actual = applied - discount
     if (!editPaymentForm.repay_date || !editPaymentForm.amount) {
       toast.error('请填写日期和金额')
       return
     }
-    if (applied <= 0) {
-      toast.error('请填写有效的金额')
+    if (amount <= 0) {
+      toast.error('请填写有效的还款金额')
       return
     }
-    if (discount < 0 || discount > applied) {
+    if (discount < 0 || discount > amount) {
       toast.error('优惠金额需在 0 与还款金额之间')
-      return
-    }
-    if (actual <= 0) {
-      toast.error('实际还款金额必须大于 0')
       return
     }
     setSaving(true)
     try {
       await api.patch(`/finance/debts/${debt.id}/payments/${payment.id}`, {
         repay_date: editPaymentForm.repay_date,
-        amount: actual,
+        amount,
         discount,
         note: editPaymentForm.note || null,
       })
@@ -496,26 +486,33 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>日期 *</Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
             <div className="space-y-2">
-              <Label>{repayTarget?.direction === 'borrow' ? '还款金额（抵扣）' : '收款金额（抵扣）'} *</Label>
+              <Label>{repayTarget?.direction === 'borrow' ? '还款金额' : '收款金额'} *</Label>
               <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} />
-              <p className="text-xs text-muted-foreground">本次抵扣总额，含优惠部分</p>
+              <p className="text-xs text-muted-foreground">本次清账金额（含优惠部分），剩余将按此金额减少</p>
             </div>
             <div className="space-y-2">
               <Label>优惠金额</Label>
               <Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0.00" />
-              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额</p>
+              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额（含在此次还款内）</p>
             </div>
             <div className="space-y-2">
               <Label>实际{repayTarget?.direction === 'borrow' ? '还款' : '收款'}（实付）</Label>
               <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
                 {fmtMoney(actualOf(repayForm.amount, repayForm.discount))}
               </div>
+              <p className="text-xs text-muted-foreground">实付 = 还款金额 − 优惠</p>
             </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
           </div>
           {repayTarget && (
             <p className="text-xs text-muted-foreground">
-              抵扣后剩余 <span className="font-semibold text-red-600 dark:text-red-400">{fmtMoney(Math.max(0, remaining(repayTarget) - (Number(repayForm.amount) || 0)))}</span>
+              本次清账 <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(Number(repayForm.amount) || 0)}</span>
+              {' = 实付 '}
+              <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(actualOf(repayForm.amount, repayForm.discount))}</span>
+              {' + 优惠 '}
+              <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMoney(Number(repayForm.discount) || 0)}</span>
+              {' · 清账后剩余 '}
+              <span className="font-semibold text-red-600 dark:text-red-400">{fmtMoney(Math.max(0, remaining(repayTarget) - (Number(repayForm.amount) || 0)))}</span>
             </p>
           )}
           <DialogFooter>
@@ -552,9 +549,11 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           )}
           {detailTarget && (
             <p className="text-xs text-muted-foreground">
+              还款合计 <span className="font-semibold text-muted-foreground">{fmtMoney(payments.reduce((s, p) => s + (p.amount || 0), 0))}</span>
+              {' · '}
               其中优惠合计 <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMoney(payments.reduce((s, p) => s + (p.discount ?? 0), 0))}</span>
               {' · '}
-              实付合计 <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(payments.reduce((s, p) => s + (p.amount || 0), 0))}</span>
+              实付合计 <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(payments.reduce((s, p) => s + ((p.amount || 0) - (p.discount ?? 0)), 0))}</span>
             </p>
           )}
           <div className="space-y-1.5">
@@ -568,13 +567,11 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     {p.note && <span className="truncate text-muted-foreground">· {p.note}</span>}
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-muted-foreground">还款 {fmtMoney(p.amount || 0)}</span>
                     {(p.discount ?? 0) > 0 && (
-                      <>
-                        <span className="text-muted-foreground">抵扣 {fmtMoney((p.amount || 0) + (p.discount || 0))}</span>
-                        <span className="text-amber-600 dark:text-amber-400">优惠 {fmtMoney(p.discount ?? 0)}</span>
-                      </>
+                      <span className="text-amber-600 dark:text-amber-400">优惠 {fmtMoney(p.discount ?? 0)}</span>
                     )}
-                    <span className="font-medium text-green-600 dark:text-green-400">实付 {fmtMoney(p.amount)}</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">实付 {fmtMoney(p.actual ?? ((p.amount || 0) - (p.discount ?? 0)))}</span>
                     {detailTarget && (
                       <>
                         <Button variant="ghost" size="icon" className="size-7" title="修改明细" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button>
@@ -601,20 +598,21 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>日期 *</Label><DatePicker value={editPaymentForm.repay_date} onChange={(v) => setEditPaymentForm({ ...editPaymentForm, repay_date: v })} /></div>
             <div className="space-y-2">
-              <Label>还款金额（抵扣）*</Label>
+              <Label>还款金额 *</Label>
               <Input type="number" min={0.01} step="0.01" value={editPaymentForm.amount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
-              <p className="text-xs text-muted-foreground">本次抵扣总额，含优惠部分</p>
+              <p className="text-xs text-muted-foreground">本次清账金额（含优惠部分），剩余将按此金额减少</p>
             </div>
             <div className="space-y-2">
               <Label>优惠金额</Label>
               <Input type="number" min={0} step="0.01" value={editPaymentForm.discount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, discount: e.target.value })} placeholder="0.00" />
-              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额</p>
+              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额（含在此次还款内）</p>
             </div>
             <div className="space-y-2">
               <Label>实际还款（实付）</Label>
               <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
                 {fmtMoney(actualOf(editPaymentForm.amount, editPaymentForm.discount))}
               </div>
+              <p className="text-xs text-muted-foreground">实付 = 还款金额 − 优惠</p>
             </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={editPaymentForm.note} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
           </div>

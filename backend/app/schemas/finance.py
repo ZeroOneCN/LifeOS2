@@ -268,8 +268,8 @@ class DebtRead(DebtCreate, ORMRead):
 
 class DebtPaymentCreate(BaseModel):
     repay_date: date
-    amount: float = Field(gt=0)  # 实付金额
-    discount: float | None = Field(0, ge=0)  # 优惠金额（与实付共同抵减欠款）
+    amount: float = Field(gt=0)  # 本次还款/清账金额（含优惠部分）
+    discount: float | None = Field(0, ge=0)  # 其中优惠金额（实付 = 还款金额 - 优惠）
     note: str | None = None
 
 
@@ -312,8 +312,8 @@ class CurrencyRead(CurrencyCreate, ORMRead):
 
 class DebtRepayPayload(BaseModel):
     repay_date: date
-    amount: float = Field(gt=0)  # 实付金额
-    discount: float | None = Field(0, ge=0)  # 优惠金额（与实付共同抵减欠款）
+    amount: float = Field(gt=0)  # 本次还款/清账金额（含优惠部分）
+    discount: float | None = Field(0, ge=0)  # 其中优惠金额（实付 = 还款金额 - 优惠）
     note: str | None = None
 
 
