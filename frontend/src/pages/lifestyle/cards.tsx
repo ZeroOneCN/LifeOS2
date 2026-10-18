@@ -286,7 +286,7 @@ const bankFields: FieldDef[] = [
     type: 'select',
     options: cardForms,
   },
-  { key: 'card_number', label: '卡号', type: 'text', placeholder: '可填部分号码' },
+  { key: 'card_number', label: '卡号', type: 'digits', placeholder: '输入卡号，自动每 4 位分隔' },
   { key: 'balance', label: '余额', type: 'number', step: '0.01', min: 0 },
   { key: 'credit_limit', label: '信用额度', type: 'number', step: '0.01', min: 0 },
   { key: 'billing_day', label: '账单日', type: 'number', step: '1', min: 1 },

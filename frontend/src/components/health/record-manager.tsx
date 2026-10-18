@@ -39,7 +39,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 
-export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean'
+export type FieldType = 'date' | 'time' | 'datetime' | 'number' | 'text' | 'textarea' | 'select' | 'boolean' | 'digits'
 
 export type FieldDef = {
   key: string
@@ -52,6 +52,8 @@ export type FieldDef = {
   min?: number
   /** 占据整行（多用于 textarea） */
   full?: boolean
+  /** type=digits 时的分组位数，默认每 4 位分隔 */
+  groupSize?: number
 }
 
 export type ColumnDef<T> = {
@@ -93,10 +95,26 @@ type RecordManagerProps<T extends { id: number }> = {
 
 const PAGE_SIZE = 10
 
+/** 长数字按固定位数（默认 4 位）分组插入空格，便于核对卡号等长串。
+ *
+ * 仅当内容为纯数字（忽略已有的空格与横线）时才分组；含其他字符时原样返回，
+ * 避免破坏历史遗留的非数字内容。存储时只保留数字，空格仅用于显示。
+ *
+ * @param value 用户输入或数据库读出的原始值
+ * @param size 每组位数，默认 4
+ * @returns 分组后的显示字符串
+ */
+function groupDigits(value: string, size: number): string {
+  const compact = value.replace(/[\s-]/g, '')
+  if (!/^\d+$/.test(compact)) return value
+  return compact.replace(new RegExp(`(\\d{${size}})(?=\\d)`, 'g'), '$1 ')
+}
+
 function toFormValue(field: FieldDef, value: unknown): string {
   if (value === null || value === undefined) return ''
   if (field.type === 'boolean') return value ? 'true' : 'false'
   if (field.type === 'time') return String(value).slice(0, 5)
+  if (field.type === 'digits') return groupDigits(String(value), field.groupSize ?? 4)
   return String(value)
 }
 
@@ -278,6 +296,10 @@ export function RecordManager<T extends { id: number }>({
       } else if (field.type === 'select') {
         // 未选择时不上送，让后端使用默认值
         if (raw !== '') payload[field.key] = raw
+      } else if (field.type === 'digits') {
+        // 纯数字时仅保存数字（去掉显示用的分组空格），其余内容原样保存
+        const compact = raw.replace(/[\s-]/g, '')
+        payload[field.key] = raw === '' ? null : /^\d+$/.test(compact) ? compact : raw
       } else {
         payload[field.key] = raw === '' ? null : raw
       }
@@ -547,10 +569,32 @@ export function RecordManager<T extends { id: number }>({
                   <Input
                     id={field.key}
                     type={field.type === 'number' ? 'number' : field.type === 'time' ? 'time' : field.type === 'datetime' ? 'datetime-local' : 'text'}
+                    inputMode={field.type === 'digits' ? 'numeric' : undefined}
                     step={field.step}
                     min={field.min}
                     value={form[field.key] ?? ''}
-                    onChange={(e) => setForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (field.type !== 'digits') {
+                        setForm((f) => ({ ...f, [field.key]: v }))
+                        return
+                      }
+                      // 长数字输入：实时按 4 位分组，并保持光标位置不跳变
+                      const el = e.target
+                      const caret = el.selectionStart ?? v.length
+                      const digitsBefore = v.slice(0, caret).replace(/\D/g, '').length
+                      const next = groupDigits(v, field.groupSize ?? 4)
+                      setForm((f) => ({ ...f, [field.key]: next }))
+                      requestAnimationFrame(() => {
+                        let pos = 0
+                        let seen = 0
+                        while (pos < next.length && seen < digitsBefore) {
+                          if (/\d/.test(next[pos])) seen += 1
+                          pos += 1
+                        }
+                        el.setSelectionRange(pos, pos)
+                      })
+                    }}
                     placeholder={field.placeholder}
                   />
                 )}
