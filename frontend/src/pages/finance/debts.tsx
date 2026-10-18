@@ -6,6 +6,7 @@ import {
   Banknote,
   Bookmark,
   HandCoins,
+  HelpCircle,
   Landmark,
   ListTree,
   Loader2,
@@ -51,7 +52,24 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
+
+/**
+ * 说明提示：问号图标 + 鼠标悬停显示解释文字，避免说明小字单独占用一行。
+ * @param text 悬停时展示的说明内容
+ * @returns 带 Popover 提示的问号图标
+ */
+function Hint({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <HelpCircle className="size-3.5 shrink-0 cursor-help text-muted-foreground" />
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 type Currency = { id: number; currency: string; name?: string; rate_to_cny: number; symbol?: string }
 type Fmt = (cny: number) => string
@@ -486,21 +504,18 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>日期 *</Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
             <div className="space-y-2">
-              <Label>{repayTarget?.direction === 'borrow' ? '还款金额' : '收款金额'} *</Label>
+              <Label className="flex items-center gap-1">{repayTarget?.direction === 'borrow' ? '还款金额' : '收款金额'} *<Hint text="本次清账金额（含优惠部分），剩余将按此金额减少" /></Label>
               <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} />
-              <p className="text-xs text-muted-foreground">本次清账金额（含优惠部分），剩余将按此金额减少</p>
             </div>
             <div className="space-y-2">
-              <Label>优惠金额</Label>
+              <Label className="flex items-center gap-1">优惠金额<Hint text="减免 / 抵扣券金额（含在此次还款内）" /></Label>
               <Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0.00" />
-              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额（含在此次还款内）</p>
             </div>
             <div className="space-y-2">
-              <Label>实际{repayTarget?.direction === 'borrow' ? '还款' : '收款'}（实付）</Label>
+              <Label className="flex items-center gap-1">实际{repayTarget?.direction === 'borrow' ? '还款' : '收款'}（实付）<Hint text="实付 = 还款金额 − 优惠" /></Label>
               <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
                 {fmtMoney(actualOf(repayForm.amount, repayForm.discount))}
               </div>
-              <p className="text-xs text-muted-foreground">实付 = 还款金额 − 优惠</p>
             </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
           </div>
@@ -598,21 +613,18 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>日期 *</Label><DatePicker value={editPaymentForm.repay_date} onChange={(v) => setEditPaymentForm({ ...editPaymentForm, repay_date: v })} /></div>
             <div className="space-y-2">
-              <Label>还款金额 *</Label>
+              <Label className="flex items-center gap-1">还款金额 *<Hint text="本次清账金额（含优惠部分），剩余将按此金额减少" /></Label>
               <Input type="number" min={0.01} step="0.01" value={editPaymentForm.amount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
-              <p className="text-xs text-muted-foreground">本次清账金额（含优惠部分），剩余将按此金额减少</p>
             </div>
             <div className="space-y-2">
-              <Label>优惠金额</Label>
+              <Label className="flex items-center gap-1">优惠金额<Hint text="减免 / 抵扣券金额（含在此次还款内）" /></Label>
               <Input type="number" min={0} step="0.01" value={editPaymentForm.discount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, discount: e.target.value })} placeholder="0.00" />
-              <p className="text-xs text-muted-foreground">减免 / 抵扣券金额（含在此次还款内）</p>
             </div>
             <div className="space-y-2">
-              <Label>实际还款（实付）</Label>
+              <Label className="flex items-center gap-1">实际还款（实付）<Hint text="实付 = 还款金额 − 优惠" /></Label>
               <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
                 {fmtMoney(actualOf(editPaymentForm.amount, editPaymentForm.discount))}
               </div>
-              <p className="text-xs text-muted-foreground">实付 = 还款金额 − 优惠</p>
             </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={editPaymentForm.note} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
           </div>
