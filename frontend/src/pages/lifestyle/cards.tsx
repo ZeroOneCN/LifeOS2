@@ -171,6 +171,15 @@ function openDuration(dateStr: string): string {
   return parts.join('')
 }
 
+/** 距指定日期的天数（负数表示已过期天数）。 */
+function daysUntil(dateStr: string): number {
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((d.getTime() - today.getTime()) / 86400000)
+}
+
 const phoneFields: FieldDef[] = [
   { key: 'phone_number', label: '号码', type: 'text', required: true },
   {
@@ -320,6 +329,29 @@ const bankColumns: ColumnDef<BankCard>[] = [
   { key: 'card_number', label: '卡号', render: (r) => r.card_number ?? '—' },
   { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
   { key: 'credit_limit', label: '额度', render: (r) => (r.credit_limit ? fmt(r.credit_limit) : '—') },
+  {
+    key: 'expire_date',
+    label: '有效期',
+    render: (r) => {
+      if (!r.expire_date) return '—'
+      const days = daysUntil(r.expire_date)
+      if (days < 0) {
+        return (
+          <span className="text-red-600 dark:text-red-400">
+            {r.expire_date}（已过期 {Math.abs(days)} 天）
+          </span>
+        )
+      }
+      if (days <= 90) {
+        return (
+          <span className="text-amber-600 dark:text-amber-400">
+            {r.expire_date}（剩余 {days} 天）
+          </span>
+        )
+      }
+      return r.expire_date
+    },
+  },
   {
     key: 'status',
     label: '状态',

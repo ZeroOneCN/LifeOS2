@@ -12,7 +12,7 @@ from app.models.notification_center import (
     NotificationTemplate,
 )
 
-from .templates import DEFAULT_TEMPLATES, seed_templates
+from .templates import DEFAULT_TEMPLATES, seed_templates, upgrade_default_templates
 
 # (feature_key, name, category, 默认开启)
 DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
@@ -61,6 +61,8 @@ def _seed_user(db: Session, user_id: int) -> int:
     """为单个用户幂等播种模板与功能开关。返回插入总数。"""
     n_tpl = seed_templates(db, user_id)
     n_set = seed_feature_settings(db, user_id)
+    # 存量用户：将仍是旧内置默认文案的模板升级为新文案
+    upgrade_default_templates(db, user_id)
     return n_tpl + n_set
 
 

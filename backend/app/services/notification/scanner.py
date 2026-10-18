@@ -451,30 +451,57 @@ def _scan_checkup_due(db: Session, advance: int, user_id: int) -> list[dict]:
     ]
 
 
+# 银行卡有效期提醒节奏（按需求固定，不再受功能设置里的提前天数影响）：
+#   · 距到期 ≤ 90 天开始提醒，并在最后 15 天之前每月提醒一次（约 90 / 60 / 30 天各一次）
+#   · 距到期 ≤ 15 天起每天提醒一次
+#   · 已过期且用户未更新有效期时，每天继续提醒
+# 实现方式：去重键按「卡片 + 有效期 + 周期桶」生成。周期桶在最后 15 天内按当天日期、
+# 之外按月数分桶，从而驱动上述频率；用户一旦更新 expire_date，去重键随之改变，
+# 提醒节奏从新的有效期重新计算（即「直到用户更新最新数据」）。
+_CARD_EXPIRE_WINDOW = 90  # 提前提醒窗口（天）
+_CARD_EXPIRE_DAILY_WITHIN = 15  # 进入每天提醒的剩余天数阈值
+
+
 def _scan_card_expire(db: Session, advance: int, user_id: int) -> list[dict]:
-    """证件到期提醒：银行卡有效期到期。"""
+    """证件到期提醒：银行卡有效期。节奏见上方常量说明。"""
     today = date.today()
-    due = today + timedelta(days=advance)
+    window = max(advance, _CARD_EXPIRE_WINDOW)
+    horizon = today + timedelta(days=window)
     rows = db.scalars(
         select(LifestyleBankCard).where(
             LifestyleBankCard.status == "active",
             LifestyleBankCard.user_id == user_id,
             LifestyleBankCard.expire_date.isnot(None),
-            LifestyleBankCard.expire_date >= today,
-            LifestyleBankCard.expire_date <= due,
+            # 含已过期卡片：未更新有效期则持续提醒，从窗口内到逾期全覆盖
+            LifestyleBankCard.expire_date <= horizon,
         )
     ).all()
     out = []
     for r in rows:
+        days_left = (r.expire_date - today).days
+        if days_left <= _CARD_EXPIRE_DAILY_WITHIN:
+            # 最后 15 天 + 已逾期：每天一次，按当天日期生成周期桶
+            bucket = f"d{today.isoformat()}"
+        else:
+            # 提前 3 个月内：按剩余月数分桶，每月一次（30/60/90 天附近各触发一次）
+            bucket = f"m{(days_left + 29) // 30}"
+        if days_left < 0:
+            state = f"已逾期 {abs(days_left)} 天，数据尚未更新"
+        elif days_left == 0:
+            state = "今日到期"
+        else:
+            state = f"剩余 {days_left} 天"
         out.append(
             {
                 "source_id": r.id,
+                "dedup_key": f"{r.id}:{r.expire_date.isoformat()}:{bucket}",
                 "title_ctx": {"card_name": r.card_name, "expire_date": r.expire_date.isoformat()},
                 "content_ctx": {
                     "card_name": r.card_name,
                     "bank": r.bank or "",
                     "expire_date": r.expire_date.isoformat(),
-                    "days_left": (r.expire_date - today).days,
+                    "days_left": days_left,
+                    "state": state,
                 },
             }
         )

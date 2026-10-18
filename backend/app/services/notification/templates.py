@@ -125,10 +125,38 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "生活",
         "证件到期",
         "【证件到期】{card_name} {expire_date}",
-        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，剩余 {days_left} 天，请及时联系银行换发新卡。",
+        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，{state}，请及时更新卡片信息。",
         "银行卡有效期到期提醒",
     ),
 ]
+
+
+# 内置默认模板文案升级映射：仅当用户模板仍与「旧内置默认文案」完全一致时才替换为新文案，
+# 用户自行编辑过的模板不受影响。用于让已注册用户也同步获得改进后的措辞。
+LEGACY_DEFAULT_UPGRADES: dict[str, tuple[str, str]] = {
+    "lifestyle_card_expire": (
+        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，剩余 {days_left} 天，请及时联系银行换发新卡。",
+        "银行卡「{card_name}」（{bank}）有效期至 {expire_date}，{state}，请及时更新卡片信息。",
+    ),
+}
+
+
+def upgrade_default_templates(db: Session, user_id: int) -> int:
+    """将仍是旧内置默认文案的模板升级为最新默认文案。返回更新条数。"""
+    updated = 0
+    for source, (old_content, new_content) in LEGACY_DEFAULT_UPGRADES.items():
+        tpl = db.scalar(
+            select(NotificationTemplate).where(
+                NotificationTemplate.user_id == user_id,
+                NotificationTemplate.source == source,
+            )
+        )
+        if tpl is not None and tpl.content_template == old_content:
+            tpl.content_template = new_content
+            updated += 1
+    if updated:
+        db.commit()
+    return updated
 
 
 def seed_templates(db: Session, user_id: int) -> int:
