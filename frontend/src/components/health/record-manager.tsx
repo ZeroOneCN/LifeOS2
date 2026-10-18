@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Download, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -93,7 +93,19 @@ type RecordManagerProps<T extends { id: number }> = {
   searchable?: boolean
   /** 搜索框占位提示 */
   searchPlaceholder?: string
+  /** 列表筛选下拉框，选中值作为查询参数随请求发送（需后端 filter_columns 支持） */
+  filters?: FilterDef[]
 }
+
+/** 列表筛选下拉框定义 */
+export type FilterDef = {
+  key: string
+  label: string
+  options: { value: string; label: string }[]
+}
+
+/** 筛选下拉框中「全部」选项的占位值（Radix Select 不允许空串 value） */
+const FILTER_ALL = '__all__'
 
 const PAGE_SIZE = 10
 
@@ -137,12 +149,24 @@ export function RecordManager<T extends { id: number }>({
   batchToolbar,
   searchable = false,
   searchPlaceholder = '搜索…',
+  filters,
 }: RecordManagerProps<T>) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<T | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  /** 各筛选下拉框当前选中值（key 为字段名），空串表示不筛选 */
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({})
+
+  /** 仅保留有值的筛选项作为查询参数；引用稳定，避免列表重复请求 */
+  const filterParams = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(filterValues).filter(([, v]) => v !== ''),
+      ),
+    [filterValues],
+  )
 
   // 列表加载逻辑统一委托给 useRecordList Hook（分页/月份过滤/搜索/实时刷新）
   const { items, total, page, setPage, loading, month, setMonth, keyword, setKeyword, load } =
@@ -151,6 +175,7 @@ export function RecordManager<T extends { id: number }>({
       pageSize: PAGE_SIZE,
       monthMode,
       searchable,
+      extraParams: filterParams,
       refreshKey,
     })
 
@@ -227,7 +252,10 @@ export function RecordManager<T extends { id: number }>({
         params.end = `${month}-${String(last).padStart(2, '0')}`
       }
       if (searchable && keyword.trim()) {
-        params.extra = { search_text: keyword.trim() }
+        params.extra = { ...params.extra, search_text: keyword.trim() }
+      }
+      if (Object.keys(filterParams).length) {
+        params.extra = { ...params.extra, ...filterParams }
       }
       const res = await api.list<T>(apiPath, params)
       if (!res.items.length) {
@@ -367,6 +395,28 @@ export function RecordManager<T extends { id: number }>({
               <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => { const n = new Date(); setMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             </div>
           ) : null}
+          {(filters ?? []).map((f) => (
+            <Select
+              key={f.key}
+              value={filterValues[f.key] || FILTER_ALL}
+              onValueChange={(v) => {
+                setFilterValues((prev) => ({ ...prev, [f.key]: v === FILTER_ALL ? '' : v }))
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="h-9 w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={FILTER_ALL}>全部{f.label}</SelectItem>
+                {f.options.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ))}
           {searchable && (
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

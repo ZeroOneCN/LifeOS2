@@ -12,6 +12,8 @@ type UseRecordListOptions = {
   monthMode?: boolean
   /** 启用关键字搜索（配合后端 search_text） */
   searchable?: boolean
+  /** 额外查询参数（如列表筛选条件），值非空时随请求一起发送 */
+  extraParams?: Record<string, string>
   /** 外部刷新触发器，变化时重新加载 */
   refreshKey?: number
   /** 实时刷新间隔（毫秒），默认 30s；传 0 关闭 */
@@ -49,6 +51,7 @@ export function useRecordList<T extends { id: number }>(
     pageSize = 10,
     monthMode = false,
     searchable = false,
+    extraParams,
     refreshKey,
     realtimeInterval = 30_000,
   } = options
@@ -83,18 +86,23 @@ export function useRecordList<T extends { id: number }>(
       if (searchable && deferredKeyword.trim()) {
         params.extra = { ...params.extra, search_text: deferredKeyword.trim() }
       }
+      if (extraParams) {
+        params.extra = { ...params.extra, ...extraParams }
+      }
       const res = await api.list<T>(apiPath, params)
       setItems(res.items)
       setTotal(res.total)
     } finally {
       setLoading(false)
     }
-  }, [apiPath, page, pageSize, monthMode, month, searchable, deferredKeyword])
+    // extraParams 由调用方 useMemo 保证引用稳定，避免每次渲染重复请求
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiPath, page, pageSize, monthMode, month, searchable, deferredKeyword, extraParams])
 
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, refreshKey, month, realtimeTick, deferredKeyword])
+  }, [page, refreshKey, month, realtimeTick, deferredKeyword, extraParams])
 
   const setMonth = useCallback((m: string) => {
     setMonthState(m)

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from typing import Any, Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -84,6 +84,7 @@ def crud_router(
     stats_func: Callable[..., dict] | None = None,
     extra_routes: Callable[[APIRouter], None] | None = None,
     search_columns: list[str] | None = None,
+    filter_columns: list[str] | None = None,
     conflict_fields: list[str] | None = None,
     conflict_msg: str | None = None,
     list_transform: Callable[[list, Session, int], list] | None = None,
@@ -93,6 +94,9 @@ def crud_router(
     所有业务模型（含 user_id）均按当前登录用户隔离：读/改/删仅限本人记录，新增自动归属当前用户。
     stats_func 签名：`(db, days, user_id)`。
     extra_routes: 在动态路由 /{item_id} 之前注册的固定路由，其内部触库端点需自行依赖 get_current_user 并过滤。
+    search_columns: 列表接口的模糊搜索字段，配合前端 `search_text` 参数做多列 ilike 匹配。
+    filter_columns: 列表接口的精确筛选字段，前端以同名字段作为查询参数传入（如
+    `card_category=credit`），非空时按等值过滤。
     conflict_fields: 业务唯一性字段。新增时若同用户已存在相同字段值的记录则返回 409；
     更新时排除自身（防止编辑未改值时报冲突）。conflict_msg 为冲突提示文案。
     list_transform: 列表返回前的派生处理，签名 `(items, db, user_id)`，可用于以当月账单等
@@ -104,6 +108,7 @@ def crud_router(
 
     @router.get("", response_model=PageOut[read_schema])
     def list_items(
+        request: Request,
         page: int = Query(1, ge=1),
         page_size: int = Query(20, ge=1, le=100),
         start: date | None = None,
@@ -121,6 +126,12 @@ def crud_router(
                 stmt = stmt.where(col >= start)
             if end:
                 stmt = stmt.where(col <= end)
+        # 精确筛选：前端以字段名为查询参数传入（如 card_category=credit、status=active）
+        if filter_columns:
+            for col_name in filter_columns:
+                value = request.query_params.get(col_name)
+                if value:
+                    stmt = stmt.where(getattr(model, col_name) == value)
         if search_columns and search_text and search_text.strip():
             kw = f"%{search_text.strip()}%"
             stmt = stmt.where(

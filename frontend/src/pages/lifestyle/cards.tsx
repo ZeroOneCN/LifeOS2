@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2, Search } from 'lucide-react'
+import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -101,7 +101,6 @@ type BankStats = {
   balance_total: number
   credit_total: number
   by_bank: { bank: string; count: number }[]
-  by_bank_category: { card_category: string; bank: string; count: number }[]
   by_category: { card_category: string; count: number }[]
   by_status: { status: string; count: number }[]
 }
@@ -382,57 +381,29 @@ function distLabel(d: { count: number; [k: string]: unknown }): string {
 
 /**
  * 分布卡片：以「名称 · 数量 / 占比」列表 + 占比进度条展示分布。
- *
- * 条目较多时列表内部滚动（限制高度），避免单张卡片过长把整行撑高、
- * 造成同组其他卡片出现大片空白。
- * searchable 时在卡片内提供关键字搜索，便于在长列表中快速定位。
  */
 function DistCard({
   title,
   subtitle,
   data,
-  searchable = false,
-  actions,
 }: {
   title: string
   subtitle?: string
   data: { count: number; [k: string]: unknown }[]
-  searchable?: boolean
-  /** 卡片右上角的操作区（如筛选控件），不传则显示 subtitle */
-  actions?: ReactNode
 }) {
-  const [kw, setKw] = useState('')
   const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
-  const rows = useMemo(() => {
-    const t = kw.trim().toLowerCase()
-    if (!t) return data
-    return data.filter((d) => distLabel(d).toLowerCase().includes(t))
-  }, [data, kw])
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-baseline justify-between gap-2">
           <div className="text-sm font-semibold">{title}</div>
-          {actions ?? (subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>)}
+          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
         </div>
-        {searchable && total > 0 && (
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={kw}
-              onChange={(e) => setKw(e.target.value)}
-              placeholder="搜索名称…"
-              className="h-8 pl-7 text-xs"
-            />
-          </div>
-        )}
         {total === 0 ? (
           <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
-        ) : rows.length === 0 ? (
-          <div className="mt-3 text-sm text-muted-foreground">无匹配结果</div>
         ) : (
-          <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
-            {rows.map((d) => {
+          <ul className="mt-3 space-y-2">
+            {data.map((d) => {
               const name = distLabel(d)
               const count = d.count ?? 0
               const pct = Math.round((count / total) * 100)
@@ -460,8 +431,6 @@ export function CardsPage() {
   const [phoneRefresh, setPhoneRefresh] = useState(0)
   const [bankRefresh, setBankRefresh] = useState(0)
   const [billRefresh, setBillRefresh] = useState(0)
-  /** 银行分布卡片的卡类型筛选：空字符串表示「全部」 */
-  const [bankDistCat, setBankDistCat] = useState('')
 
   const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
   const { data: phoneStats } = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
@@ -502,16 +471,6 @@ export function CardsPage() {
     status: bankStatus.find((x) => x.value === s.status)?.label ?? s.status,
     count: s.count,
   }))
-  // 银行分布数据：按选中的卡类型筛选，空值表示全部
-  const bankDistData = useMemo(
-    () =>
-      bankDistCat
-        ? (bankStats?.by_bank_category ?? [])
-            .filter((b) => b.card_category === bankDistCat)
-            .map((b) => ({ bank: b.bank, count: b.count }))
-        : (bankStats?.by_bank ?? []),
-    [bankStats, bankDistCat],
-  )
 
   // 用于扣账账单中显示手机号
   const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
@@ -760,6 +719,12 @@ export function CardsPage() {
           fields={bankFields}
           columns={bankColumns}
           onMutate={() => setBankRefresh((v) => v + 1)}
+          searchable
+          searchPlaceholder="搜索别名 / 银行 / 持卡人 / 卡号"
+          filters={[
+            { key: 'card_category', label: '卡类型', options: bankTypes },
+            { key: 'status', label: '状态', options: bankStatus },
+          ]}
           extra={
             bankStats ? (
               <>
@@ -769,27 +734,8 @@ export function CardsPage() {
                   <MiniStat icon={CreditCard} label="余额合计" value={fmt(bankStats.balance_total)} />
                   <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
                 </StatRow>
-                <div className="grid items-start gap-4 lg:grid-cols-3">
-                  <DistCard
-                    title="银行分布"
-                    data={bankDistData}
-                    searchable
-                    actions={
-                      <div className="flex gap-1">
-                        {[{ value: '', label: '全部' }, ...bankTypes].map((o) => (
-                          <Button
-                            key={o.value}
-                            variant={bankDistCat === o.value ? 'secondary' : 'ghost'}
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => setBankDistCat(o.value)}
-                          >
-                            {o.label}
-                          </Button>
-                        ))}
-                      </div>
-                    }
-                  />
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <DistCard title="银行分布" data={bankStats.by_bank} />
                   <DistCard title="卡类型" data={bankChartCategory} />
                   <DistCard title="状态分布" data={bankChartStatus} />
                 </div>
