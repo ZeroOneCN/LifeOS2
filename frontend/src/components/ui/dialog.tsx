@@ -76,25 +76,25 @@ function DialogContent({
   // 配合 index.css 中 html 的 scrollbar-gutter: stable（并中和 body 的 margin-right 补偿），
   // 弹窗打开/关闭时页面宽度保持稳定，无需在此额外处理。
 
-  // 回车确认：命中「保存/确认/确定/生成」类主操作按钮
+  // 回车确认：在输入框内按 Enter 时，命中「保存/确认/确定/生成」类主操作按钮
   const onKeyDownCapture = React.useCallback(
     (e: React.KeyboardEvent) => {
       if (!onConfirmEnter || e.key !== 'Enter') return
       const target = e.target as HTMLElement
+      // 文本域回车用于换行，不提交
       if (target instanceof HTMLTextAreaElement) return
-      if (target instanceof HTMLButtonElement) return
-      if (target instanceof HTMLInputElement || target === e.currentTarget) {
-        const content = e.currentTarget as HTMLElement
-        const buttons = Array.from(
-          content.querySelectorAll<HTMLButtonElement>('button[data-slot="dialog-footer"] button, button[data-confirm-enter]')
-        )
-        const confirmBtn = buttons
-          .filter((b) => !b.closest('[data-close-cancel]'))
-          .find((b) => /保存|确认|确定|生成|提交|确定删除|删除/.test(b.textContent ?? ''))
-        if (confirmBtn) {
-          e.preventDefault()
-          confirmBtn.click()
-        }
+      // 仅在输入框内回车才触发：按钮（含下拉/日期选择器触发器）保留自身键盘行为，
+      // 同时避免焦点位于弹窗容器时在纯确认类弹窗中误触操作
+      if (!(target instanceof HTMLInputElement)) return
+      const content = e.currentTarget as HTMLElement
+      const confirmBtn = Array.from(
+        content.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-footer"] button, button[data-confirm-enter]')
+      )
+        .filter((b) => !b.closest('[data-close-cancel]'))
+        .find((b) => /保存|确认|确定|生成|提交|确定删除|删除/.test(b.textContent ?? ''))
+      if (confirmBtn && !confirmBtn.disabled) {
+        e.preventDefault()
+        confirmBtn.click()
       }
     },
     [onConfirmEnter]
