@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
+import { AlertTriangle, Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
@@ -61,10 +62,20 @@ type MonthDetail = {
   days: { record_date: string; period: string; steps: number }[]
 }
 
+/** 每日完整性检测结果：昨天及更早未录满 17 个时间段的日期 */
+type IncompleteDays = {
+  expected: number
+  days: { record_date: string; recorded: number; missing: string[] }[]
+  total: number
+}
+
 type SeriesPoint = { record_date: string; steps: number }
 type PeriodPoint = { period: string; label: string; steps: number }
 
 const DAILY_PAGE_SIZE = 8
+
+// 每日完整性检测的追溯窗口（天）：仅提醒最近该范围内的缺失日期
+const MISSING_WINDOW_DAYS = 14
 
 // 逐小时时段：08-09 … 22-23，末段 full（全天最终累计）
 const PERIODS = [
@@ -135,6 +146,11 @@ export function StepsPage() {
   const [detail, setDetail] = useState<MonthDetail | null>(null)
   const [activePeriod, setActivePeriod] = useState<string | null>(null)
 
+  // 每日完整性提醒：缺失日期列表 + 弹窗开关 + 本次会话已关闭的缺失签名
+  const [missingDays, setMissingDays] = useState<IncompleteDays['days']>([])
+  const [reminderOpen, setReminderOpen] = useState(false)
+  const dismissedSigRef = useRef('')
+
   const DAILY_TOTAL_PAGES = Math.max(1, Math.ceil((daySum?.total ?? 0) / DAILY_PAGE_SIZE))
 
   // 可用年份（从每月聚合数据派生）
@@ -154,6 +170,17 @@ export function StepsPage() {
     setDetail(res)
   }
 
+  // 每日完整性检测：昨天及更早若未录满 17 个时间段，则列入待补录提醒
+  const loadMissingDays = async () => {
+    try {
+      const res = await api.query<IncompleteDays>(`/health/steps/incomplete-days?days=${MISSING_WINDOW_DAYS}`)
+      setMissingDays(res.days)
+      if (res.days.length === 0) setReminderOpen(false)
+    } catch {
+      /* 网络异常时静默，不打断正常录步 */
+    }
+  }
+
   useEffect(() => {
     loadDaySummary()
     loadMonthDetail()
@@ -163,6 +190,19 @@ export function StepsPage() {
   useEffect(() => {
     api.query<{ stride_cm: number }>('/health/steps/settings').then((r) => setStride(String(r.stride_cm)))
   }, [])
+
+  // 数据变更（保存/删除/设置）后重新检测完整性
+  useEffect(() => {
+    loadMissingDays()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh])
+
+  // 存在缺失且未被本次会话关闭时自动弹窗；录入弹窗打开期间不抢焦点
+  useEffect(() => {
+    if (dialogOpen || missingDays.length === 0) return
+    const sig = missingDays.map((d) => d.record_date).join(',')
+    if (sig !== dismissedSigRef.current) setReminderOpen(true)
+  }, [missingDays, dialogOpen])
 
   useEffect(() => {
     api.query<MonthlyStats>('/health/steps/monthly').then((r) => setMonths(r.months))
@@ -205,6 +245,15 @@ export function StepsPage() {
       period: row.period,
       steps: String(row.steps),
     })
+    setDialogOpen(true)
+  }
+
+  // 从完整性提醒直接补录：定位到该日期缺失的第一个时间段
+  const fillMissing = (day: IncompleteDays['days'][number]) => {
+    setEditing(null)
+    setFormError('')
+    setForm({ record_date: day.record_date, period: day.missing[0] ?? 'full', steps: '' })
+    setReminderOpen(false)
     setDialogOpen(true)
   }
 
@@ -670,6 +719,63 @@ export function StepsPage() {
               取消
             </Button>
             <Button onClick={saveSetting}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={reminderOpen}
+        onOpenChange={(o) => {
+          if (!o) dismissedSigRef.current = missingDays.map((d) => d.record_date).join(',')
+          setReminderOpen(o)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-amber-500" />
+              步数记录待补充
+            </DialogTitle>
+            <DialogDescription>
+              以下 {missingDays.length} 天未录满 {PERIODS.length} 个时间段，补录或修正后该提醒会自动消失。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {missingDays.map((d) => {
+              const labels = d.missing.map(periodLabel)
+              const preview = labels.slice(0, 4).join('、')
+              const rest = labels.length > 4 ? ` 等 ${labels.length} 段` : ''
+              return (
+                <div
+                  key={d.record_date}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{d.record_date}</span>
+                      <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                        已录 {d.recorded}/{PERIODS.length}
+                      </Badge>
+                    </div>
+                    <div
+                      className="mt-1 truncate text-xs text-muted-foreground"
+                      title={labels.join('、')}
+                    >
+                      缺 {labels.length} 段：{preview}
+                      {rest}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => fillMissing(d)}>
+                    去补充
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReminderOpen(false)}>
+              稍后补充
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

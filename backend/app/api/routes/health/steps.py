@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -12,6 +12,27 @@ from app.models import HealthStepSetting, HealthSteps, UserProfile
 from app.schemas.health import StepSettingCreate, StepSettingRead, StepsCreate, StepsRead
 
 router = APIRouter()
+
+# 每日应有的完整时间段（16 个整点小时段 + 1 个全天最终段），用于每日步数完整性检测
+EXPECTED_PERIODS = [
+    "08-09",
+    "09-10",
+    "10-11",
+    "11-12",
+    "12-13",
+    "13-14",
+    "14-15",
+    "15-16",
+    "16-17",
+    "17-18",
+    "18-19",
+    "19-20",
+    "20-21",
+    "21-22",
+    "22-23",
+    "23-24",
+    "full",
+]
 
 
 def _get_setting(db: Session, user_id: int) -> HealthStepSetting:
@@ -162,6 +183,50 @@ def _register_fixed(router) -> None:
             "page": page,
             "page_size": page_size,
         }
+
+    @router.get("/incomplete-days")
+    def incomplete_days(
+        days: int = Query(14, ge=1, le=90),
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """检测每日步数是否录满 EXPECTED_PERIODS（17 个时间段），返回缺失日期供前端弹窗提醒补录。
+
+        判定口径：同一天已录入的不同时间段数量 < 17 即视为缺失。仅扫描「昨天及更早」的日期，
+        且不早于用户首个记录日期，避免对进行中的当天与启用前的空白期误报。
+        """
+        today = date.today()
+        first_date = db.scalar(
+            select(func.min(HealthSteps.record_date)).where(HealthSteps.user_id == user.id)
+        )
+        empty = {"expected": len(EXPECTED_PERIODS), "days": [], "total": 0}
+        if first_date is None:
+            return empty
+        start = max(today - timedelta(days=days), first_date)
+        if start >= today:
+            return empty
+        rows = db.execute(
+            select(HealthSteps.record_date, HealthSteps.period)
+            .where(HealthSteps.user_id == user.id)
+            .where(HealthSteps.record_date >= start)
+            .where(HealthSteps.record_date < today)
+            .distinct()
+        ).all()
+        recorded: dict[date, set[str]] = defaultdict(set)
+        for record_date, period in rows:
+            recorded[record_date].add(period)
+        # 从昨天往前逐日比对，最新缺失排在最前
+        result = []
+        cursor = today - timedelta(days=1)
+        while cursor >= start:
+            got = recorded.get(cursor, set())
+            missing = [p for p in EXPECTED_PERIODS if p not in got]
+            if missing:
+                result.append(
+                    {"record_date": cursor, "recorded": len(got), "missing": missing}
+                )
+            cursor -= timedelta(days=1)
+        return {"expected": len(EXPECTED_PERIODS), "days": result, "total": len(result)}
 
     @router.get("/month-detail")
     def month_detail(
