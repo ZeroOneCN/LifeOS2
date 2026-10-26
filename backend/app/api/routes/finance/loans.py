@@ -50,7 +50,8 @@ def _platforms_stats(db: Session, days: int, user_id: int, start=None, end=None)
                 "credit_limit": p.credit_limit,
                 "total_owed": round(total_owed, 2),
                 "total_paid": round(total_paid, 2),
-                "remaining": round(total_owed - total_paid, 2),
+                # 剩余夹紧为非负：浮点累加误差会得到 -0.0
+                "remaining": max(0.0, round(total_owed - total_paid, 2)),
                 "bill_count": len(bills),
             }
         )
@@ -87,7 +88,8 @@ def _bills_stats(db: Session, days: int, user_id: int, start=None, end=None) -> 
             "amount": r.amount,
             "interest": r.interest or 0,
             "paid_amount": r.paid_amount,
-            "remaining": round(r.amount - r.paid_amount, 2),
+            # 剩余夹紧为非负：浮点累加误差会得到 -0.0
+            "remaining": max(0.0, round(r.amount - r.paid_amount, 2)),
             "status": r.status,
             "overdue": r.due_date < today if r.due_date else False,
         }
@@ -101,7 +103,7 @@ def _bills_stats(db: Session, days: int, user_id: int, start=None, end=None) -> 
     return {
         "total": round(total, 2),
         "paid": round(paid, 2),
-        "remaining": round(total - paid, 2),
+        "remaining": max(0.0, round(total - paid, 2)),
         "total_interest": round(total_interest, 2),
         "status": status_count,
         "by_month": [
@@ -148,8 +150,8 @@ def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
             FinanceRepayment.user_id == user_id,
         )
     ).all()
-    # 已还 = 实付 + 优惠（优惠券/抵扣同样抵减欠款）
-    bill.paid_amount = sum((r.amount or 0) + (r.discount or 0) for r in reps)
+    # 已还 = 实付 + 优惠（优惠券/抵扣同样抵减欠款）；取整到分，避免浮点累加误差（如 1823.0300000000002）
+    bill.paid_amount = round(sum((r.amount or 0) + (r.discount or 0) for r in reps), 2)
     if bill.amount - bill.paid_amount <= 1e-2:
         bill.status = "cleared"
     elif bill.paid_amount > 0:

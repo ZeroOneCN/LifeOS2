@@ -61,7 +61,18 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+/** 金额四舍五入到分（避免浮点误差，如 1823.03 - 1823.0300000000002 = -2.27e-13）。 */
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+/**
+ * 金额格式化：保留 2 位小数。
+ * 对极小值（|n| < 0.005，含浮点误差产生的负零）归零，避免显示成 ¥-0.00。
+ */
+const fmt = (n: number) => {
+  const v = Math.abs(n) < 0.005 ? 0 : n
+  return `¥${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+/** 计算账单剩余欠款：取整到分并夹紧为非负（优惠抵减后浮点误差会得到极小负数）。 */
+const remainingOf = (amount: number, paidAmount: number) => Math.max(0, round2(amount - paidAmount))
 
 type TabKey = 'housing' | 'subscription' | 'loan'
 
@@ -1540,7 +1551,7 @@ function LoanTab() {
   const thisMonthBills = bills.filter((b) => b.bill_month.slice(0, 7) === thisMonth)
   const thisMonthPrincipal = thisMonthBills.reduce((s, b) => s + (b.amount - (b.interest || 0)), 0)
   const thisMonthInterest = thisMonthBills.reduce((s, b) => s + (b.interest || 0), 0)
-  const thisMonthRemaining = thisMonthBills.reduce((s, b) => s + (b.amount - b.paid_amount), 0)
+  const thisMonthRemaining = Math.max(0, round2(thisMonthBills.reduce((s, b) => s + remainingOf(b.amount, b.paid_amount), 0)))
   const addPlatform = async () => {
     const name = newPf.name?.trim()
     if (!name) return
@@ -1656,8 +1667,8 @@ function LoanTab() {
   }
 
   const openRepay = (b: LoanBill) => {
-    const remaining = b.amount - b.paid_amount
-    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? String(remaining) : '', discount: '', method: '', note: '' })
+    const remaining = remainingOf(b.amount, b.paid_amount)
+    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? remaining.toFixed(2) : '', discount: '', method: '', note: '' })
     setRepayDialog(b)
   }
   const actualPay = (): number => {
@@ -1818,7 +1829,7 @@ function LoanTab() {
       {/* 网贷账单 */}
       <Card>
         <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">网贷账单（含利息）</CardTitle>
+          <CardTitle className="text-lg font-medium">网贷账单</CardTitle>
           <div className="flex items-center gap-1">
             <Tip label="上一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button></Tip>
             <MonthPicker value={`${loanMonth}-01`} onChange={(v) => setLoanMonth(v.slice(0, 7))} className="h-8 w-[140px]" />
@@ -1832,27 +1843,33 @@ function LoanTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>平台</TableHead><TableHead>账单月份</TableHead><TableHead>到期日</TableHead>
-                <TableHead className="text-right">欠款/利息</TableHead><TableHead className="text-right">已还/剩余</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead>
+                <TableHead className="px-3 text-right whitespace-nowrap">欠款 <span className="mx-1 text-muted-foreground/40">|</span> 利息</TableHead><TableHead className="px-3 text-right whitespace-nowrap">已还 <span className="mx-1 text-muted-foreground/40">|</span> 剩余</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {monthBills.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{bills.length === 0 ? '暂无账单' : `「${loanMonth}」无账单`}</TableCell></TableRow>
               ) : monthBills.map((b) => {
-                const remaining = b.amount - b.paid_amount
+                const remaining = remainingOf(b.amount, b.paid_amount)
                 const interest = b.interest ?? 0
                 return (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <span>{fmt(b.amount)}</span>
-                      {interest > 0 && <span className="text-amber-600 dark:text-amber-400 ml-1">/{fmt(interest)} 息</span>}
+                    <TableCell className="px-3 text-right whitespace-nowrap tabular-nums">
+                      <span className="font-medium">{fmt(b.amount)}</span>
+                      {interest > 0 && (
+                        <>
+                          <span className="mx-1.5 text-muted-foreground/40">|</span>
+                          <span className="text-amber-600 dark:text-amber-400">{fmt(interest)} 息</span>
+                        </>
+                      )}
                     </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <span>{fmt(b.paid_amount)}</span>
-                      <span className={`ml-1 ${remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>/{fmt(remaining)} 余</span>
+                    <TableCell className="px-3 text-right whitespace-nowrap tabular-nums">
+                      <span className="font-medium">{fmt(b.paid_amount)}</span>
+                      <span className="mx-1.5 text-muted-foreground/40">|</span>
+                      <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)} 余</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
@@ -2002,7 +2019,7 @@ function LoanTab() {
           <DialogHeader>
             <DialogTitle>{repayDialog && repayDialog.amount - repayDialog.paid_amount > 0.001 && repayForm.amount ? (Number(repayForm.amount) >= repayDialog.amount - repayDialog.paid_amount - 0.001 ? '一次结清' : '部分还款') : '还款'}</DialogTitle>
             <DialogDescription>
-              {repayDialog ? `${platformName(repayDialog.platform_id)} · ${repayDialog.bill_month} · 剩余 ${fmt(repayDialog.amount - repayDialog.paid_amount)}` : ''}
+              {repayDialog ? `${platformName(repayDialog.platform_id)} · ${repayDialog.bill_month} · 剩余 ${fmt(remainingOf(repayDialog.amount, repayDialog.paid_amount))}` : ''}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
@@ -2099,7 +2116,7 @@ function LoanTab() {
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(b.amount - b.paid_amount)}</p>
+                  <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
                   <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
                 </div>
               </div>
