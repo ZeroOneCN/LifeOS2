@@ -1843,7 +1843,7 @@ function LoanTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>平台</TableHead><TableHead>账单月份</TableHead><TableHead>到期日</TableHead>
-                <TableHead className="px-3 text-right whitespace-nowrap">欠款 <span className="mx-1 text-muted-foreground/40">|</span> 利息</TableHead><TableHead className="px-3 text-right whitespace-nowrap">已还 <span className="mx-1 text-muted-foreground/40">|</span> 剩余</TableHead><TableHead>状态</TableHead><TableHead className="text-right">操作</TableHead>
+                <TableHead className="whitespace-nowrap">欠款 <span className="mx-1 text-muted-foreground/40">|</span> 利息</TableHead><TableHead className="whitespace-nowrap">已还 <span className="mx-1 text-muted-foreground/40">|</span> 剩余</TableHead><TableHead>状态</TableHead><TableHead>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1857,7 +1857,7 @@ function LoanTab() {
                     <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
-                    <TableCell className="px-3 text-right whitespace-nowrap tabular-nums">
+                    <TableCell className="whitespace-nowrap tabular-nums">
                       <span className="font-medium">{fmt(b.amount)}</span>
                       {interest > 0 && (
                         <>
@@ -1866,17 +1866,20 @@ function LoanTab() {
                         </>
                       )}
                     </TableCell>
-                    <TableCell className="px-3 text-right whitespace-nowrap tabular-nums">
+                    <TableCell className="whitespace-nowrap tabular-nums">
                       <span className="font-medium">{fmt(b.paid_amount)}</span>
                       <span className="mx-1.5 text-muted-foreground/40">|</span>
                       <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)}</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                    <TableCell>
+                      <div className="flex items-center gap-1">
                         <Tip label="查看还款记录"><Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }}><ListTree className="size-3.5" /></Button></Tip>
-                        {remaining > 0 && (
+                        {/* 无剩余欠款时不显示还款按钮，但保留等宽占位，避免各列图标纵向错位 */}
+                        {remaining > 0 ? (
                           <Tip label="还款"><Button variant="ghost" size="icon" onClick={() => openRepay(b)}><Banknote className="size-3.5" /></Button></Tip>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="invisible" aria-hidden tabIndex={-1}><Banknote className="size-3.5" /></Button>
                         )}
                         <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
