@@ -1591,15 +1591,29 @@ function LoanTab() {
     }
   }
 
+  /**
+   * 计算账单的最迟还款日。
+   * 以账单月份（出账月）为基准取 due_day；若 due_day 早于 bill_day（如美团 25 出账 / 次月 3 还款），
+   * 说明还款落在次月，需顺延一个月；日号超出目标月天数时取该月最后一天。
+   * 例：美团 bill_day=25、due_day=3 → 2026-09 账单（9.25 出账）最迟 2026-10-03 还款。
+   * @param platformId 平台 ID
+   * @param billMonth 账单月份（出账月，YYYY-MM 或 YYYY-MM-DD）
+   * @returns 最迟还款日（YYYY-MM-DD），无法计算时返回空串
+   */
   const dueFor = (platformId: string, billMonth: string) => {
     const pf = platforms.find((p) => p.id === Number(platformId))
     const day = pf?.due_day
     if (!day || !billMonth) return ''
     const [y, m] = billMonth.split('-').map(Number)
     if (!y || !m) return ''
-    const last = new Date(y, m, 0).getDate()
+    // 还款日早于出账日 → 还款在次月（跨月还款，仅美团这类平台会出现）
+    const crossMonth = pf?.bill_day != null && day < pf.bill_day
+    const target = new Date(y, m - 1 + (crossMonth ? 1 : 0), 1)
+    const ty = target.getFullYear()
+    const tm = target.getMonth() + 1
+    const last = new Date(ty, tm, 0).getDate()
     const dd = Math.min(day, last)
-    return `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+    return `${ty}-${String(tm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
   }
   const openBillCreate = () => {
     const pfId = platforms[0] ? String(platforms[0].id) : ''
