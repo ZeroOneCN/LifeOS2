@@ -30,11 +30,12 @@ from app.services.backup_scheduler import (
     start_scheduler as start_backup_scheduler,
     stop_scheduler as stop_backup_scheduler,
 )
+from app.services.watch_collector import watch_collector
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时自动创建数据库表（若不存在）并启动提醒调度器。"""
+    """启动时自动创建数据库表（若不存在）并启动提醒调度器与手环心率采集。"""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
@@ -45,7 +46,9 @@ async def lifespan(app: FastAPI):
         db.close()
     start_scheduler()
     start_backup_scheduler()
+    await watch_collector.start()
     yield
+    await watch_collector.stop()
     stop_backup_scheduler()
     stop_scheduler()
 

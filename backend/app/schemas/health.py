@@ -41,7 +41,7 @@ class VitalsSleepCreate(BaseModel):
     wake_count: int | None = Field(None, ge=0)
     sleep_quality: int | None = Field(None, ge=1, le=10)
     note: str | None = None
-    # 手环自动采集的心率统计（由 ingest 接口写入，手工表单通常不填）
+    # 手环自动采集的心率统计（由后端蓝牙采集器写入，手工表单通常不填）
     hr_min: int | None = Field(None, ge=0, le=250)
     hr_max: int | None = Field(None, ge=0, le=250)
     hr_avg: float | None = Field(None, ge=0, le=250)
@@ -151,18 +151,6 @@ class VitalsSleepCreate(BaseModel):
 
 class VitalsSleepRead(VitalsSleepCreate, ORMRead):
     pass
-
-
-class HRIngest(BaseModel):
-    """手环心率每日聚合上报（桥接服务调用，按天幂等 upsert）。"""
-
-    record_date: date
-    hr_avg: float = Field(ge=0, le=250)
-    hr_min: int | None = Field(None, ge=0, le=250)
-    hr_max: int | None = Field(None, ge=0, le=250)
-    hr_samples: int = Field(0, ge=0)
-    hr_source: str | None = Field("xiaomi", max_length=16)
-    hr_measured_at: datetime | None = None
 
 
 class FitnessCreate(BaseModel):

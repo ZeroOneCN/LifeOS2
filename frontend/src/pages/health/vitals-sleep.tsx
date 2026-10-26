@@ -31,7 +31,7 @@ type VitalsRecord = {
   wake_count?: number
   sleep_quality?: number
   note?: string
-  // 手环蓝牙自动采集统计（后端 ingest 写入）
+  // 手环蓝牙自动采集统计（后端进程内采集器写入）
   hr_min?: number
   hr_max?: number
   hr_avg?: number

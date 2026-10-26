@@ -40,10 +40,20 @@ class Settings(BaseSettings):
     BRUTE_FORCE_THRESHOLD: int = 10
     # mysqldump 可执行文件路径（留空则自动从 PATH 查找）
     MYSQLDUMP_PATH: str = ""
-    # 手环心率采集：桥接服务写入所用的静态密钥（留空则关闭 ingest 接口）
-    WATCH_INGEST_KEY: str = ""
+    # 手环心率采集：是否在本进程内启动蓝牙扫描（无蓝牙环境请保持 False，自动降级）
+    ENABLE_WATCH_COLLECTOR: bool = False
     # 手环数据归属用户 id（0 表示自动取第一个用户）
     WATCH_USER_ID: int = 0
+    # 设备白名单（设备名/地址，逗号分隔，大小写不敏感的子串匹配；留空表示自动锁定首个上报心率的设备）
+    WATCH_DEVICE: str = ""
+    # 小米厂商数据中“心率字节”的偏移（默认 3）
+    WATCH_HR_OFFSET: int = 3
+    # 同一设备的最小采样间隔（秒），用于压制高频广播
+    WATCH_SAMPLE_SECONDS: int = 60
+    # 同一数值持续不变超过该时长（分钟）视为冻结值，不再计入样本
+    WATCH_FREEZE_MINUTES: int = 15
+    # 聚合结果落库间隔（秒）
+    WATCH_FLUSH_INTERVAL: int = 300
 
     model_config = SettingsConfigDict(
         env_file=".env",
