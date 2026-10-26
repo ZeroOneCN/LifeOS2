@@ -1862,14 +1862,14 @@ function LoanTab() {
                       {interest > 0 && (
                         <>
                           <span className="mx-1.5 text-muted-foreground/40">|</span>
-                          <span className="text-amber-600 dark:text-amber-400">{fmt(interest)} 息</span>
+                          <span className="text-amber-600 dark:text-amber-400">{fmt(interest)}</span>
                         </>
                       )}
                     </TableCell>
                     <TableCell className="px-3 text-right whitespace-nowrap tabular-nums">
                       <span className="font-medium">{fmt(b.paid_amount)}</span>
                       <span className="mx-1.5 text-muted-foreground/40">|</span>
-                      <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)} 余</span>
+                      <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)}</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell className="text-right">
