@@ -199,6 +199,8 @@ class LoanBillCreate(BaseModel):
     interest: float | None = Field(None, ge=0)
     paid_amount: float = Field(default=0, ge=0)
     status: str = Field("pending", pattern="^(pending|partial|cleared)$")
+    # 是否已申请容时服务（固定顺延 3 天，按账单周期单独申请）
+    grace_applied: bool = False
     note: str | None = None
 
 

@@ -91,6 +91,7 @@ def _bills_stats(db: Session, days: int, user_id: int, start=None, end=None) -> 
             # 剩余夹紧为非负：浮点累加误差会得到 -0.0
             "remaining": max(0.0, round(r.amount - r.paid_amount, 2)),
             "status": r.status,
+            "grace_applied": bool(r.grace_applied),
             "overdue": r.due_date < today if r.due_date else False,
         }
         for r in rows

@@ -225,6 +225,8 @@ class FinanceLoanBill(TimestampMixin, UserOwned, Base):
     interest: Mapped[float | None] = mapped_column(Float, default=0)  # 其中利息部分，便于展示
     paid_amount: Mapped[float] = mapped_column(Float, default=0)  # 已还（实付+优惠）
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/partial/cleared
+    # 是否已申请容时服务（多为 3 天，需按账单周期单独申请，故记在账单上）
+    grace_applied: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[str | None] = mapped_column(Text)
 
 

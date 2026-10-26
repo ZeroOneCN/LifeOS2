@@ -56,7 +56,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
-import { Tip } from '@/components/ui/tip'
+import { Hint, Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
@@ -1419,13 +1419,14 @@ type LoanBill = {
   interest?: number
   paid_amount: number
   status: 'pending' | 'partial' | 'cleared'
+  grace_applied?: boolean
   note?: string
 }
 type LoanBillStats = {
   total: number; paid: number; remaining: number; total_interest?: number
   status: { pending: number; partial: number; cleared: number }
   by_month: { month: string; amount: number }[]
-  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; overdue?: boolean }[]
+  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; grace_applied?: boolean; overdue?: boolean }[]
 }
 type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
 
@@ -1628,7 +1629,7 @@ function LoanTab() {
   }
   const openBillCreate = () => {
     const pfId = platforms[0] ? String(platforms[0].id) : ''
-    setBillForm({ platform_id: pfId, bill_month: `${loanMonth}-01`, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', note: '' })
+    setBillForm({ platform_id: pfId, bill_month: `${loanMonth}-01`, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', grace_applied: '0', note: '' })
     setBillDialog({})
   }
   const saveBill = async () => {
@@ -1639,7 +1640,7 @@ function LoanTab() {
       bill_month: billMonth, due_date: billForm.due_date || null,
       amount: Number(billForm.amount), interest: billForm.interest ? Number(billForm.interest) : 0,
       paid_amount: Number(billForm.paid_amount || 0),
-      status: billForm.status, note: billForm.note || null,
+      status: billForm.status, grace_applied: billForm.grace_applied === '1', note: billForm.note || null,
     }
     setSaving(true)
     try {
@@ -1856,7 +1857,14 @@ function LoanTab() {
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
-                    <TableCell className="text-muted-foreground">{b.due_date ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {b.due_date ?? '—'}
+                      {b.grace_applied && (
+                        <Tip label={`已申请容时服务 · 最终还款日 ${graceEndDate(b.due_date)}`}>
+                          <Badge variant="outline" className="ml-1.5 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">容时 +{GRACE_DAYS}</Badge>
+                        </Tip>
+                      )}
+                    </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
                       <span className="font-medium">{fmt(b.amount)}</span>
                       {interest > 0 && (
@@ -1881,7 +1889,7 @@ function LoanTab() {
                         ) : (
                           <Button variant="ghost" size="icon" className="invisible" aria-hidden tabIndex={-1}><Banknote className="size-3.5" /></Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, grace_applied: b.grace_applied ? '1' : '0', note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
                       </div>
                     </TableCell>
@@ -1900,7 +1908,9 @@ function LoanTab() {
           <CardContent className="space-y-1.5 text-sm">
             {billStats?.upcoming.map((u) => (
               <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40' : 'bg-white/70 dark:bg-white/5'}`}>
-                <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge></span>
+                <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge>
+                  {u.grace_applied && <Badge variant="outline" className="ml-1 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">容时 +{GRACE_DAYS}</Badge>}
+                </span>
                 <span className="text-muted-foreground">
                   {u.overdue ? <span className="text-red-600 dark:text-red-400 font-semibold">已逾期 · </span> : ''}
                   到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmt(u.remaining)}</span>
@@ -2007,6 +2017,12 @@ function LoanTab() {
                 <SelectContent><SelectItem value="pending">待还</SelectItem><SelectItem value="partial">部分已还</SelectItem><SelectItem value="cleared">已结清</SelectItem></SelectContent>
               </Select>
             </div>
+            <div className="col-span-2 flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <Label htmlFor="grace-applied" className="flex cursor-pointer items-center gap-1">
+                已申请容时服务<Hint text="容时服务固定 3 天，需按账单周期单独申请。勾选表示本笔已申请，最终还款日 = 还款日 + 3 天；系统逾期宽限期仍统一按 3 天计算" />
+              </Label>
+              <Switch id="grace-applied" checked={billForm.grace_applied === '1'} onCheckedChange={(v) => setBillForm({ ...billForm, grace_applied: v ? '1' : '0' })} />
+            </div>
             <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={billForm.note} onChange={(e) => setBillForm({ ...billForm, note: e.target.value })} /></div>
           </div>
           <DialogFooter>
@@ -2106,6 +2122,9 @@ function LoanTab() {
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
                     {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
+                    {b.grace_applied && (
+                      <span className="rounded-md border border-indigo-400 px-2 py-0.5 text-sm font-semibold text-indigo-600 dark:border-indigo-500/60 dark:text-indigo-400">已申请容时</span>
+                    )}
                     {overdueDays(b.due_date) > GRACE_DAYS ? (
                       <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超宽限期 · 将上报征信</span>
                     ) : (
