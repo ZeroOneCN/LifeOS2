@@ -840,13 +840,15 @@ export function CheckupPage() {
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-sm font-medium">{r.item_name}</span>
                           {!editing && (
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-destructive"
-                              onClick={() => removeRecordItem(idx)}
-                            >
-                              <X className="size-4" />
-                            </button>
+                            <Tip label="移除该指标">
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={() => removeRecordItem(idx)}
+                              >
+                                <X className="size-4" />
+                              </button>
+                            </Tip>
                           )}
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
@@ -1143,9 +1145,11 @@ export function CheckupPage() {
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {panelItems.map((it, idx) => (
                     <div key={idx} className="flex items-center gap-2 rounded-lg border p-2">
-                      <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removePanelItem(idx)}>
-                        <X className="size-4" />
-                      </button>
+                      <Tip label="移除该指标">
+                        <button type="button" className="text-muted-foreground hover:text-destructive" onClick={() => removePanelItem(idx)}>
+                          <X className="size-4" />
+                        </button>
+                      </Tip>
                       <Input
                         value={it.item_name}
                         placeholder="指标名"
