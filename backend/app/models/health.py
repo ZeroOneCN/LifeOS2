@@ -61,6 +61,13 @@ class HealthVitalsSleep(TimestampMixin, UserOwned, Base):
     wake_count: Mapped[int | None] = mapped_column(Integer)  # 醒来次数
     sleep_quality: Mapped[int | None] = mapped_column(Integer)  # 睡眠质量 1-10
     note: Mapped[str | None] = mapped_column(Text)
+    # 手环蓝牙自动采集的心率统计（按天聚合；与手工填写的 heart_rate 独立保存，避免覆盖）
+    hr_min: Mapped[int | None] = mapped_column(Integer)  # 当日有效样本最低心率
+    hr_max: Mapped[int | None] = mapped_column(Integer)  # 当日有效样本最高心率
+    hr_avg: Mapped[float | None] = mapped_column(Float)  # 当日有效样本平均心率
+    hr_samples: Mapped[int | None] = mapped_column(Integer)  # 当日有效样本数
+    hr_source: Mapped[str | None] = mapped_column(String(16))  # 数据来源 xiaomi/standard
+    hr_measured_at: Mapped[datetime | None] = mapped_column(DateTime)  # 最近一次采集时间
 
 
 class HealthFitness(TimestampMixin, UserOwned, Base):

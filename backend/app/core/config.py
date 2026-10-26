@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     BRUTE_FORCE_THRESHOLD: int = 10
     # mysqldump 可执行文件路径（留空则自动从 PATH 查找）
     MYSQLDUMP_PATH: str = ""
+    # 手环心率采集：桥接服务写入所用的静态密钥（留空则关闭 ingest 接口）
+    WATCH_INGEST_KEY: str = ""
+    # 手环数据归属用户 id（0 表示自动取第一个用户）
+    WATCH_USER_ID: int = 0
 
     model_config = SettingsConfigDict(
         env_file=".env",
