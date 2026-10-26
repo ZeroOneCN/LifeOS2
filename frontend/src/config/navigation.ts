@@ -82,7 +82,6 @@ export const navigation: NavSection[] = [
       { title: '购物记录', url: '/finance/shopping', icon: ShoppingCart },
       { title: '旅行开支', url: '/finance/travel', icon: Plane },
       { title: '账单管理', url: '/finance/bills', icon: Receipt },
-      { title: '账单提醒', url: '/finance/reminders', icon: Bell },
       { title: '财务规划', url: '/finance/planning', icon: Target },
       { title: '债务管理', url: '/finance/debts', icon: HandCoins },
       { title: '财务报告', url: '/finance/reports', icon: FileText },

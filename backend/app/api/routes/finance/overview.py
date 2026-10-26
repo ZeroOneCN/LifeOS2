@@ -14,7 +14,6 @@ from app.models import (
     FinanceInvestment,
     FinanceLoanBill,
     FinancePlan,
-    FinanceReminder,
     FinanceRepayment,
     FinanceShoppingRecord,
     FinanceSubscription,
@@ -138,15 +137,6 @@ def overview(
         .order_by(FinanceLoanBill.due_date)
         .limit(5)
     ).all()
-    pending_reminders = db.scalars(
-        select(FinanceReminder)
-        .where(
-            FinanceReminder.user_id == user.id,
-            FinanceReminder.status == "pending",
-        )
-        .order_by(FinanceReminder.due_date)
-        .limit(5)
-    ).all()
     # 待缴水电
     unpaid_utils = db.scalars(
         select(FinanceUtility)
@@ -265,10 +255,6 @@ def overview(
                 "due_date": r.due_date,
             }
             for r in unpaid_utils
-        ],
-        "pending_reminders": [
-            {"id": r.id, "title": r.title, "category": r.category, "amount": r.amount, "due_date": r.due_date}
-            for r in pending_reminders
         ],
         "upcoming_subs": [
             {

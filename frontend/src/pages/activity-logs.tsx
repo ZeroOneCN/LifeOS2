@@ -84,7 +84,6 @@ const MODULE_NAMES: Record<string, string> = {
   'finance/investments': '投资记账',
   'finance/memos': '备忘录',
   'finance/currencies': '汇率设置',
-  'finance/reminders': '账单提醒',
   'finance/planning': '财务规划',
   'finance/debts': '债务管理',
   'finance/reports': '财务报告',

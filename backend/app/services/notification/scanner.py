@@ -14,7 +14,6 @@ from app.models.finance import (
     FinanceDebt,
     FinanceLoanBill,
     FinanceLoanPlatform,
-    FinanceReminder,
     FinanceSubscription,
     FinanceUtility,
 )
@@ -208,36 +207,6 @@ def _scan_loan(
             # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
             item["dedup_key"] = f"{r.id}:due"
         out.append(item)
-    return out
-
-
-def _scan_reminder(db: Session, advance: int, user_id: int) -> list[dict]:
-    today = date.today()
-    due = today + timedelta(days=advance)
-    rows = db.scalars(
-        select(FinanceReminder).where(
-            FinanceReminder.status == "pending",
-            FinanceReminder.user_id == user_id,
-            FinanceReminder.due_date.isnot(None),
-            FinanceReminder.due_date <= due,
-            FinanceReminder.due_date >= today,
-        )
-    ).all()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "source_id": r.id,
-                "title_ctx": {"title": r.title},
-                "content_ctx": {
-                    "title": r.title,
-                    "category": r.category or "",
-                    "amount": _money(r.amount),
-                    "due_date": r.due_date.isoformat(),
-                    "days_left": (r.due_date - today).days,
-                },
-            }
-        )
     return out
 
 
@@ -512,7 +481,6 @@ SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_subscription_due": _scan_subscription,
     "finance_utility_due": _scan_utility,
     "finance_loan_due": _scan_loan,
-    "finance_reminder_due": _scan_reminder,
     "finance_debt_due": _scan_debt,
     "lifestyle_todo_due": _scan_todo,
     "lifestyle_item_expire": _scan_item_expire,

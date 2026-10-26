@@ -46,7 +46,6 @@ const SOURCE_LABELS: Record<string, string> = {
   finance_subscription_due: '服务订阅到期',
   finance_utility_due: '水电燃气到期',
   finance_loan_due: '网贷还款',
-  finance_reminder_due: '账单提醒',
   finance_debt_due: '债务到期',
   lifestyle_todo_due: '待办到期',
   lifestyle_item_expire: '物品保质期',

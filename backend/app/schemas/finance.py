@@ -219,20 +219,6 @@ class RepaymentRead(RepaymentCreate, ORMRead):
     pass
 
 
-class ReminderCreate(BaseModel):
-    reminder_date: date
-    title: str
-    category: str
-    amount: float | None = Field(None, ge=0)
-    due_date: date | None = None
-    status: str = Field("pending", pattern="^(pending|done)$")
-    note: str | None = None
-
-
-class ReminderRead(ReminderCreate, ORMRead):
-    pass
-
-
 class PlanCreate(BaseModel):
     plan_date: date
     plan_type: str

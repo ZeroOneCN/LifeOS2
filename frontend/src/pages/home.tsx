@@ -55,7 +55,6 @@ type FinOverview = {
   week_trend: { date: string; amount: number }[]
   pending_bills: { id: number; bill_type: string; amount: number; remaining?: number; due_date?: string }[]
   pending_utils: { id: number; bill_type: string; amount: number; due_date?: string }[]
-  pending_reminders: { id: number; title: string; category: string; amount?: number; due_date?: string }[]
   upcoming_subs: { id: number; title: string; category: string; amount?: number; due_date?: string }[]
 }
 
@@ -197,11 +196,6 @@ function buildFlowItems(fin: FinOverview | null, life: LifeOverview | null): Flo
   fin?.pending_utils.forEach((u) =>
     push(`util-${u.id}`, u.bill_type, `水电账单 · 到期 ${u.due_date ?? '—'}`, '/finance/overview', daysUntil(u.due_date), {
       amount: u.amount,
-    }),
-  )
-  fin?.pending_reminders.forEach((r) =>
-    push(`rem-${r.id}`, r.title, `${r.category} · 截止 ${r.due_date ?? '—'}`, '/finance/reminders', daysUntil(r.due_date), {
-      amount: r.amount,
     }),
   )
   fin?.upcoming_subs.forEach((s) =>

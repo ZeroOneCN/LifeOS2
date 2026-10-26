@@ -19,7 +19,6 @@ const InvestmentOverviewPage = lazy(() => import('@/pages/investment/overview').
 const InvestmentReportsPage = lazy(() => import('@/pages/investment/reports').then((m) => ({ default: m.InvestmentReportsPage })))
 const FinanceReportsPage = lazy(() => import('@/pages/finance/reports').then((m) => ({ default: m.FinanceReportsPage })))
 const PlanningPage = lazy(() => import('@/pages/finance/planning').then((m) => ({ default: m.PlanningPage })))
-const RemindersPage = lazy(() => import('@/pages/finance/reminders').then((m) => ({ default: m.RemindersPage })))
 const ShoppingPage = lazy(() => import('@/pages/finance/shopping').then((m) => ({ default: m.ShoppingPage })))
 const TravelPage = lazy(() => import('@/pages/finance/travel').then((m) => ({ default: m.TravelPage })))
 const HomePage = lazy(() => import('@/pages/home').then((m) => ({ default: m.HomePage })))
@@ -79,7 +78,6 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/finance/shopping': <ShoppingPage />,
   '/finance/travel': <TravelPage />,
   '/finance/bills': <BillsPage />,
-  '/finance/reminders': <RemindersPage />,
   '/finance/planning': <PlanningPage />,
   '/finance/debts': <DebtsPage />,
   '/finance/reports': <FinanceReportsPage />,

@@ -120,7 +120,6 @@ TABLE_LABELS: dict[str, str] = {
     "finance_loan_platforms": "借款平台",
     "finance_loan_bills": "借款账单",
     "finance_repayments": "还款记录",
-    "finance_reminders": "账单提醒",
     "finance_planning": "财务规划",
     "finance_debts": "债务管理",
     "finance_debt_payments": "债务还款",

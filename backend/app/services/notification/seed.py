@@ -19,7 +19,6 @@ DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
     ("finance_subscription_due", "服务订阅到期", "财务", False),
     ("finance_utility_due", "水电燃气到期", "财务", False),
     ("finance_loan_due", "网贷/房贷还款", "财务", False),
-    ("finance_reminder_due", "账单提醒事项", "财务", False),
     ("finance_debt_due", "债务到期", "财务", False),
     ("lifestyle_todo_due", "待办到期", "生活", False),
     ("lifestyle_item_expire", "物品保质期", "生活", False),

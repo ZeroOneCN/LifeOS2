@@ -56,14 +56,6 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "网贷/房贷还款提醒",
     ),
     (
-        "finance_reminder_due",
-        "财务",
-        "账单提醒事项",
-        "【账单提醒】{title}",
-        "提醒事项「{title}」（{category}）金额 {amount}，截止 {due_date}，剩余 {days_left} 天。",
-        "手动录入的账单提醒",
-    ),
-    (
         "finance_debt_due",
         "财务",
         "债务到期",

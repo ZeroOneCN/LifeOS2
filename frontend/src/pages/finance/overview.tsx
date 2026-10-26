@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   AlertTriangle,
   Banknote,
-  Bell,
   CalendarClock,
   HandCoins,
   Home,
@@ -26,7 +25,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type PendingItem = { id: number; bill_type: string; amount: number; remaining?: number; due_date?: string }
-type PendingReminder = { id: number; title: string; category: string; amount?: number; due_date?: string }
+type UpcomingSub = { id: number; title: string; category: string; amount?: number; due_date?: string }
 type ActivePlan = { id: number; title: string; plan_type: string; target_amount?: number; saved_amount?: number }
 
 type FinanceOverviewData = {
@@ -48,8 +47,7 @@ type FinanceOverviewData = {
   week_trend: { date: string; amount: number }[]
   pending_bills: PendingItem[]
   pending_utils: PendingItem[]
-  pending_reminders: PendingReminder[]
-  upcoming_subs: PendingReminder[]
+  upcoming_subs: UpcomingSub[]
   active_plans: ActivePlan[]
 }
 
@@ -212,33 +210,6 @@ export function FinanceOverviewPage() {
               <p className="py-8 text-center text-sm text-muted-foreground">暂无待支付榜单</p>
             ) : (
               data.pending_bills.map((b) => <ItemRow key={b.id} item={b} />)
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Bell className="size-4 text-red-500" />
-              待办提醒
-            </CardTitle>
-            <CardDescription>缴费、还款等未处理事项</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {data.pending_reminders.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">暂无待办提醒</p>
-            ) : (
-              data.pending_reminders.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                  <div>
-                    <div className="text-sm font-medium">{r.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.category} · 截止 {r.due_date ?? '—'}
-                    </div>
-                  </div>
-                  {r.amount != null && <span className="text-sm font-medium">{fmt(r.amount)}</span>}
-                </div>
-              ))
             )}
           </CardContent>
         </Card>

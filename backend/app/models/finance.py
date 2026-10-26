@@ -242,21 +242,6 @@ class FinanceRepayment(TimestampMixin, UserOwned, Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
-class FinanceReminder(TimestampMixin, UserOwned, Base):
-    """账单提醒：待办缴费/还款提醒。"""
-
-    __tablename__ = "finance_reminders"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    reminder_date: Mapped[date] = mapped_column(Date, index=True)
-    title: Mapped[str] = mapped_column(String(128))  # 提醒标题
-    category: Mapped[str] = mapped_column(String(32), index=True)  # 类型
-    amount: Mapped[float | None] = mapped_column(Float)  # 金额
-    due_date: Mapped[date | None] = mapped_column(Date)  # 截止日期
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/done
-    note: Mapped[str | None] = mapped_column(Text)
-
-
 class FinancePlan(TimestampMixin, UserOwned, Base):
     """财务规划：储蓄/预算/投资等目标。"""
 
