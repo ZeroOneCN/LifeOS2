@@ -65,6 +65,8 @@ SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "�
 LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
 # 网贷还款功能开关键：逾期小时提醒任务只处理该模块
 LOAN_FEATURE_KEY = "finance_loan_due"
+# 容时服务固定 3 天（与前端 bills.tsx 的 GRACE_DAYS 保持一致）
+LOAN_GRACE_DAYS = 3
 
 
 def _next_day_of_month(today: date, day: int) -> date:
@@ -176,36 +178,43 @@ def _scan_loan(
     }
     out = []
     for r in rows:
+        # 已申请容时服务：最终还款日顺延 3 天，提醒节奏（提前提醒/到期/逾期）整体后移
+        final_due = r.due_date + timedelta(days=LOAN_GRACE_DAYS) if r.grace_applied else r.due_date
+        due_text = final_due.isoformat() + ("（已容时）" if r.grace_applied else "")
         if overdue_only:
             # 小时级任务只处理已逾期账单
-            if r.due_date >= today:
+            if final_due >= today:
                 continue
-        elif r.due_date < today:
+        elif final_due < today:
             # 日常扫描跳过逾期账单，由小时级任务专门负责（每天每小时提醒）
+            continue
+        elif final_due > due:
+            # 容时顺延后可能超出提前提醒窗口
             continue
         item = {
             "source_id": r.id,
             "title_ctx": {
                 "platform": platforms.get(r.platform_id, "网贷"),
-                "due_date": r.due_date.isoformat(),
+                "due_date": due_text,
             },
             "content_ctx": {
                 "platform": platforms.get(r.platform_id, "网贷"),
                 "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
                 "amount": _money(r.amount),
-                "due_date": r.due_date.isoformat(),
-                "days_left": (r.due_date - today).days,
-                "days_overdue": (today - r.due_date).days,
+                "due_date": due_text,
+                "days_left": (final_due - today).days,
+                "days_overdue": (today - final_due).days,
                 "paid_amount": _money(r.paid_amount),
                 "status": LOAN_STATUS_MAP.get(r.status, r.status),
             },
         }
-        if r.due_date < today:
+        if final_due < today:
             # 逾期：去重键精确到“小时”，确保每个小时各提醒一次
             item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{datetime.now().hour}"
-        elif r.due_date == today:
-            # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒
-            item["dedup_key"] = f"{r.id}:due"
+        elif final_due == today:
+            # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒；
+            # 容时账单带上最终到期日，避免与原还款日的到期提醒互相吞掉
+            item["dedup_key"] = f"{r.id}:due:{final_due.isoformat()}" if r.grace_applied else f"{r.id}:due"
         out.append(item)
     return out
 
