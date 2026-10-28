@@ -1175,19 +1175,18 @@ export function BackupPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>任务</TableHead>
+                        <TableHead className="w-[180px]">任务</TableHead>
                         <TableHead className="w-16">格式</TableHead>
-                        <TableHead className="w-52">文件名</TableHead>
-                        <TableHead className="w-16">结果</TableHead>
-                        <TableHead>执行时间</TableHead>
-                        <TableHead className="w-[400px]">详情</TableHead>
+                        <TableHead className="w-56">文件名</TableHead>
+                        <TableHead className="w-[110px]">结果</TableHead>
+                        <TableHead className="w-[150px]">执行时间</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {logs.map((l) => (
                         <TableRow key={l.id}>
                           <Tip label={l.name}>
-                            <TableCell className="font-medium max-w-[120px] truncate">
+                            <TableCell className="max-w-[180px] truncate font-medium">
                               {l.name}
                             </TableCell>
                           </Tip>
@@ -1197,35 +1196,30 @@ export function BackupPage() {
                             </Badge>
                           </TableCell>
                           <Tip label={l.filename || ''}>
-                            <TableCell className="max-w-[120px] truncate font-mono text-xs">
+                            <TableCell className="max-w-[200px] truncate font-mono text-xs">
                               {l.filename || '-'}
                             </TableCell>
                           </Tip>
                           <TableCell>
                             {l.status === 'success' ? (
-                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                成功
-                              </Badge>
+                              <div className="flex items-center gap-1.5">
+                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  成功
+                                </Badge>
+                                {l.file_size_display && (
+                                  <span className="text-xs text-muted-foreground">{l.file_size_display}</span>
+                                )}
+                              </div>
                             ) : (
-                              <Badge variant="destructive">失败</Badge>
-                            )}
-                            {l.file_size_display && l.status === 'success' && (
-                              <span className="ml-1.5 text-xs text-muted-foreground">{l.file_size_display}</span>
+                              <Tip label={l.error_message || '执行失败'}>
+                                <Badge variant="destructive" className="cursor-help">
+                                  失败
+                                </Badge>
+                              </Tip>
                             )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatTime(l.started_at)}
-                          </TableCell>
-                          <TableCell className="max-w-[300px]">
-                            {l.error_message ? (
-                              <Tip label={l.error_message}>
-                                <span className="block text-xs text-destructive truncate">
-                                  {l.error_message}
-                                </span>
-                              </Tip>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1278,7 +1272,7 @@ export function BackupPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingBackups ? (
+              {backups.length === 0 && loadingBackups ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
@@ -1289,13 +1283,17 @@ export function BackupPage() {
                   <p className="text-xs">在"数据导出"或"定时备份"中导出数据后，备份文件将出现在这里</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div
+                  className={`overflow-x-auto transition-opacity ${
+                    loadingBackups ? 'pointer-events-none opacity-60' : ''
+                  }`}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>文件名</TableHead>
-                        <TableHead>大小</TableHead>
-                        <TableHead>修改时间</TableHead>
+                        <TableHead className="w-24">大小</TableHead>
+                        <TableHead className="w-[160px]">修改时间</TableHead>
                         <TableHead className="w-28 text-right">操作</TableHead>
                       </TableRow>
                     </TableHeader>
