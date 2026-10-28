@@ -48,6 +48,10 @@ def _platforms_stats(db: Session, days: int, user_id: int, start=None, end=None)
                 "bill_day": p.bill_day,
                 "due_day": p.due_day,
                 "credit_limit": p.credit_limit,
+                # 容时服务配置：前端平台编辑弹窗需要回填，否则一律显示默认值
+                "grace_days": p.grace_days,
+                "grace_auto": p.grace_auto,
+                "grace_hour": p.grace_hour,
                 "total_owed": round(total_owed, 2),
                 "total_paid": round(total_paid, 2),
                 # 剩余夹紧为非负：浮点累加误差会得到 -0.0
