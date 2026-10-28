@@ -153,19 +153,3 @@ class LifestyleLifeReport(TimestampMixin, UserOwned, Base):
     period_end: Mapped[date] = mapped_column(Date)  # 统计结束
     summary: Mapped[str | None] = mapped_column(Text)  # 概览摘要
     content: Mapped[str] = mapped_column(Text)  # JSON 结构内容
-
-
-class LifestyleTodo(TimestampMixin, UserOwned, Base):
-    """待办清单：待办事项。"""
-
-    __tablename__ = "lifestyle_todos"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(128), index=True)  # 事项
-    category: Mapped[str | None] = mapped_column(String(32))  # 分类
-    priority: Mapped[str] = mapped_column(
-        String(8), default="medium"
-    )  # high/medium/low
-    due_date: Mapped[date | None] = mapped_column(Date)  # 截止日期
-    done: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否完成
-    note: Mapped[str | None] = mapped_column(Text)

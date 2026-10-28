@@ -89,7 +89,6 @@ const MODULE_NAMES: Record<string, string> = {
   'finance/reports': '财务报告',
   'lifestyle/items': '物品追踪',
   'lifestyle/sim-cards': '卡片管理',
-  'lifestyle/todos': '待办清单',
   'lifestyle/schedule': '日程管理',
   'investment/forex': '外汇交易',
   notifications: '通知中心',

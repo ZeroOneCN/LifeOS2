@@ -134,7 +134,6 @@ TABLE_LABELS: dict[str, str] = {
     "lifestyle_carriers": "运营商平台",
     "lifestyle_card_bills": "卡账单",
     "lifestyle_life_reports": "生活报告",
-    "lifestyle_todos": "待办清单",
     "investment_forex": "外汇交易",
     "investment_fund_records": "基金记录",
     "investment_reports": "投资报告",

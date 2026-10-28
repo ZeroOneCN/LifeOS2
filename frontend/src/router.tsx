@@ -33,7 +33,6 @@ const ItemsPage = lazy(() => import('@/pages/lifestyle/items').then((m) => ({ de
 const CardsPage = lazy(() => import('@/pages/lifestyle/cards').then((m) => ({ default: m.CardsPage })))
 const LifestyleOverviewPage = lazy(() => import('@/pages/lifestyle/overview').then((m) => ({ default: m.LifestyleOverviewPage })))
 const LifestyleReportsPage = lazy(() => import('@/pages/lifestyle/reports').then((m) => ({ default: m.LifestyleReportsPage })))
-const TodosPage = lazy(() => import('@/pages/lifestyle/todos').then((m) => ({ default: m.TodosPage })))
 const NotFoundPage = lazy(() => import('@/pages/not-found').then((m) => ({ default: m.NotFoundPage })))
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((m) => ({ default: m.NotificationsPage })))
 const PlaceholderPage = lazy(() => import('@/pages/placeholder').then((m) => ({ default: m.PlaceholderPage })))
@@ -84,7 +83,6 @@ const implementedPages: Record<string, React.ReactNode> = {
   '/lifestyle/overview': <LifestyleOverviewPage />,
   '/lifestyle/items': <ItemsPage />,
   '/lifestyle/cards': <CardsPage />,
-  '/lifestyle/todos': <TodosPage />,
   '/lifestyle/reports': <LifestyleReportsPage />,
   '/investment/overview': <InvestmentOverviewPage />,
   '/investment/forex': <ForexPage />,

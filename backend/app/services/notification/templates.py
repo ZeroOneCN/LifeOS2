@@ -1,6 +1,6 @@
 """通知模板：默认模板定义、种子写入与渲染。"""
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.notification_center import NotificationTemplate
@@ -75,14 +75,6 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "债务「{name}」（{direction}，对方 {counterparty}）到期日 {due_date}，剩余 {days_left} 天，"
         "总额 {amount}，剩余 {remaining}。",
         "借入/借出债务到期提醒",
-    ),
-    (
-        "lifestyle_todo_due",
-        "生活",
-        "待办到期",
-        "【待办到期】{title}",
-        "待办「{title}」截止 {due_date}，剩余 {days_left} 天，优先级：{priority}。",
-        "待办清单到期提醒",
     ),
     (
         "lifestyle_item_expire",
@@ -194,12 +186,23 @@ def upgrade_default_templates(db: Session, user_id: int) -> int:
     return updated
 
 
+# 已下线的提醒场景：播种时清理其历史模板（如待办清单功能已移除）。
+REMOVED_TEMPLATE_SOURCES: tuple[str, ...] = ("lifestyle_todo_due",)
+
+
 def seed_templates(db: Session, user_id: int) -> int:
     """为指定用户补种内置默认模板：仅补齐该用户缺失的 source。
 
     按 source 逐个判断，保证后续版本新增的提醒场景也能补种给老用户，
-    而不是整批跳过。
+    而不是整批跳过。同时清理已下线场景的历史模板，避免留下无效条目。
     """
+    # 已下线的提醒场景（如待办清单已从系统移除）
+    db.execute(
+        delete(NotificationTemplate).where(
+            NotificationTemplate.user_id == user_id,
+            NotificationTemplate.source.in_(REMOVED_TEMPLATE_SOURCES),
+        )
+    )
     existing = set(
         db.scalars(
             select(NotificationTemplate.source).where(

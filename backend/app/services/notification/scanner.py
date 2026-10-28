@@ -25,7 +25,6 @@ from app.models.lifestyle import (
     LifestyleCardBill,
     LifestyleItem,
     LifestylePhoneCard,
-    LifestyleTodo,
 )
 from app.models.health import HealthCheckup
 from app.models.notification import Notification
@@ -366,35 +365,6 @@ def _scan_debt(db: Session, advance: int, user_id: int) -> list[dict]:
     return out
 
 
-def _scan_todo(db: Session, advance: int, user_id: int) -> list[dict]:
-    today = date.today()
-    due = today + timedelta(days=advance)
-    rows = db.scalars(
-        select(LifestyleTodo).where(
-            LifestyleTodo.done.is_(False),
-            LifestyleTodo.user_id == user_id,
-            LifestyleTodo.due_date.isnot(None),
-            LifestyleTodo.due_date >= today,
-            LifestyleTodo.due_date <= due,
-        )
-    ).all()
-    out = []
-    for r in rows:
-        out.append(
-            {
-                "source_id": r.id,
-                "title_ctx": {"title": r.title},
-                "content_ctx": {
-                    "title": r.title,
-                    "due_date": r.due_date.isoformat(),
-                    "days_left": (r.due_date - today).days,
-                    "priority": r.priority or "",
-                },
-            }
-        )
-    return out
-
-
 def _scan_item_expire(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     due = today + timedelta(days=advance)
@@ -664,7 +634,6 @@ SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_rent_due": _scan_rent,
     "finance_loan_due": _scan_loan,
     "finance_debt_due": _scan_debt,
-    "lifestyle_todo_due": _scan_todo,
     "lifestyle_item_expire": _scan_item_expire,
     "lifestyle_phone_bill": _scan_phone_bill,
     "lifestyle_bankcard_due": _scan_bankcard_due,

@@ -125,19 +125,6 @@ class LifeReportRead(LifeReportCreate, ORMRead):
     pass
 
 
-class TodoCreate(BaseModel):
-    title: str
-    category: str | None = None
-    priority: str = Field("medium", pattern="^(high|medium|low)$")
-    due_date: date | None = None
-    done: bool = False
-    note: str | None = None
-
-
-class TodoRead(TodoCreate, ORMRead):
-    pass
-
-
 class PageOut(BaseModel, Generic[T]):
     items: list[T]
     total: int

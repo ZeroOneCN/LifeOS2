@@ -10,7 +10,6 @@ from app.models import (
     LifestyleCardBill,
     LifestyleItem,
     LifestylePhoneCard,
-    LifestyleTodo,
 )
 from app.services.finance_report import build_pdf  # 复用 PDF 渲染
 
@@ -92,23 +91,11 @@ def build_lifestyle_report(
     bank_active = sum(1 for b in banks if b.status == "active")
     bank_credit = sum(b.credit_limit or 0 for b in banks if b.card_category == "credit")
 
-    # ---------- 待办 ----------
-    todos = db.scalars(
-        select(LifestyleTodo).where(
-            (LifestyleTodo.user_id == user_id) if user_id is not None else True
-        )
-    ).all()
-    done_todos = sum(1 for t in todos if t.done)
-    pending_todos = sum(1 for t in todos if not t.done)
-    overdue_todos = sum(
-        1 for t in todos if not t.done and t.due_date and t.due_date < today
-    )
-
     title = f"{label} 生活报告"
     summary = (
         f"统计区间 {start.isoformat()} ~ {end.isoformat()}，新增物品 {len(month_items)} 件"
         f"（花费 ¥{month_spend:,.2f}），手机卡扣账 {deduct_count} 笔"
-        f"（¥{deduct_total:,.2f}），待办待处理 {pending_todos} 项。"
+        f"（¥{deduct_total:,.2f}）。"
     )
 
     content = [
@@ -139,22 +126,11 @@ def build_lifestyle_report(
                 ["信用卡总额度", f"¥{bank_credit:,.2f}"],
             ],
         },
-        {"type": "h2", "text": "三、待办清单"},
-        {
-            "type": "table",
-            "header": ["指标", "数值"],
-            "rows": [
-                ["待办总数", f"{len(todos)} 项"],
-                ["已完成", f"{done_todos} 项"],
-                ["待处理", f"{pending_todos} 项"],
-                ["已逾期", f"{overdue_todos} 项"],
-            ],
-        },
     ]
 
     # 当月物品明细（前 30 条）
     if month_items:
-        content.append({"type": "h2", "text": "四、本月新增物品"})
+        content.append({"type": "h2", "text": "三、本月新增物品"})
         content.append(
             {
                 "type": "table",

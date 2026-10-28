@@ -13,7 +13,6 @@ from app.models import (
     LifestyleItem,
     LifestyleLifeReport,
     LifestylePhoneCard,
-    LifestyleTodo,
     UserProfile,
 )
 
@@ -80,13 +79,6 @@ def overview(
     month_paid_ids = {b.phone_card_id for b in month_bills}
     unpaid_this_month = sum(1 for p in phones if p.id not in month_paid_ids)
 
-    # ---------- 待办 ----------
-    todos = db.scalars(
-        select(LifestyleTodo).where(LifestyleTodo.user_id == user.id)
-    ).all()
-    pending = [t for t in todos if not t.done]
-    overdue = [t for t in pending if t.due_date and t.due_date < today]
-
     latest_report = None
     rep = db.scalars(
         select(LifestyleLifeReport)
@@ -117,9 +109,6 @@ def overview(
         "bank_active": sum(1 for b in banks if b.status == "active"),
         "month_deduct": round(month_deduct, 2),
         "month_deduct_count": len(month_bills),
-        "todo_total": len(todos),
-        "todo_pending": len(pending),
-        "todo_overdue": len(overdue),
         "expiring_items": [
             {
                 "id": r.id,
@@ -129,16 +118,6 @@ def overview(
                 "days_left": (r.expire_date - today).days,
             }
             for r in sorted(expiring, key=lambda x: x.expire_date or date.max)[:10]
-        ],
-        "pending_todos": [
-            {
-                "id": t.id,
-                "title": t.title,
-                "category": t.category,
-                "due_date": t.due_date.isoformat() if t.due_date else None,
-                "priority": t.priority,
-            }
-            for t in pending[:10]
         ],
         "latest_report": latest_report,
     }

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  CaseSensitive,
   CircleDollarSign,
   Coins,
   CreditCard,
@@ -68,15 +67,12 @@ type HealthDash = {
 }
 
 type LifeOverview = {
-  todo_pending: number
-  todo_overdue: number
   item_expiring: number
   item_expired: number
   item_value: number
   month_deduct: number
   phone_total: number
   bank_total: number
-  pending_todos: { id: number; title: string; category: string; due_date?: string; priority?: string }[]
   expiring_items: { id: number; item_name: string; category: string; expire_date?: string; days_left: number }[]
   latest_report: { id: number; title: string; period_label?: string; summary?: string } | null
 }
@@ -203,15 +199,6 @@ function buildFlowItems(fin: FinOverview | null, life: LifeOverview | null): Flo
       amount: s.amount,
     }),
   )
-  life?.pending_todos.forEach((t) => {
-    const days = daysUntil(t.due_date)
-    const overdue = Number.isFinite(days) && days < 0
-    push(`todo-${t.id}`, t.title, `${t.category} · ${t.due_date ?? '无期限'}`, '/lifestyle/todos', days, {
-      badge: t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : t.priority === 'low' ? '低' : undefined,
-      // 高优先级待办即使无期限也按「临近」呈现，逾期则升级为「紧急」
-      tone: overdue ? 'danger' : !Number.isFinite(days) && t.priority === 'high' ? 'warning' : toneOf(days),
-    })
-  })
   life?.expiring_items.forEach((i) =>
     push(`item-${i.id}`, i.item_name, `${i.category} · 距到期 ${i.days_left} 天`, '/lifestyle/items', i.days_left, {
       badge: i.days_left <= 0 ? '已过期' : `剩 ${i.days_left} 天`,
@@ -500,7 +487,6 @@ export function HomePage() {
           </StatGroup>
 
           <StatGroup icon={Package} title="生活" cols="grid gap-4 grid-cols-2 sm:grid-cols-3">
-            <StatCard icon={CaseSensitive} label="待办事项" value={`${life?.todo_pending ?? 0} 项`} hint={life?.todo_overdue ? `其中 ${life.todo_overdue} 项已逾期` : '暂无逾期'} />
             <StatCard icon={Package} label="临期物品" value={`${life?.item_expiring ?? 0} 项`} hint={life?.item_expired ? `另有 ${life.item_expired} 项已过期` : '30 天内到期'} />
             <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${life?.phone_total ?? 0} 张 · 银行卡 ${life?.bank_total ?? 0} 张`} />
           </StatGroup>

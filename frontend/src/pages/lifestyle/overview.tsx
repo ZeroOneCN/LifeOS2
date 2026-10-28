@@ -5,7 +5,6 @@ import {
   CalendarClock,
   CreditCard,
   FileText,
-  ListTodo,
   Package,
   Smartphone,
 } from 'lucide-react'
@@ -16,7 +15,6 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 type ExpiringItem = { id: number; item_name: string; category: string; expire_date?: string; days_left: number }
-type PendingTodo = { id: number; title: string; category?: string; due_date?: string; priority: string }
 type LatestReport = { id: number; title: string; period_label?: string; summary?: string }
 
 type OverviewData = {
@@ -34,11 +32,7 @@ type OverviewData = {
   bank_active: number
   month_deduct: number
   month_deduct_count: number
-  todo_total: number
-  todo_pending: number
-  todo_overdue: number
   expiring_items: ExpiringItem[]
-  pending_todos: PendingTodo[]
   latest_report: LatestReport | null
 }
 
@@ -90,12 +84,6 @@ function SectionCard({ title, to, children }: { title: string; to?: string; chil
       <CardContent>{children}</CardContent>
     </Card>
   )
-}
-
-const priortyMeta: Record<string, { label: string; className: string }> = {
-  high: { label: '高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
-  medium: { label: '中', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
-  low: { label: '低', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
 }
 
 export function LifestyleOverviewPage() {
@@ -163,16 +151,9 @@ export function LifestyleOverviewPage() {
           hint={`正常 ${data.bank_active} 张 · 本月扣账 ${fmt(data.month_deduct)}`}
           to="/lifestyle/cards"
         />
-        <StatCard
-          icon={ListTodo}
-          label="待办清单"
-          value={`${data.todo_pending} 项待办`}
-          hint={`共 ${data.todo_total} 项 · 逾期 ${data.todo_overdue} 项`}
-          to="/lifestyle/todos"
-        />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4">
         <SectionCard title="即将过期物品" to="/lifestyle/items">
           {data.expiring_items.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -197,31 +178,6 @@ export function LifestyleOverviewPage() {
               ))}
               {data.item_expired > 0 && (
                 <p className="text-xs text-destructive">另有 {data.item_expired} 件已过期</p>
-              )}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title="待处理待办" to="/lifestyle/todos">
-          {data.pending_todos.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">暂无待办</p>
-          ) : (
-            <div className="space-y-2">
-              {data.pending_todos.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                  <div>
-                    <div className="text-sm font-medium">{t.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.category ?? '未分类'} · 截止 {t.due_date ?? '—'}
-                    </div>
-                  </div>
-                  <Badge className={priortyMeta[t.priority]?.className}>
-                    {priortyMeta[t.priority]?.label ?? t.priority}
-                  </Badge>
-                </div>
-              ))}
-              {data.todo_overdue > 0 && (
-                <p className="text-xs text-destructive">{data.todo_overdue} 项已逾期，请尽快处理</p>
               )}
             </div>
           )}

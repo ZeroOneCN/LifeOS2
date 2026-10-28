@@ -3,7 +3,7 @@
 支持按 user_id 播种单个用户；不带 user_id 时为所有已存在的用户播种。
 """
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import UserProfile
@@ -21,7 +21,6 @@ DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
     ("finance_rent_due", "房租应缴", "财务", False),
     ("finance_loan_due", "网贷/房贷还款", "财务", False),
     ("finance_debt_due", "债务到期", "财务", False),
-    ("lifestyle_todo_due", "待办到期", "生活", False),
     ("lifestyle_item_expire", "物品保质期", "生活", False),
     ("lifestyle_phone_bill", "手机卡月租扣账", "生活", False),
     ("lifestyle_bankcard_due", "银行卡还款日", "生活", False),
@@ -35,6 +34,9 @@ DEFAULT_FEATURES: list[tuple[str, str, str, bool]] = [
 LEGACY_FEATURE_RENAMES: dict[str, tuple[str, str]] = {
     "lifestyle_card_expire": ("证件到期", "银行卡有效期"),
 }
+
+# 已下线的提醒功能（如待办清单已从系统移除）：播种时清理其历史开关，避免留下无效控制项。
+REMOVED_FEATURE_KEYS: tuple[str, ...] = ("lifestyle_todo_due",)
 
 
 def seed_feature_settings(db: Session, user_id: int) -> int:
@@ -53,6 +55,12 @@ def seed_feature_settings(db: Session, user_id: int) -> int:
     }
     inserted = 0
     renamed = 0
+    cleaned = db.execute(
+        delete(FeatureReminderSetting).where(
+            FeatureReminderSetting.user_id == user_id,
+            FeatureReminderSetting.feature_key.in_(REMOVED_FEATURE_KEYS),
+        )
+    ).rowcount or 0
     for key, name, category, enabled in DEFAULT_FEATURES:
         row = rows.get(key)
         if row is None:
@@ -73,7 +81,7 @@ def seed_feature_settings(db: Session, user_id: int) -> int:
         if legacy and row.name == legacy[0]:
             row.name = legacy[1]
             renamed += 1
-    if inserted or renamed:
+    if inserted or renamed or cleaned:
         db.commit()
     return inserted
 
