@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.models.finance import (
     FinanceDebt,
+    FinanceHousing,
     FinanceLoanBill,
     FinanceLoanPlatform,
+    FinanceRentTerm,
     FinanceSubscription,
     FinanceUtility,
 )
@@ -61,7 +63,12 @@ def _is_within(due: date, today: date, advance: int) -> bool:
 
 
 # 状态值英文 → 中文映射（用于通知内容展示）
-SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "已取消"}
+SUB_STATUS_MAP = {
+    "active": "生效中",
+    "paused": "已暂停",
+    "cancelled": "已取消",
+    "expired": "已到期",
+}
 LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
 # 网贷还款功能开关键：逾期小时提醒任务只处理该模块
 LOAN_FEATURE_KEY = "finance_loan_due"
@@ -98,6 +105,12 @@ def _scan_subscription(db: Session, advance: int, user_id: int) -> list[dict]:
         due = _add_months(start, cycles * max(1, ((today - start).days // 28) // cycles))
         while due < today:
             due = _add_months(due, cycles)
+        # 未自动续费且有到期时间：以到期日为最后一次提醒，过期后不再提醒
+        if r.end_date and not r.auto_renew:
+            if r.end_date < today:
+                continue
+            if due > r.end_date:
+                due = r.end_date
         if not _is_within(due, today, advance):
             continue
         out.append(
@@ -141,6 +154,53 @@ def _scan_utility(db: Session, advance: int, user_id: int) -> list[dict]:
                     "bill_month": r.bill_month.strftime("%Y-%m"),
                     "amount": _money(r.amount),
                     "due_date": r.due_date.isoformat(),
+                },
+            }
+        )
+    return out
+
+
+def _scan_rent(db: Session, advance: int, user_id: int) -> list[dict]:
+    """扫描未缴纳的房租期次，到期前按提前天数提醒（含已逾期未缴）。"""
+    today = date.today()
+    due = today + timedelta(days=advance)
+    rows = db.execute(
+        select(FinanceRentTerm, FinanceHousing)
+        .join(FinanceHousing, FinanceHousing.id == FinanceRentTerm.housing_id)
+        .where(
+            FinanceRentTerm.user_id == user_id,
+            FinanceRentTerm.paid.is_(False),
+            FinanceRentTerm.due_date <= due,
+            FinanceHousing.user_id == user_id,
+        )
+        .order_by(FinanceRentTerm.due_date)
+    ).all()
+    out = []
+    for term, housing in rows:
+        days_left = (term.due_date - today).days
+        if days_left < 0:
+            state = f"已逾期 {abs(days_left)} 天"
+        elif days_left == 0:
+            state = "今日到期"
+        else:
+            state = f"剩余 {days_left} 天"
+        out.append(
+            {
+                "source_id": term.id,
+                # 期次 ID + 到期日去重：调整到期日后可重新提醒
+                "dedup_key": f"{term.id}:{term.due_date.isoformat()}",
+                "title_ctx": {
+                    "housing": housing.short_name or housing.name,
+                    "due_date": term.due_date.isoformat(),
+                },
+                "content_ctx": {
+                    "housing": housing.short_name or housing.name,
+                    "address": housing.name,
+                    "term_no": term.term_no,
+                    "amount": _money(term.amount),
+                    "due_date": term.due_date.isoformat(),
+                    "days_left": days_left,
+                    "state": state,
                 },
             }
         )
@@ -592,6 +652,7 @@ def _scan_card_expire(db: Session, advance: int, user_id: int) -> list[dict]:
 SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_subscription_due": _scan_subscription,
     "finance_utility_due": _scan_utility,
+    "finance_rent_due": _scan_rent,
     "finance_loan_due": _scan_loan,
     "finance_debt_due": _scan_debt,
     "lifestyle_todo_due": _scan_todo,

@@ -13,6 +13,7 @@ export type Channel = {
 export const SOURCE_LABELS: Record<string, string> = {
   finance_subscription_due: '服务订阅到期',
   finance_utility_due: '水电燃气到期',
+  finance_rent_due: '房租应缴',
   finance_loan_due: '网贷还款',
   finance_reminder_due: '账单提醒',
   finance_debt_due: '债务到期',

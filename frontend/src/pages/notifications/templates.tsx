@@ -31,7 +31,7 @@ type Tpl = {
   note?: string | null
 }
 
-const VARIABLES = ['{name}', '{amount}', '{due_date}', '{days_left}', '{category}', '{status}', '{platform}', '{priority}']
+const VARIABLES = ['{name}', '{amount}', '{due_date}', '{days_left}', '{category}', '{status}', '{platform}', '{priority}', '{housing}', '{term_no}', '{state}']
 
 export function TemplatesPanel() {
   const [items, setItems] = useState<Tpl[]>([])

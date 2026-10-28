@@ -47,6 +47,15 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "水电燃气/宽带待缴提醒",
     ),
     (
+        "finance_rent_due",
+        "财务",
+        "房租应缴",
+        "【房租应缴】{housing} {due_date}",
+        "住房「{housing}」（{address}）第 {term_no} 期房租 {amount}，到期日 {due_date}，"
+        "{state}，请及时缴纳。",
+        "房租期次到期提醒",
+    ),
+    (
         "finance_loan_due",
         "财务",
         "网贷还款",
