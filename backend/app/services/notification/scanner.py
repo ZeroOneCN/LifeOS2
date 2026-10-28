@@ -265,23 +265,29 @@ def _scan_loan(
             and not overdue
             and now > datetime.combine(r.due_date, clock_time(23, 59, 59))
         )
-        # 容时相关提示语：追加在通知内容末尾，强调最低还款与不可二次延期
+        # 容时提示语：独立段落（前置空行），强调最低还款与不可二次延期
         if overdue:
             grace_tip = (
-                "【紧急】该账单已超过最终还款日（含容时），不会再延期；"
+                "【紧急】已超过最终还款日，不会再次延期。\n"
                 "请至少还够最低还款额，否则将上报征信。"
             )
         elif in_grace:
             grace_tip = (
-                f"【容时最后机会】该账单已过原还款日，仅在最终截止 {due_text} 前有效；"
-                "请至少还够最低还款额，容时不会二次顺延，超时将上报征信。"
+                f"【容时最后机会】已过原还款日，最终截止 {due_text}。\n"
+                "请至少还够最低还款额，容时不会二次顺延，超期上报征信。"
             )
         elif grace_on:
-            grace_tip = (
-                f"该账单可享容时 {grace_days} 天，最终截止 {due_text}；容时不叠加、不二次延期。"
-            )
+            grace_tip = f"可享容时 {grace_days} 天，最终截止 {due_text}，不叠加、不二次延期。"
         else:
             grace_tip = ""
+        # 天数文案：逾期时为「已逾期 N 天」，避免出现负数天数
+        days_diff = (final_due - today).days
+        if overdue:
+            days_text = f"已逾期 {(today - final_due).days} 天"
+        elif days_diff == 0:
+            days_text = "今天到期"
+        else:
+            days_text = f"剩余 {days_diff} 天"
         if overdue_only:
             # 小时级任务只处理已过最终截止时刻的账单
             if not overdue:
@@ -303,11 +309,14 @@ def _scan_loan(
                 "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
                 "amount": _money(r.amount),
                 "due_date": due_text,
-                "days_left": (final_due - today).days,
+                "days_left": days_diff,
                 "days_overdue": (today - final_due).days,
+                "days_text": days_text,
                 "paid_amount": _money(r.paid_amount),
                 "status": LOAN_STATUS_MAP.get(r.status, r.status),
                 "grace_tip": grace_tip,
+                # 容时提示作为独立段落（含前置空行），模板内用 {grace_block} 分隔，视觉不密集
+                "grace_block": f"\n\n{grace_tip}" if grace_tip else "",
             },
         }
         if overdue:

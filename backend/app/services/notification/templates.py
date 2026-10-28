@@ -60,8 +60,11 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "财务",
         "网贷还款",
         "【网贷还款】{platform} {due_date} 应还",
-        "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
-        "已还 {paid_amount}，状态：{status}。{grace_tip}",
+        "平台「{platform}」{bill_month} 期账单 · {status}\n"
+        "\n"
+        "应还日：{due_date}\n"
+        "金额：{amount}（已还 {paid_amount}）\n"
+        "{days_text}{grace_block}",
         "网贷/房贷还款提醒",
     ),
     (
@@ -141,13 +144,16 @@ LEGACY_DEFAULT_UPGRADES: dict[str, tuple[tuple[str, str, str], tuple[str, str, s
             "网贷还款",
             "【网贷还款】{platform} {due_date} 应还",
             "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
-            "已还 {paid_amount}，状态：{status}。",
+            "已还 {paid_amount}，状态：{status}。{grace_tip}",
         ),
         (
             "网贷还款",
             "【网贷还款】{platform} {due_date} 应还",
-            "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
-            "已还 {paid_amount}，状态：{status}。{grace_tip}",
+            "平台「{platform}」{bill_month} 期账单 · {status}\n"
+            "\n"
+            "应还日：{due_date}\n"
+            "金额：{amount}（已还 {paid_amount}）\n"
+            "{days_text}{grace_block}",
         ),
     ),
     "lifestyle_card_expire": (

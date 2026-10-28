@@ -188,7 +188,7 @@ export function NotificationList() {
                       </Badge>
                     </div>
                     {row.content && (
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
                         {row.content}
                       </p>
                     )}
