@@ -1,0 +1,457 @@
+﻿import { useState, useRef } from 'react'
+import { Loader2, ShoppingCart, PenBox } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import {
+  RecordManager,
+  type ColumnDef,
+  type FieldDef,
+} from '@/components/health/record-manager'
+import { api } from '@/lib/api'
+
+type ItemRecord = {
+  id: number
+  item_name: string
+  category: string
+  location?: string
+  status: 'in_use' | 'lost' | 'loaned' | 'recycled'
+  purchase_date?: string
+  price?: number
+  expire_date?: string
+  end_date?: string
+  source: 'manual' | 'shopping'
+  shopping_record_id?: number
+  note?: string
+}
+
+type ItemStats = {
+  total: number
+  in_use: number
+  total_value: number
+  total_usage_days: number
+  avg_daily_cost: number
+  expiring: number
+  expired: number
+  by_category: { category: string; count: number }[]
+  by_status: { status: string; count: number }[]
+  by_source: { source: string; count: number }[]
+}
+
+const categories = ['电子', '服饰', '书籍', '家居', '数码配件', '购物', '其他']
+
+const fields: FieldDef[] = [
+  { key: 'item_name', label: '物品名称', type: 'text', required: true },
+  {
+    key: 'category',
+    label: '分类',
+    type: 'select',
+    required: true,
+    options: categories.map((c) => ({ value: c, label: c })),
+  },
+  { key: 'location', label: '存放位置', type: 'text', placeholder: '如 书房 / 卧室' },
+  {
+    key: 'status',
+    label: '状态',
+    type: 'select',
+    options: [
+      { value: 'in_use', label: '使用中' },
+      { value: 'loaned', label: '借出' },
+      { value: 'lost', label: '丢失' },
+      { value: 'recycled', label: '已淘汰' },
+    ],
+  },
+  { key: 'purchase_date', label: '购买日期', type: 'date' },
+  { key: 'price', label: '价格', type: 'number', step: '0.01', min: 0 },
+  { key: 'expire_date', label: '过期时间', type: 'date' },
+  { key: 'end_date', label: '使用结束日期', type: 'date' },
+  {
+    key: 'source',
+    label: '来源',
+    type: 'select',
+    options: [
+      { value: 'manual', label: '手动' },
+      { value: 'shopping', label: '购物同步' },
+    ],
+  },
+  { key: 'note', label: '备注', type: 'textarea', full: true },
+]
+
+const statusMeta: Record<string, { label: string; className: string }> = {
+  in_use: { label: '使用中', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  loaned: { label: '借出', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  lost: { label: '丢失', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  recycled: { label: '已淘汰', className: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400' },
+}
+
+function usageDays(r: ItemRecord): number {
+  if (!r.purchase_date) return 0
+  const end = r.end_date ? new Date(r.end_date) : new Date()
+  const start = new Date(r.purchase_date)
+  const days = Math.floor((end.getTime() - start.getTime()) / 86400000)
+  return days > 0 ? days : 0
+}
+
+function dailyCost(r: ItemRecord): number | null {
+  const days = usageDays(r)
+  if ((r.price ?? 0) > 0 && days > 0) return r.price! / days
+  return null
+}
+
+const fmt = (n?: number | null) =>
+  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+
+const columns: ColumnDef<ItemRecord>[] = [
+  { key: 'item_name', label: '物品' },
+  { key: 'category', label: '分类' },
+  { key: 'location', label: '位置', render: (r) => r.location ?? '—' },
+  {
+    key: 'status',
+    label: '状态',
+    render: (r) => (
+      <Badge className={statusMeta[r.status]?.className}>{statusMeta[r.status]?.label ?? r.status}</Badge>
+    ),
+  },
+  {
+    key: 'source',
+    label: '来源',
+    render: (r) =>
+      r.source === 'shopping' ? (
+        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">购物同步</Badge>
+      ) : (
+        <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">手动</Badge>
+      ),
+  },
+  {
+    key: 'usage_days',
+    label: '已用天数',
+    render: (r) =>
+      r.purchase_date ? `${usageDays(r)} 天${r.end_date ? '（已使用完）' : ''}` : '—',
+  },
+  {
+    key: 'daily_cost',
+    label: '日均成本',
+    render: (r) => {
+      const c = dailyCost(r)
+      return c != null ? `¥${c.toFixed(2)}/天` : '—'
+    },
+  },
+  { key: 'expire_date', label: '过期时间', render: (r) => r.expire_date ?? '—' },
+  {
+    key: 'price',
+    label: '价格',
+    render: (r) => (r.price != null ? fmt(r.price) : '—'),
+  },
+]
+
+export function ItemsPage() {
+  // refresh 用于同步后重新拉取统计
+  const [refresh, setRefresh] = useState(0)
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const { data: stats } = useStats<ItemStats>('/lifestyle/items', days, refresh)
+  const byCategory = stats?.by_category ?? []
+  const byStatus = (stats?.by_status ?? []).map((s) => ({
+    status: statusMeta[s.status]?.label ?? s.status,
+    count: s.count,
+  }))
+  const bySource = (stats?.by_source ?? []).map((s) => ({
+    source: s.source === 'shopping' ? '购物同步' : '手动',
+    count: s.count,
+  }))
+
+  const [syncing, setSyncing] = useState(false)
+
+  // 批量编辑
+  const [batchDialogOpen, setBatchDialogOpen] = useState(false)
+  const [batchForm, setBatchForm] = useState<Record<string, string>>({})
+  const [batchSaving, setBatchSaving] = useState(false)
+  const [batchIds, setBatchIds] = useState<number[]>([])
+  const clearSelectionRef = useRef<() => void>(() => {})
+
+  const batchEditFields: FieldDef[] = [
+    {
+      key: 'status',
+      label: '状态',
+      type: 'select',
+      options: [
+        { value: 'in_use', label: '使用中' },
+        { value: 'loaned', label: '借出' },
+        { value: 'lost', label: '丢失' },
+        { value: 'recycled', label: '已淘汰' },
+      ],
+    },
+    {
+      key: 'category',
+      label: '分类',
+      type: 'select',
+      options: categories.map((c) => ({ value: c, label: c })),
+    },
+    { key: 'location', label: '存放位置', type: 'text', placeholder: '如 书房 / 卧室' },
+    { key: 'end_date', label: '使用结束日期', type: 'date' },
+    { key: 'note', label: '备注', type: 'textarea', full: true },
+  ]
+
+  const openBatchEdit = (ids: number[], clearSelection: () => void) => {
+    setBatchIds(ids)
+    clearSelectionRef.current = clearSelection
+    setBatchForm({ category: '购物', status: 'recycled' })
+    setBatchDialogOpen(true)
+  }
+
+  const handleBatchSave = async () => {
+    const updates: Record<string, unknown> = {}
+    for (const field of batchEditFields) {
+      const raw = batchForm[field.key] ?? ''
+      if (raw === '') continue
+      if (field.type === 'number') updates[field.key] = Number(raw)
+      else updates[field.key] = raw
+    }
+    if (Object.keys(updates).length === 0) {
+      toast.error('请至少选择一个字段进行修改')
+      return
+    }
+    setBatchSaving(true)
+    try {
+      await api.put('/lifestyle/items/batch-update', { ids: batchIds, updates })
+      setBatchDialogOpen(false)
+      clearSelectionRef.current()
+      setRefresh((v) => v + 1)
+      toast.success(`已批量更新 ${batchIds.length} 条记录`)
+    } catch (e) {
+      toast.error('批量更新失败', { description: (e as Error).message })
+    } finally {
+      setBatchSaving(false)
+    }
+  }
+
+  const doSync = async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      const res = await api.create<{ created: number; skipped: number }>('/lifestyle/items/sync', {
+        record_ids: [],
+      })
+      toast.success(
+        res.created > 0 ? `已同步 ${res.created} 条物品` : '没有可同步的购物记录',
+        { description: res.created > 0 ? `跳过 ${res.skipped} 条重复记录` : '购物记录已全部同步过' },
+      )
+      setRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('同步失败', { description: (e as Error).message })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const chartStats =
+    stats ?? {
+      total: 0,
+      in_use: 0,
+      total_value: 0,
+      total_usage_days: 0,
+      avg_daily_cost: 0,
+      expiring: 0,
+      expired: 0,
+      by_category: [],
+      by_status: [],
+      by_source: [],
+    }
+
+  return (
+    <>
+      <RecordManager<ItemRecord>
+        title="物品追踪"
+        description="登记个人物品，计算使用时长与分摊费用损耗，支持一键从购物记录同步。"
+        apiPath="/lifestyle/items"
+        fields={fields}
+        columns={columns}
+        refreshKey={refresh}
+        onMutate={() => setRefresh((v) => v + 1)}
+        searchable
+        searchPlaceholder="搜索物品 / 分类 / 位置…"
+        enableBatch
+        batchToolbar={(ids, clearSelection) => (
+          <Button variant="outline" size="sm" onClick={() => openBatchEdit(ids, clearSelection)}>
+            <PenBox className="mr-1 size-4" />
+            批量编辑
+          </Button>
+        )}
+        headerExtra={
+          <Button variant="outline" onClick={doSync} disabled={syncing}>
+            {syncing ? <Loader2 className="size-4 animate-spin" /> : <ShoppingCart className="size-4" />}
+            同步购物记录
+          </Button>
+        }
+        extra={
+          <>
+            <div className="flex justify-end">
+              <StatsPeriodPicker
+                value={days}
+                onChange={(d) => {
+                  setDays(d)
+                  setGlobalStatsDays(d)
+                }}
+              />
+            </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <MiniStat label="物品总数" value={String(chartStats.total)} />
+                <MiniStat label="使用中" value={String(chartStats.in_use)} />
+                <MiniStat label="过期/临期" value={`${chartStats.expired} 已过 / ${chartStats.expiring} 临期`} />
+                <MiniStat label="日均成本(有效)" value={chartStats.avg_daily_cost ? fmt(chartStats.avg_daily_cost) + '/天' : '—'} />
+              </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <DistCard
+                title={`物品分类·共 ${stats?.total ?? 0} 件`}
+                subtitle={stats ? `总值 ${fmt(stats.total_value)}` : undefined}
+                data={byCategory}
+              />
+              <DistCard
+                title="物品状态分布"
+                data={byStatus}
+              />
+              <DistCard
+                title="来源分布"
+                data={bySource}
+              />
+            </div>
+          </>
+        }
+      />
+
+      <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>批量编辑（{batchIds.length} 项）</DialogTitle>
+            <DialogDescription>
+              仅填写需要修改的字段，留空的字段保持不变。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            {batchEditFields.map((field) => (
+              <div key={field.key} className={`space-y-2 ${field.full ? 'col-span-2' : ''}`}>
+                <Label>{field.label}</Label>
+                {field.type === 'select' ? (
+                  <Select
+                    value={batchForm[field.key] ?? ''}
+                    onValueChange={(v) => setBatchForm((f) => ({ ...f, [field.key]: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={`请选择${field.label}`} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(field.options ?? []).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : field.type === 'textarea' ? (
+                  <Textarea
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                  />
+                ) : field.type === 'date' ? (
+                  <DatePicker
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(v) => setBatchForm((f) => ({ ...f, [field.key]: v }))}
+                    placeholder="选择日期"
+                  />
+                ) : (
+                  <Input
+                    type="text"
+                    value={batchForm[field.key] ?? ''}
+                    onChange={(e) => setBatchForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={handleBatchSave} disabled={batchSaving}>
+              {batchSaving && <Loader2 className="animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-card px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
+  )
+}
+
+function DistCard({
+  title,
+  subtitle,
+  data,
+}: {
+  title: string
+  subtitle?: string
+  data: { count: number; [k: string]: unknown }[]
+}) {
+  const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-sm font-semibold">{title}</div>
+        {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+      </div>
+      {total === 0 ? (
+        <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {data.map((d) => {
+            const name = String(d[Object.keys(d).find((k) => k !== 'count') ?? ''] ?? '—')
+            const count = d.count ?? 0
+            const pct = Math.round((count / total) * 100)
+            return (
+              <li key={name}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{name}</span>
+                  <span className="font-medium">{count} 件 · {pct}%</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}

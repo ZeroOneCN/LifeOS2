@@ -120,6 +120,7 @@ LifeOS V2.0/
 │   └── backups/         # 数据库备份归档（仅本地，不入库）
 ├── frontend/            # 前端应用（Vite，端口 9015）
 │   └── src/             # 页面与组件源码
+├── vercel-demo/         # Vercel 在线演示版（完整前端 + 内置模拟数据，无需后端）
 ├── images/              # 文档配图
 ├── 说明文档.md           # 项目管理载体（规划 / 实施方案 / 进度记录）
 └── README.md
@@ -166,12 +167,42 @@ npm run dev
 
 > 前端已配置 `/api` 代理到后端；局域网设备可通过 `http://<局域网IP>:9015` 访问。
 
-### 3. 接口文档（可选）
+### 3. 在线演示版（vercel-demo，端口 4173）
+
+`vercel-demo/` 是前端的独立副本，内置模拟数据层（`src/demo/snapshot.json` + `src/demo/mock-api.ts`），通过拦截 `/api/v1/*` 请求返回演示数据，**无需后端即可运行全部页面**。
+
+```bash
+cd vercel-demo
+npm install
+npm run dev        # 本地调试
+npm run build      # 构建产物输出到 dist/
+npm run preview    # 预览构建产物
+```
+
+- 演示账号：`demo`　密码：`demo123456`（注册入口已关闭）
+- 新增 / 编辑 / 删除等写操作仅保存在浏览器 `localStorage`，刷新后仍保留；清除该站点的本地存储即可恢复初始演示数据
+- 统计类数值来自内置快照，写操作后不会自动重算
+
+### 4. 接口文档（可选）
 
 后端启动后，可通过以下地址查看与调试接口：
 
 - Swagger UI：`http://localhost:9515/docs`
 - ReDoc：`http://localhost:9515/redoc`
+
+---
+
+## Vercel 在线演示部署
+
+演示版是纯静态站点，无需数据库与后端服务，可直接部署到 Vercel：
+
+1. 在 Vercel 控制台 **Add New → Project**，导入本仓库（`ZeroOneCN/LifeOS2`）。
+2. **Root Directory** 选择 `vercel-demo`。
+3. **Framework Preset** 选择 `Vite`；Build Command 为 `npm run build`，Output Directory 为 `dist`（`vercel-demo/vercel.json` 已内置该配置与 SPA 路由重写）。
+4. 无需配置任何环境变量，点击 Deploy 即可。
+5. 部署完成后访问生成的域名，使用演示账号 `demo` / `demo123456` 登录体验。
+
+> 后续若前端有更新，同步复制到 `vercel-demo/` 后重新提交即可；演示数据由 `src/demo/snapshot.json` 提供，可按需替换。
 
 ---
 

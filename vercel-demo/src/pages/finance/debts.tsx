@@ -1,0 +1,1076 @@
+﻿import { useEffect, useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Banknote,
+  Bookmark,
+  HandCoins,
+  Landmark,
+  ListTree,
+  Loader2,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash2,
+  Wallet,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
+import { useRealtime } from '@/hooks/use-realtime'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { Hint, Tip } from '@/components/ui/tip'
+import { api } from '@/lib/api'
+
+type Currency = { id: number; currency: string; name?: string; rate_to_cny: number; symbol?: string }
+type Fmt = (cny: number) => string
+
+const directionMeta: Record<string, { label: string; className: string }> = {
+  lend: { label: '借出', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  borrow: { label: '借入', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+}
+const statusMeta: Record<string, { label: string; className: string }> = {
+  active: { label: '进行中', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  settled: { label: '已结清', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+}
+
+const investCategories = ['美股', '港股', '外汇', '加密货币-合约', '加密货币-现货', '加密货币-钱包(Alpha)']
+
+type DebtRecord = {
+  id: number
+  debt_date: string
+  name: string
+  direction: 'lend' | 'borrow'
+  counterparty?: string
+  amount: number
+  remaining?: number
+  interest_rate?: number
+  interest_total?: number
+  channel?: string
+  due_date?: string
+  status: 'active' | 'settled'
+  note?: string
+}
+type DebtPayment = { id: number; debt_id: number; repay_date: string; amount: number; discount?: number; actual?: number; note?: string }
+const channelOptions = ['现金', '银行转账', '微信', '支付宝', '其他']
+const channelMeta: Record<string, { className: string }> = {
+  现金: { className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300' },
+  银行转账: { className: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300' },
+  微信: { className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  支付宝: { className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  其他: { className: 'bg-muted text-muted-foreground' },
+}
+type DebtStats = {
+  total: number; active: number; settled: number
+  borrow_total: number; lend_total: number; outstanding: number; overdue: number
+  by_status: { status: string; label: string; count: number }[]
+  overdue_list: { name: string; counterparty?: string; direction: string; remaining: number; due_date?: string }[]
+}
+type LoanSync = { total_remaining: number; platform_count: number; platforms: { platform_id: number; name: string; remaining: number; bill_count: number }[] }
+
+/* ---------------- 民间借贷 ---------------- */
+
+function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
+  const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
+  const [refresh, setRefresh] = useState(0)
+  const realtimeTick = useRealtime(30_000)
+  const { data: stats } = useStats<DebtStats>('/finance/debts', days, refresh)
+  const [items, setItems] = useState<DebtRecord[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loanSync, setLoanSync] = useState<LoanSync | null>(null)
+  const [dialog, setDialog] = useState<null | { editing?: DebtRecord }>(null)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [repayTarget, setRepayTarget] = useState<DebtRecord | null>(null)
+  const [repayForm, setRepayForm] = useState({ repay_date: '', amount: '', discount: '', note: '' })
+  const [detailTarget, setDetailTarget] = useState<DebtRecord | null>(null)
+  const [payments, setPayments] = useState<DebtPayment[]>([])
+  const [saving, setSaving] = useState(false)
+  const [editPaymentTarget, setEditPaymentTarget] = useState<{ debt: DebtRecord; payment: DebtPayment } | null>(null)
+  const [editPaymentForm, setEditPaymentForm] = useState({ repay_date: '', amount: '', discount: '', note: '' })
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const totalPages = Math.max(1, Math.ceil(total / 10))
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const res = await api.list<DebtRecord>('/finance/debts', { page, page_size: 10 })
+      setItems(res.items)
+      setTotal(res.total)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+    api.query<LoanSync>('/finance/debts/loan-sync').then(setLoanSync).catch(() => setLoanSync(null))
+  }, [page, realtimeTick])
+
+  const remaining = (d: DebtRecord) => (d.remaining != null ? d.remaining : d.amount)
+
+  const openCreate = () => {
+    setForm({ debt_date: new Date().toISOString().slice(0, 10), name: '', direction: 'borrow', counterparty: '', amount: '', remaining: '', interest_rate: '', interest_total: '', channel: '现金', due_date: '', status: 'active', note: '' })
+    setDialog({})
+  }
+  const save = async () => {
+    const payload = {
+      debt_date: form.debt_date, name: form.name, direction: form.direction,
+      counterparty: form.counterparty || null, amount: Number(form.amount),
+      remaining: form.remaining ? Number(form.remaining) : null,
+      interest_rate: form.interest_rate ? Number(form.interest_rate) : null,
+      interest_total: form.interest_total ? Number(form.interest_total) : 0,
+      channel: form.channel || null,
+      due_date: form.due_date || null, status: form.status, note: form.note || null,
+    }
+    setSaving(true)
+    try {
+      if (dialog?.editing) await api.update('/finance/debts', dialog.editing.id, payload)
+      else await api.create('/finance/debts', payload)
+      setDialog(null)
+      await load()
+      setRefresh((v) => v + 1)
+      toast.success(dialog?.editing ? '借贷记录已更新' : '借贷记录已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const remove = async (d: DebtRecord) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/debts', d.id)
+      if (items.length === 1 && page > 1) setPage(page - 1)
+      else await load()
+      setRefresh((v) => v + 1)
+      toast.success('借贷记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  const openRepay = (d: DebtRecord) => {
+    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: String(remaining(d)), discount: '', note: '' })
+    setRepayTarget(d)
+  }
+  // 实际金额（实付）= 还款金额（清账额）- 优惠金额，实付为派生展示值
+  const actualOf = (amount: string, discount: string) =>
+    Math.max(0, (Number(amount) || 0) - (Number(discount) || 0))
+  const submitRepay = async () => {
+    if (!repayTarget) return
+    const amount = Number(repayForm.amount) || 0  // 本次清账金额
+    const discount = Number(repayForm.discount) || 0
+    if (!repayForm.amount || amount <= 0) {
+      toast.error('请填写有效的还款金额')
+      return
+    }
+    if (discount < 0) {
+      toast.error('优惠金额不能为负')
+      return
+    }
+    if (discount > amount) {
+      toast.error('优惠金额不能大于还款金额')
+      return
+    }
+    const remain = remaining(repayTarget)
+    if (amount > remain + 1e-6) {
+      toast.error('还款金额超过剩余', { description: `剩余 ${fmtMoney(remain)}` })
+      return
+    }
+    setSaving(true)
+    try {
+      await api.post(`/finance/debts/${repayTarget.id}/repay`, {
+        repay_date: repayForm.repay_date, amount, discount, note: repayForm.note || null,
+      })
+      setRepayTarget(null)
+      await load()
+      setRefresh((v) => v + 1)
+      toast.success('还款已记录')
+    } catch (e) {
+      toast.error('还款失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openDetail = async (d: DebtRecord) => {
+    setDetailTarget(d)
+    setPayments([])
+    try {
+      const list = await api.query<DebtPayment[]>(`/finance/debts/${d.id}/payments`)
+      setPayments(list)
+    } catch {
+      setPayments([])
+    }
+  }
+  const hasPaid = (d: DebtRecord) => Math.max(0, d.amount - remaining(d))
+  const deletePayment = async (p: DebtPayment, d: DebtRecord) => {
+    if (!(await confirm())) return
+    try {
+      await api.del(`/finance/debts/${d.id}/payments/${p.id}`)
+      setPayments((prev) => prev.filter((x) => x.id !== p.id))
+      await load()
+      setRefresh((v) => v + 1)
+      toast.success('还款明细已删除，剩余金额已回滚')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  const openEditPayment = (p: DebtPayment, d: DebtRecord) => {
+    setEditPaymentForm({
+      repay_date: p.repay_date,
+      amount: String(p.amount || 0),  // 还款/清账金额（含优惠部分）
+      discount: String(p.discount ?? 0),
+      note: p.note ?? '',
+    })
+    setEditPaymentTarget({ debt: d, payment: p })
+  }
+
+  const submitEditPayment = async () => {
+    if (!editPaymentTarget) return
+    const { debt, payment } = editPaymentTarget
+    const amount = Number(editPaymentForm.amount) || 0  // 本次清账金额
+    const discount = Number(editPaymentForm.discount) || 0
+    if (!editPaymentForm.repay_date || !editPaymentForm.amount) {
+      toast.error('请填写日期和金额')
+      return
+    }
+    if (amount <= 0) {
+      toast.error('请填写有效的还款金额')
+      return
+    }
+    if (discount < 0 || discount > amount) {
+      toast.error('优惠金额需在 0 与还款金额之间')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.patch(`/finance/debts/${debt.id}/payments/${payment.id}`, {
+        repay_date: editPaymentForm.repay_date,
+        amount,
+        discount,
+        note: editPaymentForm.note || null,
+      })
+      setEditPaymentTarget(null)
+      // 重新加载债务列表和还款明细，确保弹窗数据实时同步
+      await load()
+      const updated = await api.query<DebtRecord>(`/finance/debts/${debt.id}`)
+      setDetailTarget(updated)
+      const list = await api.query<DebtPayment[]>(`/finance/debts/${debt.id}/payments`)
+      setPayments(list)
+      setRefresh((v) => v + 1)
+      toast.success('还款明细已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <StatsPeriodPicker
+          value={days}
+          onChange={(d) => {
+            setDays(d)
+            setGlobalStatsDays(d)
+          }}
+        />
+      </div>
+      <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Wallet} label="民间债务总数" value={String(stats?.total ?? 0)} />
+            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-green-600 dark:text-green-400" />
+            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-red-600 dark:text-red-400" />
+            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-red-600 dark:text-red-400" />
+          </section>
+
+          {(stats?.overdue ?? 0) > 0 && (
+            <Card className="border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-300">
+                  <AlertTriangle className="size-4" /> 已逾期 {stats?.overdue ?? 0} 笔待处理
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5 text-sm">
+                {(stats?.overdue_list ?? []).map((o, i) => (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/70 dark:bg-white/5 px-3 py-1.5">
+                    <span>{o.name}{o.counterparty ? `（${o.counterparty}）` : ''}<Badge className={`ml-2 ${directionMeta[o.direction]?.className}`}>{directionMeta[o.direction]?.label}</Badge></span>
+                    <span className="text-muted-foreground">到期 {o.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmtMoney(o.remaining)}</span></span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </>
+
+      {/* 网贷只读同步 */}
+      {loanSync && loanSync.platform_count > 0 && (
+        <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+              <Receipt className="size-4" /> 网贷欠款同步（来源：账单管理 · 网贷借还）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {loanSync.platforms.map((p) => (
+                <Badge key={p.platform_id} variant="outline" className="bg-white/80 dark:bg-white/5">
+                  {p.name}：<span className="font-medium text-red-600 dark:text-red-400">{fmtMoney(p.remaining)}</span>
+                  <span className="text-muted-foreground">（{p.bill_count} 笔）</span>
+                </Badge>
+              ))}
+              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium">民间借贷明细</CardTitle>
+            <Button onClick={openCreate}><Plus /> 新增借款</Button>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>日期</TableHead><TableHead>名称</TableHead><TableHead>对方</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
+                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead><TableHead className="text-right">利息</TableHead><TableHead>到期</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+              {items.length === 0 ? (
+                loading ? (
+                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                ) : (
+                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
+                )
+              ) : items.map((d) => {
+                const paid = hasPaid(d)
+                const intr = d.interest_total ?? 0
+                return (
+                <TableRow key={d.id}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{d.debt_date}</TableCell>
+                  <TableCell className="font-medium">{d.name}</TableCell>
+                  <TableCell>{d.counterparty ?? '—'}</TableCell>
+                  <TableCell><Badge className={directionMeta[d.direction]?.className}>{directionMeta[d.direction]?.label}</Badge></TableCell>
+                  <TableCell>{d.channel ? <Badge variant="outline" className={channelMeta[d.channel]?.className}>{d.channel}</Badge> : '—'}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(d.amount)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{paid > 0 ? fmtMoney(paid) : '—'}</TableCell>
+                  <TableCell className={`text-right font-medium ${remaining(d) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmtMoney(remaining(d))}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="font-medium">{intr > 0 ? fmtMoney(intr) : '—'}</div>
+                    {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>
+                  <Tip label={d.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{d.note ?? '—'}</TableCell></Tip>
+                  <TableCell><Badge className={statusMeta[d.status]?.className}>{statusMeta[d.status]?.label}</Badge></TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Tip label="还款明细"><Button variant="ghost" size="icon" onClick={() => openDetail(d)}><ListTree /></Button></Tip>
+                      {d.status === 'active' && remaining(d) > 0 && (
+                        <Tip label="还款/收款"><Button variant="ghost" size="icon" onClick={() => openRepay(d)}><Banknote /></Button></Tip>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ debt_date: d.debt_date, name: d.name, direction: d.direction, counterparty: d.counterparty ?? '', amount: String(d.amount), remaining: d.remaining != null ? String(d.remaining) : '', interest_rate: d.interest_rate != null ? String(d.interest_rate) : '', interest_total: d.interest_total != null ? String(d.interest_total) : '', channel: d.channel ?? '现金', due_date: d.due_date ?? '', status: d.status, note: d.note ?? '' }); setDialog({ editing: d }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(d)}><Trash2 /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+
+      {/* 新增/编辑弹窗 */}
+      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{dialog?.editing ? '编辑借款' : '新增借款'}</DialogTitle>
+            <DialogDescription>记参与民间借款，支持灵活还款。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={form.debt_date} onChange={(v) => setForm({ ...form, debt_date: v })} /></div>
+            <div className="space-y-2"><Label>债务名称 *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 朋友借款 / 房贷" /></div>
+            <div className="space-y-2"><Label>方向 *</Label>
+              <Select value={form.direction} onValueChange={(v) => setForm({ ...form, direction: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="borrow">借入（应付）</SelectItem><SelectItem value="lend">借出（应收）</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>对方</Label><Input value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} placeholder="债权人 / 借款人" /></div>
+            <div className="space-y-2"><Label>途径</Label>
+              <Select value={form.channel || '现金'} onValueChange={(v) => setForm({ ...form, channel: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{channelOptions.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>额度使用(总额) *</Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>剩余债务</Label><Input type="number" min={0} step="0.01" value={form.remaining} onChange={(e) => setForm({ ...form, remaining: e.target.value })} /></div>
+            <div className="space-y-2"><Label>年利率(%)</Label><Input type="number" step="0.01" min={0} value={form.interest_rate} onChange={(e) => setForm({ ...form, interest_rate: e.target.value })} placeholder="参考备注" /></div>
+            <div className="space-y-2"><Label>应付利息总额</Label><Input type="number" step="0.01" min={0} value={form.interest_total} onChange={(e) => setForm({ ...form, interest_total: e.target.value })} placeholder="0 表示不计息" /></div>
+            <div className="space-y-2"><Label>还款日</Label><DatePicker value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} /></div>
+            <div className="space-y-2"><Label>状态</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="active">进行中</SelectItem><SelectItem value="settled">已结清</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 还款弹窗 */}
+      <Dialog open={repayTarget !== null} onOpenChange={(o) => !o && setRepayTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{repayTarget ? `${repayTarget.direction === 'borrow' ? '还款' : '收款'}` : ''}</DialogTitle>
+            <DialogDescription>
+              {repayTarget ? `${repayTarget.name}（${directionMeta[repayTarget.direction]?.label}）· 剩余 ${fmtMoney(remaining(repayTarget))}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">{repayTarget?.direction === 'borrow' ? '还款金额' : '收款金额'} *<Hint text="本次清账金额（含优惠部分），剩余将按此金额减少" /></Label>
+              <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">优惠金额<Hint text="减免 / 抵扣券金额（含在此次还款内）" /></Label>
+              <Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0.00" />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">实际{repayTarget?.direction === 'borrow' ? '还款' : '收款'}（实付）<Hint text="实付 = 还款金额 − 优惠" /></Label>
+              <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
+                {fmtMoney(actualOf(repayForm.amount, repayForm.discount))}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
+          </div>
+          {repayTarget && (
+            <p className="text-xs text-muted-foreground">
+              本次清账 <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(Number(repayForm.amount) || 0)}</span>
+              {' = 实付 '}
+              <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(actualOf(repayForm.amount, repayForm.discount))}</span>
+              {' + 优惠 '}
+              <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMoney(Number(repayForm.discount) || 0)}</span>
+              {' · 清账后剩余 '}
+              <span className="font-semibold text-red-600 dark:text-red-400">{fmtMoney(Math.max(0, remaining(repayTarget) - (Number(repayForm.amount) || 0)))}</span>
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRepayTarget(null)}>取消</Button>
+            <Button onClick={submitRepay} disabled={saving}><Banknote className="size-4" /> 确认{repayTarget?.direction === 'borrow' ? '还款' : '收款'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 还款明细查看弹窗 */}
+      <Dialog open={detailTarget !== null} onOpenChange={(o) => !o && setDetailTarget(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ListTree className="size-4" /> 还款明细</DialogTitle>
+            <DialogDescription>
+              {detailTarget ? `${detailTarget.name} · ${directionMeta[detailTarget.direction]?.label}${detailTarget.counterparty ? `（${detailTarget.counterparty}）` : ''}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {detailTarget && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-muted p-2 text-center">
+                <div className="text-xs text-muted-foreground">额度</div>
+                <div className="text-sm font-semibold">{fmtMoney(detailTarget.amount)}</div>
+              </div>
+              <div className="rounded-lg bg-muted p-2 text-center">
+                <div className="text-xs text-muted-foreground">已还</div>
+                <div className="text-sm font-semibold text-green-600 dark:text-green-400">{fmtMoney(hasPaid(detailTarget))}</div>
+              </div>
+              <div className="rounded-lg bg-muted p-2 text-center">
+                <div className="text-xs text-muted-foreground">剩余</div>
+                <div className={`text-sm font-semibold ${remaining(detailTarget) > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmtMoney(remaining(detailTarget))}</div>
+              </div>
+            </div>
+          )}
+          {detailTarget && (
+            <p className="text-xs text-muted-foreground">
+              还款合计 <span className="font-semibold text-muted-foreground">{fmtMoney(payments.reduce((s, p) => s + (p.amount || 0), 0))}</span>
+              {' · '}
+              其中优惠合计 <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMoney(payments.reduce((s, p) => s + (p.discount ?? 0), 0))}</span>
+              {' · '}
+              实付合计 <span className="font-semibold text-green-600 dark:text-green-400">{fmtMoney(payments.reduce((s, p) => s + ((p.amount || 0) - (p.discount ?? 0)), 0))}</span>
+            </p>
+          )}
+          <div className="space-y-1.5">
+            {payments.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">暂无还款明细</p>
+            ) : (
+              payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium shrink-0">{p.repay_date}</span>
+                    {p.note && <Tip label={p.note}><span className="truncate text-muted-foreground">· {p.note}</span></Tip>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-muted-foreground">还款 {fmtMoney(p.amount || 0)}</span>
+                    {(p.discount ?? 0) > 0 && (
+                      <span className="text-amber-600 dark:text-amber-400">优惠 {fmtMoney(p.discount ?? 0)}</span>
+                    )}
+                    <span className="font-medium text-green-600 dark:text-green-400">实付 {fmtMoney(p.actual ?? ((p.amount || 0) - (p.discount ?? 0)))}</span>
+                    {detailTarget && (
+                      <>
+                        <Tip label="修改明细"><Button variant="ghost" size="icon" className="size-7" onClick={() => openEditPayment(p, detailTarget)}><Pencil className="size-4" /></Button></Tip>
+                        <Tip label="删除明细并回滚剩余"><Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => deletePayment(p, detailTarget)}><Trash2 className="size-4" /></Button></Tip>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+
+      {/* 修改还款明细弹窗 */}
+      <Dialog open={editPaymentTarget !== null} onOpenChange={(o) => !o && setEditPaymentTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修改还款明细</DialogTitle>
+            <DialogDescription>更新日期、金额或备注，剩余金额将自动重新计算</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>日期 *</Label><DatePicker value={editPaymentForm.repay_date} onChange={(v) => setEditPaymentForm({ ...editPaymentForm, repay_date: v })} /></div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">还款金额 *<Hint text="本次清账金额（含优惠部分），剩余将按此金额减少" /></Label>
+              <Input type="number" min={0.01} step="0.01" value={editPaymentForm.amount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">优惠金额<Hint text="减免 / 抵扣券金额（含在此次还款内）" /></Label>
+              <Input type="number" min={0} step="0.01" value={editPaymentForm.discount} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, discount: e.target.value })} placeholder="0.00" />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">实际还款（实付）<Hint text="实付 = 还款金额 − 优惠" /></Label>
+              <div className="flex h-9 items-center justify-end rounded-md bg-muted px-3 text-lg font-extrabold text-green-600 dark:text-green-400">
+                {fmtMoney(actualOf(editPaymentForm.amount, editPaymentForm.discount))}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Input value={editPaymentForm.note} onChange={(e) => setEditPaymentForm({ ...editPaymentForm, note: e.target.value })} placeholder="如 微信转账 / 现金结清" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPaymentTarget(null)}>取消</Button>
+            <Button onClick={submitEditPayment} disabled={saving}><Pencil className="size-4" /> 保存修改</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/* ---------------- 投资记账 ---------------- */
+
+type Investment = { id: number; platform: string; account?: string; category: string; pnl: number; note?: string }
+type InvStats = { count: number; total_pnl: number; profit: number; loss: number; by_category: { category: string; amount: number }[]; by_platform: { platform: string; amount: number }[] }
+
+function InvestTab() {
+  // 投资记账统一按美元计算与显示，不做汇率换算
+  const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  const realtimeTick = useRealtime(30_000)
+  const [items, setItems] = useState<Investment[]>([])
+  const [stats, setStats] = useState<InvStats | null>(null)
+  const [dialog, setDialog] = useState<null | { editing?: Investment }>(null)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [selCats, setSelCats] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const load = async () => {
+    const res = await api.list<Investment>('/finance/investments', { page_size: 100 })
+    setItems(res.items)
+    api.stats<InvStats>('/finance/investments').then(setStats).catch(() => setStats(null))
+  }
+  useEffect(() => { load() }, [realtimeTick])
+
+  const toggleCat = (c: string) => {
+    setSelCats((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
+  }
+  const openCreate = () => {
+    setForm({ platform: '', account: '', pnl: '', note: '' })
+    setSelCats([])
+    setDialog({})
+  }
+  const save = async () => {
+    const payload = {
+      platform: form.platform, account: form.account || null, category: selCats.join(',') || investCategories[0],
+      pnl: Number(form.pnl), note: form.note || null,
+    }
+    setSaving(true)
+    try {
+      if (dialog?.editing) await api.update('/finance/investments', dialog.editing.id, payload)
+      else await api.create('/finance/investments', payload)
+      setDialog(null)
+      await load()
+      toast.success(dialog?.editing ? '投资记录已更新' : '投资记录已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const remove = async (iv: Investment) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/investments', iv.id)
+      await load()
+      toast.success('投资记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {stats && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Wallet} label="投资平台数" value={`${stats.count} 个`} />
+            <StatCard icon={ArrowUpCircle} label="整体盈亏" value={usd(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'} />
+            <StatCard icon={ArrowUpCircle} label="盈利合计" value={usd(stats.profit)} className="text-green-600 dark:text-green-400" />
+            <StatCard icon={ArrowDownCircle} label="亏损合计" value={usd(stats.loss)} className="text-red-600 dark:text-red-400" />
+          </section>
+          {stats.by_category.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">按投资类别盈亏</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {stats.by_category.map((c) => (
+                    <Badge key={c.category} variant="outline">
+                      {c.category}：<span className={c.amount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{usd(c.amount)}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium">投资平台记账</CardTitle>
+            <Button onClick={openCreate}><Plus /> 新增投资</Button>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>平台</TableHead><TableHead>账号</TableHead><TableHead>类别</TableHead><TableHead className="text-right">盈亏总额</TableHead><TableHead>备注</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">暂无投资记账</TableCell></TableRow>
+              ) : items.map((iv) => (
+                <TableRow key={iv.id}>
+                  <TableCell className="font-medium">{iv.platform}</TableCell>
+                  <TableCell>{iv.account ?? '—'}</TableCell>
+                  <TableCell className="max-w-[200px]">
+                    <div className="flex flex-wrap gap-1">
+                      {iv.category.split(',').filter((c) => c.trim()).map((c) => <Badge key={c} variant="outline">{c.trim()}</Badge>)}
+                    </div>
+                  </TableCell>
+                  <TableCell className={`text-right font-medium ${iv.pnl >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{usd(iv.pnl)}</TableCell>
+                  <Tip label={iv.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{iv.note ?? '—'}</TableCell></Tip>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', pnl: String(iv.pnl), note: iv.note ?? '' }); setSelCats(iv.category.split(',').map((s) => s.trim()).filter(Boolean)); setDialog({ editing: iv }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(iv)}><Trash2 /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialog?.editing ? '编辑投资' : '新增投资'}</DialogTitle>
+            <DialogDescription>记录各投资平台的盈亏总额，简明即可。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>平台 *</Label><Input value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} placeholder="如 富途 / 币安" /></div>
+            <div className="space-y-2"><Label>平台账号</Label><Input value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} /></div>
+            <div className="col-span-2 space-y-2"><Label>类别 *（可多选）</Label>
+              <div className="flex flex-wrap gap-2">
+                {investCategories.map((c) => {
+                  const on = selCats.includes(c)
+                  return (
+                    <button type="button" key={c} onClick={() => toggleCat(c)}
+                      className={`rounded-full border px-3 py-1 text-sm transition-colors ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-muted-foreground hover:bg-muted'}`}>
+                      {c}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="space-y-2"><Label>盈亏总额 *</Label><Input type="number" step="0.01" value={form.pnl} onChange={(e) => setForm({ ...form, pnl: e.target.value })} placeholder="正为盈利，负为亏损" /></div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 备忘录 ---------------- */
+
+type Memo = { id: number; title: string; content?: string; memo_date?: string }
+
+function MemoTab() {
+  const realtimeTick = useRealtime(30_000)
+  const [items, setItems] = useState<Memo[]>([])
+  const [dialog, setDialog] = useState<null | { editing?: Memo }>(null)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const load = async () => {
+    const res = await api.list<Memo>('/finance/memos', { page_size: 100 })
+    setItems(res.items)
+  }
+  useEffect(() => { load() }, [realtimeTick])
+
+  const openCreate = () => { setForm({ title: '', content: '', memo_date: new Date().toISOString().slice(0, 10) }); setDialog({}) }
+  const save = async () => {
+    const payload = { title: form.title, content: form.content || null, memo_date: form.memo_date || null }
+    setSaving(true)
+    try {
+      if (dialog?.editing) await api.update('/finance/memos', dialog.editing.id, payload)
+      else await api.create('/finance/memos', payload)
+      setDialog(null)
+      await load()
+      toast.success(dialog?.editing ? '备忘已更新' : '备忘已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const remove = async (m: Memo) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/memos', m.id)
+      await load()
+      toast.success('备忘已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent className="p-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium">备忘录（模糊记忆）</CardTitle>
+            <Button onClick={openCreate}><Plus /> 新增备忘</Button>
+          </CardHeader>
+          <div className="grid gap-2 p-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            {items.length === 0 ? (
+              <p className="col-span-full py-6 text-center text-sm text-muted-foreground">暂无备忘，记录那些有点印象却容易忘的事</p>
+            ) : items.map((m) => (
+              <div key={m.id} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{m.title}</div>
+                    {m.memo_date && <div className="mt-0.5 text-xs text-muted-foreground">{m.memo_date}</div>}
+                  </div>
+                  <div className="flex shrink-0 gap-0.5">
+                    <Button variant="ghost" size="icon" onClick={() => { setForm({ title: m.title, content: m.content ?? '', memo_date: m.memo_date ?? '' }); setDialog({ editing: m }) }}><Pencil /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(m)}><Trash2 /></Button>
+                  </div>
+                </div>
+                {m.content && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{m.content}</p>}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{dialog?.editing ? '编辑备忘' : '新增备忘'}</DialogTitle>
+            <DialogDescription>记录那些暂时想不起来但有模糊印象的事项。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>标题 *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div className="space-y-2"><Label>内容</Label><Textarea className="min-h-[120px]" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} placeholder="写下你的模糊记忆…" /></div>
+            <div className="space-y-2"><Label>日期</Label><DatePicker value={form.memo_date} onChange={(v) => setForm({ ...form, memo_date: v })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 汇率设置 ---------------- */
+
+function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
+  currencies: Currency[]
+  setCurrencies: (c: Currency[]) => void
+  currency: Currency | null
+  setCurrency: (c: Currency) => void
+}) {
+  const { dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这个币种吗？' })
+  const [editing, setEditing] = useState<Currency | null>(null)
+  const [rateValue, setRateValue] = useState('')
+
+  const saveRate = async () => {
+    if (!editing) return
+    const v = Number(rateValue)
+    if (!v || v <= 0) return
+    try {
+      const updated = await api.update<Currency>('/finance/currencies', editing.id, {
+        currency: editing.currency, name: editing.name, symbol: editing.symbol, rate_to_cny: v,
+      })
+      setCurrencies(currencies.map((c) => (c.id === updated.id ? updated : c)))
+      setEditing(null)
+      toast.success('汇率已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const resetToCny = () => {
+    const c = currencies.find((x) => x.currency === 'CNY')
+    if (c) setCurrency(c)
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">币种与汇率（相对人民币）</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {currencies.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+              <span className="flex items-center gap-2">
+                <b>{c.name ?? c.currency}</b>
+                <Badge variant="outline">{c.symbol ?? ''}{c.currency}</Badge>
+              </span>
+              <span className="flex items-center gap-2">
+                {editing?.id === c.id ? (
+                  <>
+                    <Input className="w-28" type="number" step="0.0001" value={rateValue} onChange={(e) => setRateValue(e.target.value)} />
+                    <Button size="sm" onClick={saveRate}>保存</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(null)}>取消</Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-muted-foreground">1 {c.currency} ≈ {c.rate_to_cny} 人民币</span>
+                    <Button size="sm" variant="outline" onClick={() => { setEditing(c); setRateValue(String(c.rate_to_cny)) }}>编辑</Button>
+                  </>
+                )}
+                {c.currency === 'CNY' && (
+                  <Button size="sm" variant="ghost" onClick={resetToCny}>当前显示：人民币</Button>
+                )}
+                {c.currency !== 'CNY' && (
+                  <Button size="sm" variant="ghost" onClick={() => setCurrency(c)} className={currency?.currency === c.currency ? 'text-indigo-600 dark:text-indigo-400' : ''}>
+                    {currency?.currency === c.currency ? '当前显示' : '设为显示'}
+                  </Button>
+                )}
+              </span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">{currency ? `${currency.name ?? currency.currency}（${currency.symbol ?? ''}）显示` : '显示币种'}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-sm">
+          <p className="text-muted-foreground">
+            当前以 <b>{currency?.name ?? '人民币'}</b> 显示页面金额。所有金额以人民币存储，切换币种仅改变显示换算。
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {currencies.map((c) => (
+              <Button key={c.id} size="sm" variant={currency?.currency === c.currency ? 'default' : 'outline'} onClick={() => setCurrency(c)}>
+                {c.name ?? c.currency}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 页面 ---------------- */
+
+function StatCard({ icon: Icon, label, value, className }: { icon: typeof Wallet; label: string; value: string; className?: string }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+      </CardHeader>
+      <CardContent><div className={`text-2xl font-semibold ${className ?? ''}`}>{value}</div></CardContent>
+    </Card>
+  )
+}
+
+type TabKey = 'debt' | 'invest' | 'memo' | 'rate'
+
+export function DebtsPage() {
+  const TAB_KEY = 'lifeos_debts_tab'
+  const [tab, setTabState] = useState<TabKey>(() => {
+    const saved = localStorage.getItem(TAB_KEY)
+    return saved === 'debt' || saved === 'invest' || saved === 'memo' || saved === 'rate' ? saved : 'debt'
+  })
+  const setTab = (t: TabKey) => {
+    setTabState(t)
+    localStorage.setItem(TAB_KEY, t)
+  }
+  const [currencies, setCurrencies] = useState<Currency[]>([])
+  const [currency, setCurrency] = useState<Currency | null>(null)
+
+  // 显示币种持久化到本地，避免切换页面/刷新后重置
+  const DISPLAY_CURRENCY_KEY = 'lifeos_display_currency'
+  const setDisplayCurrency = (c: Currency | null) => {
+    setCurrency(c)
+    if (c) localStorage.setItem(DISPLAY_CURRENCY_KEY, c.currency)
+  }
+
+  useEffect(() => {
+    api.query<Currency[]>('/finance/currencies').then((list) => {
+      setCurrencies(list)
+      const cny = list.find((c) => c.currency === 'CNY')
+      const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY)
+      setCurrency(list.find((c) => c.currency === saved) ?? cny ?? list[0] ?? null)
+    }).catch(() => {})
+  }, [])
+
+  const fmtMoney: Fmt = (cny: number) => {
+    const r = currency
+    if (!r || !r.rate_to_cny) return `¥${cny.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    const v = cny / r.rate_to_cny
+    const s = r.symbol ?? ''
+    const sign = v < 0 ? '-' : ''
+    return `${sign}${s}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  }
+
+  const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
+    { key: 'debt', label: '民间借贷', icon: HandCoins },
+    { key: 'invest', label: '投资记账', icon: Landmark },
+    { key: 'memo', label: '备忘录', icon: Bookmark },
+    { key: 'rate', label: '汇率设置', icon: Wallet },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">债务管理</h1>
+          <p className="text-sm text-muted-foreground">
+            管理民间借贷与网贷同步，并维护投资记账与汇率换算。
+          </p>
+        </div>
+        {currency && <Badge variant="outline" className="text-base">显示：{currency.name ?? currency.currency} {currency.symbol ?? ''}</Badge>}
+      </section>
+
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+        {tabs.map((t) => (
+          <Button key={t.key} variant={tab === t.key ? 'default' : 'ghost'} className="min-w-max flex-1 whitespace-nowrap" onClick={() => setTab(t.key)}>
+            <t.icon className="size-4" /> {t.label}
+          </Button>
+        ))}
+      </div>
+
+      {tab === 'debt' && <DebtTab fmtMoney={fmtMoney} />}
+      {tab === 'invest' && <InvestTab />}
+      {tab === 'memo' && <MemoTab />}
+      {tab === 'rate' && <RateTab currencies={currencies} setCurrencies={setCurrencies} currency={currency} setCurrency={setDisplayCurrency} />}
+    </div>
+  )
+}

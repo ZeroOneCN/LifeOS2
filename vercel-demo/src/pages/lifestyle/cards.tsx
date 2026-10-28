@@ -1,0 +1,837 @@
+﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
+import { getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import {
+  RecordManager,
+  type ColumnDef,
+  type FieldDef,
+} from '@/components/health/record-manager'
+import { api, type PageResult } from '@/lib/api'
+
+// ------------------------------------------------------------------ 类型
+type PhoneCard = {
+  id: number
+  phone_number: string
+  operator: string
+  region?: string
+  balance?: number
+  monthly_fee?: number
+  bill_day?: number
+  data_plan?: string
+  call_plan?: string
+  sms_plan?: string
+  open_date?: string
+  billing_type: 'monthly' | 'one_time' | 'yearly'
+  bill_paid_this_month: boolean
+  status: 'active' | 'frozen' | 'expired' | 'disabled'
+  note?: string
+}
+
+type BankCard = {
+  id: number
+  card_name: string
+  card_holder?: string
+  bank: string
+  card_category: 'credit' | 'debit'
+  card_form: 'physical' | 'virtual'
+  card_number?: string
+  balance?: number
+  credit_limit?: number
+  billing_day?: number
+  due_day?: number
+  expire_date?: string
+  status: 'active' | 'frozen' | 'expired' | 'closed'
+  note?: string
+}
+
+type Carrier = { id: number; name: string; website?: string; contact?: string; note?: string }
+type CardBill = {
+  id: number
+  phone_card_id: number
+  bill_month: string
+  amount: number
+  deducted_date?: string
+  paid: boolean
+  note?: string
+}
+
+type PhoneRecharge = {
+  id: number
+  phone_card_id: number
+  amount: number
+  recharge_date: string
+  note?: string
+  created_at: string
+}
+
+type PhoneStats = {
+  total: number
+  active: number
+  monthly_fee_total: number
+  balance_total: number
+  month_deduct: number
+  month_deduct_count: number
+  unpaid_this_month: number
+  billing_type: { billing_type: string; count: number }[]
+  by_operator: { operator: string; count: number }[]
+  by_status: { status: string; count: number }[]
+}
+
+type BankStats = {
+  total: number
+  active: number
+  balance_total: number
+  credit_total: number
+  by_bank: { bank: string; count: number }[]
+  by_category: { card_category: string; count: number }[]
+  by_status: { status: string; count: number }[]
+}
+
+type BillStats = { total: number; month_total: number; by_month: { bill_month: string; amount: number }[] }
+
+const fmt = (n?: number | null) =>
+  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+
+const TAB_META = [
+  { key: 'phone', label: '手机号', icon: Smartphone },
+  { key: 'bank', label: '银行卡', icon: Landmark },
+  { key: 'carrier', label: '运营商', icon: BadgeCheck },
+  { key: 'bill', label: '扣账账单', icon: ListChecks },
+] as const
+
+const operators = ['中国移动', '中国联通', '中国电信', '虚拟运营商']
+const bankTypes = [
+  { value: 'credit', label: '信用卡' },
+  { value: 'debit', label: '储蓄卡' },
+]
+const cardForms = [
+  { value: 'physical', label: '实体卡' },
+  { value: 'virtual', label: '虚拟卡' },
+]
+const billingTypes = [
+  { value: 'monthly', label: '按月' },
+  { value: 'one_time', label: '一次性' },
+  { value: 'yearly', label: '按年保号' },
+]
+const phoneStatus = [
+  { value: 'active', label: '正常' },
+  { value: 'frozen', label: '冻结' },
+  { value: 'expired', label: '已过期' },
+  { value: 'disabled', label: '已销户' },
+]
+const bankStatus = [
+  { value: 'active', label: '正常' },
+  { value: 'frozen', label: '冻结' },
+  { value: 'expired', label: '已过期' },
+  { value: 'closed', label: '已注销' },
+]
+
+/** 从开卡日期到今天的持有时长（精确到天：x年x个月x天） */
+function openDuration(dateStr: string): string {
+  const open = new Date(dateStr)
+  if (Number.isNaN(open.getTime())) return ''
+  const now = new Date()
+
+  let years = now.getFullYear() - open.getFullYear()
+  let months = now.getMonth() - open.getMonth()
+  let days = now.getDate() - open.getDate()
+  if (days < 0) {
+    months -= 1
+    const prevMonthDays = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+    days += prevMonthDays
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  const parts: string[] = []
+  if (years > 0) parts.push(`${years}年`)
+  if (months > 0) parts.push(`${months}个月`)
+  if (years === 0 && months === 0 && days === 0) parts.push('0个月')
+  else if (days > 0) parts.push(`${days}天`)
+  return parts.join('')
+}
+
+/** 距指定日期的天数（负数表示已过期天数）。 */
+function daysUntil(dateStr: string): number {
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((d.getTime() - today.getTime()) / 86400000)
+}
+
+const phoneFields: FieldDef[] = [
+  { key: 'phone_number', label: '号码', type: 'text', required: true },
+  {
+    key: 'operator',
+    label: '运营商',
+    type: 'select',
+    required: true,
+    options: operators.map((o) => ({ value: o, label: o })),
+  },
+  { key: 'region', label: '归属地', type: 'text', placeholder: '如 广东-深圳' },
+  { key: 'balance', label: '余额', type: 'number', step: '0.01', min: 0 },
+  { key: 'monthly_fee', label: '月租', type: 'number', step: '0.01', min: 0 },
+  { key: 'bill_day', label: '账单日', type: 'number', step: '1', min: 1 },
+  { key: 'data_plan', label: '流量套餐', type: 'text', placeholder: '如 30GB' },
+  { key: 'call_plan', label: '通话', type: 'text', placeholder: '如 100分钟' },
+  { key: 'sms_plan', label: '短信', type: 'text', placeholder: '如 50条' },
+  { key: 'open_date', label: '开卡时间', type: 'date' },
+  {
+    key: 'billing_type',
+    label: '付费方式',
+    type: 'select',
+    options: billingTypes,
+  },
+  {
+    key: 'bill_paid_this_month',
+    label: '本月是否已扣账',
+    type: 'boolean',
+    options: [
+      { value: 'false', label: '未扣账' },
+      { value: 'true', label: '已扣账' },
+    ],
+  },
+  {
+    key: 'status',
+    label: '状态',
+    type: 'select',
+    options: phoneStatus,
+  },
+  { key: 'note', label: '备注', type: 'textarea', full: true },
+]
+
+const phoneColumns: ColumnDef<PhoneCard>[] = [
+  {
+    key: 'phone_number',
+    label: '号码',
+    render: (r) => (
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium">{r.phone_number}</span>
+        {r.billing_type !== 'monthly' && (
+          <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">
+            {billingTypes.find((b) => b.value === r.billing_type)?.label ?? r.billing_type}
+          </Badge>
+        )}
+      </div>
+    ),
+  },
+  { key: 'operator', label: '运营商' },
+  { key: 'region', label: '归属地', render: (r) => r.region ?? '—' },
+  { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
+  { key: 'monthly_fee', label: '月租', render: (r) => (r.monthly_fee != null ? fmt(r.monthly_fee) : '—') },
+  { key: 'bill_day', label: '账单日', render: (r) => (r.bill_day ? `${r.bill_day} 日` : '—') },
+  { key: 'data_plan', label: '流量套餐', render: (r) => r.data_plan ?? '—' },
+  {
+    key: 'call_sms',
+    label: '通话短信',
+    render: (r) => {
+      const cp = r.call_plan
+      const sp = r.sms_plan
+      if (cp && sp) return `${cp} / ${sp}`
+      return cp || sp || '—'
+    },
+  },
+  {
+    key: 'open_date',
+    label: '开卡时间',
+    render: (r) => (r.open_date ? `${r.open_date}（${openDuration(r.open_date)}）` : '—'),
+  },
+  { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
+  {
+    key: 'bill_paid_this_month',
+    label: '本月扣账',
+    render: (r) =>
+      r.bill_paid_this_month ? (
+        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
+      ) : (
+        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未扣账</Badge>
+      ),
+  },
+  {
+    key: 'status',
+    label: '状态',
+    render: (r) => (
+      <Badge className={metaClass(r.status)}>
+        {phoneStatus.find((s) => s.value === r.status)?.label ?? r.status}
+      </Badge>
+    ),
+  },
+]
+
+const bankFields: FieldDef[] = [
+  // 卡片别名 = 自己给这张卡起的称呼（便于区分多张同类卡），
+  // 与「银行」（发卡行，用于银行分布统计）职责不同，不要直接填银行名。
+  { key: 'card_name', label: '卡片别名', type: 'text', required: true, placeholder: '如 招行工资卡、中信i白金' },
+  { key: 'card_holder', label: '持卡人', type: 'text' },
+  { key: 'bank', label: '银行', type: 'text', required: true, placeholder: '发卡银行，如 招商银行' },
+  {
+    key: 'card_category',
+    label: '卡类型',
+    type: 'select',
+    options: bankTypes,
+    defaultValue: 'debit',
+  },
+  {
+    key: 'card_form',
+    label: '卡形态',
+    type: 'select',
+    options: cardForms,
+  },
+  { key: 'card_number', label: '卡号', type: 'digits', placeholder: '输入卡号，自动每 4 位分隔' },
+  { key: 'balance', label: '余额', type: 'number', step: '0.01', min: 0 },
+  { key: 'credit_limit', label: '信用额度', type: 'number', step: '0.01', min: 0 },
+  { key: 'billing_day', label: '账单日', type: 'number', step: '1', min: 1 },
+  { key: 'due_day', label: '还款日', type: 'number', step: '1', min: 1 },
+  { key: 'expire_date', label: '有效期', type: 'date' },
+  {
+    key: 'status',
+    label: '状态',
+    type: 'select',
+    options: bankStatus,
+  },
+  { key: 'note', label: '备注', type: 'textarea', full: true },
+]
+
+const bankColumns: ColumnDef<BankCard>[] = [
+  { key: 'card_name', label: '别名', render: (r) => r.card_name ?? '—' },
+  {
+    key: 'card_category',
+    label: '类型',
+    render: (r) => (
+      <Badge className={r.card_category === 'credit' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'}>
+        {r.card_category === 'credit' ? '信用卡' : '储蓄卡'}
+      </Badge>
+    ),
+  },
+  { key: 'bank', label: '银行' },
+  { key: 'card_holder', label: '持卡人', render: (r) => r.card_holder ?? '—' },
+  { key: 'card_number', label: '卡号', render: (r) => r.card_number ?? '—' },
+  { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
+  { key: 'credit_limit', label: '额度', render: (r) => (r.credit_limit ? fmt(r.credit_limit) : '—') },
+  {
+    key: 'expire_date',
+    label: '有效期',
+    render: (r) => {
+      if (!r.expire_date) return '—'
+      const days = daysUntil(r.expire_date)
+      if (days < 0) {
+        return (
+          <span className="text-red-600 dark:text-red-400">
+            {r.expire_date}（已过期 {Math.abs(days)} 天）
+          </span>
+        )
+      }
+      if (days <= 90) {
+        return (
+          <span className="text-amber-600 dark:text-amber-400">
+            {r.expire_date}（剩余 {days} 天）
+          </span>
+        )
+      }
+      return r.expire_date
+    },
+  },
+  {
+    key: 'status',
+    label: '状态',
+    render: (r) => (
+      <Badge className={metaClass(r.status)}>
+        {bankStatus.find((s) => s.value === r.status)?.label ?? r.status}
+      </Badge>
+    ),
+  },
+]
+
+const carrierFields: FieldDef[] = [
+  { key: 'name', label: '平台名称', type: 'text', required: true },
+  { key: 'website', label: '官网/链接', type: 'text' },
+  { key: 'contact', label: '客服电话', type: 'text' },
+  { key: 'note', label: '备注', type: 'textarea', full: true },
+]
+
+const carrierColumns: ColumnDef<Carrier>[] = [
+  { key: 'name', label: '平台' },
+  { key: 'website', label: '官网', render: (r) => r.website ?? '—' },
+  { key: 'contact', label: '客服电话', render: (r) => r.contact ?? '—' },
+]
+
+function metaClass(status: string): string {
+  const map: Record<string, string> = {
+    active: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+    frozen: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+    expired: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+    disabled: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
+    closed: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
+  }
+  return map[status] ?? 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'
+}
+
+function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: number }) {
+  return <div className={`grid gap-3 sm:grid-cols-2 ${cols === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>{children}</div>
+}
+
+function MiniStat({ icon: Icon, label, value }: { icon?: typeof Smartphone; label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between px-4 py-3">
+        <div>
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className="mt-0.5 text-lg font-semibold">{value}</div>
+        </div>
+        {Icon && <Icon className="size-4 text-muted-foreground" />}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** 取分布项的名称：数据对象里除 count 外的唯一键值（如 bank / operator / status）。 */
+function distLabel(d: { count: number; [k: string]: unknown }): string {
+  const key = Object.keys(d).find((k) => k !== 'count')
+  return String((key ? d[key] : undefined) ?? '—')
+}
+
+/**
+ * 分布卡片：以「名称 · 数量 / 占比」列表 + 占比进度条展示分布。
+ *
+ * 当条目数超过 maxVisible 时，默认只展示前 maxVisible 条，底部提供「展开全部 / 收起」切换，
+ * 避免某一路分布过长（如银行分布）把网格内其它卡片挤失衡。
+ *
+ * @param title 卡片标题
+ * @param subtitle 标题右侧的补充说明
+ * @param data 分布数据（每项含 count 与一个名称字段）
+ * @param maxVisible 折叠前默认展示的最大条数，默认 5
+ */
+function DistCard({
+  title,
+  subtitle,
+  data,
+  maxVisible = 5,
+}: {
+  title: string
+  subtitle?: string
+  data: { count: number; [k: string]: unknown }[]
+  maxVisible?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const total = data.reduce((sum, d) => sum + (d.count ?? 0), 0)
+  const canFold = data.length > maxVisible
+  const visible = expanded ? data : data.slice(0, maxVisible)
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-sm font-semibold">{title}</div>
+          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+        </div>
+        {total === 0 ? (
+          <div className="mt-3 text-sm text-muted-foreground">暂无数据</div>
+        ) : (
+          <>
+            <ul className="mt-3 space-y-2">
+              {visible.map((d) => {
+                const name = distLabel(d)
+                const count = d.count ?? 0
+                const pct = Math.round((count / total) * 100)
+                return (
+                  <li key={name}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{name}</span>
+                      <span className="font-medium">{count} 张 · {pct}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {canFold && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="mt-2 w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {expanded ? '收起' : `展开全部（共 ${data.length} 项）`}
+              </button>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function CardsPage() {
+  const [tab, setTab] = useState<(typeof TAB_META)[number]['key']>('phone')
+  const [phoneRefresh, setPhoneRefresh] = useState(0)
+  const [bankRefresh, setBankRefresh] = useState(0)
+  const [billRefresh, setBillRefresh] = useState(0)
+
+  const days = useMemo<StatsDays>(() => getDefaultStatsDays(), [])
+  const { data: phoneStats } = useStats<PhoneStats>('/lifestyle/phone-cards', days, phoneRefresh)
+  const { data: bankStats } = useStats<BankStats>('/lifestyle/bank-cards', days, bankRefresh)
+  const { data: billStats } = useStats<BillStats>('/lifestyle/card-bills', days, billRefresh)
+
+  // 手机号「运营商」下拉从运营商平台设置动态加载，保证与平台数据一致
+  const [carrierNames, setCarrierNames] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    api
+      .list<Carrier>('/lifestyle/carriers', { page: 1, page_size: 100 })
+      .then((res: PageResult<Carrier>) => {
+        const names = res.items.map((c) => ({ value: c.name, label: c.name }))
+        setCarrierNames(names.length ? names : operators.map((o) => ({ value: o, label: o })))
+      })
+      .catch(() => setCarrierNames(operators.map((o) => ({ value: o, label: o }))))
+  }, [])
+
+  // 手机号新增/编辑：运营商选项来自运营商平台设置
+  const dynamicPhoneFields = phoneFields.map((f) =>
+    f.key === 'operator' ? { ...f, options: carrierNames } : f,
+  )
+
+  // 各图表横坐标中文映射
+  const phoneChartByStatus = (phoneStats?.by_status ?? []).map((s) => ({
+    status: phoneStatus.find((x) => x.value === s.status)?.label ?? s.status,
+    count: s.count,
+  }))
+  const phoneChartBilling = (phoneStats?.billing_type ?? []).map((b) => ({
+    billing_type: billingTypes.find((x) => x.value === b.billing_type)?.label ?? b.billing_type,
+    count: b.count,
+  }))
+  const bankChartCategory = (bankStats?.by_category ?? []).map((c) => ({
+    card_category: c.card_category === 'credit' ? '信用卡' : '储蓄卡',
+    count: c.count,
+  }))
+  const bankChartStatus = (bankStats?.by_status ?? []).map((s) => ({
+    status: bankStatus.find((x) => x.value === s.status)?.label ?? s.status,
+    count: s.count,
+  }))
+
+  // 用于扣账账单中显示手机号
+  const [phoneMap, setPhoneMap] = useState<Record<number, string>>({})
+  useEffect(() => {
+    api
+      .list<PhoneCard>('/lifestyle/phone-cards', { page: 1, page_size: 100 })
+      .then((res: PageResult<PhoneCard>) =>
+        setPhoneMap(Object.fromEntries(res.items.map((p) => [p.id, p.phone_number]))),
+      )
+      .catch(() => setPhoneMap({}))
+  }, [phoneRefresh])
+
+  const billFields: FieldDef[] = [
+    {
+      key: 'phone_card_id',
+      label: '手机号',
+      type: 'select',
+      required: true,
+      options: Object.entries(phoneMap).map(([id, num]) => ({ value: id, label: num })),
+    },
+    { key: 'bill_month', label: '账单月份', type: 'date', required: true },
+    { key: 'amount', label: '扣账金额', type: 'number', step: '0.01', min: 0, required: true },
+    { key: 'deducted_date', label: '扣账日期', type: 'date' },
+    {
+      key: 'paid',
+      label: '是否扣账成功',
+      type: 'boolean',
+      options: [
+        { value: 'true', label: '成功' },
+        { value: 'false', label: '失败/待扣' },
+      ],
+    },
+    { key: 'note', label: '备注', type: 'textarea', full: true },
+  ]
+
+  const billColumns: ColumnDef<CardBill>[] = [
+    { key: 'phone', label: '手机号', render: (r) => phoneMap[r.phone_card_id] ?? `#${r.phone_card_id}` },
+    { key: 'bill_month', label: '账单月份', render: (r) => r.bill_month.slice(0, 7) },
+    { key: 'amount', label: '金额', render: (r) => fmt(r.amount) },
+    { key: 'deducted_date', label: '扣账日期', render: (r) => r.deducted_date ?? '—' },
+    {
+      key: 'paid',
+      label: '状态',
+      render: (r) =>
+        r.paid ? (
+          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
+        ) : (
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待扣</Badge>
+        ),
+    },
+  ]
+
+  const doDeduct = async (id: number) => {
+    try {
+      const rep = await api.post<PhoneCard>(`/lifestyle/phone-cards/${id}/deduct`)
+      toast.success('已记录当月扣账', { description: `${rep.phone_number} · ${fmt(rep.monthly_fee ?? 0)}` })
+      setPhoneRefresh((v) => v + 1)
+      setBillRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('扣账失败', { description: (e as Error).message })
+    }
+  }
+
+  const [rechargeCardId, setRechargeCardId] = useState<number | null>(null)
+  const [rechargeOpen, setRechargeOpen] = useState(false)
+  const [rechargeAmount, setRechargeAmount] = useState('')
+  const [rechargeDate, setRechargeDate] = useState('')
+  const [rechargeNote, setRechargeNote] = useState('')
+  const [rechargeSaving, setRechargeSaving] = useState(false)
+  const [rechargeRecords, setRechargeRecords] = useState<PhoneRecharge[]>([])
+
+  const doRecharge = async () => {
+    if (!rechargeCardId) return
+    const amount = parseFloat(rechargeAmount)
+    if (!amount || amount <= 0) {
+      toast.error('请输入有效的充值金额')
+      return
+    }
+    setRechargeSaving(true)
+    try {
+      const payload: Record<string, unknown> = { amount }
+      if (rechargeDate) payload.recharge_date = rechargeDate
+      if (rechargeNote) payload.note = rechargeNote
+      await api.post(`/lifestyle/phone-cards/${rechargeCardId}/recharge`, payload)
+      toast.success('充值成功')
+      setRechargeOpen(false)
+      setRechargeCardId(null)
+      setRechargeAmount('')
+      setRechargeDate('')
+      setRechargeNote('')
+      setPhoneRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('充值失败', { description: (e as Error).message })
+    } finally {
+      setRechargeSaving(false)
+    }
+  }
+
+  const openRecharge = (id: number) => {
+    setRechargeCardId(id)
+    setRechargeAmount('')
+    setRechargeDate('')
+    setRechargeNote('')
+    setRechargeRecords([])
+    setRechargeOpen(true)
+    api.query<PhoneRecharge[]>(`/lifestyle/phone-cards/${id}/recharges`).then(setRechargeRecords).catch(() => {})
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">卡片管理</h1>
+          <p className="text-sm text-muted-foreground">
+            管理手机号卡与银行卡，维护运营商平台设置，自动记录扣账账单并分析。
+          </p>
+        </div>
+      </section>
+
+      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+        {TAB_META.map((t) => (
+          <Button
+            key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="min-w-max flex-1 whitespace-nowrap"
+            onClick={() => setTab(t.key)}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </Button>
+        ))}
+      </div>
+
+      {tab === 'phone' && (
+        <RecordManager<PhoneCard>
+          title=""
+          description=""
+          apiPath="/lifestyle/phone-cards"
+          fields={dynamicPhoneFields}
+          columns={phoneColumns}
+          refreshKey={phoneRefresh}
+          onMutate={() => setPhoneRefresh((v) => v + 1)}
+          rowActions={(r) =>
+            <>
+              <Tip label="充值">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-emerald-600 dark:text-emerald-400"
+                  onClick={() => openRecharge(r.id)}
+                >
+                  <Coins className="size-4" />
+                </Button>
+              </Tip>
+              {!r.bill_paid_this_month ? (
+                <Tip label="记录当月扣账">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-indigo-600 dark:text-indigo-400"
+                    onClick={() => doDeduct(r.id)}
+                  >
+                    <Banknote className="size-4" />
+                  </Button>
+                </Tip>
+              ) : null}
+            </>
+          }
+          extra={
+            phoneStats ? (
+              <>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                  <MiniStat icon={Smartphone} label="手机卡" value={`${phoneStats.total} 张`} />
+                  <MiniStat icon={BadgeCheck} label="正常在网" value={`${phoneStats.active}`} />
+                  <MiniStat label="月租合计" value={fmt(phoneStats.monthly_fee_total)} />
+                  <MiniStat label="本月扣账" value={`${phoneStats.month_deduct_count}笔/${fmt(phoneStats.month_deduct)}`} />
+                  <MiniStat label="余额合计" value={fmt(phoneStats.balance_total)} />
+                  <MiniStat label="本月未扣账" value={`${phoneStats.unpaid_this_month}张`} />
+                </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <DistCard title="运营商分布" data={phoneStats.by_operator} />
+                  <DistCard title="状态分布" data={phoneChartByStatus} />
+                  <DistCard title="付费方式" data={phoneChartBilling} />
+                </div>
+              </>
+            ) : null
+          }
+        />
+      )}
+
+      <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>充值</DialogTitle>
+            <DialogDescription>增加手机号卡的余额，系统将自动记录充值流水。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>充值金额 *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={rechargeAmount}
+                onChange={(e) => setRechargeAmount(e.target.value)}
+                placeholder="如 50.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>充值日期</Label>
+              <DatePicker value={rechargeDate} onChange={setRechargeDate} placeholder="默认为今天" />
+            </div>
+            <div className="space-y-2">
+              <Label>备注</Label>
+              <Textarea value={rechargeNote} onChange={(e) => setRechargeNote(e.target.value)} placeholder="如 话费充值" />
+            </div>
+          </div>
+          {rechargeRecords.length > 0 && (
+            <div className="border-t pt-3">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">充值记录</div>
+              <div className="max-h-32 space-y-1 overflow-y-auto">
+                {rechargeRecords.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between rounded bg-muted/30 px-2.5 py-1.5 text-xs">
+                    <span className="text-muted-foreground">{r.recharge_date}</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(r.amount)}</span>
+                    {r.note && <span className="text-muted-foreground">{r.note}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRechargeOpen(false)}>取消</Button>
+            <Button onClick={doRecharge} disabled={rechargeSaving}>
+              {rechargeSaving && <Loader2 className="animate-spin" />}
+              确认充值
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {tab === 'bank' && (
+        <RecordManager<BankCard>
+          title=""
+          description=""
+          apiPath="/lifestyle/bank-cards"
+          fields={bankFields}
+          columns={bankColumns}
+          onMutate={() => setBankRefresh((v) => v + 1)}
+          searchable
+          searchPlaceholder="搜索别名 / 银行 / 持卡人 / 卡号"
+          filters={[
+            { key: 'card_category', label: '卡类型', options: bankTypes },
+            { key: 'status', label: '状态', options: bankStatus },
+          ]}
+          extra={
+            bankStats ? (
+              <>
+                <StatRow>
+                  <MiniStat icon={Landmark} label="银行卡总数" value={`${bankStats.total} 张`} />
+                  <MiniStat icon={BadgeCheck} label="正常使用" value={`${bankStats.active} 张`} />
+                  <MiniStat icon={CreditCard} label="余额合计" value={fmt(bankStats.balance_total)} />
+                  <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
+                </StatRow>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <DistCard title="银行分布" data={bankStats.by_bank} />
+                  <DistCard title="卡类型" data={bankChartCategory} />
+                  <DistCard title="状态分布" data={bankChartStatus} />
+                </div>
+              </>
+            ) : null
+          }
+        />
+      )}
+
+      {tab === 'carrier' && (
+        <RecordManager<Carrier>
+          title=""
+          description=""
+          apiPath="/lifestyle/carriers"
+          fields={carrierFields}
+          columns={carrierColumns}
+        />
+      )}
+
+      {tab === 'bill' && (
+        <RecordManager<CardBill>
+          title=""
+          description=""
+          apiPath="/lifestyle/card-bills"
+          fields={billFields}
+          columns={billColumns}
+          refreshKey={billRefresh}
+          onMutate={() => setBillRefresh((v) => v + 1)}
+          extra={
+            billStats ? (
+              <StatRow cols={3}>
+                <MiniStat icon={ListChecks} label="本月扣账笔数" value={`${billStats.total} 笔`} />
+                <MiniStat icon={CreditCard} label="本月扣账总额" value={fmt(billStats.month_total)} />
+                <MiniStat icon={Banknote} label="历史月份数" value={`${billStats.by_month.length} 个月`} />
+              </StatRow>
+            ) : null
+          }
+        />
+      )}
+
+    </div>
+  )
+}

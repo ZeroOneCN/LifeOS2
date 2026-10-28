@@ -1,0 +1,109 @@
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Loader2, LogIn } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useAuth } from '@/lib/auth'
+import { resolveLogo, useSiteConfig } from '@/lib/site-config'
+
+export function LoginPage() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const { config } = useSiteConfig()
+  const [account, setAccount] = useState('demo')
+  const [password, setPassword] = useState('demo123456')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    document.title = `${config.site_title}-登录`
+  }, [config.site_title])
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!account.trim() || !password) {
+      setError('请输入账号和密码')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      await login(account.trim(), password)
+      navigate('/home')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登录失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <img
+            src={resolveLogo(config.logo)}
+            alt={config.site_title}
+            className="mx-auto mb-2 size-10"
+          />
+          <CardTitle className="text-xl">{config.login_title}</CardTitle>
+          <CardDescription>{config.login_subtitle}</CardDescription>
+          <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            演示账号：demo　密码：demo123456
+          </p>
+        </CardHeader>
+        <form onSubmit={submit}>
+          <CardContent className="space-y-4">
+            {error && (
+              <p className="rounded-md border border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                {error}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="account">账号</Label>
+              <Input
+                id="account"
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="请输入账号"
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">密码</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                autoComplete="current-password"
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? <Loader2 className="animate-spin" /> : <LogIn />}
+              登录
+            </Button>
+          </CardContent>
+        </form>
+        <CardFooter className="justify-center text-sm text-muted-foreground">
+          还没有账号？
+          <Link to="/register" className="ml-1 text-primary hover:underline">
+            去注册
+          </Link>
+        </CardFooter>
+      </Card>
+    </div>
+  )
+}

@@ -1,0 +1,777 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  BookOpen,
+  Loader2,
+  Pencil,
+  Plus,
+  Settings2,
+  Tags,
+  Trash2,
+  Upload,
+  Wallet,
+} from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { Tip } from '@/components/ui/tip'
+import { LineChartCard } from '@/components/health/charts'
+import { useRealtime } from '@/hooks/use-realtime'
+import { api } from '@/lib/api'
+import { toast } from 'sonner'
+
+const PAGE_SIZE = 10
+
+type Ledger = { id: number; name: string }
+type Platform = { id: number; name: string }
+type Category = {
+  id: number
+  name: string
+  keywords: string[]
+  exclude: string[]
+  priority: number
+  is_fallback: boolean
+}
+
+type Record = {
+  id: number
+  record_date: string
+  platform_id?: number
+  platform_name?: string
+  product_name: string
+  spec?: string
+  total_price: number
+  unit_price?: number
+  order_no?: string
+  ledger_id?: number
+  category_id?: number
+  note?: string
+}
+
+type Stats = {
+  total: number
+  count: number
+  monthly_trend: { month: string; amount: number }[]
+  by_platform: { platform_id: number; platform: string; amount: number }[]
+  by_ledger: { ledger_id: number; ledger: string; amount: number }[]
+  by_category: { category_id: number; category: string; amount: number }[]
+}
+
+const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+type RecordForm = {
+  record_date: string
+  platform_id: string
+  product_name: string
+  spec: string
+  total_price: string
+  unit_price: string
+  order_no: string
+  ledger_id: string
+  category_id: string
+  note: string
+}
+
+const emptyForm: RecordForm = {
+  record_date: new Date().toISOString().slice(0, 10),
+  platform_id: '',
+  product_name: '',
+  spec: '',
+  total_price: '',
+  unit_price: '',
+  order_no: '',
+  ledger_id: '',
+  category_id: '',
+  note: '',
+}
+
+function StatCard({ icon: Icon, label, value, hint }: { icon: typeof Wallet; label: string; value: string; hint?: string }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <Icon className="size-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold">{value}</div>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function ShoppingPage() {
+  const realtimeTick = useRealtime(30_000)
+  const [ledgers, setLedgers] = useState<Ledger[]>([])
+  const [platforms, setPlatforms] = useState<Platform[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [currentLedger, setCurrentLedger] = useState<string>('')
+  const [currentCategory, setCurrentCategory] = useState<string>('')
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false)
+
+  const [records, setRecords] = useState<Record[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [refresh, setRefresh] = useState(0)
+
+  // 弹窗状态
+  const [ledgerDialog, setLedgerDialog] = useState<null | { mode: 'create' } | { mode: 'rename'; id: number; name: string }>(null)
+  const [ledgerName, setLedgerName] = useState('')
+  const [platformDialog, setPlatformDialog] = useState(false)
+  const [newPlatform, setNewPlatform] = useState('')
+  const [categoryDialog, setCategoryDialog] = useState(false)
+  const [recordDialog, setRecordDialog] = useState(false)
+  const [editing, setEditing] = useState<Record | null>(null)
+  const [form, setForm] = useState<RecordForm>(emptyForm)
+  const [saving, setSaving] = useState(false)
+
+  // 分类管理弹窗内的编辑状态
+  const [catEditing, setCatEditing] = useState<Category | null>(null)
+  const [catForm, setCatForm] = useState<{ name: string; keywords: string; exclude: string; priority: string; is_fallback: boolean }>({
+    name: '', keywords: '', exclude: '', priority: '0', is_fallback: false,
+  })
+
+  const fileRef = useRef<HTMLInputElement>(null)
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const loadLedgers = async () => {
+    const res = await api.list<Ledger>('/finance/shopping/ledgers', { page_size: 100 })
+    setLedgers(res.items)
+    return res.items
+  }
+  const loadPlatforms = async () => {
+    const res = await api.list<Platform>('/finance/shopping/platforms', { page_size: 100 })
+    setPlatforms(res.items)
+  }
+  const loadCategories = async () => {
+    const res = await api.query<Category[]>('/finance/shopping/categories')
+    setCategories(res)
+  }
+
+  useEffect(() => {
+    loadLedgers()
+    loadPlatforms()
+    loadCategories()
+  }, [realtimeTick])
+
+  useEffect(() => {
+    const ledgerParam = currentLedger ? Number(currentLedger) : undefined
+    setLoading(true)
+    api
+      .list<Record>('/finance/shopping/records', {
+        page,
+        page_size: PAGE_SIZE,
+        extra: {
+          ledger_id: ledgerParam,
+          category_id: currentCategory ? Number(currentCategory) : undefined,
+          uncategorized: uncategorizedOnly ? true : undefined,
+        },
+      })
+      .then((res) => {
+        setRecords(res.items)
+        setTotal(res.total)
+      })
+      .finally(() => setLoading(false))
+    loadStats()
+  }, [currentLedger, currentCategory, uncategorizedOnly, page, refresh, realtimeTick])
+
+  const loadStats = () => {
+    const ledgerParam = currentLedger ? Number(currentLedger) : undefined
+    api
+      .query<Stats>(`/finance/shopping/records/stats?days=3650${currentLedger ? `&ledger_id=${ledgerParam}` : ''}`)
+      .then(setStats)
+      .catch(() => setStats(null))
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // 账本操作
+  const openCreateLedger = () => {
+    setLedgerName('')
+    setLedgerDialog({ mode: 'create' })
+  }
+  const saveLedger = async () => {
+    const name = ledgerName.trim()
+    if (!name) return
+    const mode = ledgerDialog?.mode
+    if (mode === 'create') {
+      const item = await api.create<Ledger>('/finance/shopping/ledgers', { name })
+      const next = await loadLedgers()
+      setCurrentLedger(String(item.id))
+      setPage(1)
+      setLedgerDialog(null)
+      setLedgers(next)
+    } else if (mode === 'rename' && ledgerDialog) {
+      await api.update('/finance/shopping/ledgers', (ledgerDialog as { id: number }).id, { name })
+      await loadLedgers()
+      setLedgerDialog(null)
+    }
+  }
+  const removeLedger = async () => {
+    if (!currentLedger) return
+    if (!(await confirm())) return
+    await api.remove('/finance/shopping/ledgers', Number(currentLedger))
+    const next = await loadLedgers()
+    setCurrentLedger(next.length ? String(next[0].id) : '')
+    setPage(1)
+    setLedgerDialog(null)
+  }
+
+  const addPlatform = async () => {
+    const name = newPlatform.trim()
+    if (!name) return
+    const item = await api.create<Platform>('/finance/shopping/platforms', { name })
+    setPlatforms((p) => [...p, item])
+    setNewPlatform('')
+  }
+  const removePlatform = async (id: number) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/shopping/platforms', id)
+    loadPlatforms()
+  }
+
+  // 记录操作
+  const openCreate = () => {
+    setEditing(null)
+    setForm({ ...emptyForm, ledger_id: currentLedger || '' })
+    setRecordDialog(true)
+  }
+  const openEdit = (row: Record) => {
+    setEditing(row)
+    setForm({
+      record_date: row.record_date,
+      platform_id: row.platform_id ? String(row.platform_id) : '',
+      product_name: row.product_name,
+      spec: row.spec ?? '',
+      total_price: String(row.total_price),
+      unit_price: row.unit_price != null ? String(row.unit_price) : '',
+      order_no: row.order_no ?? '',
+      ledger_id: row.ledger_id ? String(row.ledger_id) : currentLedger || '',
+      category_id: row.category_id ? String(row.category_id) : '',
+      note: row.note ?? '',
+    })
+    setRecordDialog(true)
+  }
+  const submitRecord = async () => {
+    const payload = {
+      record_date: form.record_date,
+      platform_id: form.platform_id ? Number(form.platform_id) : null,
+      product_name: form.product_name,
+      spec: form.spec || null,
+      total_price: Number(form.total_price),
+      unit_price: form.unit_price ? Number(form.unit_price) : null,
+      order_no: form.order_no || null,
+      ledger_id: form.ledger_id ? Number(form.ledger_id) : null,
+      category_id: form.category_id ? Number(form.category_id) : null,
+      note: form.note || null,
+    }
+    setSaving(true)
+    try {
+      if (editing) await api.update('/finance/shopping/records', editing.id, payload)
+      else await api.create('/finance/shopping/records', payload)
+      setRecordDialog(false)
+      setPage(1)
+      setRefresh((v) => v + 1)
+      toast.success(editing ? '记录已更新' : '记录已添加')
+    } catch (e) {
+      toast.error('保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const removeRecord = async (row: Record) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/shopping/records', row.id)
+    if (records.length === 1 && page > 1) setPage(page - 1)
+    else {
+      setLoading(true)
+      const res = await api.list<Record>('/finance/shopping/records', {
+        page,
+        page_size: PAGE_SIZE,
+        extra: {
+          ledger_id: currentLedger ? Number(currentLedger) : undefined,
+          category_id: currentCategory ? Number(currentCategory) : undefined,
+          uncategorized: uncategorizedOnly ? true : undefined,
+        },
+      })
+      setRecords(res.items)
+      setTotal(res.total)
+      setLoading(false)
+      loadStats()
+    }
+  }
+
+  // xlsx 导入
+  const importXlsx = async (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (!currentLedger) {
+      toast.warning('请先选择具体账本，再导入购物记录')
+      return
+    }
+    try {
+      const res = await api.upload<{ imported: number; skipped: number }>(`/finance/shopping/import?ledger_id=${Number(currentLedger)}`, fd)
+      setPage(1)
+      setRefresh((v) => v + 1)
+      toast.success('导入成功', { description: `共导入 ${res.imported} 条，跳过 ${res.skipped} 条` })
+    } catch (e) {
+      toast.error('导入失败', { description: (e as Error).message })
+    }
+  }
+
+  const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '未分类'
+
+  // 分类管理操作
+  const openCreateCategory = () => {
+    setCatEditing(null)
+    setCatForm({ name: '', keywords: '', exclude: '', priority: '0', is_fallback: false })
+    setCategoryDialog(true)
+  }
+  const openEditCategory = (c: Category) => {
+    setCatEditing(c)
+    setCatForm({
+      name: c.name,
+      keywords: c.keywords.join(', '),
+      exclude: c.exclude.join(', '),
+      priority: String(c.priority),
+      is_fallback: c.is_fallback,
+    })
+    setCategoryDialog(true)
+  }
+  const saveCategory = async () => {
+    const name = catForm.name.trim()
+    if (!name) return
+    const keywords = catForm.keywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    const exclude = catForm.exclude.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    const payload = {
+      name,
+      keywords,
+      exclude,
+      priority: Number(catForm.priority) || 0,
+      is_fallback: catForm.is_fallback,
+    }
+    try {
+      if (catEditing) {
+        await api.update('/finance/shopping/categories', catEditing.id, payload)
+      } else {
+        await api.create('/finance/shopping/categories', payload)
+      }
+      await loadCategories()
+      setCategoryDialog(false)
+      toast.success(catEditing ? '分类已更新' : '分类已添加')
+    } catch (e) {
+      toast.error('保存失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    }
+  }
+  const removeCategory = async (c: Category) => {
+    if (!(await confirm())) return
+    await api.remove('/finance/shopping/categories', c.id)
+    await loadCategories()
+    setRefresh((v) => v + 1)
+    toast.success('分类已删除')
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">购物记录</h1>
+          <p className="text-sm text-muted-foreground">管理购物明细、多账本切换与批量导入。</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={currentLedger} onValueChange={(v) => { setCurrentLedger(v); setPage(1) }}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="选择账本" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">全部账本</SelectItem>
+              {ledgers.map((l) => (
+                <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={currentCategory} onValueChange={(v) => { setCurrentCategory(v); setUncategorizedOnly(false); setPage(1) }}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="选择分类" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">全部分类</SelectItem>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant={uncategorizedOnly ? 'default' : 'outline'} size="sm" onClick={() => { setUncategorizedOnly((v) => !v); setCurrentCategory(''); setPage(1) }}>
+            仅未分类
+          </Button>
+          <Tip label="新建账本"><Button variant="outline" size="icon" onClick={openCreateLedger}>
+            <Plus />
+          </Button></Tip>
+          <Tip label="账本管理"><Button variant="outline" size="icon" onClick={() => setLedgerDialog({ mode: 'rename', id: Number(currentLedger), name: ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '' })}>
+            <BookOpen />
+          </Button></Tip>
+          <Tip label="平台管理"><Button variant="outline" size="icon" onClick={() => setPlatformDialog(true)}>
+            <Settings2 />
+          </Button></Tip>
+          <Tip label="分类管理"><Button variant="outline" size="icon" onClick={openCreateCategory}>
+            <Tags />
+          </Button></Tip>
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload /> 导入 xlsx
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xlsm"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) importXlsx(f)
+              e.target.value = ''
+            }}
+          />
+          <Button onClick={openCreate}>
+            <Plus /> 新增记录
+          </Button>
+        </div>
+      </section>
+
+      {stats && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Wallet} label="消费总额" value={fmt(stats.total)} hint={`${stats.count} 笔记录`} />
+            <StatCard icon={Wallet} label="平均单笔" value={stats.count > 0 ? fmt(stats.total / stats.count) : '¥0.00'} hint="总消费 / 笔数" />
+            <StatCard icon={Wallet} label="涉及平台" value={`${stats.by_platform.length} 个`} hint={stats.by_platform[0] ? `最多 ${stats.by_platform[0].platform}` : '暂无消费平台'} />
+            <StatCard icon={Wallet} label="涉及账本" value={`${stats.by_ledger.length} 个`} hint={stats.by_ledger[0] ? `最多 ${stats.by_ledger[0].ledger}` : '暂无账本'} />
+          </section>
+          <section className="grid gap-4 lg:grid-cols-2">
+            <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: '#ef4444' }]} />
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">按平台消费</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stats.by_platform.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">暂无消费平台</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {stats.by_platform.map((p) => (
+                      <div key={p.platform_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                        <span className="truncate text-sm text-muted-foreground">{p.platform}</span>
+                        <span className="shrink-0 text-sm font-medium">{fmt(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+          {stats.by_ledger.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">按账本消费</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {stats.by_ledger.map((l) => (
+                    <Badge key={l.ledger_id} variant="outline">
+                      {l.ledger}：{fmt(l.amount)}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {stats.by_category.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">按分类消费</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {stats.by_category.map((c) => (
+                    <div key={c.category_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                      <span className="truncate text-sm text-muted-foreground">{c.category}</span>
+                      <span className="shrink-0 text-sm font-medium">{fmt(c.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>日期</TableHead>
+                <TableHead>平台</TableHead>
+                <TableHead>商品名称</TableHead>
+                <TableHead>规格</TableHead>
+                <TableHead>分类</TableHead>
+                <TableHead className="text-right">总价</TableHead>
+                <TableHead className="text-right">单价</TableHead>
+                <TableHead>订单号</TableHead>
+                <TableHead className="w-24 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className={`transition-opacity duration-200 ${loading && records.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
+              {records.length === 0 ? (
+                loading ? (
+                  <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                ) : (
+                  <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">暂无购物记录，点击"新增记录"或导入 xlsx 添加</TableCell></TableRow>
+                )
+              ) : (
+                records.map((row) => {
+                  const cat = categories.find((c) => c.id === row.category_id)
+                  return (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.record_date}</TableCell>
+                    <TableCell>{platformName(row.platform_id)}</TableCell>
+                    <TableCell>{row.product_name}</TableCell>
+                    <TableCell>{row.spec ?? '—'}</TableCell>
+                    <TableCell>
+                      {cat ? (
+                        <Badge variant={cat.is_fallback ? 'secondary' : 'outline'}>{cat.name}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{fmt(row.total_price)}</TableCell>
+                    <TableCell className="text-right">{row.unit_price != null ? fmt(row.unit_price) : '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{row.order_no ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRecord(row)}><Trash2 /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <PaginationBar page={page} totalPages={totalPages} total={total} onPageChange={setPage} />
+
+      {/* 账本管理弹窗 */}
+      <Dialog open={ledgerDialog !== null} onOpenChange={(o) => !o && setLedgerDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ledgerDialog?.mode === 'create' ? '新建账本' : '账本管理'}</DialogTitle>
+            <DialogDescription>账本用于分类管理不同的购物记录。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {ledgerDialog?.mode === 'rename' && (
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                <span>当前选择账本：{ledgers.find((l) => l.id === Number(currentLedger))?.name ?? '—'}</span>
+                <Button variant="outline" size="sm" onClick={removeLedger}>删除账本</Button>
+              </div>
+            )}
+            <Label>账本名称</Label>
+            <Input value={ledgerName} onChange={(e) => setLedgerName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveLedger()} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLedgerDialog(null)}>关闭</Button>
+            <Button onClick={saveLedger} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 平台管理弹窗 */}
+      <Dialog open={platformDialog} onOpenChange={setPlatformDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>平台管理</DialogTitle>
+            <DialogDescription>添加或删除购物平台，如淘宝、京东等。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newPlatform} onChange={(e) => setNewPlatform(e.target.value)} placeholder="输入平台名称" onKeyDown={(e) => e.key === 'Enter' && addPlatform()} />
+              <Button onClick={addPlatform}><Plus /> 添加</Button>
+            </div>
+            <div className="space-y-1.5">
+              {platforms.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span>{p.name}</span>
+                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)}><Trash2 /></Button>
+                </div>
+              ))}
+              {platforms.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无平台</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPlatformDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 记录新增/编辑弹窗 */}
+      <Dialog open={recordDialog} onOpenChange={setRecordDialog}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? '编辑购物记录' : '新增购物记录'}</DialogTitle>
+            <DialogDescription>{editing ? '修改并保存本条记录。' : '填写购物明细创建一条记录。'}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>日期 <span className="text-destructive">*</span></Label><DatePicker value={form.record_date} onChange={(v) => setForm({ ...form, record_date: v })} /></div>
+            <div className="space-y-2"><Label>平台</Label>
+              <Select value={form.platform_id} onValueChange={(v) => setForm({ ...form, platform_id: v })}>
+                <SelectTrigger><SelectValue placeholder="选择平台" /></SelectTrigger>
+                <SelectContent>
+                  {platforms.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>商品名称 <span className="text-destructive">*</span></Label><Input value={form.product_name} onChange={(e) => setForm({ ...form, product_name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>规格</Label><Input value={form.spec} onChange={(e) => setForm({ ...form, spec: e.target.value })} /></div>
+            <div className="space-y-2"><Label>总价 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.total_price} onChange={(e) => setForm({ ...form, total_price: e.target.value })} /></div>
+            <div className="space-y-2"><Label>单价</Label><Input type="number" min={0} step="0.01" value={form.unit_price} onChange={(e) => setForm({ ...form, unit_price: e.target.value })} /></div>
+            <div className="space-y-2"><Label>订单号</Label><Input value={form.order_no} onChange={(e) => setForm({ ...form, order_no: e.target.value })} /></div>
+            <div className="space-y-2"><Label>账本</Label>
+              <Select value={form.ledger_id} onValueChange={(v) => setForm({ ...form, ledger_id: v })}>
+                <SelectTrigger><SelectValue placeholder="选择账本" /></SelectTrigger>
+                <SelectContent>
+                  {ledgers.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>分类</Label>
+              <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
+                <SelectTrigger><SelectValue placeholder="选择分类" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">不指定</SelectItem>
+                  {categories.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecordDialog(false)}>取消</Button>
+            <Button onClick={submitRecord} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 分类管理弹窗 */}
+      <Dialog open={categoryDialog} onOpenChange={setCategoryDialog}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{catEditing ? '编辑分类' : '分类管理'}</DialogTitle>
+            <DialogDescription>管理购物分类及关键词库。关键词用于自动归类，多个关键词用逗号分隔。</DialogDescription>
+          </DialogHeader>
+
+          {catEditing ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>分类名称</Label>
+                <Input value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} placeholder="如：食品零食" />
+              </div>
+              <div className="space-y-2">
+                <Label>命中关键词（逗号分隔）</Label>
+                <Textarea value={catForm.keywords} onChange={(e) => setCatForm({ ...catForm, keywords: e.target.value })} placeholder="零食, 辣条, 面包" rows={3} />
+              </div>
+              <div className="space-y-2">
+                <Label>排除关键词（逗号分隔，命中则否决该分类）</Label>
+                <Textarea value={catForm.exclude} onChange={(e) => setCatForm({ ...catForm, exclude: e.target.value })} placeholder="大米, 橄榄油" rows={2} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>优先级（数字大者优先）</Label>
+                  <Input type="number" value={catForm.priority} onChange={(e) => setCatForm({ ...catForm, priority: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>兜底分类</Label>
+                  <Button
+                    variant={catForm.is_fallback ? 'default' : 'outline'}
+                    onClick={() => setCatForm({ ...catForm, is_fallback: !catForm.is_fallback })}
+                    className="w-full"
+                  >
+                    {catForm.is_fallback ? '是（未识别品）' : '否'}
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCatEditing(null)}>返回列表</Button>
+                <Button onClick={saveCategory} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button onClick={openCreateCategory}><Plus /> 新增分类</Button>
+              </div>
+              <div className="space-y-1.5">
+                {categories.map((c) => (
+                  <div key={c.id} className="rounded-lg border px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium">{c.name}</span>
+                        {c.is_fallback && <Badge variant="secondary">兜底</Badge>}
+                        <span className="text-xs text-muted-foreground">优先级 {c.priority}</span>
+                      </div>
+                      <div className="flex shrink-0 gap-0.5">
+                        <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => openEditCategory(c)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button></Tip>
+                      </div>
+                    </div>
+                    {c.keywords.length > 0 && (
+                      <p className="mt-1 truncate text-xs text-muted-foreground">关键词：{c.keywords.join('、')}</p>
+                    )}
+                  </div>
+                ))}
+                {categories.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无分类</p>}
+              </div>
+              <DialogFooter>
+                <Button onClick={() => setCategoryDialog(false)}>关闭</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}

@@ -1,0 +1,2366 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  Banknote,
+  Building,
+  Calendar,
+  CheckCircle2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  FileText,
+  Home,
+  Layers,
+  ListTree,
+  Loader2,
+  Pencil,
+  Plus,
+  Repeat,
+  ShieldAlert,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirm } from '@/components/ui/confirm-dialog'
+import { PaginationBar } from '@/components/ui/pagination-bar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+import { MonthPicker } from '@/components/ui/month-picker'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Hint, Tip } from '@/components/ui/tip'
+import { useRealtime } from '@/hooks/use-realtime'
+import { api } from '@/lib/api'
+import { toast } from 'sonner'
+
+/** 金额四舍五入到分（避免浮点误差，如 1823.03 - 1823.0300000000002 = -2.27e-13）。 */
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+/**
+ * 金额格式化：保留 2 位小数。
+ * 对极小值（|n| < 0.005，含浮点误差产生的负零）归零，避免显示成 ¥-0.00。
+ */
+const fmt = (n: number) => {
+  const v = Math.abs(n) < 0.005 ? 0 : n
+  return `¥${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+/** 计算账单剩余欠款：取整到分并夹紧为非负（优惠抵减后浮点误差会得到极小负数）。 */
+const remainingOf = (amount: number, paidAmount: number) => Math.max(0, round2(amount - paidAmount))
+
+type TabKey = 'housing' | 'subscription' | 'loan'
+
+function StatCard({ icon: Icon, label, value, hint, className }: { icon: typeof Wallet; label: string; value: string; hint?: string; className?: string }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold">{value}</div>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+/* ---------------- 房租水电 ---------------- */
+
+type Housing = {
+  id: number
+  name: string
+  short_name?: string
+  channel?: string
+  orientation?: string
+  move_in_date: string
+  move_out_date?: string
+  rent_term: 'monthly' | 'quarterly' | 'one_time'
+  actual_monthly_rent: number
+  deposit?: number
+  deposit_refunded?: number
+  deposit_refund_channel?: string
+  agent_fee?: number
+  clean_fee?: number
+  service_fee?: number
+  laundry_fee?: number
+  note?: string
+}
+
+type HousingStat = Housing & { overlap_days: number; single_day_cost: number; monthly_contribution: number }
+type HousingStats = {
+  month: string
+  combined_monthly_rent: number
+  total_deposit: number
+  total_fees: number
+  house_count: number
+  houses: HousingStat[]
+}
+
+type Utility = {
+  id: number
+  housing_id?: number
+  bill_month: string
+  fee_type: string
+  amount: number
+  due_date?: string
+  paid: boolean
+  note?: string
+}
+
+type RentChannel = { id: number; name: string }
+type RentTerm = { id: number; housing_id?: number; term_no: number; amount: number; due_date?: string; paid: boolean }
+
+const feeTypes = ['水费', '电费', '燃气费', '宽带', '物业', '其他']
+
+function HousingTab() {
+  const realtimeTick = useRealtime(30_000)
+  const [houses, setHouses] = useState<Housing[]>([])
+  const [stats, setStats] = useState<HousingStats | null>(null)
+  const [utilities, setUtilities] = useState<Utility[]>([])
+  const [dialog, setDialog] = useState<null | { editing?: Housing }>(null)
+  const [uDialog, setUDialog] = useState<null | { editing?: Utility }>(null)
+  const [uGroup, setUGroup] = useState<null | { housing_id?: number; bill_month: string; ids: number[] }>(null)
+  const [viewH, setViewH] = useState<null | Housing>(null)
+  const [housePage, setHousePage] = useState(1)
+  const [utilityPage, setUtilityPage] = useState(1)
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [channels, setChannels] = useState<RentChannel[]>([])
+  const [channelDialog, setChannelDialog] = useState(false)
+  const [newChannel, setNewChannel] = useState('')
+  const [channelEdit, setChannelEdit] = useState<RentChannel | null>(null)
+  const [channelEditForm, setChannelEditForm] = useState('')
+  const [termsByHouse, setTermsByHouse] = useState<Record<number, RentTerm[]>>({})
+  const [termDialog, setTermDialog] = useState<null | { housing_id: number }>(null)
+  const [termForm, setTermForm] = useState<{ amount: string; due_date: string; paid: boolean }>({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true })
+  const [saving, setSaving] = useState(false)
+  const [utilityForm, setUtilityForm] = useState<Record<string, string>>({})
+  const [dialogTab, setDialogTab] = useState<'basic' | 'terms' | 'utility' | 'deposit'>('basic')
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const loadHouses = async () => {
+    const res = await api.list<Housing>('/finance/housing', { page_size: 100 })
+    setHouses(res.items)
+    return res.items
+  }
+  const loadStats = async () => {
+    try { setStats(await api.query<HousingStats>('/finance/housing/stats')) }
+    catch { setStats(null) }
+  }
+  const loadUtilities = async () => {
+    const res = await api.list<Utility>('/finance/utilities', { page_size: 100 })
+    setUtilities(res.items)
+  }
+  const loadChannels = async () => {
+    api.list<RentChannel>('/finance/rent-channels', { page_size: 100 }).then((res) => setChannels(res.items)).catch(() => setChannels([]))
+  }
+  const loadTermsForHouse = async (id: number) => {
+    try {
+      const items = await api.query<RentTerm[]>('/finance/rent-terms?housing_id=' + id)
+      setTermsByHouse((prev) => ({ ...prev, [id]: items }))
+    } catch {
+      // 忽略期次加载失败
+    }
+  }
+  const addChannel = async () => {
+    const name = newChannel.trim()
+    if (!name) return
+    try {
+      await api.create('/finance/rent-channels', { name })
+      setNewChannel('')
+      await loadChannels()
+      toast.success('租房渠道已添加')
+    } catch (e) {
+      toast.error('添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const removeChannel = async (c: RentChannel) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/rent-channels', c.id)
+      await loadChannels()
+      toast.success('租房渠道已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const saveChannelEdit = async () => {
+    const name = channelEditForm.trim()
+    if (!name || !channelEdit) return
+    try {
+      await api.update('/finance/rent-channels', channelEdit.id, { name })
+      setChannelEdit(null)
+      setChannelEditForm('')
+      await loadChannels()
+      toast.success('租房渠道已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const toggleTermPaid = async (term: RentTerm) => {
+    try {
+      await api.put(`/finance/rent-terms/${term.id}?paid=${!term.paid}`, {})
+      setTermsByHouse((prev) => ({
+        ...prev,
+        [term.housing_id ?? 0]: (prev[term.housing_id ?? 0] ?? []).map((t) => (t.id === term.id ? { ...t, paid: !t.paid } : t)),
+      }))
+      toast.success('付款期次已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const patchTerm = (id: number, housingId: number, patch: Partial<RentTerm>) => {
+    setTermsByHouse((prev) => ({
+      ...prev,
+      [housingId]: (prev[housingId] ?? []).map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }))
+  }
+  const updateTermAmount = async (t: RentTerm, amount: number) => {
+    try {
+      await api.put(`/finance/rent-terms/${t.id}?amount=${amount}`, {})
+      patchTerm(t.id, t.housing_id ?? 0, { amount })
+      toast.success('金额已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const updateTermDueDate = async (t: RentTerm, due_date: string) => {
+    try {
+      await api.put(`/finance/rent-terms/${t.id}?due_date=${due_date}`, {})
+      patchTerm(t.id, t.housing_id ?? 0, { due_date })
+      toast.success('到期日已更新')
+    } catch (e) {
+      toast.error('更新失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const deleteTerm = async (t: RentTerm) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/rent-terms', t.id)
+      setTermsByHouse((prev) => ({ ...prev, [t.housing_id ?? 0]: (prev[t.housing_id ?? 0] ?? []).filter((x) => x.id !== t.id) }))
+      toast.success('期次已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const addTerm = async () => {
+    if (!termDialog) return
+    const amount = Number(termForm.amount)
+    if (!amount || amount <= 0) {
+      toast.error('请输入有效金额')
+      return
+    }
+    try {
+      const t = await api.create<RentTerm>('/finance/rent-terms', {
+        housing_id: termDialog.housing_id,
+        amount,
+        due_date: termForm.due_date || null,
+        paid: termForm.paid,
+      })
+      setTermsByHouse((prev) => ({
+        ...prev,
+        [termDialog.housing_id]: [...(prev[termDialog.housing_id] ?? []), t].sort((a, b) => a.term_no - b.term_no),
+      }))
+      setTermDialog(null)
+      toast.success('期次已新增')
+    } catch (e) {
+      toast.error('新增失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  // 水电气账单按「住房 + 账单月」聚合成一行（电/水/气/合计）
+  const utilityGroups = useMemo(() => {
+    const map: Record<string, { key: string; housing_id?: number; bill_month: string; byType: Record<string, number>; due_date?: string; paid: boolean; ids: number[]; total: number }> = {}
+    for (const u of utilities) {
+      const k = `${u.housing_id ?? '-'}|${u.bill_month}`
+      if (!map[k]) map[k] = { key: k, housing_id: u.housing_id, bill_month: u.bill_month, byType: {}, ids: [], total: 0, due_date: u.due_date, paid: u.paid }
+      const g = map[k]
+      g.byType[u.fee_type] = (g.byType[u.fee_type] || 0) + u.amount
+      g.total += u.amount
+      g.ids.push(u.id)
+      if (u.due_date) g.due_date = u.due_date
+      if (u.paid) g.paid = true
+    }
+    return Object.values(map).sort((a, b) => b.bill_month.localeCompare(a.bill_month))
+  }, [utilities])
+  // 水电气账单分页（最新在前）
+  const UTIL_PAGE_SIZE = 10
+  const utilTotalPages = Math.max(1, Math.ceil(utilityGroups.length / UTIL_PAGE_SIZE))
+  const pagedUtilityGroups = utilityGroups.slice((utilityPage - 1) * UTIL_PAGE_SIZE, utilityPage * UTIL_PAGE_SIZE)
+
+  // 住房清单卡片：按入住时间（最新在前）排序 + 每页 6 条分页
+  const HOUSING_PAGE_SIZE = 6
+  const sortedHouses = useMemo(() => {
+    const list = [...(stats?.houses ?? [])]
+    list.sort((a, b) => (b.move_in_date || '').localeCompare(a.move_in_date || ''))
+    return list
+  }, [stats])
+  const houseTotalPages = Math.max(1, Math.ceil(sortedHouses.length / HOUSING_PAGE_SIZE))
+  const pagedHouses = sortedHouses.slice((housePage - 1) * HOUSING_PAGE_SIZE, housePage * HOUSING_PAGE_SIZE)
+
+  useEffect(() => {
+    loadHouses().then((list) => { if (list.length) list.forEach((h) => loadTermsForHouse(h.id)) })
+    loadStats()
+    loadChannels()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtimeTick])
+  useEffect(() => {
+    loadUtilities()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realtimeTick])
+
+  useEffect(() => {
+    if (housePage > houseTotalPages) setHousePage(houseTotalPages)
+    if (housePage < 1) setHousePage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [houseTotalPages])
+
+  const houseName = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? h.name : '—' }
+  const houseShort = (id?: number) => { const h = houses.find((x) => x.id === id); return h ? (h.short_name || h.name) : '—' }
+
+  // ========== 算法统一为「当月口径」（与后端 /finance/housing/stats 一致）==========
+  // 整段居住周期天数（含首尾）：入住~退租
+  const hDays = (h: Housing): number => {
+    if (!h.move_in_date) return 0
+    const a = new Date(h.move_in_date).getTime()
+    const b = h.move_out_date ? new Date(h.move_out_date).getTime() : Date.now()
+    if (b < a) return 0
+    return Math.floor((b - a) / 86400000) + 1
+  }
+  // 居住天数 = 整段居住周期天数（用于住房清单展示）
+  const houseDays = (h: Housing): number => hDays(h)
+  // 当月居住天数 = 与 stats.month 同月区间内的居住天数
+  const houseDaysInMonth = (h: Housing, mStart: Date, mEnd: Date): number => {
+    if (!h.move_in_date) return 0
+    const start = new Date(h.move_in_date) > mStart ? new Date(h.move_in_date) : mStart
+    const outDate = h.move_out_date ? new Date(h.move_out_date) : new Date()
+    const end = outDate < mEnd ? outDate : mEnd
+    if (end < start) return 0
+    return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1
+  }
+  // 杂费（中介/保洁/洗衣；服务费已含在付款期次中）
+  const houseFees = (h: Housing): number => (h.agent_fee || 0) + (h.clean_fee || 0) + (h.laundry_fee || 0)
+  // 当月已交期次（按到期日落在当月且 paid 算）
+  const houseTermsPaidInMonth = (h: Housing, mPrefix: string): number =>
+    (termsByHouse[h.id] ?? []).filter((t) => t.paid && t.due_date && t.due_date.startsWith(mPrefix)).reduce((s, t) => s + t.amount, 0)
+  // 当月已缴水电（按账单月）
+  const houseUtilsPaidInMonth = (h: Housing, mPrefix: string): number =>
+    utilities.filter((u) => u.housing_id === h.id && u.paid && u.bill_month.startsWith(mPrefix)).reduce((s, u) => s + u.amount, 0)
+  // 当月已发生成本 = 当月已交期次 + 当月已缴水电 + 当月分摊杂费
+  // 注：杂费仅一次性支出，按"是否在本月之前入住"判断全计入入住当月；这里为简化直接平均到所有月份
+  const houseIncurredInMonth = (h: Housing, mPrefix: string): number => {
+    return houseTermsPaidInMonth(h, mPrefix) + houseUtilsPaidInMonth(h, mPrefix)
+  }
+
+  const openCreate = () => {
+    setForm({ name: '', short_name: '', channel: '', orientation: '', move_in_date: '', move_out_date: '', rent_term: 'monthly', actual_monthly_rent: '', deposit: '', deposit_refunded: '', deposit_refund_channel: '', agent_fee: '', clean_fee: '', service_fee: '', laundry_fee: '', note: '' })
+    setDialogTab('basic')
+    setDialog({})
+  }
+  const openEdit = (h: Housing) => {
+    setForm({
+      name: h.name, short_name: h.short_name ?? '', channel: h.channel ?? '', orientation: h.orientation ?? '',
+      move_in_date: h.move_in_date, move_out_date: h.move_out_date ?? '',
+      rent_term: h.rent_term, actual_monthly_rent: String(h.actual_monthly_rent),
+      deposit: h.deposit != null ? String(h.deposit) : '', deposit_refunded: h.deposit_refunded != null ? String(h.deposit_refunded) : '', deposit_refund_channel: h.deposit_refund_channel ?? '',
+      agent_fee: h.agent_fee != null ? String(h.agent_fee) : '', clean_fee: h.clean_fee != null ? String(h.clean_fee) : '',
+      service_fee: h.service_fee != null ? String(h.service_fee) : '', laundry_fee: h.laundry_fee != null ? String(h.laundry_fee) : '', note: h.note ?? '',
+    })
+    setDialogTab('basic')
+    setDialog({ editing: h })
+  }
+  const saveHousing = async () => {
+    const num = (v?: string) => {
+      if (v == null || v.trim() === '') return 0
+      const n = Number(v)
+      return Number.isFinite(n) ? n : 0
+    }
+    if (!form.name?.trim() || !form.move_in_date) {
+      toast.error('保存失败', { description: '房屋名称与入住日期为必填项' })
+      return
+    }
+    const payload = {
+      name: form.name, short_name: form.short_name || null, channel: form.channel || null, orientation: form.orientation || null,
+      move_in_date: form.move_in_date, move_out_date: form.move_out_date || null,
+      rent_term: form.rent_term, actual_monthly_rent: num(form.actual_monthly_rent),
+      deposit: num(form.deposit), deposit_refunded: num(form.deposit_refunded), deposit_refund_channel: form.deposit_refund_channel || null,
+      agent_fee: num(form.agent_fee), clean_fee: num(form.clean_fee),
+      service_fee: num(form.service_fee), laundry_fee: num(form.laundry_fee), note: form.note || null,
+    }
+    setSaving(true)
+    try {
+      if (dialog?.editing) await api.update('/finance/housing', dialog.editing.id, payload)
+      else await api.create('/finance/housing', payload)
+      setDialog(null)
+      await loadHouses()
+      await loadStats()
+      toast.success(dialog?.editing ? '住房信息已更新' : '住房信息已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const removeHousing = async (h: Housing) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/housing', h.id)
+      await loadHouses()
+      await loadStats()
+      toast.success('住房信息已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  const openUCreate = () => {
+    setUtilityForm({ housing_id: dialog?.editing ? String(dialog.editing.id) : '', bill_month: '', fee_type: '电费', amount: '', due_date: '', paid: 'true', note: '' })
+    setUDialog({})
+  }
+  const openUEdit = (u: Utility) => {
+    setUtilityForm({ housing_id: u.housing_id ? String(u.housing_id) : '', bill_month: u.bill_month, fee_type: u.fee_type, amount: String(u.amount), due_date: u.due_date ?? '', paid: u.paid ? 'true' : 'false', note: u.note ?? '' })
+    setUDialog({ editing: u })
+  }
+  const saveUtility = async () => {
+    const editingU = uDialog?.editing
+    const amt = Number(utilityForm.amount)
+    if (!utilityForm.bill_month) { toast.error('请选择账单月份'); return }
+    if (!utilityForm.fee_type) { toast.error('请选择费用类型'); return }
+    if (utilityForm.amount === '' || Number.isNaN(amt)) { toast.error('请填写金额'); return }
+    const payload = {
+      housing_id: utilityForm.housing_id ? Number(utilityForm.housing_id) : null,
+      bill_month: utilityForm.bill_month, fee_type: utilityForm.fee_type, amount: amt,
+      due_date: utilityForm.due_date || null, paid: utilityForm.paid === 'true', note: utilityForm.note || null,
+    }
+    setSaving(true)
+    try {
+      if (editingU) await api.update('/finance/utilities', editingU.id, payload)
+      else await api.create('/finance/utilities', payload)
+      setUDialog(null)
+      await loadUtilities()
+      toast.success(editingU ? '缴费记录已更新' : '缴费记录已添加')
+    } catch (e) {
+      toast.error(editingU ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const removeUtility = async (u: Utility) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/utilities', u.id)
+      await loadUtilities()
+      toast.success('缴费记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {stats && (
+        <>
+          {(() => {
+            // 整段历史口径：与住房卡片主信息保持一致
+            const totalDays = stats.houses.reduce((s, h) => s + houseDays(h), 0)
+            // 整段总花费 = 全部已交期次 + 全部已缴水电 + 全部杂费
+            const totalSpent = stats.houses.reduce((s, h) => {
+              const tPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((a, t) => a + t.amount, 0)
+              const uPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((a, u) => a + u.amount, 0)
+              return s + tPaid + uPaid + houseFees(h)
+            }, 0)
+            const avgDaily = totalDays ? totalSpent / totalDays : 0
+            const occupiedCount = stats.houses.filter((h) => !h.move_out_date).length
+            return (
+              <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-indigo-500" />
+                <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-emerald-500" />
+                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-blue-500" />
+                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-red-500" />
+              </section>
+            )
+          })()}
+          {sortedHouses.length > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">住房清单</CardTitle>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {pagedHouses.map((h) => {
+                const days = houseDays(h)
+                const termLabel = h.rent_term === 'quarterly' ? '按季付' : h.rent_term === 'one_time' ? '一次性' : '按月付'
+                // 整段已发生成本 = 全部已交期次 + 全部已缴水电 + 杂费
+                const allTermsPaid = (termsByHouse[h.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                const allUtilsPaid = utilities.filter((u) => u.housing_id === h.id && u.paid).reduce((s, u) => s + u.amount, 0)
+                const totalSpent = allTermsPaid + allUtilsPaid + houseFees(h)
+                // 平均单日成本
+                const daily = days && totalSpent > 0 ? totalSpent / days : 0
+                return (
+                  <div key={h.id} className="flex flex-col rounded-xl border bg-card p-4 text-sm transition-shadow hover:shadow-md">
+                    {/* 头部：名称 + 状态 */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-foreground">{h.short_name || h.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">{h.name}</div>
+                      </div>
+                      <Badge variant={h.move_out_date ? 'secondary' : 'default'} className="shrink-0">
+                        {h.move_out_date ? '已退租' : '在住'}
+                      </Badge>
+                    </div>
+
+                    {/* 主信息：整段总花费（大字） + 月租/居住周期（小字） */}
+                    <div className="mt-3">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">总花费</p>
+                      <p className="mt-1 text-2xl font-bold leading-none text-emerald-600 dark:text-emerald-400">
+                        {totalSpent > 0 ? fmt(totalSpent) : '—'}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        月租 {fmt(h.actual_monthly_rent || 0)} · {termLabel} · {days} 天
+                      </p>
+                    </div>
+
+                    {/* 平均单日成本 */}
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-blue-50 dark:bg-blue-500/10 px-2 py-1.5">
+                      <span className="text-xs text-blue-700 dark:text-blue-300">平均单日</span>
+                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">{daily > 0 ? fmt(daily) : '—'}</span>
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div className="mt-3 flex items-center justify-end gap-1">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setViewH(h)}>查看明细</Button>
+                      <Tip label="编辑"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(h)}><Pencil className="size-3.5" /></Button></Tip>
+                      <Tip label="删除"><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeHousing(h)}><Trash2 className="size-3.5" /></Button></Tip>
+                    </div>
+                  </div>
+                )
+              })}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <div className="flex items-center justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setNewChannel(''); setChannelDialog(true) }}><Layers className="size-4" /> 渠道设置</Button>
+        <Button size="sm" onClick={openCreate}><Plus /> 新增住房</Button>
+      </div>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium">水电气账单</CardTitle>
+          <Button size="sm" onClick={openUCreate}><Plus /> 新增账单</Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>账单月</TableHead><TableHead>住房</TableHead><TableHead>电费</TableHead><TableHead>水费</TableHead><TableHead>燃气费</TableHead><TableHead className="text-right">合计</TableHead><TableHead>状态</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {utilityGroups.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="h-16 text-center text-muted-foreground">暂无账单记录</TableCell></TableRow>
+              ) : pagedUtilityGroups.map((g) => (
+                <TableRow key={g.key}>
+                  <TableCell>{g.bill_month.slice(0, 7)}</TableCell>
+                  <Tip label={houseName(g.housing_id)}><TableCell className="max-w-[140px] truncate text-muted-foreground">{houseShort(g.housing_id)}</TableCell></Tip>
+                  <TableCell>{g.byType['电费'] ? fmt(g.byType['电费']) : '—'}</TableCell>
+                  <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
+                  <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
+                  <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Tip label="明细/编辑"><Button variant="ghost" size="icon" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button></Tip>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {utilityGroups.length > UTIL_PAGE_SIZE && (
+            <div className="border-t p-3">
+              <PaginationBar page={utilityPage} totalPages={utilTotalPages} total={utilityGroups.length} onPageChange={setUtilityPage} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 住房弹窗 */}
+      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{dialog?.editing ? '编辑住房' : '新增住房'}</DialogTitle>
+            <DialogDescription>记录租房渠道、押金、杂费与租期；期次与水电在各自子页即时维护。</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
+            <Button size="sm" variant={dialogTab === 'basic' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('basic')}>基础信息</Button>
+            <Button size="sm" variant={dialogTab === 'deposit' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('deposit')}>押金</Button>
+            {dialog?.editing && (
+              <>
+                <Button size="sm" variant={dialogTab === 'terms' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('terms')}>付款期次</Button>
+                <Button size="sm" variant={dialogTab === 'utility' ? 'default' : 'ghost'} className="flex-1" onClick={() => setDialogTab('utility')}>水电燃气</Button>
+              </>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {dialogTab === 'basic' && (
+              <>
+                <div className="space-y-2"><Label>房屋名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 XX小区X栋X室" /></div>
+                <div className="space-y-2"><Label>小区名（缩写）</Label><Input value={form.short_name} onChange={(e) => setForm({ ...form, short_name: e.target.value })} placeholder="如 珠江新城 / 三里屯" /></div>
+                <div className="space-y-2"><Label>租房渠道</Label>
+                  <Select value={form.channel} onValueChange={(v) => setForm({ ...form, channel: v })}>
+                    <SelectTrigger><SelectValue placeholder="选择渠道" /></SelectTrigger>
+                    <SelectContent>
+                      {channels.length ? channels.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>房屋朝向</Label><Input value={form.orientation} onChange={(e) => setForm({ ...form, orientation: e.target.value })} placeholder="如 朝南 / 朝东" /></div>
+                <div className="space-y-2"><Label>入住时间 <span className="text-destructive">*</span></Label><DatePicker value={form.move_in_date} onChange={(v) => setForm({ ...form, move_in_date: v })} /></div>
+                <div className="col-span-2 space-y-2"><Label>退租时间</Label>
+                  <Select value={form.move_out_date ? 'out' : 'in'} onValueChange={(v) => { if (v === 'in') setForm({ ...form, move_out_date: '' }); else setForm({ ...form, move_out_date: form.move_out_date || new Date().toISOString().slice(0, 10) }) }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="in">在住（未退）</SelectItem><SelectItem value="out">已退租</SelectItem></SelectContent>
+                  </Select>
+                  {form.move_out_date && <DatePicker value={form.move_out_date} onChange={(v) => setForm({ ...form, move_out_date: v })} />}
+                  {!form.move_out_date && <p className="text-xs text-muted-foreground">在住中，无需填写退租日期</p>}
+                </div>
+                <div className="space-y-2"><Label>缴纳方式</Label>
+                  <Select value={form.rent_term} onValueChange={(v) => setForm({ ...form, rent_term: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="monthly">按月付</SelectItem><SelectItem value="quarterly">按季付</SelectItem><SelectItem value="one_time">一次性</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2"><Label>实际月租 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.actual_monthly_rent} onChange={(e) => setForm({ ...form, actual_monthly_rent: e.target.value })} /></div>
+                <div className="space-y-2"><Label>中介费</Label><Input type="number" min={0} step="0.01" value={form.agent_fee} onChange={(e) => setForm({ ...form, agent_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>保洁费</Label><Input type="number" min={0} step="0.01" value={form.clean_fee} onChange={(e) => setForm({ ...form, clean_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>服务费</Label><Input type="number" min={0} step="0.01" value={form.service_fee} onChange={(e) => setForm({ ...form, service_fee: e.target.value })} /></div>
+                <div className="space-y-2"><Label>洗衣费</Label><Input type="number" min={0} step="0.01" value={form.laundry_fee} onChange={(e) => setForm({ ...form, laundry_fee: e.target.value })} /></div>
+                <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+              </>
+            )}
+            {dialogTab === 'deposit' && (
+              <>
+                <div className="space-y-2"><Label>押金</Label><Input type="number" min={0} step="0.01" value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })} /></div>
+                <div className="space-y-2"><Label>已退押金</Label><Input type="number" min={0} step="0.01" value={form.deposit_refunded} onChange={(e) => setForm({ ...form, deposit_refunded: e.target.value })} placeholder="退租已退/已扣，默认0" /></div>
+                <div className="col-span-2 space-y-2"><Label>押金退还渠道</Label><Input value={form.deposit_refund_channel} onChange={(e) => setForm({ ...form, deposit_refund_channel: e.target.value })} placeholder="如 微信 / 银行 / 抵扣 / 扣押" /></div>
+              </>
+            )}
+            {dialog?.editing && dialogTab === 'terms' && (() => {
+              const editingId = dialog!.editing!.id
+              const terms = termsByHouse[editingId] ?? []
+              const paidCount = terms.filter((t) => t.paid).length
+              const paidSum = terms.filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+              return (
+                <div className="col-span-2 rounded-lg border p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">付款期次</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                      <Button size="sm" onClick={() => { setTermForm({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true }); setTermDialog({ housing_id: editingId }) }}>新增期次</Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    {terms.length === 0 ? (
+                      <p className="py-4 text-center text-sm text-muted-foreground">暂未录期次，点「新增期次」手动添加</p>
+                    ) : terms.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                          <span className="font-medium whitespace-nowrap">第 {t.term_no} 期</span>
+                          <Input
+                            type="number" min={0} step="0.01" defaultValue={t.amount}
+                            className="h-7 w-24 text-right"
+                            onBlur={(e) => { const v = Number(e.target.value); if (v !== t.amount) updateTermAmount(t, v) }}
+                          />
+                          <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className={`text-xs ${t.paid ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
+                          <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
+                          <Tip label="删除"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button></Tip>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+            {dialog?.editing && dialogTab === 'utility' && (() => {
+              const editingId = dialog!.editing!.id
+              const utils = utilities.filter((u) => u.housing_id === editingId)
+                .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
+              return (
+                <div className="col-span-2 rounded-lg border p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-medium">水电燃气</span>
+                    <Button size="sm" onClick={() => openUCreate()}><Plus /> 新增账单</Button>
+                  </div>
+                  {utils.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-muted-foreground">暂无账单记录，点「新增账单」添加</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {utils.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-sm">
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</div>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span className="font-medium">{fmt(u.amount)}</span>
+                              {u.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <Tip label="编辑"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openUEdit(u)}><Pencil /></Button></Tip>
+                            <Tip label="删除"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeUtility(u)}><Trash2 /></Button></Tip>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
+            <Button onClick={saveHousing} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 住房查看弹窗 */}
+      <Dialog open={viewH !== null} onOpenChange={(o) => !o && setViewH(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{viewH?.name}</DialogTitle>
+            <DialogDescription>住房详细信息（含水电账单统计，只读）。</DialogDescription>
+          </DialogHeader>
+          {viewH && (() => {
+            const inD = viewH.move_in_date ? new Date(viewH.move_in_date) : null
+            const outD = viewH.move_out_date ? new Date(viewH.move_out_date) : (inD ? new Date() : null)
+            const days = inD && outD && outD >= inD ? Math.floor((outD.getTime() - inD.getTime()) / 86400000) + 1 : 0
+            const months = Math.max(1, Math.ceil(days / 30))
+            const rent = viewH.actual_monthly_rent || 0
+            const myUtils = utilities.filter((u) => u.housing_id === viewH.id)
+              .slice().sort((a, b) => a.bill_month.localeCompare(b.bill_month))
+            const utilTotal = myUtils.reduce((s, u) => s + u.amount, 0)
+            const utilPaid = myUtils.filter((u) => u.paid).reduce((s, u) => s + u.amount, 0)
+            // 整段历史已发生成本（仅供详情弹窗参考；卡片用当月口径）
+            const allTermsPaid = (termsByHouse[viewH.id] ?? []).filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+            const allUtilsPaid = utilPaid
+            const allFees = houseFees(viewH)
+            const incurred = allTermsPaid + allUtilsPaid + allFees
+            const daily = days ? incurred / days : 0
+            const mPrefix = (stats?.month ?? new Date().toISOString().slice(0, 7)).slice(0, 7)
+            const [yy, mm] = mPrefix.split('-').map(Number)
+            const mStart = new Date(yy, (mm || 1) - 1, 1)
+            const mEnd = new Date(yy, (mm || 1), 0)
+            const daysInMonth = houseDaysInMonth(viewH, mStart, mEnd)
+            const incurredMonth = houseIncurredInMonth(viewH, mPrefix)
+            const rows: [string, string][] = [
+              ['小区名', viewH.short_name || '—'],
+              ['租房渠道', viewH.channel || '—'],
+              ['房屋朝向', viewH.orientation || '—'],
+              ['入住时间', viewH.move_in_date],
+              ['退租时间', viewH.move_out_date || '—'],
+              ['缴纳方式', viewH.rent_term === 'quarterly' ? '按季付' : viewH.rent_term === 'one_time' ? '一次性' : '按月付'],
+              ['实际月租', fmt(rent)],
+              ['押金', viewH.deposit ? fmt(viewH.deposit) : '—'],
+              ['已退押金', viewH.deposit_refunded ? fmt(viewH.deposit_refunded) : '—'],
+              ['未退押金', viewH.deposit ? fmt(Math.max(0, (viewH.deposit || 0) - (viewH.deposit_refunded || 0))) : '—'],
+              ['退还渠道', viewH.deposit_refund_channel || '—'],
+              ['中介费', viewH.agent_fee ? fmt(viewH.agent_fee) : '—'],
+              ['保洁费', viewH.clean_fee ? fmt(viewH.clean_fee) : '—'],
+              ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
+              ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
+              ['居住月数', `${months} 个月（${days} 天）`],
+            ]
+            const costRows: [string, string][] = [
+              ['当月已发生成本', incurredMonth > 0 ? fmt(incurredMonth) : '—'],
+              [`当月居住天数`, daysInMonth > 0 ? `${daysInMonth} 天` : '—'],
+              ['整段已发生成本(含杂费)', incurred > 0 ? fmt(incurred) : '—'],
+              ['整段平均单日成本', daily > 0 ? fmt(daily) : '—'],
+              ['折算月租(单日×30)', daily > 0 ? fmt(daily * 30) : '—'],
+            ]
+            return (
+              <>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  {rows.map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-2 border-b py-1">
+                      <dt className="text-muted-foreground">{k}</dt>
+                      <Tip label={v}><dd className="truncate text-right font-medium">{v}</dd></Tip>
+                    </div>
+                  ))}
+                </dl>
+                <div className="mt-3">
+                  <div className="mb-1.5 text-sm font-medium">成本概览</div>
+                  <dl className="gap-x-4 gap-y-1 text-sm">
+                    {costRows.map(([k, v]) => (
+                      <div key={k} className="flex justify-between gap-2 border-b py-1">
+                        <dt className="text-muted-foreground">{k}</dt>
+                        <Tip label={v}><dd className="truncate text-right font-medium">{v}</dd></Tip>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+                {myUtils.length > 0 && (
+                  <div className="mt-3">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-sm font-medium">水电账单明细</span>
+                      <span className="text-xs text-muted-foreground">已缴 {fmt(utilPaid)} / 待缴 {fmt(utilTotal - utilPaid)}</span>
+                    </div>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {myUtils.map((u) => (
+                        <div key={u.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-1.5 text-sm">
+                          <Tip label={`${u.bill_month.slice(0, 7)} · ${u.fee_type} · ${fmt(u.amount)}`}><div className="min-w-0 truncate">
+                            <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
+                            <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
+                          </div></Tip>
+                          {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(() => {
+                  const terms = termsByHouse[viewH.id] ?? []
+                  const paidCount = terms.filter((t) => t.paid).length
+                  const paidSum = terms.filter((t) => t.paid).reduce((s, t) => s + t.amount, 0)
+                  return (
+                    <div className="mt-3">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-sm font-medium">付款期次</span>
+                        {terms.length > 0 && (
+                          <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        {terms.length === 0 ? (
+                          <p className="py-3 text-center text-sm text-muted-foreground">暂无付款期次</p>
+                        ) : terms.map((t) => (
+                          <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-1.5 text-sm">
+                            <span className="font-medium whitespace-nowrap">第 {t.term_no} 期</span>
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-2 text-muted-foreground">
+                              <span>{fmt(t.amount)}</span>
+                              {t.due_date ? <span>到期 {t.due_date}</span> : null}
+                              {t.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已交</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未交</Badge>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </>
+            )
+          })()}
+          <DialogFooter>
+            {viewH && <Button variant="outline" onClick={() => { openEdit(viewH); setViewH(null) }}>编辑住房</Button>}
+            <Button onClick={() => setViewH(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 账单弹窗 */}
+      <Dialog open={uDialog !== null} onOpenChange={(o) => !o && setUDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{uDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle>
+            <DialogDescription>记录水、电、燃气等费用。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={utilityForm.bill_month} onChange={(v) => setUtilityForm({ ...utilityForm, bill_month: v })} /></div>
+            <div className="space-y-2"><Label>关联住房</Label>
+              <Select value={utilityForm.housing_id} onValueChange={(v) => setUtilityForm({ ...utilityForm, housing_id: v })}>
+                <SelectTrigger className="max-w-full truncate"><SelectValue placeholder="选择住房" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="">不关联</SelectItem>
+                    {houses.map((h) => <SelectItem key={h.id} value={String(h.id)} className="text-xs truncate">{h.name}</SelectItem>)}
+                  </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>类型 <span className="text-destructive">*</span></Label>
+              <Select value={utilityForm.fee_type} onValueChange={(v) => setUtilityForm({ ...utilityForm, fee_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{feeTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={utilityForm.amount} onChange={(e) => setUtilityForm({ ...utilityForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={utilityForm.due_date} onChange={(v) => setUtilityForm({ ...utilityForm, due_date: v })} /></div>
+            <div className="space-y-2"><Label>状态</Label>
+              <Select value={utilityForm.paid} onValueChange={(v) => setUtilityForm({ ...utilityForm, paid: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="false">待缴</SelectItem><SelectItem value="true">已缴</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={utilityForm.note} onChange={(e) => setUtilityForm({ ...utilityForm, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUDialog(null)}>取消</Button>
+            <Button onClick={saveUtility} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 水电气账单明细弹窗（支持单条修改/删除，避免数据错误） */}
+      <Dialog open={uGroup !== null} onOpenChange={(o) => !o && setUGroup(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>账单明细 · {uGroup?.bill_month.slice(0, 7)}</DialogTitle>
+            <DialogDescription>{uGroup?.housing_id ? houseName(uGroup.housing_id) : '未关联住房'} 的当月水电账单，可逐条修改或删除。</DialogDescription>
+          </DialogHeader>
+          {uGroup && (
+            <div className="space-y-1.5">
+              {utilities.filter((u) => uGroup.ids.includes(u.id)).map((u) => (
+                <div key={u.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="font-medium">{u.fee_type}</span>
+                    <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
+                    {u.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {u.due_date}</span>}
+                    {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => openUEdit(u)}><Pencil /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeUtility(u)}><Trash2 /></Button></Tip>
+                  </div>
+                </div>
+              ))}
+              {utilities.filter((u) => uGroup.ids.includes(u.id)).length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">该组暂无账单明细</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setUGroup(null)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 租房渠道设置弹窗 */}
+      <Dialog open={channelDialog} onOpenChange={setChannelDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>租房渠道设置</DialogTitle>
+            <DialogDescription>管理租房渠道，用于新增/编辑住房时下拉选择。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newChannel} onChange={(e) => setNewChannel(e.target.value)} placeholder="输入渠道名称" onKeyDown={(e) => e.key === 'Enter' && addChannel()} />
+              <Button onClick={addChannel}><Plus /> 添加</Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {channels.map((c) => (
+                <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span className="min-w-0 truncate">{c.name}</span>
+                  <div className="flex shrink-0 gap-1">
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setChannelEdit(c); setChannelEditForm(c.name); }}><Pencil className="size-3.5" /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)}><Trash2 className="size-3.5" /></Button></Tip>
+                  </div>
+                </div>
+              ))}
+              {channels.length === 0 && <div className="col-span-2 py-4 text-center text-sm text-muted-foreground">暂无渠道</div>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setChannelDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 渠道编辑弹窗 */}
+      <Dialog open={channelEdit !== null} onOpenChange={(o) => !o && setChannelEdit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>编辑租房渠道</DialogTitle>
+            <DialogDescription>修改渠道名称。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>渠道名称</Label>
+              <Input value={channelEditForm} onChange={(e) => setChannelEditForm(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setChannelEdit(null)}>取消</Button>
+              <Button onClick={saveChannelEdit}>保存</Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新增付款期次弹窗 */}
+      <Dialog open={termDialog !== null} onOpenChange={(o) => !o && setTermDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新增付款期次</DialogTitle>
+            <DialogDescription>手动录入一期租金，可按天折算金额提交，期次号自动递增。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={termForm.amount} onChange={(e) => setTermForm({ ...termForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>到期日</Label><DatePicker value={termForm.due_date} onChange={(v) => setTermForm({ ...termForm, due_date: v })} /></div>
+            <div className="col-span-2 space-y-2"><Label>是否已交</Label>
+              <div className="flex items-center gap-2 pt-1">
+                <Switch checked={termForm.paid} onCheckedChange={(v) => setTermForm({ ...termForm, paid: v })} />
+                <span className="text-sm text-muted-foreground">{termForm.paid ? '已交' : '未交'}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTermDialog(null)}>取消</Button>
+            <Button onClick={addTerm}>确认新增</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 服务订阅 ---------------- */
+
+const cycleMeta: Record<string, string> = { month: '月付', quarter: '季付', year: '年付' }
+
+/** 开通时长：start → end（缺省算至今），返回如 1年3个月 / 28天 */
+function durationLabel(start?: string, end?: string): string {
+  const s = start ? new Date(start) : null
+  if (!s || isNaN(s.getTime())) return '—'
+  const e = end ? new Date(end) : new Date()
+  if (isNaN(e.getTime()) || e < s) return '—'
+  const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth())
+  const days = Math.floor((e.getTime() - s.getTime()) / 86400000) % 30
+  if (months >= 12) return `${Math.floor(months / 12)}年${months % 12 ? `${months % 12}个月` : ''}`
+  if (months > 0) return days > 0 ? `${months}个月${days}天` : `${months}个月`
+  const totalDays = Math.floor((e.getTime() - s.getTime()) / 86400000)
+  return `${totalDays}天`
+}
+const subStatusMeta: Record<string, { label: string; className: string }> = {
+  active: { label: '生效中', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  expired: { label: '已过期', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  cancelled: { label: '已取消', className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' },
+}
+
+type Subscription = {
+  id: number
+  name: string
+  plan_name?: string
+  category: string
+  billing_cycle: 'month' | 'quarter' | 'year'
+  amount: number
+  start_date: string
+  end_date?: string
+  auto_renew?: boolean
+  status: 'active' | 'expired' | 'cancelled'
+  note?: string
+}
+type SubStats = {
+  total_active: number
+  active_count: number
+  total_count: number
+  by_category: { category: string; amount: number }[]
+  upcoming: { id: number; name: string; category: string; amount: number; next_renewal: string }[]
+}
+type SubCategory = { id: number; name: string }
+
+function SubscriptionTab() {
+  const realtimeTick = useRealtime(30_000)
+  const [items, setItems] = useState<Subscription[]>([])
+  const [stats, setStats] = useState<SubStats | null>(null)
+  const [categories, setCategories] = useState<SubCategory[]>([])
+  const [dialog, setDialog] = useState<null | { editing?: Subscription }>(null)
+  const [catDialog, setCatDialog] = useState(false)
+  const [newCategory, setNewCategory] = useState('')
+  const [catEditId, setCatEditId] = useState<number | null>(null)
+  const [catEditName, setCatEditName] = useState('')
+  const [form, setForm] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  const load = async () => {
+    const res = await api.list<Subscription>('/finance/subscriptions', { page_size: 100 })
+    setItems(res.items)
+    try { setStats(await api.stats<SubStats>('/finance/subscriptions')) }
+    catch { setStats(null) }
+  }
+  const loadCategories = async () => {
+    api.list<SubCategory>('/finance/subscription-categories', { page_size: 100 }).then((res) => setCategories(res.items)).catch(() => setCategories([]))
+  }
+  useEffect(() => { load(); loadCategories() }, [realtimeTick])
+
+  const addCategory = async () => {
+    const name = newCategory.trim()
+    if (!name) return
+    try {
+      await api.create<SubCategory>('/finance/subscription-categories', { name })
+      setNewCategory('')
+      await loadCategories()
+      toast.success('订阅分类已添加')
+    } catch (e) {
+      toast.error('添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const removeCategory = async (c: SubCategory) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/subscription-categories', c.id)
+      await loadCategories()
+      toast.success('订阅分类已删除')
+    } catch (e) {
+      toast.error('删除失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    }
+  }
+  const startEditCat = (c: SubCategory) => {
+    setCatEditId(c.id)
+    setCatEditName(c.name)
+  }
+  const saveCatEdit = async () => {
+    if (catEditId == null) return
+    const name = catEditName.trim()
+    if (!name) { setCatEditId(null); return }
+    try {
+      await api.update('/finance/subscription-categories', catEditId, { name })
+      setCatEditId(null)
+      await loadCategories()
+      toast.success('订阅分类已更新')
+    } catch (e) {
+      toast.error('更新失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    }
+  }
+
+  const openCreate = () => {
+    setForm({ name: '', plan_name: '', category: categories[0]?.name ?? '会员', billing_cycle: 'month', amount: '', start_date: new Date().toISOString().slice(0, 10), end_date: '', auto_renew: 'false', status: 'active', note: '' })
+    setDialog({})
+  }
+  const save = async () => {
+    const payload = {
+      name: form.name, plan_name: form.plan_name || null, category: form.category, billing_cycle: form.billing_cycle,
+      amount: Number(form.amount), start_date: form.start_date, end_date: form.end_date || null,
+      auto_renew: form.auto_renew === 'true',
+      status: form.status, note: form.note || null,
+    }
+    setSaving(true)
+    try {
+      if (dialog?.editing) await api.update('/finance/subscriptions', dialog.editing.id, payload)
+      else await api.create('/finance/subscriptions', payload)
+      setDialog(null)
+      await load()
+      toast.success(dialog?.editing ? '订阅已更新' : '订阅已添加')
+    } catch (e) {
+      toast.error(dialog?.editing ? '更新失败' : '添加失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const remove = async (s: Subscription) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/subscriptions', s.id)
+      await load()
+      toast.success('订阅已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {stats && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={Repeat} label="每月订阅支出" value={fmt(stats.total_active)} hint={`${stats.active_count} 项生效中`} className="text-indigo-500" />
+            <StatCard icon={Wallet} label="总订阅数" value={`${stats.total_count} 项`} hint={`${stats.active_count} 项生效`} />
+            <StatCard icon={Layers} label="订阅分类" value={`${stats.by_category.length} 类`} hint={stats.by_category[0] ? `最多 ${stats.by_category[0].category}` : '暂无分类'} />
+            <StatCard icon={Repeat} label="即将续费" value={`${stats.upcoming.length} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-amber-500" />
+          </section>
+          {stats.by_category.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">按分类订阅支出</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {stats.by_category.map((c) => (
+                    <Badge key={c.category} variant="outline">{c.category}：{fmt(c.amount)}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {stats.upcoming.length > 0 && (
+            <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">即将续费提醒</CardTitle></CardHeader>
+              <CardContent className="space-y-1.5 text-sm">
+                {stats.upcoming.map((u) => (
+                  <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 dark:bg-white/5 px-3 py-1.5">
+                    <span>{u.name} <Badge variant="outline">{u.category}</Badge></span>
+                    <span className="text-muted-foreground">续费 {u.next_renewal} · {fmt(u.amount)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium">服务订阅</CardTitle>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => { setNewCategory(''); setCatDialog(true) }}><Layers className="size-4" /> 分类设置</Button>
+            <Button onClick={openCreate}><Plus /> 新增订阅</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>名称</TableHead><TableHead>方案名称</TableHead><TableHead>分类</TableHead><TableHead>开通时间</TableHead><TableHead>到期时间</TableHead><TableHead>开通时长</TableHead>
+                <TableHead className="text-right">周期金额</TableHead><TableHead>计费周期</TableHead><TableHead>自动续费</TableHead><TableHead>当前状态</TableHead><TableHead>备注</TableHead><TableHead className="w-24 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 ? (
+                <TableRow><TableCell colSpan={12} className="h-16 text-center text-muted-foreground">暂无订阅，点击"新增订阅"添加</TableCell></TableRow>
+              ) : items.map((s) => {
+                const dur = durationLabel(s.start_date, s.end_date)
+                return (
+                <TableRow key={s.id}>
+                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.plan_name ?? '—'}</TableCell>
+                  <TableCell>{s.category}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.start_date}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.end_date ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{dur}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(s.amount)}</TableCell>
+                  <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
+                  <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
+                  <TableCell><Badge className={subStatusMeta[s.status]?.className}>{subStatusMeta[s.status]?.label ?? s.status}</Badge></TableCell>
+                  <Tip label={s.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{s.note ?? '—'}</TableCell></Tip>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(s)}><Trash2 /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog !== null} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{dialog?.editing ? '编辑订阅' : '新增订阅'}</DialogTitle>
+            <DialogDescription>记录会员、服务器等周期性付费服务。</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>订阅名称 <span className="text-destructive">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 视频会员 / 云服务器" /></div>
+            <div className="space-y-2"><Label>方案名称</Label><Input value={form.plan_name} onChange={(e) => setForm({ ...form, plan_name: e.target.value })} placeholder="如 黄金会员 / 2C4G 套餐" /></div>
+            <div className="space-y-2"><Label>分类 <span className="text-destructive">*</span></Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categories.length ? categories.map((c) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>) : <SelectItem value="其他">其他</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>计费周期</Label>
+              <Select value={form.billing_cycle} onValueChange={(v) => setForm({ ...form, billing_cycle: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="month">按月</SelectItem><SelectItem value="quarter">按季</SelectItem><SelectItem value="year">按年</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>每期金额 <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>开通时间 <span className="text-destructive">*</span></Label><DatePicker value={form.start_date} onChange={(v) => setForm({ ...form, start_date: v })} /></div>
+            <div className="space-y-2"><Label>到期时间</Label><DatePicker value={form.end_date} onChange={(v) => setForm({ ...form, end_date: v })} /></div>
+            <div className="space-y-2"><Label>自动续费</Label>
+              <Select value={form.auto_renew} onValueChange={(v) => setForm({ ...form, auto_renew: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="false">否</SelectItem><SelectItem value="true">是</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>状态</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="active">生效中</SelectItem><SelectItem value="expired">已过期</SelectItem><SelectItem value="cancelled">已取消</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>取消</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 分类管理弹窗 */}
+      <Dialog open={catDialog} onOpenChange={setCatDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>订阅分类设置</DialogTitle>
+            <DialogDescription>管理服务订阅的分类，用于下拉选择。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="输入分类名称" onKeyDown={(e) => e.key === 'Enter' && addCategory()} />
+              <Button onClick={addCategory}><Plus /> 添加</Button>
+            </div>
+            <div className="space-y-1.5">
+              {categories.map((c) => (
+                <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                  {catEditId === c.id ? (
+                    <>
+                      <Input value={catEditName} onChange={(e) => setCatEditName(e.target.value)} autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && saveCatEdit()} className="min-w-0 flex-1" />
+                      <div className="flex shrink-0 gap-0.5">
+                        <Tip label="保存"><Button size="icon" variant="ghost" onClick={saveCatEdit}><Check /></Button></Tip>
+                        <Tip label="取消"><Button size="icon" variant="ghost" onClick={() => setCatEditId(null)}><X /></Button></Tip>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      <div className="flex shrink-0 gap-0.5">
+                        <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => startEditCat(c)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button></Tip>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              {categories.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无分类</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCatDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 网贷借还 ---------------- */
+
+type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; note?: string }
+type LoanPlatformStats = { total_remaining: number; platform_count: number; platforms: (LoanPlatform & { total_owed: number; total_paid: number; remaining: number; bill_count: number })[] }
+
+type LoanBill = {
+  id: number
+  platform_id?: number
+  bill_month: string
+  due_date?: string
+  amount: number
+  interest?: number
+  paid_amount: number
+  status: 'pending' | 'partial' | 'cleared'
+  grace_applied?: boolean
+  note?: string
+}
+type LoanBillStats = {
+  total: number; paid: number; remaining: number; total_interest?: number
+  status: { pending: number; partial: number; cleared: number }
+  by_month: { month: string; amount: number }[]
+  upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; grace_applied?: boolean; overdue?: boolean }[]
+}
+type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
+
+const billStatusMeta: Record<string, { label: string; className: string }> = {
+  pending: { label: '待还', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  partial: { label: '部分已还', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
+  cleared: { label: '已结清', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+}
+
+function LoanTab() {
+  const realtimeTick = useRealtime(30_000)
+  const [platforms, setPlatforms] = useState<LoanPlatform[]>([])
+  const [platformStats, setPlatformStats] = useState<LoanPlatformStats | null>(null)
+  const [bills, setBills] = useState<LoanBill[]>([])
+  const [billStats, setBillStats] = useState<LoanBillStats | null>(null)
+  const [loanMonth, setLoanMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
+  const [repayments, setRepayments] = useState<Repayment[]>([])
+
+  const [pfAddDialog, setPfAddDialog] = useState(false)
+  const [newPf, setNewPf] = useState<Record<string, string>>({})
+  const [pfEdit, setPfEdit] = useState<null | LoanPlatform>(null)
+  const [pfEditForm, setPfEditForm] = useState<Record<string, string>>({})
+  const [repStats, setRepStats] = useState<{ total_paid: number; total_discount: number; count: number; by_month: { month: string; amount: number }[] } | null>(null)
+  const [billDialog, setBillDialog] = useState<null | { editing?: LoanBill }>(null)
+  const [billForm, setBillForm] = useState<Record<string, string>>({})
+  const [repayDialog, setRepayDialog] = useState<null | LoanBill>(null)
+  const [repayForm, setRepayForm] = useState<Record<string, string>>({})
+  const [repayViewDialog, setRepayViewDialog] = useState<number | null>(null)  // 查看还款记录的 bill_id
+  const [repayEditDialog, setRepayEditDialog] = useState<Repayment | null>(null)
+  const [repayEditForm, setRepayEditForm] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
+
+  // 容时服务按平台配置：到期后顺延天数、是否自动生效（免申请）、最终截止时刻（0 = 当天结束）
+  const graceOf = (platformId?: number) => {
+    const pf = platforms.find((p) => p.id === platformId)
+    return { days: pf?.grace_days ?? 3, hour: pf?.grace_hour ?? 0, auto: !!pf?.grace_auto }
+  }
+  /**
+   * 最终截止时刻：还款日 + 容时天数，精确到截止小时（0 表示当天结束）。
+   * 例：邮储（4 天 / 17 点）还款日 2026-10-28 → 2026-11-01 17:00。
+   */
+  const graceDeadline = (platformId?: number, due?: string) => {
+    if (!due) return null
+    const { days, hour } = graceOf(platformId)
+    const d = new Date(`${due}T00:00:00`)
+    d.setDate(d.getDate() + days)
+    if (hour > 0) d.setHours(hour, 0, 0, 0)
+    else d.setHours(23, 59, 59, 999)
+    return d
+  }
+  /** 最终还款日文案（含截止时刻），如「2026-11-01 17:00」；截止为当天结束时只显示日期。 */
+  const graceDeadlineText = (platformId?: number, due?: string) => {
+    const d = graceDeadline(platformId, due)
+    if (!d) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const { hour } = graceOf(platformId)
+    return hour > 0 ? `${day} ${pad(hour)}:00` : day
+  }
+  /** 容时剩余时间数值文案：如「2 天 5 小时」，已到最终截止时刻返回「已超时」。 */
+  const graceRemainValue = (platformId?: number, due?: string) => {
+    const d = graceDeadline(platformId, due)
+    if (!d) return ''
+    const ms = d.getTime() - Date.now()
+    if (ms <= 0) return '已超时'
+    const totalHours = Math.floor(ms / 3_600_000)
+    const days = Math.floor(totalHours / 24)
+    const hours = totalHours % 24
+    if (days > 0) return `${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
+    if (totalHours > 0) return `${totalHours} 小时`
+    return `${Math.max(1, Math.floor(ms / 60_000))} 分钟`
+  }
+  // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
+  const overdueBills = useMemo(() => {
+    const now = Date.now()
+    return bills
+      .filter((b) => b.status !== 'cleared' && b.due_date && (graceDeadline(b.platform_id, b.due_date)?.getTime() ?? 0) < now)
+      .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+  }, [bills, platforms])
+  // 容时窗口内的账单：已过原还款日、但尚未到最终截止时刻（最后一次机会，不判逾期）
+  const graceBills = useMemo(() => {
+    const now = Date.now()
+    return bills
+      .filter((b) => {
+        if (b.status === 'cleared' || !b.due_date) return false
+        const g = graceOf(b.platform_id)
+        if (!(g.days > 0 && (g.auto || !!b.grace_applied))) return false
+        const dueEnd = new Date(`${b.due_date}T23:59:59`).getTime()
+        const deadline = graceDeadline(b.platform_id, b.due_date)?.getTime() ?? 0
+        return now > dueEnd && now <= deadline
+      })
+      .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+  }, [bills, platforms])
+  const [overdueAlertOpen, setOverdueAlertOpen] = useState(false)
+  const overdueAlertShown = useRef(false)
+  const [graceAlertOpen, setGraceAlertOpen] = useState(false)
+  const graceAlertShown = useRef(false)
+  useEffect(() => {
+    // 进入页面或出现异常账单时弹窗一次：逾期优先，其次容时；关闭后本次停留不再重复弹出
+    if (overdueBills.length > 0 && !overdueAlertShown.current) {
+      overdueAlertShown.current = true
+      setOverdueAlertOpen(true)
+    } else if (graceBills.length > 0 && !graceAlertShown.current) {
+      graceAlertShown.current = true
+      setGraceAlertOpen(true)
+    }
+  }, [overdueBills.length, graceBills.length])
+  // 计算逾期天数（按本地日期比较，避免时区偏移导致差一天）
+  const overdueDays = (d?: string) => {
+    if (!d) return 0
+    const n = new Date()
+    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    const diff = Math.round((new Date(`${today}T00:00:00`).getTime() - new Date(`${d}T00:00:00`).getTime()) / 86400000)
+    return diff > 0 ? diff : 0
+  }
+
+  const loadPlatforms = async () => {
+    const res = await api.list<LoanPlatform>('/finance/loan-platforms', { page_size: 100 })
+    setPlatforms(res.items)
+    api.stats<LoanPlatformStats>('/finance/loan-platforms').then(setPlatformStats).catch(() => null)
+  }
+  const loadBills = async () => {
+    // 数据量可能超过单页上限(100)，翻页拉取全量以便按账单月翻页时能访问到历史月份
+    const all: LoanBill[] = []
+    let page = 1
+    let total = 0
+    do {
+      const res = await api.list<LoanBill>('/finance/loan-bills', { page, page_size: 100 })
+      all.push(...res.items)
+      total = res.total
+      page += 1
+    } while (all.length < total)
+    // 固定排序：先按平台ID，再按月，避免同一月份内平台出现顺序跳动
+    all.sort((a, b) => (a.platform_id ?? 0) - (b.platform_id ?? 0) || a.bill_month.localeCompare(b.bill_month))
+    setBills(all)
+    api.stats<LoanBillStats>('/finance/loan-bills').then(setBillStats).catch(() => null)
+  }
+  const loadRepayments = async (billId: number | null) => {
+    if (!billId) { setRepayments([]); return }
+    api.query<Repayment[]>(`/finance/repayments?bill_id=${billId}`).then(setRepayments).catch(() => setRepayments([]))
+  }
+  const loadRepStats = () => {
+    api.query<{ total_paid: number; total_discount: number; count: number; by_month: { month: string; amount: number }[] }>('/finance/repayments/stats?days=3650').then(setRepStats).catch(() => setRepStats(null))
+  }
+
+  useEffect(() => {
+    loadPlatforms()
+    loadBills()
+    loadRepStats()
+  }, [realtimeTick])
+
+  const refresh = async () => {
+    await loadBills()
+    await loadPlatforms()
+    loadRepStats()
+    if (repayViewDialog) await loadRepayments(repayViewDialog)
+  }
+
+  const platformName = (id?: number) => platforms.find((p) => p.id === id)?.name ?? '—'
+
+  const shiftMonth = (ym: string, delta: number) => {
+    const [y, m] = ym.split('-').map(Number)
+    const dt = new Date(y, m - 1 + delta, 1)
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`
+  }
+  const monthBills = bills.filter((b) => b.bill_month.slice(0, 7) === loanMonth)
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const thisMonthBills = bills.filter((b) => b.bill_month.slice(0, 7) === thisMonth)
+  const thisMonthPrincipal = thisMonthBills.reduce((s, b) => s + (b.amount - (b.interest || 0)), 0)
+  const thisMonthInterest = thisMonthBills.reduce((s, b) => s + (b.interest || 0), 0)
+  const thisMonthRemaining = Math.max(0, round2(thisMonthBills.reduce((s, b) => s + remainingOf(b.amount, b.paid_amount), 0)))
+  const addPlatform = async () => {
+    const name = newPf.name?.trim()
+    if (!name) return
+    try {
+      await api.create('/finance/loan-platforms', {
+        name, bill_day: newPf.bill_day ? Number(newPf.bill_day) : null,
+        due_day: newPf.due_day ? Number(newPf.due_day) : null,
+        credit_limit: newPf.credit_limit ? Number(newPf.credit_limit) : null,
+        grace_days: newPf.grace_days !== undefined && newPf.grace_days !== '' ? Number(newPf.grace_days) : 3,
+        grace_auto: newPf.grace_auto === '1',
+        grace_hour: newPf.grace_hour ? Number(newPf.grace_hour) : 0,
+        note: newPf.note || null,
+      })
+      toast.success('平台已添加')
+      setPfAddDialog(false)
+    } catch (e) {
+      toast.error('添加失败', { description: (e as Error).message })
+    }
+    setNewPf({})
+    await loadPlatforms()
+  }
+  const openPfEdit = (p: LoanPlatform) => {
+    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0) })
+    setPfEdit(p)
+  }
+  const savePfEdit = async () => {
+    if (!pfEdit) return
+    try {
+      await api.update('/finance/loan-platforms', pfEdit.id, {
+        name: pfEditForm.name, bill_day: pfEditForm.bill_day ? Number(pfEditForm.bill_day) : null,
+        due_day: pfEditForm.due_day ? Number(pfEditForm.due_day) : null,
+        credit_limit: pfEditForm.credit_limit ? Number(pfEditForm.credit_limit) : null,
+        grace_days: pfEditForm.grace_days !== undefined && pfEditForm.grace_days !== '' ? Number(pfEditForm.grace_days) : 3,
+        grace_auto: pfEditForm.grace_auto === '1',
+        grace_hour: pfEditForm.grace_hour ? Number(pfEditForm.grace_hour) : 0,
+      })
+      toast.success('平台已更新')
+      setPfEdit(null)
+    } catch (e) {
+      toast.error('更新失败', { description: (e as Error).message })
+    }
+    await loadPlatforms()
+  }
+  const removePlatform = async (id: number) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/loan-platforms', id)
+      await loadPlatforms()
+      toast.success('平台已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  /**
+   * 计算账单的最迟还款日。
+   * 以账单月份（出账月）为基准取 due_day；若 due_day 早于 bill_day（如美团 25 出账 / 次月 3 还款），
+   * 说明还款落在次月，需顺延一个月；日号超出目标月天数时取该月最后一天。
+   * 例：美团 bill_day=25、due_day=3 → 2026-09 账单（9.25 出账）最迟 2026-10-03 还款。
+   * @param platformId 平台 ID
+   * @param billMonth 账单月份（出账月，YYYY-MM 或 YYYY-MM-DD）
+   * @returns 最迟还款日（YYYY-MM-DD），无法计算时返回空串
+   */
+  const dueFor = (platformId: string, billMonth: string) => {
+    const pf = platforms.find((p) => p.id === Number(platformId))
+    const day = pf?.due_day
+    if (!day || !billMonth) return ''
+    const [y, m] = billMonth.split('-').map(Number)
+    if (!y || !m) return ''
+    // 还款日早于出账日 → 还款在次月（跨月还款，仅美团这类平台会出现）
+    const crossMonth = pf?.bill_day != null && day < pf.bill_day
+    const target = new Date(y, m - 1 + (crossMonth ? 1 : 0), 1)
+    const ty = target.getFullYear()
+    const tm = target.getMonth() + 1
+    const last = new Date(ty, tm, 0).getDate()
+    const dd = Math.min(day, last)
+    return `${ty}-${String(tm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+  }
+  const openBillCreate = () => {
+    const pfId = platforms[0] ? String(platforms[0].id) : ''
+    setBillForm({ platform_id: pfId, bill_month: `${loanMonth}-01`, due_date: dueFor(pfId, loanMonth), amount: '', interest: '0', paid_amount: '0', status: 'pending', grace_applied: '0', note: '' })
+    setBillDialog({})
+  }
+  const saveBill = async () => {
+    // 规范化 bill_month：确保为 YYYY-MM-DD 格式（MonthPicker 返回 YYYY-MM-01，但若只有 YYYY-MM 则补 -01）
+    const billMonth = /^\d{4}-\d{2}$/.test(billForm.bill_month) ? `${billForm.bill_month}-01` : billForm.bill_month
+    const payload = {
+      platform_id: billForm.platform_id ? Number(billForm.platform_id) : null,
+      bill_month: billMonth, due_date: billForm.due_date || null,
+      amount: Number(billForm.amount), interest: billForm.interest ? Number(billForm.interest) : 0,
+      paid_amount: Number(billForm.paid_amount || 0),
+      status: billForm.status, grace_applied: billForm.grace_applied === '1', note: billForm.note || null,
+    }
+    setSaving(true)
+    try {
+      if (billDialog?.editing) { await api.update('/finance/loan-bills', billDialog.editing.id, payload); toast.success('账单已更新') }
+      else { await api.create('/finance/loan-bills', payload); toast.success('账单已新增') }
+      setBillDialog(null)
+      await refresh()
+    } catch (e) {
+      toast.error('保存失败', { description: (e as Error).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const removeBill = async (b: LoanBill) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/loan-bills', b.id)
+      await refresh()
+      toast.success('账单已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+
+  const openRepay = (b: LoanBill) => {
+    const remaining = remainingOf(b.amount, b.paid_amount)
+    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? remaining.toFixed(2) : '', discount: '', method: '', note: '' })
+    setRepayDialog(b)
+  }
+  const actualPay = (): number => {
+    const amt = Number(repayForm.amount) || 0
+    const dsc = Number(repayForm.discount) || 0
+    return Math.max(0, amt - dsc)
+  }
+  const submitRepay = async () => {
+    if (!repayDialog) return
+    const actual = actualPay()
+    if (actual <= 0) {
+      toast.error('实付金额必须大于 0')
+      return
+    }
+    const payload = {
+      bill_id: repayDialog.id, repay_date: repayForm.repay_date,
+      amount: actual, discount: repayForm.discount ? Number(repayForm.discount) : 0,
+      method: repayForm.method || null, note: repayForm.note || null,
+    }
+    setSaving(true)
+    try {
+      await api.create('/finance/repayments', payload)
+      setRepayDialog(null)
+      await refresh()
+      toast.success('还款记录已添加')
+    } catch (e) {
+      toast.error('保存失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+  const removeRepay = async (r: Repayment) => {
+    if (!(await confirm())) return
+    try {
+      await api.remove('/finance/repayments', r.id)
+      await refresh()
+      toast.success('还款记录已删除')
+    } catch (e) {
+      toast.error('删除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    }
+  }
+  const openEditRepay = (r: Repayment) => {
+    setRepayEditForm({ repay_date: r.repay_date, amount: String(r.amount), discount: String(r.discount ?? 0), method: r.method ?? '', note: r.note ?? '' })
+    setRepayEditDialog(r)
+  }
+  const submitEditRepay = async () => {
+    if (!repayEditDialog) return
+    const amt = Number(repayEditForm.amount)
+    if (amt <= 0) { toast.error('金额必须大于 0'); return }
+    const payload = {
+      bill_id: repayEditDialog.bill_id!,
+      repay_date: repayEditForm.repay_date,
+      amount: amt,
+      discount: Number(repayEditForm.discount) || 0,
+      method: repayEditForm.method || null,
+      note: repayEditForm.note || null,
+    }
+    setSaving(true)
+    try {
+      await api.update('/finance/repayments', repayEditDialog.id, payload)
+      setRepayEditDialog(null)
+      await refresh()
+      toast.success('还款记录已修改')
+    } catch (e) {
+      toast.error('保存失败', { description: e instanceof Error ? e.message : '请稍后重试' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* 容时倒计时横幅：已过原还款日但仍在容时窗口内，强调最低还款与不可再次延期 */}
+      {graceBills.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-2.5 dark:bg-amber-500/10">
+          <Clock className="size-5 shrink-0 animate-pulse text-amber-600 dark:text-amber-400" />
+          <span className="text-lg font-extrabold tracking-wide text-amber-700 dark:text-amber-300">容时最后机会</span>
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            共 <span className="font-extrabold">{graceBills.length}</span> 笔账单已过原还款日，请至少还够最低还款额，容时不会再次延期
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto bg-amber-600 font-bold text-white hover:bg-amber-700"
+            onClick={() => setGraceAlertOpen(true)}
+          >
+            查看容时明细
+          </Button>
+        </div>
+      )}
+      {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
+      {overdueBills.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+          <div className="flex flex-wrap items-center gap-3">
+            <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
+            <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
+            <span className="text-sm font-medium text-red-700 dark:text-red-300">
+              共 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
+            </span>
+            <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
+              查看逾期明细
+            </Button>
+          </div>
+          {/* 容时规则：各平台天数/截止时刻不同（如邮储 4 天至第 4 天 17:00 且自动生效） */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
+            <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+            <span className="text-base font-extrabold text-red-600 dark:text-red-400">
+              已超过最终还款日，将上报征信
+            </span>
+            <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
+              容时规则按平台配置（如邮储 4 天至 17:00、其余平台 3 天）· 以每笔账单的「最终还款日」为准
+            </span>
+          </div>
+        </div>
+      )}
+      {platformStats && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-red-500" />
+          <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
+          <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
+          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600 dark:text-green-400" />
+          <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
+          <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
+          <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
+          <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
+          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-green-600 dark:text-green-400" />
+        </section>
+      )}
+
+      {/* 借款平台 */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium">借款平台</CardTitle>
+          <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {platformStats?.platforms.map((p) => (
+            <div key={p.id} className="rounded-lg border p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{p.name}</span>
+                <div className="flex shrink-0 gap-0.5">
+                  <Tip label="编辑平台"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button></Tip>
+                  <Tip label="删除平台"><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
+                </div>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                <span>账单日 {p.bill_day ?? '—'}</span>
+                <span>还款日 {p.due_day ?? '—'}</span>
+                <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
+                <span>容时 {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}</span>
+                <span>{p.bill_count} 笔账单</span>
+              </div>
+              <div className="mt-2 flex justify-between">
+                <span>累计欠款 <b>{fmt(p.total_owed)}</b></span>
+                <span className={p.remaining > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400 font-medium'}>待还 {fmt(p.remaining)}</span>
+              </div>
+            </div>
+          ))}
+          {platformStats && platformStats.platforms.length === 0 && (
+            <p className="col-span-full py-6 text-center text-sm text-muted-foreground">暂无借款平台</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 网贷账单 */}
+      <Card>
+        <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium">网贷账单</CardTitle>
+          <div className="flex items-center gap-1">
+            <Tip label="上一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button></Tip>
+            <MonthPicker value={`${loanMonth}-01`} onChange={(v) => setLoanMonth(v.slice(0, 7))} className="h-8 w-[140px]" />
+            <Tip label="下一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button></Tip>
+            <Button size="sm" variant="outline" onClick={() => { const n = new Date(); setLoanMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
+            <Button onClick={openBillCreate} className="ml-1"><Plus /> 新增账单</Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>平台</TableHead><TableHead>账单月份</TableHead><TableHead>到期日</TableHead>
+                <TableHead className="whitespace-nowrap">欠款 <span className="mx-1 text-muted-foreground/40">|</span> 利息</TableHead><TableHead className="whitespace-nowrap">已还 <span className="mx-1 text-muted-foreground/40">|</span> 剩余</TableHead><TableHead>状态</TableHead><TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {monthBills.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{bills.length === 0 ? '暂无账单' : `「${loanMonth}」无账单`}</TableCell></TableRow>
+              ) : monthBills.map((b) => {
+                const remaining = remainingOf(b.amount, b.paid_amount)
+                const interest = b.interest ?? 0
+                const grace = graceOf(b.platform_id)
+                // 容时生效：平台自动生效（如邮储，免申请）或该笔账单已勾选申请
+                const graceOn = grace.days > 0 && (grace.auto || !!b.grace_applied)
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
+                    <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {b.due_date ?? '—'}
+                      {graceOn && (
+                        <Tip label={`${grace.auto ? '自动容时' : '已申请容时'} ${grace.days} 天 · 最终还款日 ${graceDeadlineText(b.platform_id, b.due_date)}`}>
+                          <Badge variant="outline" className="ml-1.5 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{grace.auto ? `自动容时 ${grace.days} 天` : `容时 +${grace.days}`}</Badge>
+                        </Tip>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      <span className="font-medium">{fmt(b.amount)}</span>
+                      {interest > 0 && (
+                        <>
+                          <span className="mx-1.5 text-muted-foreground/40">|</span>
+                          <span className="text-amber-600 dark:text-amber-400">{fmt(interest)}</span>
+                        </>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      <span className="font-medium">{fmt(b.paid_amount)}</span>
+                      <span className="mx-1.5 text-muted-foreground/40">|</span>
+                      <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)}</span>
+                    </TableCell>
+                    <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Tip label="查看还款记录"><Button variant="ghost" size="icon" onClick={() => { loadRepayments(b.id); setRepayViewDialog(b.id) }}><ListTree className="size-3.5" /></Button></Tip>
+                        {/* 无剩余欠款时不显示还款按钮，但保留等宽占位，避免各列图标纵向错位 */}
+                        {remaining > 0 ? (
+                          <Tip label="还款"><Button variant="ghost" size="icon" onClick={() => openRepay(b)}><Banknote className="size-3.5" /></Button></Tip>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="invisible" aria-hidden tabIndex={-1}><Banknote className="size-3.5" /></Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, grace_applied: b.grace_applied ? '1' : '0', note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* 还款记录 */}
+      {(billStats?.upcoming ?? []).length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">近期待还（30 天内）</CardTitle></CardHeader>
+          <CardContent className="space-y-1.5 text-sm">
+            {billStats?.upcoming.map((u) => (
+              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40' : 'bg-white/70 dark:bg-white/5'}`}>
+                <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge>
+                  {(() => {
+                    const g = graceOf(u.platform_id)
+                    const on = g.days > 0 && (g.auto || !!u.grace_applied)
+                    if (!on) return null
+                    return (
+                      <Tip label={`最终还款日 ${graceDeadlineText(u.platform_id, u.due_date)}`}>
+                        <Badge variant="outline" className="ml-1 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{g.auto ? `自动容时 ${g.days} 天` : `容时 +${g.days}`}</Badge>
+                      </Tip>
+                    )
+                  })()}
+                </span>
+                <span className="text-muted-foreground">
+                  {u.overdue ? <span className="text-red-600 dark:text-red-400 font-semibold">已逾期 · </span> : ''}
+                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmt(u.remaining)}</span>
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 还款记录查看弹窗 */}
+      <Dialog open={repayViewDialog !== null} onOpenChange={(o) => !o && setRepayViewDialog(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>还款记录</DialogTitle>
+            <DialogDescription>
+              {repayViewDialog ? `${platformName(bills.find((b) => b.id === repayViewDialog)?.platform_id)} · ${bills.find((b) => b.id === repayViewDialog)?.bill_month ?? ''}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {repayments.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+              ) : repayments.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{r.repay_date}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
+                  <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                  <TableCell>{r.method ?? '—'}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
+                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
+
+      {/* 还款记录编辑弹窗 */}
+      <Dialog open={repayEditDialog !== null} onOpenChange={(o) => !o && setRepayEditDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>修改还款记录</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2"><Label>还款日期</Label><Input type="date" value={repayEditForm.repay_date ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, repay_date: e.target.value })} /></div>
+            <div className="space-y-2"><Label>实付金额</Label><Input type="number" min={0} step="0.01" value={repayEditForm.amount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>优惠</Label><Input type="number" min={0} step="0.01" value={repayEditForm.discount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, discount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款方式</Label><Input value={repayEditForm.method ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, method: e.target.value })} placeholder="如：支付宝、微信" /></div>
+            <div className="space-y-2"><Label>备注</Label><Input value={repayEditForm.note ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, note: e.target.value })} /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setRepayEditDialog(null)}>取消</Button>
+              <Button onClick={submitEditRepay} disabled={saving}>{saving ? <><Loader2 className="mr-1 size-4 animate-spin" />保存中</> : '保存修改'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新增平台弹窗 */}
+      <Dialog open={pfAddDialog} onOpenChange={setPfAddDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>新增借款平台</DialogTitle><DialogDescription>添加借款平台并设置账单日、还款日与额度。</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2"><Label>平台名称 <span className="text-destructive">*</span></Label><Input value={newPf.name ?? ''} onChange={(e) => setNewPf({ ...newPf, name: e.target.value })} placeholder="平台名称" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>账单日(1-31)</Label><Input type="number" min={1} max={31} value={newPf.bill_day ?? ''} onChange={(e) => setNewPf({ ...newPf, bill_day: e.target.value })} placeholder="如 15" /></div>
+              <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={newPf.due_day ?? ''} onChange={(e) => setNewPf({ ...newPf, due_day: e.target.value })} placeholder="如 25" /></div>
+            </div>
+            <div className="space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={newPf.credit_limit ?? ''} onChange={(e) => setNewPf({ ...newPf, credit_limit: e.target.value })} placeholder="可选" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">容时天数<Hint text="最终还款日可顺延的天数（0 表示不提供容时）。邮储为 4 天。" /></Label>
+                <Input type="number" min={0} max={15} value={newPf.grace_days ?? '3'} onChange={(e) => setNewPf({ ...newPf, grace_days: e.target.value })} placeholder="默认 3" />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">截止时刻<Hint text="顺延后当天的最晚截止时刻（0-23），0 表示当天 23:59；邮储为 17 点。" /></Label>
+                <Input type="number" min={0} max={23} value={newPf.grace_hour ?? '0'} onChange={(e) => setNewPf({ ...newPf, grace_hour: e.target.value })} placeholder="0 = 当天结束" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
+              <Switch checked={newPf.grace_auto === '1'} onCheckedChange={(v) => setNewPf({ ...newPf, grace_auto: v ? '1' : '0' })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPfAddDialog(false)}>取消</Button>
+            <Button onClick={addPlatform} disabled={saving}>{saving && <Loader2 className="animate-spin" />}确认添加</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 账单新增/编辑弹窗 */}
+      <Dialog open={billDialog !== null} onOpenChange={(o) => !o && setBillDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{billDialog?.editing ? '编辑账单' : '新增账单'}</DialogTitle><DialogDescription>填写应交欠款总额，若有差异可单列利息用于展示。</DialogDescription></DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>平台 <span className="text-destructive">*</span></Label>
+              <Select value={billForm.platform_id} onValueChange={(v) => setBillForm({ ...billForm, platform_id: v, due_date: dueFor(v, billForm.bill_month) })}>
+                <SelectTrigger><SelectValue placeholder="选择平台" /></SelectTrigger>
+                <SelectContent>{platforms.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>账单月份 <span className="text-destructive">*</span></Label><MonthPicker value={billForm.bill_month} onChange={(v) => setBillForm({ ...billForm, bill_month: v, due_date: dueFor(billForm.platform_id, v) })} /></div>
+            <div className="space-y-2"><Label>到期日 <span className="text-muted-foreground">(按平台还款日自动算)</span></Label><DatePicker value={billForm.due_date} onChange={(v) => setBillForm({ ...billForm, due_date: v })} /></div>
+            <div className="space-y-2"><Label>应付欠款(含利息) <span className="text-destructive">*</span></Label><Input type="number" min={0} step="0.01" value={billForm.amount} onChange={(e) => setBillForm({ ...billForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>其中利息</Label><Input type="number" min={0} step="0.01" value={billForm.interest} onChange={(e) => setBillForm({ ...billForm, interest: e.target.value })} placeholder="无则为 0" /></div>
+            <div className="space-y-2"><Label>状态</Label>
+              <Select value={billForm.status} onValueChange={(v) => setBillForm({ ...billForm, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="pending">待还</SelectItem><SelectItem value="partial">部分已还</SelectItem><SelectItem value="cleared">已结清</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <Label htmlFor="grace-applied" className="flex cursor-pointer items-center gap-1">
+                已申请容时服务<Hint text="容时服务固定 3 天，需按账单周期单独申请。勾选表示本笔已申请，最终还款日 = 还款日 + 3 天；系统逾期宽限期仍统一按 3 天计算" />
+              </Label>
+              <Switch id="grace-applied" checked={billForm.grace_applied === '1'} onCheckedChange={(v) => setBillForm({ ...billForm, grace_applied: v ? '1' : '0' })} />
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={billForm.note} onChange={(e) => setBillForm({ ...billForm, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBillDialog(null)}>取消</Button>
+            <Button onClick={saveBill} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 还款弹窗 */}
+      <Dialog open={repayDialog !== null} onOpenChange={(o) => !o && setRepayDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{repayDialog && repayDialog.amount - repayDialog.paid_amount > 0.001 && repayForm.amount ? (Number(repayForm.amount) >= repayDialog.amount - repayDialog.paid_amount - 0.001 ? '一次结清' : '部分还款') : '还款'}</DialogTitle>
+            <DialogDescription>
+              {repayDialog ? `${platformName(repayDialog.platform_id)} · ${repayDialog.bill_month} · 剩余 ${fmt(remainingOf(repayDialog.amount, repayDialog.paid_amount))}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
+            <div className="space-y-2">
+              <Label>应还金额 <span className="text-destructive">*</span></Label>
+              <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" />
+            </div>
+            <div className="space-y-2"><Label>优惠(券/抵扣)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
+            <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
+            <div className="col-span-2 space-y-1">
+              <Label>实际支付（= 应还 - 优惠）</Label>
+              <div className="rounded-lg border px-3 py-2 text-sm font-medium">
+                {fmt(actualPay())}
+                {(Number(repayForm.discount) || 0) > 0 && (
+                  <span className="ml-2 text-xs text-green-600 dark:text-green-400">优惠抵减 {fmt(Number(repayForm.discount))}</span>
+                )}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-2"><Label>备注</Label><Textarea value={repayForm.note} onChange={(e) => setRepayForm({ ...repayForm, note: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRepayDialog(null)}>取消</Button>
+            <Button onClick={submitRepay} disabled={saving}>{saving && <Loader2 className="animate-spin" />}确认还款</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 平台编辑弹窗 */}
+      <Dialog open={pfEdit !== null} onOpenChange={(o) => !o && setPfEdit(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>编辑借款平台</DialogTitle><DialogDescription>修改平台名称、账单日与还款日。</DialogDescription></DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-2"><Label>平台名称</Label><Input value={pfEditForm.name} onChange={(e) => setPfEditForm({ ...pfEditForm, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>账单日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.bill_day} onChange={(e) => setPfEditForm({ ...pfEditForm, bill_day: e.target.value })} /></div>
+            <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.due_day} onChange={(e) => setPfEditForm({ ...pfEditForm, due_day: e.target.value })} /></div>
+            <div className="col-span-2 space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={pfEditForm.credit_limit} onChange={(e) => setPfEditForm({ ...pfEditForm, credit_limit: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">容时天数<Hint text="最终还款日可顺延的天数（0 表示不提供容时）。邮储为 4 天。" /></Label>
+              <Input type="number" min={0} max={15} value={pfEditForm.grace_days} onChange={(e) => setPfEditForm({ ...pfEditForm, grace_days: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">截止时刻<Hint text="顺延后当天的最晚截止时刻（0-23），0 表示当天 23:59；邮储为 17 点。" /></Label>
+              <Input type="number" min={0} max={23} value={pfEditForm.grace_hour} onChange={(e) => setPfEditForm({ ...pfEditForm, grace_hour: e.target.value })} />
+            </div>
+            <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+              <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
+              <Switch checked={pfEditForm.grace_auto === '1'} onCheckedChange={(v) => setPfEditForm({ ...pfEditForm, grace_auto: v ? '1' : '0' })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
+            <Button onClick={savePfEdit} disabled={saving}>{saving && <Loader2 className="animate-spin" />}保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 容时最后机会弹窗：琥珀色警示（区别于逾期的红色警报），强调最低还款且不可再次延期 */}
+      <Dialog open={graceAlertOpen} onOpenChange={setGraceAlertOpen}>
+        <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="flex items-center gap-2 text-xl font-extrabold text-amber-600 dark:text-amber-400">
+              <Clock className="size-6 animate-pulse" /> 容时最后机会
+            </DialogTitle>
+            <DialogDescription className="text-sm font-medium text-amber-700 dark:text-amber-400">
+              以下 {graceBills.length} 笔账单已过原还款日，仍在容时保护期内。
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* 核心警告：最低还款 + 不可再次延期 */}
+          <div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
+            <p className="flex flex-wrap items-center gap-2">
+              <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="text-base font-extrabold text-gray-900 dark:text-gray-100">
+                请至少还够<span className="text-amber-700 dark:text-amber-300">最低还款额</span>
+              </span>
+              <span className="rounded-md bg-amber-600 px-1.5 py-0.5 text-xs font-bold text-white">不会再次延期</span>
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
+              容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
+              超过最终截止时刻将上报征信。
+            </p>
+          </div>
+
+          <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
+            {graceBills.map((b) => (
+              <div key={b.id} className="rounded-xl border-2 border-amber-400/80 bg-gradient-to-br from-amber-50/90 to-background p-4 dark:border-amber-500/40 dark:from-amber-500/10">
+                {/* 头部：平台 + 账单月份 + 容时标记 */}
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)}</span>
+                  <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{b.bill_month.slice(0, 7)}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-amber-600 px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
+                </div>
+                {/* 两个核心数据：剩余时间（强调色）/ 待还金额（大粗体） */}
+                <div className="mt-3 grid grid-cols-2 gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold tracking-widest text-amber-700/70 dark:text-amber-400/70">剩余时间</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-amber-600 sm:text-2xl dark:text-amber-400">
+                      {graceRemainValue(b.platform_id, b.due_date)}
+                    </p>
+                  </div>
+                  <div className="min-w-0 border-l border-amber-300/70 pl-4 dark:border-amber-500/30">
+                    <p className="text-[11px] font-bold tracking-widest text-gray-500 dark:text-gray-400">待还金额</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-gray-900 sm:text-2xl dark:text-gray-50">
+                      {fmt(remainingOf(b.amount, b.paid_amount))}
+                    </p>
+                  </div>
+                </div>
+                {/* 时间轴：原还款日 → 最终还款日 */}
+                <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-300/60 pt-2.5 text-xs dark:border-amber-500/25">
+                  <span className="text-gray-500 dark:text-gray-400">原还款日 {b.due_date}</span>
+                  <span className="font-bold text-amber-800 dark:text-amber-300">
+                    最终 {graceDeadlineText(b.platform_id, b.due_date)} · 超过即上报征信
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="h-11 w-full bg-amber-600 text-base font-bold text-white hover:bg-amber-700"
+              onClick={() => setGraceAlertOpen(false)}
+            >
+              我知道了，尽快还款
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 逾期重大提醒弹窗：大字 + 强调色，仅通过「我已知晓」关闭 */}
+      <Dialog open={overdueAlertOpen} onOpenChange={setOverdueAlertOpen}>
+        <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold text-red-600 dark:text-red-400">
+              <AlertTriangle className="size-7 animate-pulse" /> 账单逾期警报
+            </DialogTitle>
+            <DialogDescription className="text-base text-red-600 dark:text-red-400">
+              以下账单已超过最终还款日（含容时），请立即处理，避免影响征信。
+            </DialogDescription>
+          </DialogHeader>
+          {/* 容时规则：各平台天数/截止时刻不同，已超时的账单将上报征信 */}
+          <div className="rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:border-red-500/60 dark:bg-red-500/10">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
+              <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+              <span className="font-bold text-gray-900 dark:text-gray-100">已超过最终还款日</span>
+              <span className="font-extrabold text-red-600 dark:text-red-400">将上报征信</span>
+            </p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              容时天数与截止时刻按平台配置（如邮储 4 天、至第 4 天 17:00 且自动生效；其余平台 3 天、需申请），每笔账单以其「最终还款日」为准。
+              <span className="font-bold text-red-600 dark:text-red-400">容时已用完，不存在再次延期。</span>
+            </p>
+          </div>
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {overdueBills.map((b) => (
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-muted/50 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                    {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
+                    {(() => {
+                      const g = graceOf(b.platform_id)
+                      if (!(g.days > 0 && (g.auto || !!b.grace_applied))) return null
+                      return (
+                        <span className="rounded-md border border-indigo-400 px-2 py-0.5 text-sm font-semibold text-indigo-600 dark:border-indigo-500/60 dark:text-indigo-400">
+                          {g.auto ? `自动容时 ${g.days} 天` : '已申请容时'}
+                        </span>
+                      )
+                    })()}
+                    <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超容时 · 将上报征信</span>
+                  </p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="destructive" className="w-full text-base font-bold" onClick={() => setOverdueAlertOpen(false)}>我已知晓</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {confirmDialog}
+    </div>
+  )
+}
+
+/* ---------------- 页面 ---------------- */
+
+export function BillsPage() {
+  const TAB_KEY = 'lifeos_bills_tab'
+  const [tab, setTabState] = useState<TabKey>(() => {
+    const saved = localStorage.getItem(TAB_KEY)
+    return saved === 'housing' || saved === 'subscription' || saved === 'loan' ? saved : 'loan'
+  })
+  const setTab = (t: TabKey) => {
+    setTabState(t)
+    localStorage.setItem(TAB_KEY, t)
+  }
+  const tabs: { key: TabKey; label: string; icon: typeof Home }[] = [
+    { key: 'loan', label: '网贷借还', icon: Banknote },
+    { key: 'housing', label: '房租水电', icon: Home },
+    { key: 'subscription', label: '服务订阅', icon: Repeat },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      <section className="space-y-1">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight">账单管理</h1>
+        <p className="text-sm text-muted-foreground">集中管理住房水电、服务订阅与网贷还款。</p>
+      </section>
+
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        {tabs.map((t) => (
+          <Button
+            key={t.key}
+            variant={tab === t.key ? 'default' : 'ghost'}
+            className="flex-1"
+            onClick={() => setTab(t.key)}
+          >
+            <t.icon className="size-4" /> {t.label}
+          </Button>
+        ))}
+      </div>
+
+      {tab === 'loan' && <LoanTab />}
+      {tab === 'housing' && <HousingTab />}
+      {tab === 'subscription' && <SubscriptionTab />}
+    </div>
+  )
+}
