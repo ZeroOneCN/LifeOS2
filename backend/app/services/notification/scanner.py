@@ -4,7 +4,7 @@ SCANNERS 注册表：feature_key -> scan(db, advance_days) -> list[dict]
 每个 dict 形如 {source_id, title_ctx, content_ctx}，供模板渲染。
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as clock_time, timedelta
 from typing import Callable
 
 from sqlalchemy import select
@@ -65,8 +65,6 @@ SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "�
 LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
 # 网贷还款功能开关键：逾期小时提醒任务只处理该模块
 LOAN_FEATURE_KEY = "finance_loan_due"
-# 容时服务固定 3 天（与前端 bills.tsx 的 GRACE_DAYS 保持一致）
-LOAN_GRACE_DAYS = 3
 
 
 def _next_day_of_month(today: date, day: int) -> date:
@@ -172,20 +170,38 @@ def _scan_loan(
         )
     ).all()
     platforms = {
-        p.id: p.name for p in db.scalars(
+        p.id: p for p in db.scalars(
             select(FinanceLoanPlatform).where(FinanceLoanPlatform.user_id == user_id)
         ).all()
     }
+    now = datetime.now()
     out = []
     for r in rows:
-        # 已申请容时服务：最终还款日顺延 3 天，提醒节奏（提前提醒/到期/逾期）整体后移
-        final_due = r.due_date + timedelta(days=LOAN_GRACE_DAYS) if r.grace_applied else r.due_date
-        due_text = final_due.isoformat() + ("（已容时）" if r.grace_applied else "")
+        pf = platforms.get(r.platform_id)
+        # 容时服务按平台配置：平台勾选「自动生效」（如邮储）或该笔账单已申请容时，才顺延
+        grace_days = max(0, pf.grace_days or 0) if pf else 0
+        grace_on = bool(grace_days and pf and (pf.grace_auto or r.grace_applied))
+        grace_hour = (pf.grace_hour or 0) if pf else 0
+        if grace_on:
+            # 最终还款日 = 还款日 + 容时天数；截止时刻为当天 grace_hour 点（0 表示当天结束）
+            final_due = r.due_date + timedelta(days=grace_days)
+            deadline = datetime.combine(
+                final_due,
+                clock_time(grace_hour, 0) if grace_hour else clock_time(23, 59, 59),
+            )
+        else:
+            final_due = r.due_date
+            deadline = datetime.combine(final_due, clock_time(23, 59, 59))
+        due_text = final_due.isoformat()
+        if grace_on:
+            due_text += f" {grace_hour:02d}:00" if grace_hour else ""
+            due_text += "（容时）"
+        overdue = now > deadline
         if overdue_only:
-            # 小时级任务只处理已逾期账单
-            if final_due >= today:
+            # 小时级任务只处理已过最终截止时刻的账单
+            if not overdue:
                 continue
-        elif final_due < today:
+        elif overdue:
             # 日常扫描跳过逾期账单，由小时级任务专门负责（每天每小时提醒）
             continue
         elif final_due > due:
@@ -194,11 +210,11 @@ def _scan_loan(
         item = {
             "source_id": r.id,
             "title_ctx": {
-                "platform": platforms.get(r.platform_id, "网贷"),
+                "platform": pf.name if pf else "网贷",
                 "due_date": due_text,
             },
             "content_ctx": {
-                "platform": platforms.get(r.platform_id, "网贷"),
+                "platform": pf.name if pf else "网贷",
                 "bill_month": r.bill_month.strftime("%Y-%m") if r.bill_month else "",
                 "amount": _money(r.amount),
                 "due_date": due_text,
@@ -208,13 +224,13 @@ def _scan_loan(
                 "status": LOAN_STATUS_MAP.get(r.status, r.status),
             },
         }
-        if final_due < today:
+        if overdue:
             # 逾期：去重键精确到“小时”，确保每个小时各提醒一次
-            item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{datetime.now().hour}"
+            item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{now.hour}"
         elif final_due == today:
             # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒；
             # 容时账单带上最终到期日，避免与原还款日的到期提醒互相吞掉
-            item["dedup_key"] = f"{r.id}:due:{final_due.isoformat()}" if r.grace_applied else f"{r.id}:due"
+            item["dedup_key"] = f"{r.id}:due:{final_due.isoformat()}" if grace_on else f"{r.id}:due"
         out.append(item)
     return out
 

@@ -184,6 +184,10 @@ class LoanPlatformCreate(BaseModel):
     bill_day: int | None = Field(None, ge=1, le=31)
     due_day: int | None = Field(None, ge=1, le=31)
     credit_limit: float | None = Field(None, ge=0)
+    # 容时服务：到期后顺延天数、是否自动生效（免申请）、最终截止时刻（0 表示当天结束）
+    grace_days: int = Field(3, ge=0, le=15)
+    grace_auto: bool = False
+    grace_hour: int = Field(0, ge=0, le=23)
     note: str | None = None
 
 

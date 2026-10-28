@@ -1407,7 +1407,7 @@ function SubscriptionTab() {
 
 /* ---------------- 网贷借还 ---------------- */
 
-type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; note?: string }
+type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; note?: string }
 type LoanPlatformStats = { total_remaining: number; platform_count: number; platforms: (LoanPlatform & { total_owed: number; total_paid: number; remaining: number; bill_count: number })[] }
 
 type LoanBill = {
@@ -1460,14 +1460,40 @@ function LoanTab() {
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
-  // 逾期账单：用于站内重大提醒（弹窗 + 常驻横幅）
+  // 容时服务按平台配置：到期后顺延天数、是否自动生效（免申请）、最终截止时刻（0 = 当天结束）
+  const graceOf = (platformId?: number) => {
+    const pf = platforms.find((p) => p.id === platformId)
+    return { days: pf?.grace_days ?? 3, hour: pf?.grace_hour ?? 0, auto: !!pf?.grace_auto }
+  }
+  /**
+   * 最终截止时刻：还款日 + 容时天数，精确到截止小时（0 表示当天结束）。
+   * 例：邮储（4 天 / 17 点）还款日 2026-10-28 → 2026-11-01 17:00。
+   */
+  const graceDeadline = (platformId?: number, due?: string) => {
+    if (!due) return null
+    const { days, hour } = graceOf(platformId)
+    const d = new Date(`${due}T00:00:00`)
+    d.setDate(d.getDate() + days)
+    if (hour > 0) d.setHours(hour, 0, 0, 0)
+    else d.setHours(23, 59, 59, 999)
+    return d
+  }
+  /** 最终还款日文案（含截止时刻），如「2026-11-01 17:00」；截止为当天结束时只显示日期。 */
+  const graceDeadlineText = (platformId?: number, due?: string) => {
+    const d = graceDeadline(platformId, due)
+    if (!d) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    const { hour } = graceOf(platformId)
+    return hour > 0 ? `${day} ${pad(hour)}:00` : day
+  }
+  // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
   const overdueBills = useMemo(() => {
-    const n = new Date()
-    const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    const now = Date.now()
     return bills
-      .filter((b) => b.status !== 'cleared' && b.due_date && b.due_date < today)
+      .filter((b) => b.status !== 'cleared' && b.due_date && (graceDeadline(b.platform_id, b.due_date)?.getTime() ?? 0) < now)
       .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
-  }, [bills])
+  }, [bills, platforms])
   const [overdueAlertOpen, setOverdueAlertOpen] = useState(false)
   const overdueAlertShown = useRef(false)
   useEffect(() => {
@@ -1485,18 +1511,6 @@ function LoanTab() {
     const diff = Math.round((new Date(`${today}T00:00:00`).getTime() - new Date(`${d}T00:00:00`).getTime()) / 86400000)
     return diff > 0 ? diff : 0
   }
-  // 还款宽限期统一为 3 天（各平台一致）：宽限期内还款不影响征信，超过 3 天将上报征信
-  const GRACE_DAYS = 3
-  // 最后还款日 = 还款日 + 宽限期天数，用于向用户明确宽限期截止日期
-  const graceEndDate = (d?: string) => {
-    if (!d) return ''
-    const t = new Date(`${d}T00:00:00`)
-    t.setDate(t.getDate() + GRACE_DAYS)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`
-  }
-  // 已超出宽限期（将上报征信）的账单数量：用于横幅与弹窗的重点提示
-  const beyondGraceCount = overdueBills.filter((b) => overdueDays(b.due_date) > GRACE_DAYS).length
 
   const loadPlatforms = async () => {
     const res = await api.list<LoanPlatform>('/finance/loan-platforms', { page_size: 100 })
@@ -1561,6 +1575,9 @@ function LoanTab() {
         name, bill_day: newPf.bill_day ? Number(newPf.bill_day) : null,
         due_day: newPf.due_day ? Number(newPf.due_day) : null,
         credit_limit: newPf.credit_limit ? Number(newPf.credit_limit) : null,
+        grace_days: newPf.grace_days !== undefined && newPf.grace_days !== '' ? Number(newPf.grace_days) : 3,
+        grace_auto: newPf.grace_auto === '1',
+        grace_hour: newPf.grace_hour ? Number(newPf.grace_hour) : 0,
         note: newPf.note || null,
       })
       toast.success('平台已添加')
@@ -1572,7 +1589,7 @@ function LoanTab() {
     await loadPlatforms()
   }
   const openPfEdit = (p: LoanPlatform) => {
-    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '' })
+    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0) })
     setPfEdit(p)
   }
   const savePfEdit = async () => {
@@ -1582,6 +1599,9 @@ function LoanTab() {
         name: pfEditForm.name, bill_day: pfEditForm.bill_day ? Number(pfEditForm.bill_day) : null,
         due_day: pfEditForm.due_day ? Number(pfEditForm.due_day) : null,
         credit_limit: pfEditForm.credit_limit ? Number(pfEditForm.credit_limit) : null,
+        grace_days: pfEditForm.grace_days !== undefined && pfEditForm.grace_days !== '' ? Number(pfEditForm.grace_days) : 3,
+        grace_auto: pfEditForm.grace_auto === '1',
+        grace_hour: pfEditForm.grace_hour ? Number(pfEditForm.grace_hour) : 0,
       })
       toast.success('平台已更新')
       setPfEdit(null)
@@ -1759,23 +1779,15 @@ function LoanTab() {
               查看逾期明细
             </Button>
           </div>
-          {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
+          {/* 容时规则：各平台天数/截止时刻不同（如邮储 4 天至第 4 天 17:00 且自动生效） */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
             <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
-            <span className="text-base font-bold text-gray-900 dark:text-gray-100">
-              还款宽限期统一 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{GRACE_DAYS}</span> 天
-            </span>
             <span className="text-base font-extrabold text-red-600 dark:text-red-400">
-              超过 {GRACE_DAYS} 天将上报征信
+              已超过最终还款日，将上报征信
             </span>
             <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
-              宽限期内还款不影响征信 · 最后还款日 = 还款日 +{GRACE_DAYS} 天
+              容时规则按平台配置（如邮储 4 天至 17:00、其余平台 3 天）· 以每笔账单的「最终还款日」为准
             </span>
-            {beyondGraceCount > 0 && (
-              <span className="ml-auto rounded-md bg-red-600 px-2 py-1 text-sm font-extrabold text-white">
-                已有 {beyondGraceCount} 笔超过宽限期，将影响征信
-              </span>
-            )}
           </div>
         </div>
       )}
@@ -1813,6 +1825,7 @@ function LoanTab() {
                 <span>账单日 {p.bill_day ?? '—'}</span>
                 <span>还款日 {p.due_day ?? '—'}</span>
                 <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
+                <span>容时 {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}</span>
                 <span>{p.bill_count} 笔账单</span>
               </div>
               <div className="mt-2 flex justify-between">
@@ -1853,15 +1866,18 @@ function LoanTab() {
               ) : monthBills.map((b) => {
                 const remaining = remainingOf(b.amount, b.paid_amount)
                 const interest = b.interest ?? 0
+                const grace = graceOf(b.platform_id)
+                // 容时生效：平台自动生效（如邮储，免申请）或该笔账单已勾选申请
+                const graceOn = grace.days > 0 && (grace.auto || !!b.grace_applied)
                 return (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{platformName(b.platform_id)}</TableCell>
                     <TableCell>{b.bill_month.slice(0, 7)}</TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {b.due_date ?? '—'}
-                      {b.grace_applied && (
-                        <Tip label={`已申请容时服务 · 最终还款日 ${graceEndDate(b.due_date)}`}>
-                          <Badge variant="outline" className="ml-1.5 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">容时 +{GRACE_DAYS}</Badge>
+                      {graceOn && (
+                        <Tip label={`${grace.auto ? '自动容时' : '已申请容时'} ${grace.days} 天 · 最终还款日 ${graceDeadlineText(b.platform_id, b.due_date)}`}>
+                          <Badge variant="outline" className="ml-1.5 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{grace.auto ? `自动容时 ${grace.days} 天` : `容时 +${grace.days}`}</Badge>
                         </Tip>
                       )}
                     </TableCell>
@@ -1909,7 +1925,16 @@ function LoanTab() {
             {billStats?.upcoming.map((u) => (
               <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40' : 'bg-white/70 dark:bg-white/5'}`}>
                 <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge>
-                  {u.grace_applied && <Badge variant="outline" className="ml-1 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">容时 +{GRACE_DAYS}</Badge>}
+                  {(() => {
+                    const g = graceOf(u.platform_id)
+                    const on = g.days > 0 && (g.auto || !!u.grace_applied)
+                    if (!on) return null
+                    return (
+                      <Tip label={`最终还款日 ${graceDeadlineText(u.platform_id, u.due_date)}`}>
+                        <Badge variant="outline" className="ml-1 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{g.auto ? `自动容时 ${g.days} 天` : `容时 +${g.days}`}</Badge>
+                      </Tip>
+                    )
+                  })()}
                 </span>
                 <span className="text-muted-foreground">
                   {u.overdue ? <span className="text-red-600 dark:text-red-400 font-semibold">已逾期 · </span> : ''}
@@ -1988,6 +2013,20 @@ function LoanTab() {
               <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={newPf.due_day ?? ''} onChange={(e) => setNewPf({ ...newPf, due_day: e.target.value })} placeholder="如 25" /></div>
             </div>
             <div className="space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={newPf.credit_limit ?? ''} onChange={(e) => setNewPf({ ...newPf, credit_limit: e.target.value })} placeholder="可选" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">容时天数<Hint text="最终还款日可顺延的天数（0 表示不提供容时）。邮储为 4 天。" /></Label>
+                <Input type="number" min={0} max={15} value={newPf.grace_days ?? '3'} onChange={(e) => setNewPf({ ...newPf, grace_days: e.target.value })} placeholder="默认 3" />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">截止时刻<Hint text="顺延后当天的最晚截止时刻（0-23），0 表示当天 23:59；邮储为 17 点。" /></Label>
+                <Input type="number" min={0} max={23} value={newPf.grace_hour ?? '0'} onChange={(e) => setNewPf({ ...newPf, grace_hour: e.target.value })} placeholder="0 = 当天结束" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between rounded-md border px-3 py-2">
+              <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
+              <Switch checked={newPf.grace_auto === '1'} onCheckedChange={(v) => setNewPf({ ...newPf, grace_auto: v ? '1' : '0' })} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfAddDialog(false)}>取消</Button>
@@ -2076,6 +2115,18 @@ function LoanTab() {
             <div className="space-y-2"><Label>账单日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.bill_day} onChange={(e) => setPfEditForm({ ...pfEditForm, bill_day: e.target.value })} /></div>
             <div className="space-y-2"><Label>还款日(1-31)</Label><Input type="number" min={1} max={31} value={pfEditForm.due_day} onChange={(e) => setPfEditForm({ ...pfEditForm, due_day: e.target.value })} /></div>
             <div className="col-span-2 space-y-2"><Label>额度</Label><Input type="number" min={0} step="0.01" value={pfEditForm.credit_limit} onChange={(e) => setPfEditForm({ ...pfEditForm, credit_limit: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">容时天数<Hint text="最终还款日可顺延的天数（0 表示不提供容时）。邮储为 4 天。" /></Label>
+              <Input type="number" min={0} max={15} value={pfEditForm.grace_days} onChange={(e) => setPfEditForm({ ...pfEditForm, grace_days: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">截止时刻<Hint text="顺延后当天的最晚截止时刻（0-23），0 表示当天 23:59；邮储为 17 点。" /></Label>
+              <Input type="number" min={0} max={23} value={pfEditForm.grace_hour} onChange={(e) => setPfEditForm({ ...pfEditForm, grace_hour: e.target.value })} />
+            </div>
+            <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+              <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
+              <Switch checked={pfEditForm.grace_auto === '1'} onCheckedChange={(v) => setPfEditForm({ ...pfEditForm, grace_auto: v ? '1' : '0' })} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
@@ -2092,29 +2143,19 @@ function LoanTab() {
               <AlertTriangle className="size-7 animate-pulse" /> 账单逾期警报
             </DialogTitle>
             <DialogDescription className="text-base text-red-600 dark:text-red-400">
-              以下账单已超过还款日，请立即处理，避免影响征信。
+              以下账单已超过最终还款日（含容时），请立即处理，避免影响征信。
             </DialogDescription>
           </DialogHeader>
-          {/* 宽限期规则：统一 3 天，超过 3 天上报征信（重点强调并写明） */}
+          {/* 容时规则：各平台天数/截止时刻不同，已超时的账单将上报征信 */}
           <div className="rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:border-red-500/60 dark:bg-red-500/10">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
               <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
-              <span className="font-bold text-gray-900 dark:text-gray-100">
-                还款宽限期统一 <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{GRACE_DAYS}</span> 天
-              </span>
-              <span className="font-extrabold text-red-600 dark:text-red-400">超过 {GRACE_DAYS} 天将上报征信</span>
+              <span className="font-bold text-gray-900 dark:text-gray-100">已超过最终还款日</span>
+              <span className="font-extrabold text-red-600 dark:text-red-400">将上报征信</span>
             </p>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              宽限期内还款不影响征信；最后还款日 = 还款日 + {GRACE_DAYS} 天，从第{' '}
-              <span className="font-semibold text-gray-900 dark:text-gray-100">{GRACE_DAYS + 1}</span> 天起将上报征信。
+              容时天数与截止时刻按平台配置（如邮储 4 天、至第 4 天 17:00 且自动生效；其余平台 3 天、需申请），每笔账单以其「最终还款日」为准。
             </p>
-            {beyondGraceCount > 0 && (
-              <p className="mt-2">
-                <span className="rounded-md bg-red-600 px-2 py-0.5 text-base font-extrabold text-white">
-                  已有 {beyondGraceCount} 笔超过宽限期，将上报征信，请优先处理
-                </span>
-              </p>
-            )}
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {overdueBills.map((b) => (
@@ -2122,19 +2163,19 @@ function LoanTab() {
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
                     {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
-                    {b.grace_applied && (
-                      <span className="rounded-md border border-indigo-400 px-2 py-0.5 text-sm font-semibold text-indigo-600 dark:border-indigo-500/60 dark:text-indigo-400">已申请容时</span>
-                    )}
-                    {overdueDays(b.due_date) > GRACE_DAYS ? (
-                      <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超宽限期 · 将上报征信</span>
-                    ) : (
-                      <span className="rounded-md bg-amber-100 px-2 py-0.5 text-sm font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                        宽限期内 · 剩余 {GRACE_DAYS - overdueDays(b.due_date)} 天
-                      </span>
-                    )}
+                    {(() => {
+                      const g = graceOf(b.platform_id)
+                      if (!(g.days > 0 && (g.auto || !!b.grace_applied))) return null
+                      return (
+                        <span className="rounded-md border border-indigo-400 px-2 py-0.5 text-sm font-semibold text-indigo-600 dark:border-indigo-500/60 dark:text-indigo-400">
+                          {g.auto ? `自动容时 ${g.days} 天` : '已申请容时'}
+                        </span>
+                      )
+                    })()}
+                    <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超容时 · 将上报征信</span>
                   </p>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    还款日 {b.due_date} · 最后还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceEndDate(b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
+                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
