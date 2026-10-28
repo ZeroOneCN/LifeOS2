@@ -4,11 +4,12 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { getCategoryStyle } from './types'
 
 type Setting = {
   id: number
@@ -32,6 +33,7 @@ export function ReminderSettingsPanel() {
   const [draft, setDraft] = useState<Record<number, Setting>>({})
   const realtimeTick = useRealtime()
 
+  /** 拉取提醒开关列表与可用渠道，并同步编辑草稿。 */
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -51,15 +53,18 @@ export function ReminderSettingsPanel() {
     load()
   }, [load, realtimeTick])
 
+  /** 更新某条开关的草稿字段。 */
   const patch = (id: number, key: keyof Setting, value: Setting[keyof Setting]) =>
     setDraft((d) => ({ ...d, [id]: { ...d[id], [key]: value } }))
 
+  /** 切换某条开关的下发渠道。 */
   const toggleChannel = (id: number, cid: number) => {
     const cur = draft[id]?.channels ?? []
     const next = cur.includes(cid) ? cur.filter((c) => c !== cid) : [...cur, cid]
     patch(id, 'channels', next)
   }
 
+  /** 保存单条提醒开关配置。 */
   const save = async (id: number) => {
     const s = draft[id]
     if (!s) return
@@ -78,6 +83,7 @@ export function ReminderSettingsPanel() {
     }
   }
 
+  /** 立即执行一次提醒扫描并下发。 */
   const runScan = async () => {
     setScanning(true)
     try {
@@ -109,39 +115,54 @@ export function ReminderSettingsPanel() {
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {items.map((s) => {
             const d = draft[s.id] ?? s
             return (
-              <Card key={s.id}>
-                <CardContent className="space-y-3 py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{d.name}</span>
-                      <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">{d.category}</Badge>
+              <Card key={s.id} className="flex h-full flex-col">
+                <CardHeader className="pb-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <CardTitle className="text-sm leading-snug font-medium">{d.name}</CardTitle>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge className={getCategoryStyle(d.category)}>{d.category}</Badge>
+                        <span className="font-mono text-[11px] text-muted-foreground/70">
+                          {d.feature_key}
+                        </span>
+                      </div>
                     </div>
                     <Switch
                       checked={d.enabled}
                       onCheckedChange={(v) => patch(s.id, 'enabled', v)}
-                      aria-label="开关"
+                      aria-label="启用提醒"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">{d.feature_key}</p>
+                </CardHeader>
 
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground">提前提醒（天）</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      className="w-24"
-                      value={d.advance_days}
-                      onChange={(e) => patch(s.id, 'advance_days', Number(e.target.value) || 0)}
-                    />
+                <CardContent
+                  className={`flex-1 space-y-4 transition-opacity ${d.enabled ? '' : 'pointer-events-none opacity-50'}`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm">提前提醒</p>
+                      <p className="text-xs text-muted-foreground">到期前多少天开始生成提醒</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-8 w-16 text-center"
+                        value={d.advance_days}
+                        onChange={(e) => patch(s.id, 'advance_days', Number(e.target.value) || 0)}
+                      />
+                      <span className="text-xs text-muted-foreground">天</span>
+                    </div>
                   </div>
 
-                  <div>
-                    <p className="mb-1 text-sm text-muted-foreground">下发渠道（不选=全部启用渠道）</p>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="space-y-1.5">
+                    <p className="text-sm">下发渠道</p>
+                    <p className="text-xs text-muted-foreground">不选则默认使用全部已启用渠道</p>
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
                       {channelOptions.length === 0 ? (
                         <span className="text-xs text-muted-foreground">暂无已启用渠道</span>
                       ) : (
@@ -152,10 +173,10 @@ export function ReminderSettingsPanel() {
                               key={ch.id}
                               type="button"
                               onClick={() => toggleChannel(s.id, ch.id)}
-                              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                              className={`rounded-full border px-2.5 py-1 text-xs transition-colors select-none ${
                                 active
-                                  ? 'border-primary bg-primary text-primary-foreground'
-                                  : 'border-input text-muted-foreground hover:bg-muted'
+                                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                                  : 'border-input text-muted-foreground hover:border-primary/40 hover:bg-muted'
                               }`}
                             >
                               {ch.name}
@@ -165,14 +186,22 @@ export function ReminderSettingsPanel() {
                       )}
                     </div>
                   </div>
-
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={() => save(s.id)} disabled={savingId === s.id}>
-                      {savingId === s.id ? <Loader2 className="animate-spin" /> : <Save />}
-                      保存
-                    </Button>
-                  </div>
                 </CardContent>
+
+                <CardFooter className="justify-between gap-2 py-2.5">
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs ${
+                      d.enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                    }`}
+                  >
+                    <span className="size-1.5 rounded-full bg-current" />
+                    {d.enabled ? '已启用' : '已停用'}
+                  </span>
+                  <Button size="sm" onClick={() => save(s.id)} disabled={savingId === s.id}>
+                    {savingId === s.id ? <Loader2 className="animate-spin" /> : <Save />}
+                    保存
+                  </Button>
+                </CardFooter>
               </Card>
             )
           })}

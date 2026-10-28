@@ -13,6 +13,7 @@ import {
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { getCategoryStyle, getSourceLabel } from './types'
 
 type NotificationRecord = {
   id: number
@@ -30,37 +31,6 @@ type NotificationStats = {
   today: number
   by_category: { category: string; count: number }[]
   trend: { notify_date: string; count: number }[]
-}
-
-const categoryStyle: Record<string, string> = {
-  系统: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-  健康: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
-  财务: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-  生活: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
-  投资: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300',
-  其他: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
-}
-
-// 来源 feature_key → 中文名称映射（source 存储格式为 {feature_key}:{dedup_key}）
-const SOURCE_LABELS: Record<string, string> = {
-  finance_subscription_due: '服务订阅到期',
-  finance_utility_due: '水电燃气到期',
-  finance_loan_due: '网贷还款',
-  finance_debt_due: '债务到期',
-  lifestyle_todo_due: '待办到期',
-  lifestyle_item_expire: '物品保质期',
-  lifestyle_phone_bill: '手机卡月租',
-  lifestyle_bankcard_due: '银行卡还款',
-  health_med_stock: '药品低库存',
-  health_checkup_due: '体检到期',
-  lifestyle_card_expire: '银行卡有效期',
-}
-
-/** 将存储的 source（如 health_med_stock:1）转换为中文来源名称。 */
-function getSourceLabel(source: string | undefined): string {
-  if (!source) return '—'
-  const key = source.split(':')[0]
-  return SOURCE_LABELS[key] ?? key
 }
 
 function StatCard({
@@ -213,7 +183,7 @@ export function NotificationList() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{row.title}</span>
-                      <Badge className={categoryStyle[row.category] ?? categoryStyle.其他}>
+                      <Badge className={getCategoryStyle(row.category)}>
                         {row.category}
                       </Badge>
                     </div>
