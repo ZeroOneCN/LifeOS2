@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models import UserProfile
 from app.models.notification_center import NotificationTemplate
+from app.services.notification.seed import ensure_seed
 from app.services.notification.templates import get_default
 
 router = APIRouter(prefix="/notifications/templates", tags=["notification-templates"])
@@ -26,6 +27,8 @@ def list_templates(
     current_user: UserProfile = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # 打开模板列表时先幂等补种 / 清理：新增场景即时可见，已下线场景（如待办到期）不再残留
+    ensure_seed(db, current_user.id)
     rows = db.scalars(
         select(NotificationTemplate)
         .where(NotificationTemplate.user_id == current_user.id)
