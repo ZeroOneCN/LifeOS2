@@ -98,7 +98,7 @@ TABLE_LABELS: dict[str, str] = {
     "health_checkup": "体检指标",
     "health_checkup_template": "体检模板",
     "health_checkup_panel": "体检面板",
-    "health_checkup_panel_item": "体检面板项目",
+    "health_checkup_panel_item": "面板项目",
     "health_medication": "用药记录",
     "health_med_purchase": "购药记录",
     "health_med_stock": "药品库存",
@@ -109,7 +109,7 @@ TABLE_LABELS: dict[str, str] = {
     "finance_shopping_ledgers": "购物账本",
     "finance_travel_ledgers": "旅行账本",
     "finance_travel_details": "旅行明细",
-    "finance_travel_payment_channels": "旅行支付方式",
+    "finance_travel_payment_channels": "支付方式",
     "finance_travel_reports": "旅行报告",
     "finance_housing": "住房信息",
     "finance_rent_channels": "租金渠道",
@@ -124,15 +124,15 @@ TABLE_LABELS: dict[str, str] = {
     "finance_debts": "债务管理",
     "finance_debt_payments": "债务还款",
     "finance_investments": "投资记录",
-    "finance_memos": "备忘录",
+    "finance_memos": "财务备忘",
     "finance_currencies": "货币汇率",
     "finance_reports": "财务报告",
     "lifestyle_items": "物品追踪",
-    "lifestyle_phone_cards": "手机号管理",
-    "lifestyle_phone_recharges": "手机卡充值",
-    "lifestyle_bank_cards": "银行卡管理",
-    "lifestyle_carriers": "运营商平台",
-    "lifestyle_card_bills": "卡账单",
+    "lifestyle_phone_cards": "手机号码",
+    "lifestyle_phone_recharges": "充值记录",
+    "lifestyle_bank_cards": "银行卡片",
+    "lifestyle_carriers": "运营平台",
+    "lifestyle_card_bills": "卡片账单",
     "lifestyle_life_reports": "生活报告",
     "investment_forex": "外汇交易",
     "investment_fund_records": "基金记录",
@@ -140,24 +140,49 @@ TABLE_LABELS: dict[str, str] = {
     "notifications": "通知记录",
     "notification_channels": "通知渠道",
     "notification_templates": "通知模板",
-    "feature_reminder_settings": "功能提醒设置",
+    "feature_reminder_settings": "提醒设置",
     "notification_send_logs": "发送日志",
     "activity_logs": "活动日志",
     "user_profile": "用户信息",
-    "scheduled_backups": "定时备份计划",
-    "backup_logs": "备份执行日志",
-    "site_config": "系统品牌配置",
+    "scheduled_backups": "定时备份",
+    "backup_logs": "执行日志",
+    "site_config": "品牌配置",
     "user_sessions": "用户会话",
     "login_audits": "登录审计",
 }
 
+# 模块分区配置（顺序决定导出页面的分组展示顺序）
+MODULE_LABELS: dict[str, str] = {
+    "health": "健康中心",
+    "finance": "财务中心",
+    "lifestyle": "生活管理",
+    "investment": "投资管理",
+    "notification": "通知中心",
+    "system": "系统设置",
+}
+
+
+def _module_of(table: str) -> str:
+    """按表名前缀判断数据表所属模块，未匹配到业务模块时归入系统设置。"""
+    if table.startswith("health_"):
+        return "health"
+    if table.startswith("finance_"):
+        return "finance"
+    if table.startswith("lifestyle_"):
+        return "lifestyle"
+    if table.startswith("investment_"):
+        return "investment"
+    if table.startswith("notification") or table == "feature_reminder_settings":
+        return "notification"
+    return "system"
+
 
 def get_table_list(db: Session) -> list[dict[str, Any]]:
-    """获取数据库所有表名及行数（仅业务表，排除系统表），附中文映射信息。
+    """获取数据库所有表名及行数（仅业务表，排除系统表），附中文映射与模块归属信息。
 
     Returns:
         每项包含 name（表名）、count（行数）、label（中文名，未映射为 None）、
-        mapped（是否已配置中文映射）
+        mapped（是否已配置中文映射）、module（模块键）、module_label（模块中文名）
     """
     inspector = inspect(db.bind)
     all_tables = inspector.get_table_names()
@@ -168,13 +193,16 @@ def get_table_list(db: Session) -> list[dict[str, Any]]:
         if table in skip:
             continue
         count = db.scalar(text(f"SELECT COUNT(*) FROM `{table}`"))
+        module = _module_of(table)
         result.append({
             "name": table,
             "count": count or 0,
             "label": TABLE_LABELS.get(table),
             "mapped": table in TABLE_LABELS,
+            "module": module,
+            "module_label": MODULE_LABELS[module],
         })
-    result.sort(key=lambda r: r["name"])
+    result.sort(key=lambda r: (list(MODULE_LABELS).index(r["module"]), r["name"]))
     return result
 
 

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
+  ChevronDown,
   Clock,
   Database,
   Download,
@@ -69,6 +70,8 @@ type TableInfo = {
   count: number
   label: string | null
   mapped: boolean
+  module: string
+  module_label: string
 }
 
 type BackupFile = {
@@ -194,6 +197,8 @@ export function BackupPage() {
   const [previewFile, setPreviewFile] = useState<BackupFile | null>(null)
   const [previewContent, setPreviewContent] = useState<BackupPreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  // 导出页：按模块分区，记录已折叠的模块（默认全部展开）
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set())
 
   // 新增/编辑定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
@@ -309,6 +314,26 @@ export function BackupPage() {
   const deselectAllTables = () => {
     setSelectedTables(new Set())
   }
+
+  const toggleModuleCollapse = (key: string) => {
+    setCollapsedModules((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // 按模块归属分组（后端已按模块顺序返回，此处仅做聚合）
+  const tableGroups = useMemo(() => {
+    const groups: { key: string; label: string; tables: TableInfo[] }[] = []
+    for (const t of tables) {
+      const group = groups.find((g) => g.key === t.module)
+      if (group) group.tables.push(t)
+      else groups.push({ key: t.module, label: t.module_label, tables: [t] })
+    }
+    return groups
+  }, [tables])
 
   const handleExport = async () => {
     if (selectedTables.size === 0) {
@@ -604,47 +629,76 @@ export function BackupPage() {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  {tables.map((t) => {
-                    const checked = selectedTables.has(t.name)
+                <div className="space-y-3">
+                  {tableGroups.map((group) => {
+                    const collapsed = collapsedModules.has(group.key)
+                    const selectedCount = group.tables.filter((t) =>
+                      selectedTables.has(t.name)
+                    ).length
                     return (
-                      <button
-                        key={t.name}
-                        type="button"
-                        onClick={() => toggleTable(t.name)}
-                        className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-left cursor-pointer transition-colors hover:bg-accent ${
-                          checked ? 'border-primary bg-primary/5' : ''
-                        }`}
-                      >
-                        <span
-                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border text-xs transition-colors ${
-                            checked
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-input'
-                          }`}
+                      <div key={group.key} className="overflow-hidden rounded-md border">
+                        <button
+                          type="button"
+                          onClick={() => toggleModuleCollapse(group.key)}
+                          className="flex w-full cursor-pointer items-center gap-2 border-b bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted/70"
                         >
-                          {checked && (
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1 truncate">
-                          <Tip label={t.mapped ? t.label ?? t.name : `${t.name}（未配置中文名）`}>
-                            <div className="flex items-center gap-1 truncate">
-                              <span className="truncate">{t.label ?? t.name}</span>
-                              {!t.mapped && (
-                                <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
-                                  未配置中文名
-                                </Badge>
-                              )}
-                            </div>
-                          </Tip>
-                          <div className="text-muted-foreground text-xs">
-                            {t.count} 条
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                              collapsed ? '-rotate-90' : ''
+                            }`}
+                          />
+                          <span className="text-sm font-medium">{group.label}</span>
+                          <span className="text-muted-foreground text-xs">
+                            已选 {selectedCount} / {group.tables.length} 张表
+                          </span>
+                        </button>
+                        {!collapsed && (
+                          <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                            {group.tables.map((t) => {
+                              const checked = selectedTables.has(t.name)
+                              return (
+                                <button
+                                  key={t.name}
+                                  type="button"
+                                  onClick={() => toggleTable(t.name)}
+                                  className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${
+                                    checked ? 'border-primary bg-primary/5' : ''
+                                  }`}
+                                >
+                                  <span
+                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border text-xs transition-colors ${
+                                      checked
+                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        : 'border-input'
+                                    }`}
+                                  >
+                                    {checked && (
+                                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <div className="min-w-0 flex-1 truncate">
+                                    <Tip label={t.mapped ? t.label ?? t.name : `${t.name}（未配置中文名）`}>
+                                      <div className="flex items-center gap-1 truncate">
+                                        <span className="truncate">{t.label ?? t.name}</span>
+                                        {!t.mapped && (
+                                          <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                            未配置中文名
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </Tip>
+                                    <div className="text-muted-foreground text-xs">
+                                      {t.count} 条
+                                    </div>
+                                  </div>
+                                </button>
+                              )
+                            })}
                           </div>
-                        </div>
-                      </button>
+                        )}
+                      </div>
                     )
                   })}
                 </div>

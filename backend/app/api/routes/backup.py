@@ -35,6 +35,8 @@ class TableInfo(BaseModel):
     count: int
     label: str | None = None  # 中文名，未映射时为 None
     mapped: bool = False  # 是否已配置中文映射
+    module: str = "system"  # 所属模块键
+    module_label: str = "系统设置"  # 所属模块中文名
 
 
 class BackupFileInfo(BaseModel):
