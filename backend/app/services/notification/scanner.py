@@ -197,6 +197,29 @@ def _scan_loan(
             due_text += f" {grace_hour:02d}:00" if grace_hour else ""
             due_text += "（容时）"
         overdue = now > deadline
+        # 容时窗口内：已过原还款日、但尚未到最终截止时刻，属于「最后一次机会」
+        in_grace = bool(
+            grace_on
+            and not overdue
+            and now > datetime.combine(r.due_date, clock_time(23, 59, 59))
+        )
+        # 容时相关提示语：追加在通知内容末尾，强调最低还款与不可二次延期
+        if overdue:
+            grace_tip = (
+                "【紧急】该账单已超过最终还款日（含容时），不会再延期；"
+                "请至少还够最低还款额，否则将上报征信。"
+            )
+        elif in_grace:
+            grace_tip = (
+                f"【容时最后机会】该账单已过原还款日，仅在最终截止 {due_text} 前有效；"
+                "请至少还够最低还款额，容时不会二次顺延，超时将上报征信。"
+            )
+        elif grace_on:
+            grace_tip = (
+                f"该账单可享容时 {grace_days} 天，最终截止 {due_text}；容时不叠加、不二次延期。"
+            )
+        else:
+            grace_tip = ""
         if overdue_only:
             # 小时级任务只处理已过最终截止时刻的账单
             if not overdue:
@@ -222,11 +245,15 @@ def _scan_loan(
                 "days_overdue": (today - final_due).days,
                 "paid_amount": _money(r.paid_amount),
                 "status": LOAN_STATUS_MAP.get(r.status, r.status),
+                "grace_tip": grace_tip,
             },
         }
         if overdue:
             # 逾期：去重键精确到“小时”，确保每个小时各提醒一次
             item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{now.hour}"
+        elif in_grace:
+            # 容时窗口内：每天一条「最后机会」提醒，到期后由逾期小时任务接管
+            item["dedup_key"] = f"{r.id}:grace:{final_due.isoformat()}:{today.isoformat()}"
         elif final_due == today:
             # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒；
             # 容时账单带上最终到期日，避免与原还款日的到期提醒互相吞掉

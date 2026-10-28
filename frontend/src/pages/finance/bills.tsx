@@ -8,6 +8,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   FileText,
   Home,
   Layers,
@@ -1487,6 +1488,19 @@ function LoanTab() {
     const { hour } = graceOf(platformId)
     return hour > 0 ? `${day} ${pad(hour)}:00` : day
   }
+  /** 容时剩余时间文案：如「剩余 2 天 5 小时」，已到最终截止时刻返回「已超时」。 */
+  const graceRemainText = (platformId?: number, due?: string) => {
+    const d = graceDeadline(platformId, due)
+    if (!d) return ''
+    const ms = d.getTime() - Date.now()
+    if (ms <= 0) return '已超时'
+    const totalHours = Math.floor(ms / 3_600_000)
+    const days = Math.floor(totalHours / 24)
+    const hours = totalHours % 24
+    if (days > 0) return `剩余 ${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
+    if (totalHours > 0) return `剩余 ${totalHours} 小时`
+    return `剩余 ${Math.max(1, Math.floor(ms / 60_000))} 分钟`
+  }
   // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
   const overdueBills = useMemo(() => {
     const now = Date.now()
@@ -1494,15 +1508,34 @@ function LoanTab() {
       .filter((b) => b.status !== 'cleared' && b.due_date && (graceDeadline(b.platform_id, b.due_date)?.getTime() ?? 0) < now)
       .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
   }, [bills, platforms])
+  // 容时窗口内的账单：已过原还款日、但尚未到最终截止时刻（最后一次机会，不判逾期）
+  const graceBills = useMemo(() => {
+    const now = Date.now()
+    return bills
+      .filter((b) => {
+        if (b.status === 'cleared' || !b.due_date) return false
+        const g = graceOf(b.platform_id)
+        if (!(g.days > 0 && (g.auto || !!b.grace_applied))) return false
+        const dueEnd = new Date(`${b.due_date}T23:59:59`).getTime()
+        const deadline = graceDeadline(b.platform_id, b.due_date)?.getTime() ?? 0
+        return now > dueEnd && now <= deadline
+      })
+      .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+  }, [bills, platforms])
   const [overdueAlertOpen, setOverdueAlertOpen] = useState(false)
   const overdueAlertShown = useRef(false)
+  const [graceAlertOpen, setGraceAlertOpen] = useState(false)
+  const graceAlertShown = useRef(false)
   useEffect(() => {
-    // 进入页面或出现逾期账单时弹出一次重大提醒；关闭后本次停留不再重复弹出
+    // 进入页面或出现异常账单时弹窗一次：逾期优先，其次容时；关闭后本次停留不再重复弹出
     if (overdueBills.length > 0 && !overdueAlertShown.current) {
       overdueAlertShown.current = true
       setOverdueAlertOpen(true)
+    } else if (graceBills.length > 0 && !graceAlertShown.current) {
+      graceAlertShown.current = true
+      setGraceAlertOpen(true)
     }
-  }, [overdueBills.length])
+  }, [overdueBills.length, graceBills.length])
   // 计算逾期天数（按本地日期比较，避免时区偏移导致差一天）
   const overdueDays = (d?: string) => {
     if (!d) return 0
@@ -1766,6 +1799,23 @@ function LoanTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 容时倒计时横幅：已过原还款日但仍在容时窗口内，强调最低还款与不可再次延期 */}
+      {graceBills.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-2.5 dark:bg-amber-500/10">
+          <Clock className="size-5 shrink-0 animate-pulse text-amber-600 dark:text-amber-400" />
+          <span className="text-lg font-extrabold tracking-wide text-amber-700 dark:text-amber-300">容时最后机会</span>
+          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            共 <span className="font-extrabold">{graceBills.length}</span> 笔账单已过原还款日，请至少还够最低还款额，容时不会再次延期
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto bg-amber-600 font-bold text-white hover:bg-amber-700"
+            onClick={() => setGraceAlertOpen(true)}
+          >
+            查看容时明细
+          </Button>
+        </div>
+      )}
       {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
       {overdueBills.length > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
@@ -2135,6 +2185,57 @@ function LoanTab() {
         </DialogContent>
       </Dialog>
 
+      {/* 容时最后机会弹窗：琥珀色警示（区别于逾期的红色警报），强调最低还款且不可再次延期 */}
+      <Dialog open={graceAlertOpen} onOpenChange={setGraceAlertOpen}>
+        <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold text-amber-600 dark:text-amber-400">
+              <Clock className="size-7 animate-pulse" /> 容时最后机会
+            </DialogTitle>
+            <DialogDescription className="text-base font-medium text-amber-700 dark:text-amber-400">
+              以下账单已过原还款日，目前仍在容时保护期内——这是最后一次机会，不会再延期。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border-2 border-amber-500 bg-amber-50 px-4 py-3 dark:border-amber-500/60 dark:bg-amber-500/10">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
+              <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span className="font-bold text-gray-900 dark:text-gray-100">请至少还够</span>
+              <span className="font-extrabold text-amber-700 dark:text-amber-300">最低还款额</span>
+            </p>
+            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+              容时只有这一次，<span className="font-bold text-amber-700 dark:text-amber-300">没有再次延期的机会</span>；
+              只还够最低还款额可暂不视为逾期，未还部分仍需尽快结清，超过最终截止时刻将上报征信。
+            </p>
+          </div>
+          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+            {graceBills.map((b) => (
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-amber-400 bg-muted/40 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                    {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
+                    <span className="rounded-md border border-amber-500 px-2 py-0.5 text-sm font-extrabold text-amber-700 dark:text-amber-300">容时中 · 最后一次机会</span>
+                  </p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    原还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span>
+                    <span className="ml-2 font-bold text-amber-700 dark:text-amber-300">{graceRemainText(b.platform_id, b.due_date)}</span>
+                  </p>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">至少还够最低还款额，剩余欠款逾期后仍将上报征信</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-2xl font-extrabold text-amber-700 dark:text-amber-300">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button className="w-full bg-amber-600 text-base font-bold text-white hover:bg-amber-700" onClick={() => setGraceAlertOpen(false)}>
+              我知道了，尽快还款
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 逾期重大提醒弹窗：大字 + 强调色，仅通过「我已知晓」关闭 */}
       <Dialog open={overdueAlertOpen} onOpenChange={setOverdueAlertOpen}>
         <DialogContent className="sm:max-w-xl" showCloseButton={false}>
@@ -2155,6 +2256,7 @@ function LoanTab() {
             </p>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
               容时天数与截止时刻按平台配置（如邮储 4 天、至第 4 天 17:00 且自动生效；其余平台 3 天、需申请），每笔账单以其「最终还款日」为准。
+              <span className="font-bold text-red-600 dark:text-red-400">容时已用完，不存在再次延期。</span>
             </p>
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">

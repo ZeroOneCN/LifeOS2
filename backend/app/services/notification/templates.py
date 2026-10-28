@@ -52,7 +52,7 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "网贷还款",
         "【网贷还款】{platform} {due_date} 应还",
         "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
-        "已还 {paid_amount}，状态：{status}。",
+        "已还 {paid_amount}，状态：{status}。{grace_tip}",
         "网贷/房贷还款提醒",
     ),
     (
@@ -127,6 +127,20 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
 # 仅当用户模板对应字段仍与旧内置值一致时才替换，用户自定义过的字段不受影响。
 # 用于让已注册用户也同步获得重命名与改进后的文案。
 LEGACY_DEFAULT_UPGRADES: dict[str, tuple[tuple[str, str, str], tuple[str, str, str]]] = {
+    "finance_loan_due": (
+        (
+            "网贷还款",
+            "【网贷还款】{platform} {due_date} 应还",
+            "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
+            "已还 {paid_amount}，状态：{status}。",
+        ),
+        (
+            "网贷还款",
+            "【网贷还款】{platform} {due_date} 应还",
+            "平台「{platform}」{bill_month} 期账单金额 {amount}，应还日 {due_date}，剩余 {days_left} 天，"
+            "已还 {paid_amount}，状态：{status}。{grace_tip}",
+        ),
+    ),
     "lifestyle_card_expire": (
         (
             "证件到期",
