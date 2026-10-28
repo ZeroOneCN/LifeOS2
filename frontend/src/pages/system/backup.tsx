@@ -1156,7 +1156,7 @@ export function BackupPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loadingLogs ? (
+              {logs.length === 0 && loadingLogs ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
@@ -1167,7 +1167,11 @@ export function BackupPage() {
                   <p className="text-xs">执行数据导出或定时备份后，执行记录将出现在这里</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div
+                  className={`overflow-x-auto transition-opacity ${
+                    loadingLogs ? 'pointer-events-none opacity-60' : ''
+                  }`}
+                >
                   <Table>
                     <TableHeader>
                       <TableRow>
