@@ -4,6 +4,7 @@ import {
   Clock,
   Database,
   Download,
+  Eraser,
   FileDown,
   FileUp,
   HardDrive,
@@ -29,6 +30,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -430,6 +432,43 @@ export function BackupPage() {
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
+  const handleClearLogs = async () => {
+    const ok = await confirm({
+      title: '清除执行日志',
+      description: '确定要清除全部备份执行日志吗？此操作不可撤销，但不会删除已生成的备份文件。',
+      confirmText: '确认清除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      const res = await api.del<{ deleted: number }>('/backup/logs')
+      toast.success(`已清除 ${res.deleted} 条执行日志`)
+      setLogs([])
+      setLogTotal(0)
+      setLogPage(1)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '清除日志失败')
+    }
+  }
+
+  const handleClearBackups = async () => {
+    const ok = await confirm({
+      title: '清除旧备份文件',
+      description: '将删除 3 天前的备份文件，最近 3 天内的备份会被保留。此操作不可撤销。',
+      confirmText: '确认清除',
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      const res = await api.del<{ deleted: number }>('/backup/exports?keep_days=3')
+      toast.success(`已清除 ${res.deleted} 个旧备份文件（保留近 3 天）`)
+      if (backupPage === 1) loadBackups()
+      else setBackupPage(1)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '清除备份失败')
     }
   }
 
@@ -1154,6 +1193,17 @@ export function BackupPage() {
               <CardDescription>
                 查看每次自动/手动备份的执行结果，共 {logTotal} 条记录
               </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={logTotal === 0}
+                  onClick={handleClearLogs}
+                >
+                  <Eraser className="mr-1 h-4 w-4" />
+                  清除日志
+                </Button>
+              </CardAction>
             </CardHeader>
             <CardContent>
               {logs.length === 0 && loadingLogs ? (
@@ -1229,28 +1279,13 @@ export function BackupPage() {
               )}
               {/* 分页 */}
               {logTotal > logPageSize && (
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    共 {logTotal} 条，第 {logPage}/{Math.ceil(logTotal / logPageSize)} 页
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={logPage <= 1}
-                      onClick={() => setLogPage((p) => Math.max(1, p - 1))}
-                    >
-                      上一页
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={logPage >= Math.ceil(logTotal / logPageSize)}
-                      onClick={() => setLogPage((p) => p + 1)}
-                    >
-                      下一页
-                    </Button>
-                  </div>
+                <div className="mt-4">
+                  <PaginationBar
+                    page={logPage}
+                    totalPages={Math.max(1, Math.ceil(logTotal / logPageSize))}
+                    total={logTotal}
+                    onPageChange={setLogPage}
+                  />
                 </div>
               )}
             </CardContent>
@@ -1270,6 +1305,17 @@ export function BackupPage() {
               <CardDescription>
                 管理已生成的备份文件，支持在线预览 SQL、下载或删除，共 {backupTotal} 个文件
               </CardDescription>
+              <CardAction>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={backupTotal === 0}
+                  onClick={handleClearBackups}
+                >
+                  <Eraser className="mr-1 h-4 w-4" />
+                  清除备份
+                </Button>
+              </CardAction>
             </CardHeader>
             <CardContent>
               {backups.length === 0 && loadingBackups ? (

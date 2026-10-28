@@ -193,6 +193,19 @@ def download_backup(
     })
 
 
+@router.delete("/exports")
+def clear_old_backups(
+    keep_days: int = 3,
+    user: UserProfile = Depends(get_current_user),
+):
+    """清除超过保留天数的备份文件（默认保留最近 3 天）。"""
+    try:
+        deleted = backup_service.purge_old_backup_files(keep_days)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": f"已清除 {deleted} 个超过 {keep_days} 天的备份文件", "deleted": deleted}
+
+
 @router.delete("/exports/{filename}")
 def delete_backup(
     filename: str,
@@ -400,3 +413,13 @@ def list_logs(
     """分页查询备份执行日志。"""
     items, total = backup_service.get_backup_logs(db, user.id, page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.delete("/logs")
+def clear_logs(
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """清除当前用户的全部备份执行日志（不影响已生成的备份文件）。"""
+    deleted = backup_service.clear_backup_logs(db, user.id)
+    return {"message": f"已清除 {deleted} 条执行日志", "deleted": deleted}

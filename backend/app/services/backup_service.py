@@ -469,6 +469,26 @@ def delete_backup_file(filename: str) -> None:
     filepath.unlink()
 
 
+def purge_old_backup_files(keep_days: int = 3) -> int:
+    """删除备份目录中超过保留天数的备份文件，返回删除的文件数量。
+
+    Args:
+        keep_days: 保留最近多少天的备份，默认 3 天
+    """
+    if keep_days < 0:
+        raise ValueError("保留天数不能为负数")
+
+    cutoff = datetime.now() - timedelta(days=keep_days)
+    deleted = 0
+    for f in BACKUP_DIR.iterdir():
+        if not f.is_file():
+            continue
+        if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+            f.unlink()
+            deleted += 1
+    return deleted
+
+
 def import_json_data(
     db: Session,
     content: bytes,
@@ -599,3 +619,12 @@ def get_backup_logs(
         }
 
     return [_log_to_dict(r) for r in rows], total
+
+
+def clear_backup_logs(db: Session, user_id: int) -> int:
+    """清除指定用户的全部备份执行日志，返回删除条数。"""
+    from sqlalchemy import delete
+
+    result = db.execute(delete(BackupLog).where(BackupLog.user_id == user_id))
+    db.commit()
+    return result.rowcount or 0
