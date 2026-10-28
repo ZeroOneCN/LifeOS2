@@ -1488,8 +1488,8 @@ function LoanTab() {
     const { hour } = graceOf(platformId)
     return hour > 0 ? `${day} ${pad(hour)}:00` : day
   }
-  /** 容时剩余时间文案：如「剩余 2 天 5 小时」，已到最终截止时刻返回「已超时」。 */
-  const graceRemainText = (platformId?: number, due?: string) => {
+  /** 容时剩余时间数值文案：如「2 天 5 小时」，已到最终截止时刻返回「已超时」。 */
+  const graceRemainValue = (platformId?: number, due?: string) => {
     const d = graceDeadline(platformId, due)
     if (!d) return ''
     const ms = d.getTime() - Date.now()
@@ -1497,9 +1497,9 @@ function LoanTab() {
     const totalHours = Math.floor(ms / 3_600_000)
     const days = Math.floor(totalHours / 24)
     const hours = totalHours % 24
-    if (days > 0) return `剩余 ${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
-    if (totalHours > 0) return `剩余 ${totalHours} 小时`
-    return `剩余 ${Math.max(1, Math.floor(ms / 60_000))} 分钟`
+    if (days > 0) return `${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
+    if (totalHours > 0) return `${totalHours} 小时`
+    return `${Math.max(1, Math.floor(ms / 60_000))} 分钟`
   }
   // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
   const overdueBills = useMemo(() => {
@@ -2198,7 +2198,7 @@ function LoanTab() {
           </DialogHeader>
 
           {/* 核心警告：最低还款 + 不可再次延期 */}
-          <div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-3 dark:border-amber-500/60 dark:bg-amber-500/10">
+          <div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
             <p className="flex flex-wrap items-center gap-2">
               <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
               <span className="text-base font-extrabold text-gray-900 dark:text-gray-100">
@@ -2206,42 +2206,52 @@ function LoanTab() {
               </span>
               <span className="rounded-md bg-amber-600 px-1.5 py-0.5 text-xs font-bold text-white">不会再次延期</span>
             </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+            <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
               容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
               超过最终截止时刻将上报征信。
             </p>
           </div>
 
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
             {graceBills.map((b) => (
-              <div key={b.id} className="rounded-lg border border-amber-300 bg-muted/30 p-3 dark:border-amber-500/40">
-                <div className="flex items-start justify-between gap-3">
+              <div key={b.id} className="rounded-xl border-2 border-amber-400/80 bg-gradient-to-br from-amber-50/90 to-background p-4 dark:border-amber-500/40 dark:from-amber-500/10">
+                {/* 头部：平台 + 账单月份 + 容时标记 */}
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)}</span>
+                  <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{b.bill_month.slice(0, 7)}</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-amber-600 px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
+                </div>
+                {/* 两个核心数据：剩余时间（强调色）/ 待还金额（大粗体） */}
+                <div className="mt-3 grid grid-cols-2 gap-4">
                   <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-gray-100">
-                      {platformName(b.platform_id)}
-                      <span className="font-medium text-gray-500 dark:text-gray-400">{b.bill_month.slice(0, 7)}</span>
-                      <span className="rounded border border-amber-500 px-1 py-px text-[11px] font-bold text-amber-700 dark:text-amber-300">容时中</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      原还款日 {b.due_date} → 最终 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span>
+                    <p className="text-[11px] font-bold tracking-widest text-amber-700/70 dark:text-amber-400/70">剩余时间</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-amber-600 sm:text-2xl dark:text-amber-400">
+                      {graceRemainValue(b.platform_id, b.due_date)}
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-extrabold tabular-nums text-amber-700 dark:text-amber-300">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400">待还</p>
+                  <div className="min-w-0 border-l border-amber-300/70 pl-4 dark:border-amber-500/30">
+                    <p className="text-[11px] font-bold tracking-widest text-gray-500 dark:text-gray-400">待还金额</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-gray-900 sm:text-2xl dark:text-gray-50">
+                      {fmt(remainingOf(b.amount, b.paid_amount))}
+                    </p>
                   </div>
                 </div>
-                <div className="mt-2 flex items-center gap-1.5 rounded-md bg-amber-100 px-2 py-1 dark:bg-amber-500/15">
-                  <Clock className="size-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
-                  <span className="text-xs font-bold text-amber-800 dark:text-amber-300">{graceRemainText(b.platform_id, b.due_date)}</span>
-                  <span className="ml-auto text-[11px] font-medium text-amber-700/80 dark:text-amber-400/80">超过即上报征信</span>
+                {/* 时间轴：原还款日 → 最终还款日 */}
+                <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-300/60 pt-2.5 text-xs dark:border-amber-500/25">
+                  <span className="text-gray-500 dark:text-gray-400">原还款日 {b.due_date}</span>
+                  <span className="font-bold text-amber-800 dark:text-amber-300">
+                    最终 {graceDeadlineText(b.platform_id, b.due_date)} · 超过即上报征信
+                  </span>
                 </div>
               </div>
             ))}
           </div>
 
           <DialogFooter>
-            <Button className="w-full bg-amber-600 text-base font-bold text-white hover:bg-amber-700" onClick={() => setGraceAlertOpen(false)}>
+            <Button
+              className="h-11 w-full bg-amber-600 text-base font-bold text-white hover:bg-amber-700"
+              onClick={() => setGraceAlertOpen(false)}
+            >
               我知道了，尽快还款
             </Button>
           </DialogFooter>
