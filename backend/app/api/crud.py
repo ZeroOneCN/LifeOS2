@@ -88,6 +88,7 @@ def crud_router(
     conflict_fields: list[str] | None = None,
     conflict_msg: str | None = None,
     list_transform: Callable[[list, Session, int], list] | None = None,
+    after_write: Callable[[Session, int], None] | None = None,
 ) -> APIRouter:
     """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
 
@@ -101,6 +102,8 @@ def crud_router(
     更新时排除自身（防止编辑未改值时报冲突）。conflict_msg 为冲突提示文案。
     list_transform: 列表返回前的派生处理，签名 `(items, db, user_id)`，可用于以当月账单等
     实时数据覆盖模型存储的字段值（如 bill_paid_this_month），返回处理后的 items。
+    after_write: 写操作（新增/更新/删除/批量）提交后的联动钩子，签名 `(db, user_id)`。
+    钩子自身需保证异常安全，避免影响写接口返回。
     """
 
     router = APIRouter(prefix=prefix, tags=[tag])
@@ -191,6 +194,8 @@ def crud_router(
         for row in rows:
             db.delete(row)
         db.commit()
+        if after_write and user_owned:
+            after_write(db, current_user.id)
         if user_owned:
             cache_invalidate(prefix=f"overview:{current_user.id}:")
         return None
@@ -212,6 +217,8 @@ def crud_router(
                 if hasattr(model, key):
                     setattr(row, key, value)
         db.commit()
+        if after_write and user_owned:
+            after_write(db, current_user.id)
         if user_owned:
             cache_invalidate(prefix=f"overview:{current_user.id}:")
         for row in rows:
@@ -249,6 +256,8 @@ def crud_router(
             )
         db.add(obj)
         db.commit()
+        if after_write and user_owned:
+            after_write(db, current_user.id)
         if user_owned:
             cache_invalidate(prefix=f"overview:{current_user.id}:")
         db.refresh(obj)
@@ -282,6 +291,8 @@ def crud_router(
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(obj, key, value)
         db.commit()
+        if after_write and user_owned:
+            after_write(db, current_user.id)
         if user_owned:
             cache_invalidate(prefix=f"overview:{current_user.id}:")
         db.refresh(obj)
@@ -302,6 +313,8 @@ def crud_router(
             raise HTTPException(status_code=404, detail="记录不存在")
         db.delete(obj)
         db.commit()
+        if after_write and user_owned:
+            after_write(db, current_user.id)
         if user_owned:
             cache_invalidate(prefix=f"overview:{current_user.id}:")
         return None

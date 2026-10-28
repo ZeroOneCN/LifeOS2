@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from datetime import date
 
@@ -18,11 +19,31 @@ from app.schemas.health import (
     MedStockRead,
 )
 from app.services.med_stock import compute_med_stock_list
+from app.services.notification.scanner import sync_med_stock_reminders
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 MEAL_LABEL = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐"}
 MEAL_ORDER = ["breakfast", "lunch", "dinner"]
+
+
+def _sync_stock_reminders(db: Session, user_id: int) -> None:
+    """库存相关数据变化后的联动钩子：立即同步低库存提醒。
+
+    用药记录（服药扣减）或购药记录（补货）变化后即时判断是否低于阈值：
+    低于则当天首次生成提醒，补货后恢复则撤销历史提醒。异常只记录日志，
+    不影响主写接口返回。
+
+    Args:
+        db: 数据库会话。
+        user_id: 用户 ID。
+    """
+    try:
+        sync_med_stock_reminders(db, user_id)
+    except Exception:  # noqa: BLE001 - 联动失败不应影响业务写操作
+        logger.exception("同步低库存提醒失败")
 
 
 def _record_pills(r) -> tuple[list[int], list[bool]]:
@@ -139,6 +160,8 @@ purchase_router = crud_router(
     order_by=HealthMedPurchase.buy_date,
     date_column="buy_date",
     stats_func=_purchase_stats_func,
+    # 补货后库存变化 → 立即联动低库存提醒（低于阈值提醒、恢复后撤销）
+    after_write=_sync_stock_reminders,
 )
 
 
@@ -183,6 +206,8 @@ def _register_fixed(router) -> None:
         user: UserProfile = Depends(get_current_user),
     ):
         _ensure_stock_rows(db, user.id)
+        # 进入库存列表即对齐提醒：补发当天尚未提醒的低库存项，撤销已恢复项
+        _sync_stock_reminders(db, user.id)
         stocks = _get_stock_list(db, user.id)
         return {
             "items": stocks,
@@ -207,11 +232,14 @@ def _register_fixed(router) -> None:
                 setattr(existing, key, value)
             db.commit()
             db.refresh(existing)
+            # 阈值调整后立即联动提醒状态
+            _sync_stock_reminders(db, user.id)
             return existing
         obj = HealthMedStock(**payload.model_dump(), user_id=user.id)
         db.add(obj)
         db.commit()
         db.refresh(obj)
+        _sync_stock_reminders(db, user.id)
         return obj
 
     @router.put("/stocks/{stock_id}", response_model=MedStockRead)
@@ -235,6 +263,7 @@ def _register_fixed(router) -> None:
             setattr(obj, key, value)
         db.commit()
         db.refresh(obj)
+        _sync_stock_reminders(db, user.id)
         return obj
 
     @router.delete("/stocks/{stock_id}", status_code=204)
@@ -255,6 +284,8 @@ def _register_fixed(router) -> None:
             raise HTTPException(status_code=404, detail="库存记录不存在")
         db.delete(obj)
         db.commit()
+        # 删除药品库存后撤销其低库存提醒
+        _sync_stock_reminders(db, user.id)
         return None
 
 
@@ -269,6 +300,8 @@ router = crud_router(
     date_column="record_date",
     stats_func=_medication_stats,
     extra_routes=_register_fixed,
+    # 服药记录变化会扣减库存 → 立即联动低库存提醒
+    after_write=_sync_stock_reminders,
 )
 
 

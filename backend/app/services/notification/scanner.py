@@ -65,6 +65,8 @@ SUB_STATUS_MAP = {"active": "生效中", "paused": "已暂停", "cancelled": "�
 LOAN_STATUS_MAP = {"pending": "待还", "partial": "部分还款", "paid": "已还清"}
 # 网贷还款功能开关键：逾期小时提醒任务只处理该模块
 LOAN_FEATURE_KEY = "finance_loan_due"
+# 药品低库存功能键：库存变化后的实时联动只处理该模块
+MED_STOCK_FEATURE_KEY = "health_med_stock"
 
 
 def _next_day_of_month(today: date, day: int) -> date:
@@ -425,14 +427,49 @@ def _scan_bankcard_due(db: Session, advance: int, user_id: int) -> list[dict]:
     return out
 
 
+_STOCK_SOURCE_PREFIX = "health_med_stock:"
+
+
+def _clear_med_stock_notices(db: Session, user_id: int, keep_ids: set[int]) -> None:
+    """删除已恢复（库存回到阈值以上）或已删除药品的低库存通知。
+
+    Args:
+        db: 数据库会话。
+        user_id: 用户 ID。
+        keep_ids: 仍需保留提醒的药品库存行 ID 集合。
+    """
+    rows = db.scalars(
+        select(Notification).where(
+            Notification.user_id == user_id,
+            Notification.source.like(f"{_STOCK_SOURCE_PREFIX}%"),
+        )
+    ).all()
+    for notice in rows:
+        try:
+            stock_id = int((notice.source or "").split(":")[1])
+        except (IndexError, ValueError):
+            continue
+        if stock_id not in keep_ids:
+            db.delete(notice)
+
+
 def _scan_med_stock(db: Session, _advance: int, user_id: int) -> list[dict]:
+    """低库存扫描：每天对每个低于阈值的药品提醒一次，并清理已恢复的旧提醒。"""
+    today = date.today()
+    stocks = compute_med_stock_list(db, user_id)
+    # 补货后库存回到阈值以上时，撤销该药品的历史低库存通知
+    _clear_med_stock_notices(
+        db, user_id, {r["id"] for r in stocks if r["is_low"]}
+    )
     out = []
-    for r in compute_med_stock_list(db, user_id):
+    for r in stocks:
         if not r["is_low"]:
             continue
         out.append(
             {
                 "source_id": r["id"],
+                # 按天去重：同一药品每天各提醒一次（旧实现按库存行去重，只提醒一次）
+                "dedup_key": f"{r['id']}:{today.isoformat()}",
                 "title_ctx": {"medicine_name": r["medicine_name"]},
                 "content_ctx": {
                     "medicine_name": r["medicine_name"],
@@ -442,6 +479,29 @@ def _scan_med_stock(db: Session, _advance: int, user_id: int) -> list[dict]:
             }
         )
     return out
+
+
+def sync_med_stock_reminders(db: Session, user_id: int) -> dict:
+    """库存相关数据变化后立即同步低库存提醒（每日提醒 + 实时联动）。
+
+    仅当库存低于药品自身设置的阈值（threshold > 0）时提醒：
+    - 低于阈值：若当天尚未提醒过则立即生成站内通知并按配置渠道下发；
+    - 补货/调整阈值后不再低于阈值：删除该药品的历史低库存通知。
+
+    Args:
+        db: 数据库会话。
+        user_id: 用户 ID。
+
+    Returns:
+        扫描摘要（结构同 scan_all 的 detail）。
+    """
+    # 关闭提醒开关时也要清理已恢复的旧通知，因此先独立做一次清理
+    stocks = compute_med_stock_list(db, user_id)
+    _clear_med_stock_notices(
+        db, user_id, {r["id"] for r in stocks if r["is_low"]}
+    )
+    db.commit()
+    return _scan_user(db, user_id, feature_keys={MED_STOCK_FEATURE_KEY})
 
 
 def _scan_checkup_due(db: Session, advance: int, user_id: int) -> list[dict]:
@@ -573,7 +633,12 @@ def _resolve_channels(db: Session, setting: FeatureReminderSetting, user_id: int
     )
 
 
-def _scan_user(db: Session, user_id: int, overdue_only: bool = False) -> dict:
+def _scan_user(
+    db: Session,
+    user_id: int,
+    overdue_only: bool = False,
+    feature_keys: set[str] | None = None,
+) -> dict:
     """对单个用户执行提醒扫描：按该用户的开关/模板/渠道/数据生成并下发通知。
 
     参数：
@@ -581,6 +646,7 @@ def _scan_user(db: Session, user_id: int, overdue_only: bool = False) -> dict:
         user_id: 用户 ID。
         overdue_only: 为 True 时仅处理网贷逾期账单（供每小时任务调用），
             其余功能模块一律跳过。
+        feature_keys: 仅扫描指定功能键集合（用于数据变化后的实时联动）。
     """
     today = date.today()
     templates = {
@@ -603,6 +669,9 @@ def _scan_user(db: Session, user_id: int, overdue_only: bool = False) -> dict:
             continue
         # 逾期小时任务只处理网贷账单，其他功能模块跳过
         if overdue_only and s.feature_key != LOAN_FEATURE_KEY:
+            continue
+        # 实时联动只处理指定功能模块
+        if feature_keys and s.feature_key not in feature_keys:
             continue
         try:
             if overdue_only:
