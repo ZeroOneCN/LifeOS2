@@ -188,6 +188,8 @@ class LoanPlatformCreate(BaseModel):
     grace_days: int = Field(3, ge=0, le=15)
     grace_auto: bool = False
     grace_hour: int = Field(0, ge=0, le=23)
+    # 违约金：超过最终还款日后的每日费率（单位 %/天，如 0.05 表示每日 0.05%）
+    penalty_rate: float = Field(0, ge=0, le=5)
     note: str | None = None
 
 

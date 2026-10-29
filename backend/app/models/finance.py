@@ -213,6 +213,8 @@ class FinanceLoanPlatform(TimestampMixin, UserOwned, Base):
     grace_days: Mapped[int] = mapped_column(Integer, default=3)  # 容时天数
     grace_auto: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否自动生效
     grace_hour: Mapped[int] = mapped_column(Integer, default=0)  # 截止时刻（0-23，0 = 当天结束）
+    # 违约金：超过最终还款日后按「每日费率」计收（单位 %/天，如 0.05 表示每日 0.05%），仅作预警展示
+    penalty_rate: Mapped[float] = mapped_column(Float, default=0.0)
     note: Mapped[str | None] = mapped_column(Text)
 
 

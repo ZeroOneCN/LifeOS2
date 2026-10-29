@@ -52,6 +52,8 @@ def _platforms_stats(db: Session, days: int, user_id: int, start=None, end=None)
                 "grace_days": p.grace_days,
                 "grace_auto": p.grace_auto,
                 "grace_hour": p.grace_hour,
+                # 违约金日费率（%/天），前端平台编辑需要回填
+                "penalty_rate": p.penalty_rate,
                 "total_owed": round(total_owed, 2),
                 "total_paid": round(total_paid, 2),
                 # 剩余夹紧为非负：浮点累加误差会得到 -0.0

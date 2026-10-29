@@ -299,6 +299,16 @@ def _scan_loan(
             days_text = "今天到期"
         else:
             days_text = f"剩余 {days_diff} 天"
+        # 违约金（仅预警）：超过最终还款日后，按平台「每日费率」估算
+        penalty_rate = (pf.penalty_rate or 0) if pf else 0
+        if overdue and penalty_rate > 0:
+            remaining = max(0.0, round(r.amount - (r.paid_amount or 0), 2))
+            overdue_days = (today - final_due).days
+            penalty = round(remaining * penalty_rate / 100 * overdue_days, 2)
+            grace_tip = (
+                f"{grace_tip}\n"
+                f"按平台日费率 {penalty_rate:g}%/天估算，违约金约 {_money(penalty)}（{overdue_days} 天，仅供参考）。"
+            )
         if overdue_only:
             # 小时级任务：已逾期的账单，以及容时最后一天仍未到截止时刻的账单，每小时各提醒一次
             if not (overdue or last_day):

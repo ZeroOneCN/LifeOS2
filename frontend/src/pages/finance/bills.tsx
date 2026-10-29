@@ -1408,7 +1408,7 @@ function SubscriptionTab() {
 
 /* ---------------- 网贷借还 ---------------- */
 
-type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; note?: string }
+type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; penalty_rate?: number; note?: string }
 type LoanPlatformStats = { total_remaining: number; platform_count: number; platforms: (LoanPlatform & { total_owed: number; total_paid: number; remaining: number; bill_count: number })[] }
 
 type LoanBill = {
@@ -1500,6 +1500,24 @@ function LoanTab() {
     if (days > 0) return `${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
     if (totalHours > 0) return `${totalHours} 小时`
     return `${Math.max(1, Math.floor(ms / 60_000))} 分钟`
+  }
+  /** 平台违约金日费率（单位 %/天，0 表示该平台不计收违约金）。 */
+  const penaltyRateOf = (platformId?: number) => platforms.find((p) => p.id === platformId)?.penalty_rate ?? 0
+  /**
+   * 预计违约金：剩余欠款 × 日费率(%) × 逾期天数。
+   * 起算时间与逾期判定一致（超过最终还款日含容时的次日），仅用于预警展示，不写入账务金额。
+   */
+  const penaltyEstimate = (b: LoanBill) => {
+    const rate = penaltyRateOf(b.platform_id)
+    const deadline = graceDeadline(b.platform_id, b.due_date)
+    if (!rate || !deadline) return { rate, days: 0, amount: 0 }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const finalDay = new Date(deadline)
+    finalDay.setHours(0, 0, 0, 0)
+    const days = Math.max(0, Math.round((today.getTime() - finalDay.getTime()) / 86_400_000))
+    if (days <= 0) return { rate, days: 0, amount: 0 }
+    return { rate, days, amount: round2(remainingOf(b.amount, b.paid_amount) * (rate / 100) * days) }
   }
   // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
   const overdueBills = useMemo(() => {
@@ -1611,6 +1629,7 @@ function LoanTab() {
         grace_days: newPf.grace_days !== undefined && newPf.grace_days !== '' ? Number(newPf.grace_days) : 3,
         grace_auto: newPf.grace_auto === '1',
         grace_hour: newPf.grace_hour ? Number(newPf.grace_hour) : 0,
+        penalty_rate: newPf.penalty_rate !== undefined && newPf.penalty_rate !== '' ? Number(newPf.penalty_rate) : 0,
         note: newPf.note || null,
       })
       toast.success('平台已添加')
@@ -1622,7 +1641,7 @@ function LoanTab() {
     await loadPlatforms()
   }
   const openPfEdit = (p: LoanPlatform) => {
-    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0) })
+    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0), penalty_rate: String(p.penalty_rate ?? 0) })
     setPfEdit(p)
   }
   const savePfEdit = async () => {
@@ -1635,6 +1654,7 @@ function LoanTab() {
         grace_days: pfEditForm.grace_days !== undefined && pfEditForm.grace_days !== '' ? Number(pfEditForm.grace_days) : 3,
         grace_auto: pfEditForm.grace_auto === '1',
         grace_hour: pfEditForm.grace_hour ? Number(pfEditForm.grace_hour) : 0,
+        penalty_rate: pfEditForm.penalty_rate !== undefined && pfEditForm.penalty_rate !== '' ? Number(pfEditForm.penalty_rate) : 0,
       })
       toast.success('平台已更新')
       setPfEdit(null)
@@ -1876,6 +1896,7 @@ function LoanTab() {
                 <span>还款日 {p.due_day ?? '—'}</span>
                 <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
                 <span>容时 {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}</span>
+                <span>违约金 {p.penalty_rate ? `${p.penalty_rate}%/天` : '不计收'}</span>
                 <span>{p.bill_count} 笔账单</span>
               </div>
               <div className="mt-2 flex justify-between">
@@ -2077,6 +2098,10 @@ function LoanTab() {
               <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
               <Switch checked={newPf.grace_auto === '1'} onCheckedChange={(v) => setNewPf({ ...newPf, grace_auto: v ? '1' : '0' })} />
             </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">违约金日费率（%/天）<Hint text="超过最终还款日后，按「剩余欠款 × 日费率 × 逾期天数」估算违约金，仅作预警展示、不改账务。0 表示不计收。" /></Label>
+              <Input type="number" min={0} max={5} step="0.01" value={newPf.penalty_rate ?? ''} onChange={(e) => setNewPf({ ...newPf, penalty_rate: e.target.value })} placeholder="如 0.05" />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfAddDialog(false)}>取消</Button>
@@ -2177,6 +2202,10 @@ function LoanTab() {
               <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
               <Switch checked={pfEditForm.grace_auto === '1'} onCheckedChange={(v) => setPfEditForm({ ...pfEditForm, grace_auto: v ? '1' : '0' })} />
             </div>
+            <div className="col-span-2 space-y-2">
+              <Label className="flex items-center gap-1">违约金日费率（%/天）<Hint text="超过最终还款日后，按「剩余欠款 × 日费率 × 逾期天数」估算违约金，仅作预警展示、不改账务。0 表示不计收。" /></Label>
+              <Input type="number" min={0} max={5} step="0.01" value={pfEditForm.penalty_rate} onChange={(e) => setPfEditForm({ ...pfEditForm, penalty_rate: e.target.value })} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
@@ -2208,7 +2237,7 @@ function LoanTab() {
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
               容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
-              超过最终截止时刻将上报征信。
+              超过最终截止时刻将上报征信。容时期间不计违约金，逾期后按平台日费率为你估算。
             </p>
           </div>
 
@@ -2301,6 +2330,16 @@ function LoanTab() {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                     还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
                   </p>
+                  {(() => {
+                    const pe = penaltyEstimate(b)
+                    if (!pe.rate) return <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">该平台未设置违约金</p>
+                    return (
+                      <p className="mt-0.5 text-sm font-semibold text-red-600 dark:text-red-400">
+                        预计违约金 <span className="text-base font-extrabold">{fmt(pe.amount)}</span>
+                        <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
+                      </p>
+                    )
+                  })()}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
