@@ -30,6 +30,7 @@ from app.services.backup_scheduler import (
     start_scheduler as start_backup_scheduler,
     stop_scheduler as stop_backup_scheduler,
 )
+from app.services.scale_collector import scale_collector
 from app.services.watch_collector import watch_collector
 
 
@@ -47,7 +48,9 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     start_backup_scheduler()
     await watch_collector.start()
+    await scale_collector.start()
     yield
+    await scale_collector.stop()
     await watch_collector.stop()
     stop_backup_scheduler()
     stop_scheduler()

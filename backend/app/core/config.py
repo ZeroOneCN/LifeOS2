@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     WATCH_FREEZE_MINUTES: int = 15
     # 聚合结果落库间隔（秒）
     WATCH_FLUSH_INTERVAL: int = 300
+    # 体重秤采集：是否在本进程内启动蓝牙扫描（无蓝牙环境请保持 False，自动降级）
+    ENABLE_SCALE_COLLECTOR: bool = False
+    # 体重数据归属用户 id（0 表示自动取第一个用户）
+    SCALE_USER_ID: int = 0
+    # 体重秤设备名前缀（不区分大小写，默认识别蚂蚁阿福 AFU 秤）
+    SCALE_NAME_PREFIX: str = "AFU"
+    # 体成分估算兜底资料：身高（厘米）、年龄（岁）、性别（male/female）
+    SCALE_HEIGHT_CM: int = 173
+    SCALE_AGE: int = 25
+    SCALE_SEX: str = "male"
 
     model_config = SettingsConfigDict(
         env_file=".env",
