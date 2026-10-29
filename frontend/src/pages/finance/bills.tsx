@@ -1429,7 +1429,7 @@ type LoanBillStats = {
   by_month: { month: string; amount: number }[]
   upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; grace_applied?: boolean; overdue?: boolean }[]
 }
-type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
+type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; service_fee?: number; method?: string; note?: string }
 
 const billStatusMeta: Record<string, { label: string; className: string }> = {
   pending: { label: '待还', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
@@ -1742,7 +1742,7 @@ function LoanTab() {
 
   const openRepay = (b: LoanBill) => {
     const remaining = remainingOf(b.amount, b.paid_amount)
-    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? remaining.toFixed(2) : '', discount: '', method: '', note: '' })
+    setRepayForm({ repay_date: new Date().toISOString().slice(0, 10), amount: remaining > 0 ? remaining.toFixed(2) : '', discount: '', service_fee: '', method: '', note: '' })
     setRepayDialog(b)
   }
   const actualPay = (): number => {
@@ -1760,6 +1760,7 @@ function LoanTab() {
     const payload = {
       bill_id: repayDialog.id, repay_date: repayForm.repay_date,
       amount: actual, discount: repayForm.discount ? Number(repayForm.discount) : 0,
+      service_fee: Number(repayForm.service_fee) || 0,
       method: repayForm.method || null, note: repayForm.note || null,
     }
     setSaving(true)
@@ -1789,7 +1790,7 @@ function LoanTab() {
     }
   }
   const openEditRepay = (r: Repayment) => {
-    setRepayEditForm({ repay_date: r.repay_date, amount: String(r.amount), discount: String(r.discount ?? 0), method: r.method ?? '', note: r.note ?? '' })
+    setRepayEditForm({ repay_date: r.repay_date, amount: String(r.amount), discount: String(r.discount ?? 0), service_fee: String(r.service_fee ?? 0), method: r.method ?? '', note: r.note ?? '' })
     setRepayEditDialog(r)
   }
   const submitEditRepay = async () => {
@@ -1801,6 +1802,7 @@ function LoanTab() {
       repay_date: repayEditForm.repay_date,
       amount: amt,
       discount: Number(repayEditForm.discount) || 0,
+      service_fee: Number(repayEditForm.service_fee) || 0,
       method: repayEditForm.method || null,
       note: repayEditForm.note || null,
     }
@@ -2062,17 +2064,18 @@ function LoanTab() {
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow>
-                  <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
+                  <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead className="text-right">服务费</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {repayments.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
                 ) : repayments.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.repay_date}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
                     <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                    <TableCell className="text-right">{r.service_fee ? fmt(r.service_fee) : '—'}</TableCell>
                     <TableCell>{r.method ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                     <TableCell className="text-right">
@@ -2086,6 +2089,13 @@ function LoanTab() {
               </TableBody>
             </Table>
           </div>
+          {repayments.length > 0 && (
+            <div className="flex justify-end gap-4 text-xs text-muted-foreground">
+              <span>实付合计 <b className="font-semibold text-foreground">{fmt(repayments.reduce((s, r) => s + r.amount, 0))}</b></span>
+              <span>服务费 <b className="font-semibold text-foreground">{fmt(repayments.reduce((s, r) => s + (r.service_fee || 0), 0))}</b></span>
+              <span>总支出 <b className="font-semibold text-foreground">{fmt(repayments.reduce((s, r) => s + r.amount + (r.service_fee || 0), 0))}</b></span>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -2097,6 +2107,7 @@ function LoanTab() {
             <div className="space-y-2"><Label>还款日期</Label><Input type="date" value={repayEditForm.repay_date ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, repay_date: e.target.value })} /></div>
             <div className="space-y-2"><Label>实付金额</Label><Input type="number" min={0} step="0.01" value={repayEditForm.amount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, amount: e.target.value })} /></div>
             <div className="space-y-2"><Label>优惠</Label><Input type="number" min={0} step="0.01" value={repayEditForm.discount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, discount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>渠道服务费</Label><Input type="number" min={0} step="0.01" value={repayEditForm.service_fee ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, service_fee: e.target.value })} /></div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayEditForm.method ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, method: e.target.value })} placeholder="如：支付宝、微信" /></div>
             <div className="space-y-2"><Label>备注</Label><Input value={repayEditForm.note ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, note: e.target.value })} /></div>
             <div className="flex justify-end gap-2 pt-2">
@@ -2196,13 +2207,22 @@ function LoanTab() {
               <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" />
             </div>
             <div className="space-y-2"><Label>优惠(券/抵扣)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
-            <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">渠道服务费<Hint text="部分还款渠道会额外收取服务费；不计入账单已还，只作额外成本记录。" /></Label>
+              <Input type="number" min={0} step="0.01" value={repayForm.service_fee ?? ''} onChange={(e) => setRepayForm({ ...repayForm, service_fee: e.target.value })} placeholder="0" />
+            </div>
+            <div className="col-span-2 space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
             <div className="col-span-2 space-y-1">
               <Label>实际支付（= 应还 - 优惠）</Label>
               <div className="rounded-lg border px-3 py-2 text-sm font-medium">
                 {fmt(actualPay())}
                 {(Number(repayForm.discount) || 0) > 0 && (
                   <span className="ml-2 text-xs text-green-600 dark:text-green-400">优惠抵减 {fmt(Number(repayForm.discount))}</span>
+                )}
+                {(Number(repayForm.service_fee) || 0) > 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    + 服务费 {fmt(Number(repayForm.service_fee))} → 总支出 {fmt(actualPay() + Number(repayForm.service_fee))}
+                  </span>
                 )}
               </div>
             </div>

@@ -247,6 +247,8 @@ class FinanceRepayment(TimestampMixin, UserOwned, Base):
     amount: Mapped[float] = mapped_column(Double)  # 还款金额（实付）
     discount: Mapped[float | None] = mapped_column(Double, default=0)  # 优惠金额（券/抵扣）
     method: Mapped[str | None] = mapped_column(String(32))  # 还款方式
+    # 渠道服务费：部分还款渠道额外收取，不计入账单已还，仅记录额外成本
+    service_fee: Mapped[float] = mapped_column(Double, default=0)
     note: Mapped[str | None] = mapped_column(Text)
 
 

@@ -219,6 +219,8 @@ class RepaymentCreate(BaseModel):
     repay_date: date
     amount: float = Field(gt=0)
     discount: float | None = Field(None, ge=0)
+    # 渠道服务费：额外成本，不计入账单已还
+    service_fee: float = Field(0, ge=0)
     method: str | None = None
     note: str | None = None
 
