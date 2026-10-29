@@ -2057,32 +2057,35 @@ function LoanTab() {
               {repayViewDialog ? `${platformName(bills.find((b) => b.id === repayViewDialog)?.platform_id)} · ${bills.find((b) => b.id === repayViewDialog)?.bill_month ?? ''}` : ''}
             </DialogDescription>
           </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {repayments.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
-              ) : repayments.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.repay_date}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
-                  <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
-                  <TableCell>{r.method ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
-                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
-                    </div>
-                  </TableCell>
+          {/* 记录较多时内部滚动，避免弹窗超出屏幕；表头固定不被滚走 */}
+          <div className="max-h-[60vh] overflow-y-auto rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow>
+                  <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {repayments.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+                ) : repayments.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.repay_date}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
+                    <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                    <TableCell>{r.method ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
 
