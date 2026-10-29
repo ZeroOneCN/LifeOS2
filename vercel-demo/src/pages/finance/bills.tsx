@@ -1408,7 +1408,7 @@ function SubscriptionTab() {
 
 /* ---------------- 网贷借还 ---------------- */
 
-type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; note?: string }
+type LoanPlatform = { id: number; name: string; bill_day?: number; due_day?: number; credit_limit?: number; grace_days?: number; grace_auto?: boolean; grace_hour?: number; penalty_rate?: number; note?: string }
 type LoanPlatformStats = { total_remaining: number; platform_count: number; platforms: (LoanPlatform & { total_owed: number; total_paid: number; remaining: number; bill_count: number })[] }
 
 type LoanBill = {
@@ -1500,6 +1500,24 @@ function LoanTab() {
     if (days > 0) return `${days} 天${hours > 0 ? ` ${hours} 小时` : ''}`
     if (totalHours > 0) return `${totalHours} 小时`
     return `${Math.max(1, Math.floor(ms / 60_000))} 分钟`
+  }
+  /** 平台违约金日费率（单位 %/天，0 表示该平台不计收违约金）。 */
+  const penaltyRateOf = (platformId?: number) => platforms.find((p) => p.id === platformId)?.penalty_rate ?? 0
+  /**
+   * 预计违约金：剩余欠款 × 日费率(%) × 逾期天数。
+   * 起算时间与逾期判定一致（超过最终还款日含容时的次日），仅用于预警展示，不写入账务金额。
+   */
+  const penaltyEstimate = (b: LoanBill) => {
+    const rate = penaltyRateOf(b.platform_id)
+    const deadline = graceDeadline(b.platform_id, b.due_date)
+    if (!rate || !deadline) return { rate, days: 0, amount: 0 }
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const finalDay = new Date(deadline)
+    finalDay.setHours(0, 0, 0, 0)
+    const days = Math.max(0, Math.round((today.getTime() - finalDay.getTime()) / 86_400_000))
+    if (days <= 0) return { rate, days: 0, amount: 0 }
+    return { rate, days, amount: round2(remainingOf(b.amount, b.paid_amount) * (rate / 100) * days) }
   }
   // 逾期账单：已过「最终还款日（含容时）」的账单，用于站内重大提醒（弹窗 + 常驻横幅）
   const overdueBills = useMemo(() => {
@@ -1611,6 +1629,7 @@ function LoanTab() {
         grace_days: newPf.grace_days !== undefined && newPf.grace_days !== '' ? Number(newPf.grace_days) : 3,
         grace_auto: newPf.grace_auto === '1',
         grace_hour: newPf.grace_hour ? Number(newPf.grace_hour) : 0,
+        penalty_rate: newPf.penalty_rate !== undefined && newPf.penalty_rate !== '' ? Number(newPf.penalty_rate) : 0,
         note: newPf.note || null,
       })
       toast.success('平台已添加')
@@ -1622,7 +1641,7 @@ function LoanTab() {
     await loadPlatforms()
   }
   const openPfEdit = (p: LoanPlatform) => {
-    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0) })
+    setPfEditForm({ name: p.name, bill_day: p.bill_day != null ? String(p.bill_day) : '', due_day: p.due_day != null ? String(p.due_day) : '', credit_limit: p.credit_limit != null ? String(p.credit_limit) : '', grace_days: String(p.grace_days ?? 3), grace_auto: p.grace_auto ? '1' : '0', grace_hour: String(p.grace_hour ?? 0), penalty_rate: String(p.penalty_rate ?? 0) })
     setPfEdit(p)
   }
   const savePfEdit = async () => {
@@ -1635,6 +1654,7 @@ function LoanTab() {
         grace_days: pfEditForm.grace_days !== undefined && pfEditForm.grace_days !== '' ? Number(pfEditForm.grace_days) : 3,
         grace_auto: pfEditForm.grace_auto === '1',
         grace_hour: pfEditForm.grace_hour ? Number(pfEditForm.grace_hour) : 0,
+        penalty_rate: pfEditForm.penalty_rate !== undefined && pfEditForm.penalty_rate !== '' ? Number(pfEditForm.penalty_rate) : 0,
       })
       toast.success('平台已更新')
       setPfEdit(null)
@@ -1861,26 +1881,58 @@ function LoanTab() {
           <CardTitle className="text-lg font-medium">借款平台</CardTitle>
           <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
         </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {platformStats?.platforms.map((p) => (
-            <div key={p.id} className="rounded-lg border p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{p.name}</span>
+            <div key={p.id} className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[15px] font-semibold">{p.name}</span>
                 <div className="flex shrink-0 gap-0.5">
                   <Tip label="编辑平台"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button></Tip>
                   <Tip label="删除平台"><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
                 </div>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                <span>账单日 {p.bill_day ?? '—'}</span>
-                <span>还款日 {p.due_day ?? '—'}</span>
-                <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
-                <span>容时 {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}</span>
-                <span>{p.bill_count} 笔账单</span>
+              {/* 基础信息：标签与数值分列对齐，字号 13px 并加大行距，避免挤成一行 */}
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] leading-5">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">账单日</span>
+                  <span className="font-medium tabular-nums">{p.bill_day ?? '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">还款日</span>
+                  <span className="font-medium tabular-nums">{p.due_day ?? '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">额度</span>
+                  <span className="font-medium tabular-nums">{p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">账单</span>
+                  <span className="font-medium tabular-nums">{p.bill_count} 笔</span>
+                </div>
               </div>
-              <div className="mt-2 flex justify-between">
-                <span>累计欠款 <b>{fmt(p.total_owed)}</b></span>
-                <span className={p.remaining > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400 font-medium'}>待还 {fmt(p.remaining)}</span>
+              {/* 平台规则：容时 / 违约金，独立浅底块与基础信息分层 */}
+              <div className="mt-3 space-y-1.5 rounded-md bg-muted/50 px-3 py-2 text-[13px] leading-5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">容时</span>
+                  <span className="text-right font-medium">
+                    {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">违约金</span>
+                  <span className="font-medium">{p.penalty_rate ? `${p.penalty_rate}%/天` : '不计收'}</span>
+                </div>
+              </div>
+              {/* 欠款：主数字放大加粗，标签弱化 */}
+              <div className="mt-3 flex items-end justify-between gap-2 border-t pt-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">累计欠款</p>
+                  <p className="mt-1 text-lg font-bold leading-none tabular-nums">{fmt(p.total_owed)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">待还</p>
+                  <p className={`mt-1 text-lg font-bold leading-none tabular-nums ${p.remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmt(p.remaining)}</p>
+                </div>
               </div>
             </div>
           ))}
@@ -2005,32 +2057,35 @@ function LoanTab() {
               {repayViewDialog ? `${platformName(bills.find((b) => b.id === repayViewDialog)?.platform_id)} · ${bills.find((b) => b.id === repayViewDialog)?.bill_month ?? ''}` : ''}
             </DialogDescription>
           </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {repayments.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
-              ) : repayments.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.repay_date}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
-                  <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
-                  <TableCell>{r.method ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
-                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
-                    </div>
-                  </TableCell>
+          {/* 记录较多时内部滚动，避免弹窗超出屏幕；表头固定不被滚走 */}
+          <div className="max-h-[60vh] overflow-y-auto rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow>
+                  <TableHead>还款日期</TableHead><TableHead className="text-right">实付</TableHead><TableHead className="text-right">优惠</TableHead><TableHead>方式</TableHead><TableHead>备注</TableHead><TableHead className="w-20 text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {repayments.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="h-16 text-center text-muted-foreground">该账单暂无还款记录</TableCell></TableRow>
+                ) : repayments.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.repay_date}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
+                    <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                    <TableCell>{r.method ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Tip label="修改"><Button variant="ghost" size="icon" onClick={() => openEditRepay(r)}><Pencil className="size-3.5" /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRepay(r)}><Trash2 className="size-3.5" /></Button></Tip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2076,6 +2131,10 @@ function LoanTab() {
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
               <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
               <Switch checked={newPf.grace_auto === '1'} onCheckedChange={(v) => setNewPf({ ...newPf, grace_auto: v ? '1' : '0' })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">违约金日费率（%/天）<Hint text="超过最终还款日后，按「剩余欠款 × 日费率 × 逾期天数」估算违约金，仅作预警展示、不改账务。0 表示不计收。" /></Label>
+              <Input type="number" min={0} max={5} step="0.01" value={newPf.penalty_rate ?? ''} onChange={(e) => setNewPf({ ...newPf, penalty_rate: e.target.value })} placeholder="如 0.05" />
             </div>
           </div>
           <DialogFooter>
@@ -2177,6 +2236,10 @@ function LoanTab() {
               <span className="flex items-center gap-1 text-sm">容时自动生效<Hint text="勾选后无需逐笔申请，到期自动顺延（如邮储）；不勾选则需在每笔账单上手动申请。" /></span>
               <Switch checked={pfEditForm.grace_auto === '1'} onCheckedChange={(v) => setPfEditForm({ ...pfEditForm, grace_auto: v ? '1' : '0' })} />
             </div>
+            <div className="col-span-2 space-y-2">
+              <Label className="flex items-center gap-1">违约金日费率（%/天）<Hint text="超过最终还款日后，按「剩余欠款 × 日费率 × 逾期天数」估算违约金，仅作预警展示、不改账务。0 表示不计收。" /></Label>
+              <Input type="number" min={0} max={5} step="0.01" value={pfEditForm.penalty_rate} onChange={(e) => setPfEditForm({ ...pfEditForm, penalty_rate: e.target.value })} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPfEdit(null)}>取消</Button>
@@ -2208,7 +2271,7 @@ function LoanTab() {
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
               容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
-              超过最终截止时刻将上报征信。
+              超过最终截止时刻将上报征信。容时期间不计违约金，逾期后按平台日费率为你估算。
             </p>
           </div>
 
@@ -2301,6 +2364,16 @@ function LoanTab() {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                     还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
                   </p>
+                  {(() => {
+                    const pe = penaltyEstimate(b)
+                    if (!pe.rate) return <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">该平台未设置违约金</p>
+                    return (
+                      <p className="mt-0.5 text-sm font-semibold text-red-600 dark:text-red-400">
+                        预计违约金 <span className="text-base font-extrabold">{fmt(pe.amount)}</span>
+                        <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
+                      </p>
+                    )
+                  })()}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(remainingOf(b.amount, b.paid_amount))}</p>

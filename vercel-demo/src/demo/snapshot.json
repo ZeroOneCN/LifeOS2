@@ -2088,7 +2088,8 @@
         "grace_days": 5,
         "grace_auto": true,
         "grace_hour": 0,
-        "note": null
+        "note": null,
+        "penalty_rate": 0
       },
       {
         "id": 2,
@@ -2101,7 +2102,8 @@
         "grace_days": 3,
         "grace_auto": false,
         "grace_hour": 0,
-        "note": null
+        "note": null,
+        "penalty_rate": 0.03
       },
       {
         "id": 1,
@@ -2114,7 +2116,8 @@
         "grace_days": 3,
         "grace_auto": false,
         "grace_hour": 0,
-        "note": "主力信用卡"
+        "note": "主力信用卡",
+        "penalty_rate": 0.05
       }
     ],
     "total": 3,
