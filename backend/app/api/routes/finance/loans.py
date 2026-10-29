@@ -230,14 +230,10 @@ def repayment_stats(
     # 还款总额（实付，不含优惠）+ 优惠合计，用于分析
     total_paid = sum(r.amount or 0 for r in rows)
     total_discount = sum(r.discount or 0 for r in rows)
-    # 渠道服务费合计（额外成本，不计入账单已还）
-    total_service_fee = sum(r.service_fee or 0 for r in rows)
     return {
         "days": days,
         "total_repaid": round(total_paid, 2),
         "total_paid": round(total_paid, 2),
-        "total_service_fee": round(total_service_fee, 2),
-        "total_cash_out": round(total_paid + total_service_fee, 2),
         "total_discount": round(total_discount, 2),
         "count": len(rows),
         "by_month": [
