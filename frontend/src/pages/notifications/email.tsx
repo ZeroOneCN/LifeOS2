@@ -6,7 +6,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -164,17 +164,19 @@ export function EmailConfigPanel() {
         <div className="grid gap-4 lg:grid-cols-2">
           {channels.map((ch) => (
             <Card key={ch.id}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div>
-                  <CardTitle className="text-sm font-medium">{ch.name}</CardTitle>
+                  <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">{ch.name}</CardTitle>
                   <CardDescription>
                     {String(ch.config.smtp_host ?? '')}:{String(ch.config.smtp_port ?? '')}　
                     {ch.recipients || '未配置收件人'}
                   </CardDescription>
                 </div>
-                <Badge className={ch.enabled ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'}>
-                  {ch.enabled ? '启用' : '停用'}
-                </Badge>
+                <CardHeaderActions>
+                  <Badge className={ch.enabled ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'}>
+                    {ch.enabled ? '启用' : '停用'}
+                  </Badge>
+                </CardHeaderActions>
               </CardHeader>
               <CardContent className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => openEdit(ch)}>

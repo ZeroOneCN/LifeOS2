@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
@@ -374,9 +374,11 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 
       <Card>
         <CardContent className="p-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-lg font-medium">民间借贷明细</CardTitle>
-            <Button onClick={openCreate}><Plus /> 新增借款</Button>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">民间借贷明细</CardTitle>
+            <CardHeaderActions>
+              <Button onClick={openCreate}><Plus /> 新增借款</Button>
+            </CardHeaderActions>
           </CardHeader>
           <Table>
             <TableHeader>
@@ -715,9 +717,11 @@ function InvestTab() {
 
       <Card>
         <CardContent className="p-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-lg font-medium">投资平台记账</CardTitle>
-            <Button onClick={openCreate}><Plus /> 新增投资</Button>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">投资平台记账</CardTitle>
+            <CardHeaderActions>
+              <Button onClick={openCreate}><Plus /> 新增投资</Button>
+            </CardHeaderActions>
           </CardHeader>
           <Table>
             <TableHeader>
@@ -842,9 +846,11 @@ function MemoTab() {
     <div className="flex flex-col gap-4">
       <Card>
         <CardContent className="p-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-lg font-medium">备忘录（模糊记忆）</CardTitle>
-            <Button onClick={openCreate}><Plus /> 新增备忘</Button>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+            <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">备忘录（模糊记忆）</CardTitle>
+            <CardHeaderActions>
+              <Button onClick={openCreate}><Plus /> 新增备忘</Button>
+            </CardHeaderActions>
           </CardHeader>
           <div className="grid gap-2 p-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {items.length === 0 ? (
@@ -991,9 +997,11 @@ function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
 function StatCard({ icon: Icon, label, value, className }: { icon: typeof Wallet; label: string; value: string; className?: string }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
+        <CardHeaderActions>
+          <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent><div className={`text-2xl font-semibold ${className ?? ''}`}>{value}</div></CardContent>
     </Card>

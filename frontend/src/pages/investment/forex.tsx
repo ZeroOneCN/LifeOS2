@@ -36,7 +36,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -317,21 +317,23 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
           <CalendarDays className="size-4 text-indigo-500" /> 交易日历
         </CardTitle>
-        <Select value={month} onValueChange={(v) => setMonth(v)}>
-          <SelectTrigger className="w-40">
-            <CalendarDays className="size-3.5 text-muted-foreground" />
-            <SelectValue placeholder="选择月份" />
-          </SelectTrigger>
-          <SelectContent>
-            {monthOptions.map((m) => (
-              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <CardHeaderActions>
+          <Select value={month} onValueChange={(v) => setMonth(v)}>
+            <SelectTrigger className="w-40">
+              <CalendarDays className="size-3.5 text-muted-foreground" />
+              <SelectValue placeholder="选择月份" />
+            </SelectTrigger>
+            <SelectContent>
+              {monthOptions.map((m) => (
+                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardHeaderActions>
       </CardHeader>
       <CardContent>
         {data?.summary && (
@@ -533,16 +535,18 @@ function PositionCalculator({ equity }: { equity?: number }) {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
+            <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
               <Plus className="size-4 text-indigo-500" /> 持仓清单（多仓位并行）
             </CardTitle>
             <CardDescription>每个仓位独立杠杆，共同占用保证金，联动计算爆仓价格</CardDescription>
           </div>
-          <Button size="sm" variant="outline" onClick={addRow}>
-            <Plus /> 添加仓位
-          </Button>
+          <CardHeaderActions>
+            <Button size="sm" variant="outline" onClick={addRow}>
+              <Plus /> 添加仓位
+            </Button>
+          </CardHeaderActions>
         </CardHeader>
         <CardContent className="space-y-2">
           {rows.length === 0 ? (
@@ -742,14 +746,16 @@ function FundsSection() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
         <div>
-          <CardTitle className="flex items-center gap-2 text-sm">
+          <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
             <TrendingUp className="size-4 text-indigo-500" /> 资金动态
           </CardTitle>
           <CardDescription>记录出入金与体验金，构成账户净值</CardDescription>
         </div>
-        <Button size="sm" onClick={openCreate}>记录资金</Button>
+        <CardHeaderActions>
+          <Button size="sm" onClick={openCreate}>记录资金</Button>
+        </CardHeaderActions>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -918,9 +924,11 @@ function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '
   const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
+        <CardHeaderActions>
+          <Icon className="size-4 text-muted-foreground" />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent>
         <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earningsStyle} ${valueCls}`}>{value}</div>

@@ -24,6 +24,7 @@ import {
   Card,
   CardContent,
   CardHeader,
+  CardHeaderActions,
   CardTitle,
 } from '@/components/ui/card'
 import { Tip } from '@/components/ui/tip'
@@ -257,9 +258,11 @@ function StatCard({
   const color = pnl ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : money ? 'text-emerald-600 dark:text-emerald-400' : ''
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
+        <CardHeaderActions>
+          <Icon className="size-4 text-muted-foreground" />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent className="pb-4">
         <div className={`text-2xl font-semibold ${color}`}>{value}</div>

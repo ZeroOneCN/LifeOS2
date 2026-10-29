@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
@@ -187,9 +187,11 @@ const emptyForm: DetailForm = {
 function StatCard({ icon: Icon, label, value }: { icon: typeof Wallet; label: string; value: string }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
+        <CardHeaderActions>
+          <Icon className="size-4 text-muted-foreground" />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
@@ -552,13 +554,15 @@ export function TravelPage() {
         if (!cur) return null
         return (
           <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/50 dark:bg-indigo-500/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 min-w-0 max-w-[55%] truncate">
                 <TrendingUp className="size-4" /> 行程总结 · {cur.name}
               </CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => { setSummaryText(cur.note ?? ''); setSummaryEdit(cur) }}>
-                <Pencil /> {cur.note ? '编辑' : '添加'}
-              </Button>
+              <CardHeaderActions>
+                <Button variant="ghost" size="sm" onClick={() => { setSummaryText(cur.note ?? ''); setSummaryEdit(cur) }}>
+                  <Pencil /> {cur.note ? '编辑' : '添加'}
+                </Button>
+              </CardHeaderActions>
             </CardHeader>
             <CardContent>
               {cur.note ? (

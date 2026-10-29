@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -205,11 +205,11 @@ export function InvestmentReportsPage() {
             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setPreviewCollapsed((v) => !v)}>
               <div className="flex items-center gap-2">
                 <ChevronDown className={`size-4 shrink-0 text-indigo-600 dark:text-indigo-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
-                <CardTitle className="text-base">{preview.title}</CardTitle>
+                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
               </div>
               {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
             </button>
-            <div className="flex shrink-0 items-center gap-2">
+            <CardHeaderActions>
               <Button size="sm" variant="ghost" onClick={() => setPreviewCollapsed((v) => !v)}>
                 {previewCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
               </Button>
@@ -217,7 +217,7 @@ export function InvestmentReportsPage() {
                 {exportingId === preview.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                 导出 PDF
               </Button>
-            </div>
+            </CardHeaderActions>
           </CardHeader>
           {!previewCollapsed && (
             <CardContent className="pt-4"><ReportContent content={preview.content} /></CardContent>
