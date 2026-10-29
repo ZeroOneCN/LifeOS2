@@ -215,8 +215,8 @@ def _scan_loan(
         db: 数据库会话。
         advance: 提前提醒天数。
         user_id: 用户 ID。
-        overdue_only: 为 True 时只返回已逾期的账单（供每小时提醒任务使用），
-            且去重键按“小时”粒度生成，实现每个小时各提醒一次。
+        overdue_only: 为 True 时只返回「需要逐小时提醒」的账单——已逾期，或处于容时最后一天
+            且尚未到最终截止时刻的账单；去重键按“小时”粒度生成，实现每个小时各提醒一次。
     返回值：
         待提醒条目列表，每项含 source_id / title_ctx / content_ctx / 可选 dedup_key。
     """
@@ -264,11 +264,23 @@ def _scan_loan(
             and not overdue
             and now > datetime.combine(r.due_date, clock_time(23, 59, 59))
         )
+        # 容时最后一天：最终还款日就是今天且尚未过截止时刻，需要按小时提醒
+        last_day = bool(grace_on and not overdue and final_due == today)
+        cut_text = (
+            f"{final_due.isoformat()} {grace_hour:02d}:00"
+            if grace_hour
+            else f"{final_due.isoformat()} 23:59"
+        )
         # 容时提示语：独立段落（前置空行），强调最低还款与不可二次延期
         if overdue:
             grace_tip = (
                 "【紧急】已超过最终还款日，不会再次延期。\n"
                 "请至少还够最低还款额，否则将上报征信。"
+            )
+        elif last_day:
+            grace_tip = (
+                f"【容时最后一天】今天 {cut_text} 前必须还款。\n"
+                "请至少还够最低还款额，容时不会再次延期，超期上报征信。"
             )
         elif in_grace:
             grace_tip = (
@@ -288,11 +300,14 @@ def _scan_loan(
         else:
             days_text = f"剩余 {days_diff} 天"
         if overdue_only:
-            # 小时级任务只处理已过最终截止时刻的账单
-            if not overdue:
+            # 小时级任务：已逾期的账单，以及容时最后一天仍未到截止时刻的账单，每小时各提醒一次
+            if not (overdue or last_day):
                 continue
         elif overdue:
             # 日常扫描跳过逾期账单，由小时级任务专门负责（每天每小时提醒）
+            continue
+        elif last_day:
+            # 容时最后一天由小时级任务逐小时提醒，日常扫描不重复推送
             continue
         elif final_due > due:
             # 容时顺延后可能超出提前提醒窗口
@@ -321,8 +336,11 @@ def _scan_loan(
         if overdue:
             # 逾期：去重键精确到“小时”，确保每个小时各提醒一次
             item["dedup_key"] = f"{r.id}:overdue:{today.isoformat()}:{now.hour}"
+        elif last_day:
+            # 容时最后一天：同样按小时去重，截止时刻前每小时各提醒一次
+            item["dedup_key"] = f"{r.id}:grace-final:{today.isoformat()}:{now.hour}"
         elif in_grace:
-            # 容时窗口内：每天一条「最后机会」提醒，到期后由逾期小时任务接管
+            # 容时窗口内（非最后一天）：每天一条「最后机会」提醒
             item["dedup_key"] = f"{r.id}:grace:{final_due.isoformat()}:{today.isoformat()}"
         elif final_due == today:
             # 到期当天单独去重：与提前提醒(dedup=source_id)区分开，确保当天也会再次提醒；
@@ -809,7 +827,7 @@ def scan_all(db: Session, user_id: int | None = None) -> dict:
 
 
 def scan_overdue(db: Session, user_id: int | None = None) -> dict:
-    """扫描已逾期的网贷账单，按“小时”去重，实现逾期后每天每小时提醒。
+    """扫描需要逐小时提醒的网贷账单（已逾期 / 容时最后一天），按“小时”去重。
 
     - user_id 指定时：仅扫描该用户。
     - user_id 为空时：扫描所有用户。
