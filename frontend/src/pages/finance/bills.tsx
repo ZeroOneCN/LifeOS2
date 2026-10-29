@@ -1881,27 +1881,58 @@ function LoanTab() {
           <CardTitle className="text-lg font-medium">借款平台</CardTitle>
           <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
         </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {platformStats?.platforms.map((p) => (
-            <div key={p.id} className="rounded-lg border p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{p.name}</span>
+            <div key={p.id} className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[15px] font-semibold">{p.name}</span>
                 <div className="flex shrink-0 gap-0.5">
                   <Tip label="编辑平台"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button></Tip>
                   <Tip label="删除平台"><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
                 </div>
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                <span>账单日 {p.bill_day ?? '—'}</span>
-                <span>还款日 {p.due_day ?? '—'}</span>
-                <span>额度 {p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
-                <span>容时 {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}</span>
-                <span>违约金 {p.penalty_rate ? `${p.penalty_rate}%/天` : '不计收'}</span>
-                <span>{p.bill_count} 笔账单</span>
+              {/* 基础信息：标签与数值分列对齐，字号 13px 并加大行距，避免挤成一行 */}
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] leading-5">
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">账单日</span>
+                  <span className="font-medium tabular-nums">{p.bill_day ?? '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">还款日</span>
+                  <span className="font-medium tabular-nums">{p.due_day ?? '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">额度</span>
+                  <span className="font-medium tabular-nums">{p.credit_limit != null ? fmt(p.credit_limit) : '—'}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-muted-foreground">账单</span>
+                  <span className="font-medium tabular-nums">{p.bill_count} 笔</span>
+                </div>
               </div>
-              <div className="mt-2 flex justify-between">
-                <span>累计欠款 <b>{fmt(p.total_owed)}</b></span>
-                <span className={p.remaining > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400 font-medium'}>待还 {fmt(p.remaining)}</span>
+              {/* 平台规则：容时 / 违约金，独立浅底块与基础信息分层 */}
+              <div className="mt-3 space-y-1.5 rounded-md bg-muted/50 px-3 py-2 text-[13px] leading-5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">容时</span>
+                  <span className="text-right font-medium">
+                    {p.grace_days ?? 3} 天{p.grace_auto ? ' · 自动' : ''}{p.grace_hour ? ` · 至 ${String(p.grace_hour).padStart(2, '0')}:00` : ''}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-muted-foreground">违约金</span>
+                  <span className="font-medium">{p.penalty_rate ? `${p.penalty_rate}%/天` : '不计收'}</span>
+                </div>
+              </div>
+              {/* 欠款：主数字放大加粗，标签弱化 */}
+              <div className="mt-3 flex items-end justify-between gap-2 border-t pt-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">累计欠款</p>
+                  <p className="mt-1 text-lg font-bold leading-none tabular-nums">{fmt(p.total_owed)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">待还</p>
+                  <p className={`mt-1 text-lg font-bold leading-none tabular-nums ${p.remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmt(p.remaining)}</p>
+                </div>
               </div>
             </div>
           ))}
