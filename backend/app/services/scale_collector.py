@@ -93,6 +93,7 @@ class ScaleWeightCollector:
         self._debounce_task: asyncio.Task | None = None
         self._pending: dict[str, Any] | None = None
         self._last_signature: tuple | None = None
+        self._last_written: dict[str, Any] | None = None
         self._user_id: int | None = None
         self._profile_height: int = settings.SCALE_HEIGHT_CM
         self._profile_age: int = settings.SCALE_AGE
@@ -102,6 +103,26 @@ class ScaleWeightCollector:
     def enabled(self) -> bool:
         """是否开启体重秤进程内采集。"""
         return bool(settings.ENABLE_SCALE_COLLECTOR)
+
+    def status(self) -> dict[str, Any]:
+        """返回采集器整体状态，供状态接口与问题排查使用。
+
+        Returns:
+            开关、蓝牙依赖、扫描任务、用户资料、最近一次写入与读取器状态。
+        """
+        return {
+            "enabled": self.enabled,
+            "bleak_available": BLEAK_AVAILABLE,
+            "scan_running": self._scan_task is not None and not self._scan_task.done(),
+            "user_id": self._user_id,
+            "profile": {
+                "height_cm": self._profile_height,
+                "age": self._profile_age,
+                "sex": self._profile_sex,
+            },
+            "last_written": self._last_written,
+            "reader": self._reader.status(),
+        }
 
     async def start(self) -> None:
         """启动体重秤读取与蓝牙扫描（未开启或无蓝牙依赖时直接返回）。"""
@@ -183,9 +204,20 @@ class ScaleWeightCollector:
             getattr(advertisement, "local_name", None)
             or getattr(device, "name", "")
             or ""
-        )
+        ).strip()
         address = str(getattr(device, "address", "") or "")
-        if not address or not name:
+        if not address:
+            return
+        prefix = settings.SCALE_NAME_PREFIX.upper()
+        uuids = [
+            str(u).lower() for u in (getattr(advertisement, "service_uuids", None) or [])
+        ]
+        has_scale_service = any("0000ffb0" in u for u in uuids)
+        if has_scale_service:
+            # 私有服务 FFB0 是该秤最可靠的标识；广播名可能是 "UAF028"（不含 "AFU" 子串）甚至为空，
+            # 这里用配置前缀作为登记名，仅供读取器做候选筛选，不影响协议。
+            name = settings.SCALE_NAME_PREFIX
+        elif not name or prefix not in name.upper():
             return
         rssi = int(getattr(advertisement, "rssi", None) or -100)
         self._reader.note_device(address, name, rssi)
@@ -270,7 +302,8 @@ class ScaleWeightCollector:
             body = event.get("body") or {}
             if body:
                 self._apply_body(row, body)
-            elif row.bmi is None and row.height_cm:
+            elif row.height_cm:
+                # 无阻抗时只更新体重与 BMI，避免沿用上一次（可能是错误体重）的 BMI
                 height_m = row.height_cm / 100
                 row.bmi = round(kg / (height_m * height_m), 1)
 
@@ -298,6 +331,12 @@ class ScaleWeightCollector:
                 )
             )
             db.commit()
+            self._last_written = {
+                "at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "weight_kg": kg,
+                "has_body": bool(body),
+                "record_date": today.isoformat(),
+            }
             logger.info(
                 "体重秤已写入当天记录：%.2f kg（%s）", kg, "含体成分" if body else "仅体重"
             )

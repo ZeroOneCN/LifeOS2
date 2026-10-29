@@ -48,6 +48,8 @@ MAX_GRAMS = 250000
 CANDIDATE_TTL = 60.0
 # 资料包重发间隔（秒），确保秤不会在唤醒后丢失资料
 PROFILE_RESEND_SECONDS = 15.0
+# 连接后等待第一帧数据的上限（秒）；超时说明连错设备（如系统缓存名带来的幽灵设备），需断开换目标
+IDLE_WAIT_SECONDS = 20.0
 
 
 def _get_int_round(value: float) -> int:
@@ -196,6 +198,9 @@ class ScaleReader:
         self._on_event = on_event
         self._prefix = (name_prefix or "").strip().upper()
         self.last: dict[str, Any] | None = None
+        self.last_raw: str | None = None
+        self.last_parsed: dict[str, Any] | None = None
+        self.last_impedance: dict[str, Any] | None = None
         self.connected = False
         self.error: str | None = None
         self.profile: dict[str, Any] = {
@@ -259,7 +264,8 @@ class ScaleReader:
             rssi: 信号强度。
         """
         label = (name or "").upper()
-        if self._prefix and not label.startswith(self._prefix):
+        # 实测该秤广播名为 "UAF028"（AFU 不在开头），故用包含匹配而非前缀匹配
+        if self._prefix and self._prefix not in label:
             return
         self._candidates[address] = (time.time(), name, rssi)
         loop = self._loop
@@ -282,6 +288,23 @@ class ScaleReader:
         if not self._candidates:
             return None
         return max(self._candidates.items(), key=lambda item: item[1][2])[0]
+
+    def status(self) -> dict[str, Any]:
+        """返回读取器运行状态，供状态接口与问题排查使用。
+
+        Returns:
+            包含连接状态、当前地址、错误信息、候选设备数与最近一次测量事件。
+        """
+        return {
+            "connected": self.connected,
+            "address": self._address,
+            "error": self.error,
+            "candidates": len(self._candidates),
+            "last": self.last,
+            "last_raw": self.last_raw,
+            "last_parsed": self.last_parsed,
+            "last_impedance": self.last_impedance,
+        }
 
     async def _run(self) -> None:
         """主循环：等待候选设备、连接、断线后重试。"""
@@ -364,11 +387,14 @@ class ScaleReader:
         """
         done = asyncio.Event()
         self._done = done
+        # 首帧信号：用于判断是否连到了真实体重秤，避免被缓存设备名带来的错误目标长期占用连接
+        first_frame = asyncio.Event()
 
         def on_disconnect(_client: BleakClient) -> None:
             done.set()
 
         def on_data(_char: Any, data: bytearray) -> None:
+            first_frame.set()
             self._handle(bytes(data))
 
         # winrt 是 Windows 后端专属参数，非 Windows 平台传入会报 TypeError
@@ -388,6 +414,17 @@ class ScaleReader:
         sender = asyncio.create_task(self._send_profile_loop(client, done))
         try:
             await client.start_notify(FFB2_UUID, on_data)
+            try:
+                await asyncio.wait_for(first_frame.wait(), timeout=IDLE_WAIT_SECONDS)
+            except asyncio.TimeoutError:
+                # 连上却收不到任何帧：剔除该候选并断开，让主循环换下一个设备
+                self._candidates.pop(address, None)
+                logging.info(
+                    "体重秤连接后 %.0f 秒未收到数据，断开并更换目标：%s",
+                    IDLE_WAIT_SECONDS,
+                    address,
+                )
+                return
             await done.wait()
         finally:
             sender.cancel()
@@ -425,6 +462,16 @@ class ScaleReader:
             return
         if parsed["type"] == "ack":
             return
+        # 保留最近一帧原始数据，便于核对设备编码差异
+        self.last_raw = raw.hex()
+        self.last_parsed = {k: v for k, v in parsed.items()}
+        if parsed["type"] == "impedance":
+            # 单独记录最近一次阻抗帧，便于判断是「没发阻抗」还是「阻抗通道为 0」
+            self.last_impedance = {
+                "raw": raw.hex(),
+                "channels": parsed.get("impedances"),
+                "ts": round(time.time() * 1000),
+            }
 
         self._device_type = raw[1]
         grams = parsed["grams"]

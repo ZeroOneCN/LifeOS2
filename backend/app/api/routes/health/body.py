@@ -1,12 +1,14 @@
 from collections import defaultdict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router, days_since
+from app.core.security import get_current_user
 from app.models import HealthBody
 from app.schemas.health import BodyCreate, BodyRead
+from app.services.scale_collector import scale_collector
 
 router = APIRouter()
 
@@ -93,6 +95,15 @@ def _body_stats(db: Session, days: int, user_id: int) -> dict:
     }
 
 
+def _register_extra_routes(api: APIRouter) -> None:
+    """注册体重秤采集状态接口（需在 /{item_id} 之前注册，避免被当成记录 id）。"""
+
+    @api.get("/scale-status")
+    def scale_status(_user=Depends(get_current_user)) -> dict:
+        """查询体重秤采集器状态：开关、扫描/连接情况、最近一次测量与写入。"""
+        return scale_collector.status()
+
+
 router = crud_router(
     prefix="/health/body",
     tag="health-body",
@@ -102,4 +113,5 @@ router = crud_router(
     order_by=HealthBody.record_date,
     date_column="record_date",
     stats_func=_body_stats,
+    extra_routes=_register_extra_routes,
 )
