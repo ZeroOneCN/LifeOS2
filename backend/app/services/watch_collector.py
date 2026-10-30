@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -24,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.models import HealthVitalsSleep, UserProfile
+from app.models import ActivityLog, HealthVitalsSleep, UserProfile
 
 try:  # 无蓝牙依赖（未安装 bleak / 系统缺少 WinRT、BlueZ）时安全降级
     from bleak import BleakScanner
@@ -404,6 +405,7 @@ class WatchHeartRateCollector:
                         user_id=user_id, record_date=day.record_date
                     )
                     db.add(row)
+                created = row.id is None
                 # heart_rate 与心率趋势口径一致：记录当日有效样本均值
                 if day.hr_avg is not None:
                     row.heart_rate = int(round(day.hr_avg))
@@ -413,6 +415,38 @@ class WatchHeartRateCollector:
                 row.hr_samples = day.samples
                 row.hr_source = day.source
                 row.hr_measured_at = day.measured_at
+                db.flush()  # 保证新增行拿到 id，供活动日志引用
+                db.add(
+                    ActivityLog(
+                        user_id=user_id,
+                        action="create" if created else "update",
+                        module="health/vitals-sleep",
+                        resource_type="vitals",
+                        resource_id=row.id,
+                        summary=(
+                            f"手环采集心率 {day.hr_avg} bpm"
+                            f"（今日 {day.samples} 个样本，{day.hr_min}~{day.hr_max}）"
+                        ),
+                        detail=json.dumps(
+                            {
+                                "record_date": day.record_date.isoformat(),
+                                "hr_avg": day.hr_avg,
+                                "hr_min": day.hr_min,
+                                "hr_max": day.hr_max,
+                                "samples": day.samples,
+                                "source": day.source,
+                                "measured_at": (
+                                    day.measured_at.strftime("%Y-%m-%d %H:%M:%S")
+                                    if day.measured_at
+                                    else None
+                                ),
+                                "device": "ble-watch",
+                            },
+                            ensure_ascii=False,
+                        )[:2000],
+                        user_agent="ble-watch",
+                    )
+                )
                 written.append((day.record_date, _signature(day)))
             db.commit()
             return written
