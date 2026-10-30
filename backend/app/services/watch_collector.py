@@ -405,7 +405,6 @@ class WatchHeartRateCollector:
                         user_id=user_id, record_date=day.record_date
                     )
                     db.add(row)
-                created = row.id is None
                 # heart_rate 与心率趋势口径一致：记录当日有效样本均值
                 if day.hr_avg is not None:
                     row.heart_rate = int(round(day.hr_avg))
@@ -415,38 +414,56 @@ class WatchHeartRateCollector:
                 row.hr_samples = day.samples
                 row.hr_source = day.source
                 row.hr_measured_at = day.measured_at
-                db.flush()  # 保证新增行拿到 id，供活动日志引用
-                db.add(
-                    ActivityLog(
-                        user_id=user_id,
-                        action="create" if created else "update",
-                        module="health/vitals-sleep",
-                        resource_type="vitals",
-                        resource_id=row.id,
-                        summary=(
-                            f"手环采集心率 {day.hr_avg} bpm"
-                            f"（今日 {day.samples} 个样本，{day.hr_min}~{day.hr_max}）"
-                        ),
-                        detail=json.dumps(
-                            {
-                                "record_date": day.record_date.isoformat(),
-                                "hr_avg": day.hr_avg,
-                                "hr_min": day.hr_min,
-                                "hr_max": day.hr_max,
-                                "samples": day.samples,
-                                "source": day.source,
-                                "measured_at": (
-                                    day.measured_at.strftime("%Y-%m-%d %H:%M:%S")
-                                    if day.measured_at
-                                    else None
-                                ),
-                                "device": "ble-watch",
-                            },
-                            ensure_ascii=False,
-                        )[:2000],
-                        user_agent="ble-watch",
-                    )
+                db.flush()  # 保证新增行拿到 id，活动日志按当天行 id 归属
+                # 每天只保留 1 条采集日志：后续落库用最新数据覆盖内容，避免活动日志爆炸
+                summary = (
+                    f"手环采集心率 {day.hr_avg} bpm"
+                    f"（今日 {day.samples} 个样本，{day.hr_min}~{day.hr_max}）"
                 )
+                detail = json.dumps(
+                    {
+                        "record_date": day.record_date.isoformat(),
+                        "hr_avg": day.hr_avg,
+                        "hr_min": day.hr_min,
+                        "hr_max": day.hr_max,
+                        "samples": day.samples,
+                        "source": day.source,
+                        "measured_at": (
+                            day.measured_at.strftime("%Y-%m-%d %H:%M:%S")
+                            if day.measured_at
+                            else None
+                        ),
+                        "device": "ble-watch",
+                    },
+                    ensure_ascii=False,
+                )[:2000]
+                log = db.scalar(
+                    select(ActivityLog)
+                    .where(
+                        ActivityLog.user_id == user_id,
+                        ActivityLog.module == "health/vitals-sleep",
+                        ActivityLog.resource_id == row.id,
+                    )
+                    .order_by(ActivityLog.id)
+                    .limit(1)
+                )
+                if log is None:
+                    db.add(
+                        ActivityLog(
+                            user_id=user_id,
+                            action="create",
+                            module="health/vitals-sleep",
+                            resource_type="vitals",
+                            resource_id=row.id,
+                            summary=summary,
+                            detail=detail,
+                            user_agent="ble-watch",
+                        )
+                    )
+                else:
+                    log.action = "update"
+                    log.summary = summary
+                    log.detail = detail
                 written.append((day.record_date, _signature(day)))
             db.commit()
             return written
