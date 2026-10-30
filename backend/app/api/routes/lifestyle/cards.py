@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
@@ -13,6 +13,7 @@ from app.models import (
     LifestyleCardBill,
     LifestyleCarrier,
     LifestylePhoneCard,
+    LifestylePhoneLedger,
     LifestylePhoneRecharge,
     UserProfile,
 )
@@ -23,9 +24,20 @@ from app.schemas.lifestyle import (
     CardBillRead,
     CarrierCreate,
     CarrierRead,
+    PhoneAdjustCreate,
     PhoneCardCreate,
     PhoneCardRead,
+    PhoneLedgerRead,
     PhoneRechargeCreate,
+)
+from app.services.phone_billing import (
+    compute_balances,
+    daily_rate,
+    get_balance,
+    month_charged,
+    month_start,
+    settle_card,
+    settle_user,
 )
 
 router = APIRouter()
@@ -36,16 +48,17 @@ router = APIRouter()
 # --------------------------------------------------------------------------
 def _phone_stats(db: Session, days: int, user_id: int) -> dict:
     today = date.today()
-    month_start = today.replace(day=1)
+    month_start_date = today.replace(day=1)
     rows = db.scalars(
         select(LifestylePhoneCard).where(LifestylePhoneCard.user_id == user_id)
     ).all()
     bills = db.scalars(
         select(LifestyleCardBill).where(
-            LifestyleCardBill.bill_month >= month_start,
+            LifestyleCardBill.bill_month >= month_start_date,
             LifestyleCardBill.user_id == user_id,
         )
     ).all()
+    balances = compute_balances(db, user_id)
 
     by_operator: dict[str, int] = defaultdict(int)
     by_status: dict[str, int] = defaultdict(int)
@@ -59,7 +72,7 @@ def _phone_stats(db: Session, days: int, user_id: int) -> dict:
         "total": len(rows),
         "active": sum(1 for r in rows if r.status == "active"),
         "monthly_fee_total": round(sum(r.monthly_fee or 0 for r in rows), 2),
-        "balance_total": round(sum(r.balance or 0 for r in rows), 2),
+        "balance_total": round(sum(balances.values()), 2),
         "month_deduct": round(sum(b.amount for b in bills), 2),
         "month_deduct_count": len(bills),
         "unpaid_this_month": sum(1 for r in rows if r.id not in {b.phone_card_id for b in bills}),
@@ -79,26 +92,41 @@ def _phone_stats(db: Session, days: int, user_id: int) -> dict:
 
 
 def _phone_list_transform(items: list, db: Session, user_id: int) -> list:
-    """以当月实际账单派生 bill_paid_this_month，避免跨月后仍停留在上月「已扣账」状态。
+    """为列表补充派生字段：余额、本月已扣/应扣、单日摊销额、本月扣账状态。
 
-    该字段是业务状态，存储值在跨月时不会自动复位；统一改为读取当月是否有扣账账单记录，
-    新的一月开始（尚无当月账单）时自然回到「未扣账」，扣账按钮重新可用。
+    余额统一由流水求和（opening_balance + Σ流水），避免手工加减造成漂移；
+    `bill_paid_this_month` 也由当月流水派生，跨月自动回到「未扣账」。
     """
     if not items:
         return items
-    month_start = date.today().replace(day=1)
+    period = month_start(date.today())
     ids = [i.id for i in items]
-    paid_ids = set(
-        db.scalars(
-            select(LifestyleCardBill.phone_card_id).where(
-                LifestyleCardBill.user_id == user_id,
-                LifestyleCardBill.phone_card_id.in_(ids),
-                LifestyleCardBill.bill_month == month_start,
-            )
-        ).all()
-    )
+    balances = compute_balances(db, user_id, ids)
+    charged_rows = db.execute(
+        select(
+            LifestylePhoneLedger.phone_card_id,
+            func.coalesce(func.sum(LifestylePhoneLedger.amount), 0),
+        )
+        .where(
+            LifestylePhoneLedger.user_id == user_id,
+            LifestylePhoneLedger.phone_card_id.in_(ids),
+            LifestylePhoneLedger.entry_type == "charge",
+            LifestylePhoneLedger.period_month == period,
+        )
+        .group_by(LifestylePhoneLedger.phone_card_id)
+    ).all()
+    charged = {cid: round(abs(float(total or 0)), 2) for cid, total in charged_rows}
+
     for item in items:
-        item.bill_paid_this_month = item.id in paid_ids
+        item.balance = balances.get(item.id, 0.0)
+        item.month_charged = charged.get(item.id, 0.0)
+        item.month_expected = (
+            round(item.monthly_fee or 0, 2)
+            if item.billing_type == "monthly" and (item.monthly_fee or 0) > 0
+            else 0.0
+        )
+        item.today_charge = daily_rate(item)
+        item.bill_paid_this_month = item.month_charged > 0
     return items
 
 
@@ -109,9 +137,10 @@ def _phone_extra(api_router: APIRouter):
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
-        """记录一次当月扣账：生成一条扣账账单流水、扣减余额，并标记本月已扣账。
+        """手动补扣本月：按该卡的扣费方式补齐应扣金额（幂等，重复点击不会多扣）。
 
-        幂等保护：当月已存在扣账账单时不重复生成、也不重复扣减余额。
+        - 整月模式：到账单日后补扣整笔月租；
+        - 按天模式：从当月 1 日补齐到今天的摊销差额。
         """
         card = db.scalars(
             select(LifestylePhoneCard).where(
@@ -121,34 +150,20 @@ def _phone_extra(api_router: APIRouter):
         ).first()
         if not card:
             raise HTTPException(status_code=404, detail="手机卡不存在")
-        fee = card.monthly_fee or 0
-        today = date.today()
-        bill_month = today.replace(day=1)
-        exists = db.scalar(
-            select(LifestyleCardBill).where(
-                LifestyleCardBill.user_id == user.id,
-                LifestyleCardBill.phone_card_id == item_id,
-                LifestyleCardBill.bill_month == bill_month,
-            )
-        )
-        if not exists:
-            db.add(
-                LifestyleCardBill(
-                    phone_card_id=item_id,
-                    user_id=user.id,
-                    bill_month=bill_month,
-                    amount=fee,
-                    deducted_date=today,
-                    paid=True,
-                    note=f"{card.phone_number} 月租自动扣账",
-                )
-            )
-            # 实际扣减手机号余额（余额可为负，表示欠费）
-            card.balance = round((card.balance or 0) - fee, 2)
-        card.bill_paid_this_month = True
+        settle_card(db, card, respect_auto=False)
         db.commit()
         db.refresh(card)
         return card
+
+    @api_router.post("/settle")
+    def settle_current_user(
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """进入页面时幂等补齐全部手机卡的本月应扣（错过的天数自动补跑）。"""
+        charged = settle_user(db, user.id, respect_auto=True)
+        db.commit()
+        return {"charges": charged}
 
     @api_router.post("/{item_id}/recharge")
     def recharge(
@@ -157,7 +172,7 @@ def _phone_extra(api_router: APIRouter):
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
-        """充值：增加手机号余额并记录充值流水。"""
+        """充值：写入一条充值流水，余额由流水求和自动更新。"""
         card = db.scalars(
             select(LifestylePhoneCard).where(
                 LifestylePhoneCard.id == item_id,
@@ -168,36 +183,95 @@ def _phone_extra(api_router: APIRouter):
             raise HTTPException(status_code=404, detail="手机卡不存在")
         today = payload.recharge_date or date.today()
         db.add(
-            LifestylePhoneRecharge(
+            LifestylePhoneLedger(
                 phone_card_id=item_id,
                 user_id=user.id,
-                amount=payload.amount,
-                recharge_date=today,
-                note=payload.note,
+                entry_date=today,
+                entry_type="recharge",
+                amount=round(payload.amount, 2),
+                source="manual",
+                dedup_key=None,
+                note=payload.note or "话费充值",
             )
         )
-        card.balance = (card.balance or 0) + payload.amount
+        db.flush()
+        card.balance = get_balance(db, card)
         db.commit()
         db.refresh(card)
         return card
 
-    @api_router.get("/{item_id}/recharges")
+    @api_router.post("/{item_id}/adjust")
+    def adjust_balance(
+        item_id: int,
+        payload: PhoneAdjustCreate,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """余额校准：把账面余额对齐到运营商显示的真实余额（生成一条差额流水）。"""
+        card = db.scalars(
+            select(LifestylePhoneCard).where(
+                LifestylePhoneCard.id == item_id,
+                LifestylePhoneCard.user_id == user.id,
+            )
+        ).first()
+        if not card:
+            raise HTTPException(status_code=404, detail="手机卡不存在")
+        current = get_balance(db, card)
+        diff = round(payload.target_balance - current, 2)
+        if abs(diff) < 0.005:
+            return card
+        db.add(
+            LifestylePhoneLedger(
+                phone_card_id=item_id,
+                user_id=user.id,
+                entry_date=payload.adjust_date or date.today(),
+                entry_type="adjust",
+                amount=diff,
+                source="manual",
+                dedup_key=None,
+                note=payload.note or f"余额校准（{current:.2f} → {payload.target_balance:.2f}）",
+            )
+        )
+        db.flush()
+        card.balance = get_balance(db, card)
+        db.commit()
+        db.refresh(card)
+        return card
+
+    @api_router.get("/{item_id}/recharges", response_model=list[PhoneLedgerRead])
     def get_recharges(
         item_id: int,
         limit: int = 10,
         db: Session = Depends(get_db),
         user: UserProfile = Depends(get_current_user),
     ):
-        """获取指定手机号卡的最近充值记录（用于充值弹窗显示）。"""
-        rows = db.scalars(
-            select(LifestylePhoneRecharge).where(
-                LifestylePhoneRecharge.user_id == user.id,
-                LifestylePhoneRecharge.phone_card_id == item_id,
+        """获取指定手机号卡的最近充值记录（读流水中的充值条目）。"""
+        return db.scalars(
+            select(LifestylePhoneLedger).where(
+                LifestylePhoneLedger.user_id == user.id,
+                LifestylePhoneLedger.phone_card_id == item_id,
+                LifestylePhoneLedger.entry_type == "recharge",
             )
-            .order_by(LifestylePhoneRecharge.recharge_date.desc())
+            .order_by(LifestylePhoneLedger.entry_date.desc(), LifestylePhoneLedger.id.desc())
             .limit(limit)
         ).all()
-        return rows
+
+    @api_router.get("/{item_id}/ledger", response_model=list[PhoneLedgerRead])
+    def get_ledger(
+        item_id: int,
+        limit: int = 50,
+        db: Session = Depends(get_db),
+        user: UserProfile = Depends(get_current_user),
+    ):
+        """获取指定手机号卡的最近资金流水（充值 / 扣费 / 校准）。"""
+        return db.scalars(
+            select(LifestylePhoneLedger).where(
+                LifestylePhoneLedger.user_id == user.id,
+                LifestylePhoneLedger.phone_card_id == item_id,
+            )
+            .order_by(LifestylePhoneLedger.entry_date.desc(), LifestylePhoneLedger.id.desc())
+            .limit(limit)
+        ).all()
 
 
 phone_router = crud_router(

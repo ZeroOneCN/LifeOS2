@@ -36,7 +36,7 @@ class PhoneCardCreate(BaseModel):
     phone_number: str
     operator: str
     region: str | None = None
-    balance: float | None = Field(None, ge=0)
+    balance: float | None = None
     monthly_fee: float | None = Field(None, ge=0)
     bill_day: int | None = Field(None, ge=1, le=31)
     data_plan: str | None = None
@@ -44,13 +44,19 @@ class PhoneCardCreate(BaseModel):
     sms_plan: str | None = None
     open_date: date | None = None
     billing_type: str = Field("monthly", pattern="^(monthly|one_time|yearly)$")
+    charge_mode: str = Field("monthly", pattern="^(monthly|daily)$")
+    auto_charge: bool = True
+    opening_balance: float | None = None
     bill_paid_this_month: bool = False
     status: str = Field("active", pattern="^(active|frozen|expired|disabled)$")
     note: str | None = None
 
 
 class PhoneCardRead(PhoneCardCreate, ORMRead):
-    pass
+    # 以下为列表派生字段，不落库
+    month_charged: float | None = None  # 本月已扣金额
+    month_expected: float | None = None  # 本月应扣金额（月租）
+    today_charge: float | None = None  # 按天模式下一日的摊销额
 
 
 class BankCardCreate(BaseModel):
@@ -104,12 +110,38 @@ class PhoneRechargeCreate(BaseModel):
 
 
 class PhoneRechargeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     phone_card_id: int
     amount: float
     recharge_date: date
     note: str | None = None
-    created_at: str | None = None
+    created_at: datetime | None = None
+
+
+class PhoneAdjustCreate(BaseModel):
+    """余额校准：输入运营商显示的真实余额，系统生成一条调整流水使其对齐。"""
+
+    target_balance: float
+    adjust_date: date | None = None
+    note: str | None = None
+
+
+class PhoneLedgerRead(BaseModel):
+    """手机卡资金流水（充值 / 扣费 / 校准）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    phone_card_id: int
+    entry_date: date
+    entry_type: str
+    amount: float
+    period_month: date | None = None
+    source: str
+    note: str | None = None
+    created_at: datetime | None = None
 
 
 class LifeReportCreate(BaseModel):

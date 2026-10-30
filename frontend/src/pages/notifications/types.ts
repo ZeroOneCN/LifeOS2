@@ -19,6 +19,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   finance_debt_due: '债务到期',
   lifestyle_item_expire: '物品保质期',
   lifestyle_phone_bill: '手机卡月租',
+  lifestyle_phone_low_balance: '话费余额不足',
   lifestyle_bankcard_due: '银行卡还款',
   lifestyle_card_expire: '银行卡有效期',
   health_med_stock: '药品低库存',

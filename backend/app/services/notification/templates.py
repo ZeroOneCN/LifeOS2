@@ -93,6 +93,15 @@ DEFAULT_TEMPLATES: list[tuple[str, str, str, str, str, str]] = [
         "手机卡月租/扣账提醒",
     ),
     (
+        "lifestyle_phone_low_balance",
+        "生活",
+        "话费余额不足",
+        "【话费余额不足】{phone_number}",
+        "手机卡 {phone_number}（{operator}）当前余额 {balance}，本月月租 {monthly_fee}"
+        "（{charge_mode}）已扣 {month_charged}，还需 {remaining}。{state}",
+        "手机卡话费余额不足提醒",
+    ),
+    (
         "lifestyle_bankcard_due",
         "生活",
         "银行卡还款日",

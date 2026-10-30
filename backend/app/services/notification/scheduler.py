@@ -50,6 +50,22 @@ def _job_overdue() -> None:
         db.close()
 
 
+def _job_phone_settle() -> None:
+    """每日结算手机卡话费：整月一次性扣账 / 按天摊销，漏跑的天数自动补齐。"""
+    db = SessionLocal()
+    try:
+        from app.services.phone_billing import settle_all
+
+        summary = settle_all(db)
+        db.commit()
+        logger.info("手机卡话费结算完成：%s", summary)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.exception("手机卡话费结算失败：%s", exc)
+    finally:
+        db.close()
+
+
 def _cleanup_expired_sessions() -> None:
     """每日清理过期的用户会话记录，防止 user_sessions 表无限膨胀。"""
     from datetime import datetime, timezone
@@ -102,6 +118,17 @@ def start_scheduler() -> None:
         "cron",
         minute=0,
         id="notify_overdue_hourly",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    # 每日凌晨 0:30 结算手机卡话费（先于 08:30 的提醒扫描，保证余额口径最新）
+    _scheduler.add_job(
+        _job_phone_settle,
+        "cron",
+        hour=0,
+        minute=30,
+        id="phone_billing_settle",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

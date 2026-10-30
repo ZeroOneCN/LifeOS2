@@ -69,6 +69,15 @@ class LifestylePhoneCard(TimestampMixin, UserOwned, Base):
     billing_type: Mapped[str] = mapped_column(
         String(16), default="monthly"
     )  # monthly/one_time/yearly 按月/一次性/按年保号
+    charge_mode: Mapped[str] = mapped_column(
+        String(16), default="monthly"
+    )  # monthly/daily 扣费方式：整月一次性 / 按天摊完月租
+    auto_charge: Mapped[bool] = mapped_column(
+        Boolean, default=True
+    )  # 是否参与每日自动扣费（关闭后仅手动补扣）
+    opening_balance: Mapped[float] = mapped_column(
+        Float, default=0
+    )  # 流水求和基准：余额 = opening_balance + Σ流水
     bill_paid_this_month: Mapped[bool] = mapped_column(Boolean, default=False)  # 本月是否已扣账
     status: Mapped[str] = mapped_column(
         String(16), default="active"
@@ -138,6 +147,32 @@ class LifestylePhoneRecharge(TimestampMixin, UserOwned, Base):
     phone_card_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联手机卡
     amount: Mapped[float] = mapped_column(Float)  # 充值金额
     recharge_date: Mapped[date] = mapped_column(Date)  # 充值日期
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class LifestylePhoneLedger(TimestampMixin, UserOwned, Base):
+    """手机号卡资金流水：充值 / 扣费 / 校准，余额由流水求和派生。
+
+    amount 为有符号金额：充值、余额上调为正，扣费、余额下调为负。
+    dedup_key 用于自动扣费幂等（同一张卡同一天/同一账期只记一次）。
+    """
+
+    __tablename__ = "lifestyle_phone_ledgers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phone_card_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联手机卡
+    entry_date: Mapped[date] = mapped_column(Date, index=True)  # 发生日期
+    entry_type: Mapped[str] = mapped_column(
+        String(16), index=True
+    )  # recharge/charge/adjust 充值/扣费/校准
+    amount: Mapped[float] = mapped_column(Float)  # 有符号金额（元）
+    period_month: Mapped[date | None] = mapped_column(Date, index=True)  # 所属账期（每月 1 日）
+    source: Mapped[str] = mapped_column(
+        String(16), default="manual"
+    )  # auto/manual/migration 自动/手动/历史迁移
+    dedup_key: Mapped[str | None] = mapped_column(
+        String(96), unique=True, index=True
+    )  # 幂等键，自动扣费必填
     note: Mapped[str | None] = mapped_column(Text)
 
 

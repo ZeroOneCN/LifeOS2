@@ -54,6 +54,7 @@ from app.models.lifestyle import (
     LifestyleItem,
     LifestyleLifeReport,
     LifestylePhoneCard,
+    LifestylePhoneLedger,
     LifestylePhoneRecharge,
 )
 from app.models.notification import Notification
@@ -116,7 +117,7 @@ __all__ = [
     "LifestyleCarrier",
     "LifestyleCardBill",
     "LifestyleLifeReport",
-    "LifestylePhoneRecharge",
+    "LifestylePhoneLedger",
     "InvestmentForex",
     "InvestmentFundRecord",
     "InvestmentReport",

@@ -20,6 +20,7 @@ from app.models.finance import (
     FinanceUtility,
 )
 from app.services.med_stock import compute_med_stock_list
+from app.services.phone_billing import compute_balances, daily_rate, month_charged, month_start
 from app.models.lifestyle import (
     LifestyleBankCard,
     LifestyleCardBill,
@@ -463,6 +464,66 @@ def _scan_phone_bill(db: Session, advance: int, user_id: int) -> list[dict]:
     return out
 
 
+def _scan_phone_balance(db: Session, _advance: int, user_id: int) -> list[dict]:
+    """话费余额不足提醒：余额无法覆盖本月剩余应扣，或余额已为负时，每天提醒一次。
+
+    金额口径与扣费逻辑一致：本月还需扣 = 月租 − 本月已扣（按天模式取已摊销部分）。
+    充值或余额校准后余额恢复即自动停止提醒（不再产生新通知）。
+    """
+    today = date.today()
+    period = month_start(today)
+    rows = db.scalars(
+        select(LifestylePhoneCard).where(
+            LifestylePhoneCard.status == "active",
+            LifestylePhoneCard.user_id == user_id,
+            LifestylePhoneCard.billing_type == "monthly",
+            LifestylePhoneCard.monthly_fee > 0,
+        )
+    ).all()
+    if not rows:
+        return []
+    balances = compute_balances(db, user_id, [r.id for r in rows])
+    out = []
+    for r in rows:
+        balance = balances.get(r.id, 0.0)
+        fee = round(r.monthly_fee or 0, 2)
+        charged = month_charged(db, r, period)
+        remaining = round(max(fee - charged, 0.0), 2)
+        # 余额够扣完本月剩余月租且不为负时，无需提醒
+        if balance >= remaining and balance >= 0:
+            continue
+        rate = daily_rate(r)  # 按天模式下的单日摊销额，用于估算可支撑天数
+        cover_days = int(balance // rate) if rate > 0 else None
+        if balance < 0:
+            state = (
+                f"余额已为负数，欠费 {_money(abs(balance))}，"
+                "请尽快充值，否则可能被停机并影响号码保留"
+            )
+        elif cover_days is not None:
+            state = f"按当前余额与单日摊销 {_money(rate)} 估算，仅可支撑约 {max(cover_days, 0)} 天"
+        else:
+            state = "本月剩余月租无法扣清，请提前充值"
+        out.append(
+            {
+                "source_id": r.id,
+                # 按天去重：同一张卡每天各提醒一次，充值后余额恢复即停止
+                "dedup_key": f"{r.id}:{today.isoformat()}",
+                "title_ctx": {"phone_number": r.phone_number},
+                "content_ctx": {
+                    "phone_number": r.phone_number,
+                    "operator": r.operator or "",
+                    "balance": _money(balance),
+                    "monthly_fee": _money(fee),
+                    "month_charged": _money(charged),
+                    "remaining": _money(remaining),
+                    "charge_mode": "按天摊销" if r.charge_mode == "daily" else "整月扣账",
+                    "state": state,
+                },
+            }
+        )
+    return out
+
+
 def _scan_bankcard_due(db: Session, advance: int, user_id: int) -> list[dict]:
     today = date.today()
     rows = db.scalars(
@@ -664,6 +725,7 @@ SCANNERS: dict[str, Callable[[Session, int, int], list[dict]]] = {
     "finance_debt_due": _scan_debt,
     "lifestyle_item_expire": _scan_item_expire,
     "lifestyle_phone_bill": _scan_phone_bill,
+    "lifestyle_phone_low_balance": _scan_phone_balance,
     "lifestyle_bankcard_due": _scan_bankcard_due,
     "lifestyle_card_expire": _scan_card_expire,
     "health_med_stock": _scan_med_stock,
