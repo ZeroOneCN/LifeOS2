@@ -91,7 +91,9 @@ export function FitnessDashboardPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">当前体重</div>
-              <div className="mt-1 text-2xl font-semibold">{latest.weight_kg ?? '-'} kg</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {typeof latest.weight_kg === 'number' ? latest.weight_kg.toFixed(2) : '-'} kg
+              </div>
               <div className="text-xs text-muted-foreground">身高 {latest.height_cm ?? '-'} cm</div>
             </CardContent>
           </Card>

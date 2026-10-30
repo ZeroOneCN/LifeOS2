@@ -1,5 +1,5 @@
 /**
- * Web Bluetooth React Hook：体重秤 + 手环心率的统一管理。
+ * Web Bluetooth React Hook：体重秤连接与数据采集。
  *
  * 关键设计（经验教训）：
  *  1. requestDevice() 必须严格在按钮点击等用户手势中触发，自动重连只能用 getDevices()
@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFB0_SERVICE, FFB1_WRITE, FFB2_NOTIFY, parseFrame, buildUserInfoPacket, isValidGrams, type ScaleMeasurement } from '@/lib/bluetooth/scale-protocol'
 import { calculateBodyComposition } from '@/lib/bluetooth/body-composition'
-import { decodeHeartRate, classifyBluetoothError, detectBluetoothCapability, HR_SERVICE_UUID, type BluetoothCapability } from '@/lib/bluetooth/hr-protocol'
+import { classifyBluetoothError, detectBluetoothCapability, type BluetoothCapability } from '@/lib/bluetooth/capability'
 import { api } from '@/lib/api'
 
 /** 体重秤用户资料 */
@@ -42,6 +42,8 @@ export interface UseScaleBluetooth {
   measurement: CompleteMeasurement | null
   /** 最近一次错误信息 */
   error: string | null
+  /** 等待数据时的温和提示（非错误，例如尚未上秤） */
+  hint: string | null
   /** 最近一次同步到后端的结果 */
   lastSynced: { weightKg: number; at: Date } | null
   /** 连接体重秤（必须在用户点击中调用） */
@@ -64,6 +66,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
   const [connecting, setConnecting] = useState(false)
   const [measurement, setMeasurement] = useState<CompleteMeasurement | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hint, setHint] = useState<string | null>(null)
   const [lastSynced, setLastSynced] = useState<{ weightKg: number; at: Date } | null>(null)
 
   const deviceRef = useRef<BluetoothDevice | null>(null)
@@ -91,6 +94,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
       window.clearTimeout(waitTimerRef.current)
       waitTimerRef.current = null
     }
+    setHint(null)
     notifyRef.current = null
     serverRef.current = null
     deviceRef.current = null
@@ -152,6 +156,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
           measuredAt: new Date(),
         })
         receivedRef.current = true
+        setHint(null)
         setError(null)
       }, 3000) // 等待阻抗包
     },
@@ -167,6 +172,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
       }
       profileRef.current = profile
       receivedRef.current = false
+      setHint(null)
       setError(null)
       setConnecting(true)
 
@@ -215,16 +221,17 @@ export function useScaleBluetooth(): UseScaleBluetooth {
         }, 15000)
 
         // 连接成功后立即返回，数据由通知异步推送。
-        // 25 秒内没有任何数据时给出可操作提示，但不主动断开连接（用户可能还没上秤）。
+        // 30 秒内没有任何数据时给出提示（不断开连接）：多数秤在连接后会先休眠，上秤唤醒才开始推数。
         waitTimerRef.current = window.setTimeout(() => {
           waitTimerRef.current = null
           if (!receivedRef.current && serverRef.current?.connected) {
-            setError(
-              '已连接但 25 秒内未收到称重数据：请站上秤并保持 3~5 秒。' +
-                '若后端采集器（ENABLE_SCALE_COLLECTOR=true）正在运行，会独占体重秤的通知通道，请先关闭后端采集再重试。',
+            setHint(
+              '还没有收到称重数据。请站上秤并保持双脚覆盖电极 5~8 秒；' +
+                '若刚连上时秤处于休眠，上秤唤醒后才会开始推送。' +
+                '若反复如此，请确认后端采集器（ENABLE_SCALE_COLLECTOR）已改为 false 且后端已重启。',
             )
           }
-        }, 25000)
+        }, 30000)
       } catch (err) {
         const { code, message } = classifyBluetoothError(err)
         setError(message)
@@ -286,148 +293,10 @@ export function useScaleBluetooth(): UseScaleBluetooth {
     connecting,
     measurement,
     error,
+    hint,
     lastSynced,
     connect,
     disconnect,
     syncToBackend,
   }
-}
-
-/* ────────────────────────────────────────────────────────
- * 手环心率广播监听 Hook
- * ──────────────────────────────────────────────────────── */
-
-/** 心率监听状态 */
-export interface UseHrListener {
-  capability: BluetoothCapability
-  supported: boolean
-  listening: boolean
-  connecting: boolean
-  /** 今天已采集的样本数 */
-  sampleCount: number
-  /** 最新一条心率 */
-  lastHr: { bpm: number; at: Date; source: string } | null
-  /** 最近一次批量同步的样本数 */
-  lastSyncedCount: number
-  error: string | null
-  /** 开始监听（必须在用户点击中触发） */
-  start: () => Promise<void>
-  stop: () => void
-}
-
-export function useHrListener(): UseHrListener {
-  const capability = detectBluetoothCapability()
-  const supported = capability.available
-  const [listening, setListening] = useState(false)
-  const [connecting, setConnecting] = useState(false)
-  const [sampleCount, setSampleCount] = useState(0)
-  const [lastHr, setLastHr] = useState<{ bpm: number; at: Date; source: string } | null>(null)
-  const [lastSyncedCount, setLastSyncedCount] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-
-  const samplesRef = useRef<number[]>([])
-  const lastSampleAtRef = useRef<number>(0)
-  const freezeValueRef = useRef<{ bpm: number; since: number } | null>(null)
-  const syncTimerRef = useRef<number | null>(null)
-  const abortRef = useRef(false)
-
-  const SAMPLE_INTERVAL_MS = 60_000 // 1 分钟采样间隔，避免广播高频污染
-  const FREEZE_MS = 15 * 60_000 // 15 分钟不变视为冻结
-  const BATCH_SYNC_MS = 30_000 // 每 30 秒批量同步一次
-
-  const flushToBackend = useCallback(async () => {
-    if (samplesRef.current.length === 0) return
-    const batch = samplesRef.current
-    samplesRef.current = []
-    try {
-      await api.create('/health/vitals-sleep/blesync', {
-        samples: batch,
-        source: 'xiaomi',
-      })
-      setLastSyncedCount((prev) => prev + batch.length)
-    } catch {
-      // 静默失败，下次再试
-      samplesRef.current.unshift(...batch)
-    }
-  }, [])
-
-  const start = useCallback(async () => {
-    if (!supported) {
-      setError('当前浏览器不支持 Web Bluetooth，请使用 Chrome 或 Edge')
-      return
-    }
-    setError(null)
-    setConnecting(true)
-
-    try {
-      // 桌面端通过 requestDevice + watchAdvertisements 监听广播。
-      // 不能用 services/namePrefix 过滤：小米手环的广播包几乎不含标准服务 UUID，
-      // 且设备名常为空，过滤会导致选择框里根本看不到手环。
-      // 因此放开为 acceptAllDevices，由用户在列表中选择自己的设备。
-      const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [HR_SERVICE_UUID],
-      })
-
-      // watchAdvertisements 是接收广播的前提，不可用则无法采集心率
-      if (typeof device.watchAdvertisements !== 'function') {
-        setError('当前浏览器不支持广播监听（watchAdvertisements），无法采集手环心率')
-        setConnecting(false)
-        return
-      }
-
-      await device.watchAdvertisements()
-      device.addEventListener('advertisementreceived', (ev) => {
-        const { bpm, source } = decodeHeartRate(ev)
-        if (bpm === null) return
-
-        const now = Date.now()
-        // 节流
-        if (now - lastSampleAtRef.current < SAMPLE_INTERVAL_MS) return
-        // 冻结检测
-        if (freezeValueRef.current) {
-          if (freezeValueRef.current.bpm === bpm && now - freezeValueRef.current.since > FREEZE_MS) return
-          if (freezeValueRef.current.bpm !== bpm) freezeValueRef.current = { bpm, since: now }
-        } else {
-          freezeValueRef.current = { bpm, since: now }
-        }
-
-        lastSampleAtRef.current = now
-        samplesRef.current.push(bpm)
-        setSampleCount((c) => c + 1)
-        setLastHr({ bpm, at: new Date(), source: source || 'xiaomi' })
-      })
-
-      abortRef.current = false
-      setListening(true)
-
-      // 定时批量同步
-      syncTimerRef.current = window.setInterval(() => {
-        if (!abortRef.current) flushToBackend()
-      }, BATCH_SYNC_MS)
-    } catch (err) {
-      const { message } = classifyBluetoothError(err)
-      setError(message)
-    } finally {
-      setConnecting(false)
-    }
-  }, [supported, flushToBackend])
-
-  const stop = useCallback(() => {
-    abortRef.current = true
-    if (syncTimerRef.current !== null) {
-      window.clearInterval(syncTimerRef.current)
-      syncTimerRef.current = null
-    }
-    flushToBackend() // 停止前把剩余样本同步上去
-    setListening(false)
-  }, [flushToBackend])
-
-  useEffect(() => {
-    return () => {
-      stop()
-    }
-  }, [stop])
-
-  return { capability, supported, listening, connecting, sampleCount, lastHr, lastSyncedCount, error, start, stop }
 }

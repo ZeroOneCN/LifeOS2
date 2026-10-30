@@ -1,67 +1,7 @@
 /**
- * Web Bluetooth 工具集合：心率广播解析 + 通用连接 Hook。
- *
- * 小米手环通过厂商广播包（Company ID 0x0157）传递心率，
- * 也兼容标准心率服务（0x180D）的 service data。
+ * Web Bluetooth 通用能力探测与错误分类。
+ * 体重秤等设备共用；仅依赖浏览器 API，不涉及任何厂商协议。
  */
-
-/** 标准心率服务 UUID */
-export const HR_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb'
-export const HR_MEASUREMENT_CHAR = '00002a37-0000-1000-8000-00805f9b34fb'
-
-/** 小米厂商 Company ID */
-const XIAOMI_COMPANY_ID = 0x0157
-
-/** 心率有效区间（bpm） */
-export const HR_MIN_VALID = 20
-export const HR_MAX_VALID = 250
-
-/** 广播数据中解析心率所需的最小字段集合（BluetoothAdvertisingEvent 可直接传入） */
-export interface AdvertPayload {
-  manufacturerData?: BluetoothManufacturerData
-  serviceData?: BluetoothServiceData
-}
-
-/** 解析 BLE 广播中的心率 */
-export function decodeHeartRate(
-  adv: AdvertPayload,
-  offset = 3,
-): { bpm: number | null; source: string | null } {
-  // 优先读取小米厂商数据
-  const manufacturer = adv.manufacturerData
-  if (manufacturer) {
-    const xiaomiData = manufacturer.get(XIAOMI_COMPANY_ID)
-    if (xiaomiData && xiaomiData.byteLength > offset) {
-      const bpm = xiaomiData.getUint8(offset)
-      if (bpm >= HR_MIN_VALID && bpm <= HR_MAX_VALID) {
-        return { bpm, source: 'xiaomi' }
-      }
-      return { bpm: null, source: 'xiaomi' }
-    }
-  }
-
-  // 其次兼容标准心率服务
-  const serviceData = adv.serviceData
-  if (serviceData) {
-    for (const [uuid, raw] of serviceData.entries()) {
-      if (String(uuid).toLowerCase() !== HR_SERVICE_UUID || !raw) continue
-      const flags = raw.getUint8(0)
-      let bpm: number
-      if (flags & 0x01 && raw.byteLength >= 3) {
-        bpm = raw.getUint16(1, true) // 小端 16 位
-      } else if (raw.byteLength >= 2) {
-        bpm = raw.getUint8(1)
-      } else {
-        continue
-      }
-      if (bpm >= HR_MIN_VALID && bpm <= HR_MAX_VALID) {
-        return { bpm, source: 'standard' }
-      }
-    }
-  }
-
-  return { bpm: null, source: null }
-}
 
 /** Web Bluetooth 错误名称分层输出 */
 export function classifyBluetoothError(err: unknown): { code: string; message: string } {

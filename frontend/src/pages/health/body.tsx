@@ -205,6 +205,8 @@ export function BodyPage() {
   }
 
   const n = (v: unknown) => (typeof v === 'number' ? v.toFixed(1) : '-')
+  /** 体重保留 2 位小数 */
+  const n2 = (v: unknown) => (typeof v === 'number' ? v.toFixed(2) : '-')
 
   return (
     <div className="flex flex-col gap-4">
@@ -228,7 +230,7 @@ export function BodyPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">当前体重</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.latest?.weight_kg ?? '-'} kg</div>
+              <div className="mt-1 text-2xl font-semibold">{n2(stats?.latest?.weight_kg)} kg</div>
             </CardContent>
           </Card>
           <Card>
@@ -249,8 +251,8 @@ export function BodyPage() {
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">平均体重</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats?.avg_weight ?? '-'} kg
-                <span className="ml-2 text-sm text-muted-foreground">({stats?.min_weight ?? '-'} ~ {stats?.max_weight ?? '-'})</span>
+                {n2(stats?.avg_weight)} kg
+                <span className="ml-2 text-sm text-muted-foreground">({n2(stats?.min_weight)} ~ {n2(stats?.max_weight)})</span>
               </div>
             </CardContent>
           </Card>
@@ -310,7 +312,7 @@ export function BodyPage() {
                     <TableCell>{String(row.record_date)}</TableCell>
                     <TableCell>{row.gender === 'female' ? '女' : '男'}</TableCell>
                     <TableCell>{n(row.height_cm)} cm</TableCell>
-                    <TableCell>{n(row.weight_kg)} kg</TableCell>
+                    <TableCell>{n2(row.weight_kg)} kg</TableCell>
                     <TableCell>{n(row.bmi)}</TableCell>
                     <TableCell>{n(row.body_fat_percent)} %</TableCell>
                     <TableCell>{n(row.muscle_percent)} %</TableCell>
@@ -365,7 +367,7 @@ export function BodyPage() {
             </div>
             <div className="space-y-2">
               <Label>体重(kg)</Label>
-              <Input type="number" step="0.1" value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)} placeholder="65" />
+              <Input type="number" step="0.01" value={form.weight_kg} onChange={(e) => set('weight_kg', e.target.value)} placeholder="65" />
             </div>
             <div className="space-y-2 col-span-2 flex items-end">
               <div className="text-sm text-muted-foreground">BMI：<span className="font-semibold text-foreground">{bmiValue}</span>（自动计算）</div>

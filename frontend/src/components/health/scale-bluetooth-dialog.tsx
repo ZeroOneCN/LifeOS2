@@ -43,6 +43,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
     connecting,
     measurement,
     error,
+    hint,
     lastSynced,
     connect,
     disconnect,
@@ -177,6 +178,12 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
             </div>
           )}
 
+          {hint && (
+            <div className="rounded-lg border border-amber-300/50 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              {hint}
+            </div>
+          )}
+
           {measurement && (
             <div className="rounded-lg border bg-card/80 p-3">
               <div className="flex items-center justify-between">
@@ -187,7 +194,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
               </div>
               <div className="mt-2 text-center">
                 <div className="text-4xl font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
-                  {measurement.weightKg.toFixed(1)}
+                  {measurement.weightKg.toFixed(2)}
                   <span className="ml-1 text-base font-normal text-muted-foreground">kg</span>
                 </div>
                 {measurement.bodyComposition && (
@@ -217,7 +224,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
           {lastSynced && (
             <div className="flex items-center gap-1 text-xs text-emerald-500">
               <CheckCircle className="size-3" />
-              已同步 {lastSynced.weightKg.toFixed(1)} kg（{lastSynced.at.toLocaleTimeString()}）
+              已同步 {lastSynced.weightKg.toFixed(2)} kg（{lastSynced.at.toLocaleTimeString()}）
             </div>
           )}
         </div>
