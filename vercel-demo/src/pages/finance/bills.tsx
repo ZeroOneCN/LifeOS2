@@ -25,7 +25,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import {
@@ -80,9 +80,11 @@ type TabKey = 'housing' | 'subscription' | 'loan'
 function StatCard({ icon: Icon, label, value, hint, className }: { icon: typeof Wallet; label: string; value: string; hint?: string; className?: string }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
+        <CardHeaderActions>
+          <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
@@ -532,13 +534,13 @@ function HousingTab() {
           })()}
           {sortedHouses.length > 0 && (
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">住房清单</CardTitle>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">住房清单</CardTitle>
+                <CardHeaderActions className="text-xs text-muted-foreground">
                   <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
                   <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
                   <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button>
-                </div>
+                </CardHeaderActions>
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {pagedHouses.map((h) => {
@@ -601,9 +603,11 @@ function HousingTab() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">水电气账单</CardTitle>
-          <Button size="sm" onClick={openUCreate}><Plus /> 新增账单</Button>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">水电气账单</CardTitle>
+          <CardHeaderActions>
+            <Button size="sm" onClick={openUCreate}><Plus /> 新增账单</Button>
+          </CardHeaderActions>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -1261,12 +1265,12 @@ function SubscriptionTab() {
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">服务订阅</CardTitle>
-          <div className="flex items-center gap-2">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">服务订阅</CardTitle>
+          <CardHeaderActions>
             <Button size="sm" variant="outline" onClick={() => { setNewCategory(''); setCatDialog(true) }}><Layers className="size-4" /> 分类设置</Button>
             <Button onClick={openCreate}><Plus /> 新增订阅</Button>
-          </div>
+          </CardHeaderActions>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -1877,9 +1881,11 @@ function LoanTab() {
 
       {/* 借款平台 */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">借款平台</CardTitle>
-          <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">借款平台</CardTitle>
+          <CardHeaderActions>
+            <Button size="sm" variant="outline" onClick={() => { setNewPf({}); setPfAddDialog(true); }}><Plus /> 新增平台</Button>
+          </CardHeaderActions>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {platformStats?.platforms.map((p) => (
@@ -1944,15 +1950,15 @@ function LoanTab() {
 
       {/* 网贷账单 */}
       <Card>
-        <CardHeader className="flex flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
-          <CardTitle className="text-lg font-medium">网贷账单</CardTitle>
-          <div className="flex items-center gap-1">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-lg font-medium min-w-0 max-w-[55%] truncate">网贷账单</CardTitle>
+          <CardHeaderActions>
             <Tip label="上一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, -1))}><ChevronLeft /></Button></Tip>
             <MonthPicker value={`${loanMonth}-01`} onChange={(v) => setLoanMonth(v.slice(0, 7))} className="h-8 w-[140px]" />
             <Tip label="下一月"><Button variant="ghost" size="icon" onClick={() => setLoanMonth(shiftMonth(loanMonth, 1))}><ChevronRight /></Button></Tip>
             <Button size="sm" variant="outline" onClick={() => { const n = new Date(); setLoanMonth(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`) }}>当月</Button>
             <Button onClick={openBillCreate} className="ml-1"><Plus /> 新增账单</Button>
-          </div>
+          </CardHeaderActions>
         </CardHeader>
         <CardContent className="p-0">
           <Table>

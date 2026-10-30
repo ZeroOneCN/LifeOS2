@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   CardHeader,
+  CardHeaderActions,
   CardTitle,
 } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -86,11 +87,13 @@ function StatCard({
 }) {
   const body = (
     <Card className="h-full transition-colors hover:border-foreground/20 hover:bg-muted/40">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">
           {label}
         </CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
+        <CardHeaderActions>
+          <Icon className="size-4 text-muted-foreground" />
+        </CardHeaderActions>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>

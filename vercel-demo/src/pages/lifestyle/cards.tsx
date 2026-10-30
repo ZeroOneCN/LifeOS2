@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Smartphone, Loader2 } from 'lucide-react'
+import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Settings2, Smartphone, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -40,7 +40,13 @@ type PhoneCard = {
   sms_plan?: string
   open_date?: string
   billing_type: 'monthly' | 'one_time' | 'yearly'
+  charge_mode: 'monthly' | 'daily'
+  auto_charge: boolean
+  opening_balance?: number
   bill_paid_this_month: boolean
+  month_charged?: number
+  month_expected?: number
+  today_charge?: number
   status: 'active' | 'frozen' | 'expired' | 'disabled'
   note?: string
 }
@@ -131,6 +137,10 @@ const billingTypes = [
   { value: 'one_time', label: '一次性' },
   { value: 'yearly', label: '按年保号' },
 ]
+const chargeModes = [
+  { value: 'monthly', label: '整月一次性' },
+  { value: 'daily', label: '按天摊销（扣满月租为止）' },
+]
 const phoneStatus = [
   { value: 'active', label: '正常' },
   { value: 'frozen', label: '冻结' },
@@ -190,9 +200,33 @@ const phoneFields: FieldDef[] = [
     options: operators.map((o) => ({ value: o, label: o })),
   },
   { key: 'region', label: '归属地', type: 'text', placeholder: '如 广东-深圳' },
-  { key: 'balance', label: '余额', type: 'number', step: '0.01', min: 0 },
+  // 余额由「初始余额 + 流水」派生，日常增减通过充值/校准，表单只填起点
+  {
+    key: 'opening_balance',
+    label: '初始余额',
+    type: 'number',
+    step: '0.01',
+    placeholder: '余额起点；日常增减请用充值 / 校准',
+  },
   { key: 'monthly_fee', label: '月租', type: 'number', step: '0.01', min: 0 },
   { key: 'bill_day', label: '账单日', type: 'number', step: '1', min: 1 },
+  {
+    key: 'charge_mode',
+    label: '扣费方式',
+    type: 'select',
+    options: chargeModes,
+    defaultValue: 'monthly',
+  },
+  {
+    key: 'auto_charge',
+    label: '自动扣费',
+    type: 'boolean',
+    defaultValue: 'true',
+    options: [
+      { value: 'true', label: '每日自动结算' },
+      { value: 'false', label: '仅手动补扣' },
+    ],
+  },
   { key: 'data_plan', label: '流量套餐', type: 'text', placeholder: '如 30GB' },
   { key: 'call_plan', label: '通话', type: 'text', placeholder: '如 100分钟' },
   { key: 'sms_plan', label: '短信', type: 'text', placeholder: '如 50条' },
@@ -202,15 +236,6 @@ const phoneFields: FieldDef[] = [
     label: '付费方式',
     type: 'select',
     options: billingTypes,
-  },
-  {
-    key: 'bill_paid_this_month',
-    label: '本月是否已扣账',
-    type: 'boolean',
-    options: [
-      { value: 'false', label: '未扣账' },
-      { value: 'true', label: '已扣账' },
-    ],
   },
   {
     key: 'status',
@@ -238,8 +263,35 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
   },
   { key: 'operator', label: '运营商' },
   { key: 'region', label: '归属地', render: (r) => r.region ?? '—' },
-  { key: 'balance', label: '余额', render: (r) => (r.balance != null ? fmt(r.balance) : '—') },
+  {
+    key: 'balance',
+    label: '余额',
+    render: (r) =>
+      r.balance == null ? (
+        '—'
+      ) : (
+        <span className={r.balance < 0 ? 'font-medium text-red-600 dark:text-red-400' : undefined}>
+          {fmt(r.balance)}
+        </span>
+      ),
+  },
   { key: 'monthly_fee', label: '月租', render: (r) => (r.monthly_fee != null ? fmt(r.monthly_fee) : '—') },
+  {
+    key: 'charge_mode',
+    label: '扣费方式',
+    render: (r) => (
+      <Badge
+        className={
+          r.charge_mode === 'daily'
+            ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
+            : 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300'
+        }
+      >
+        {r.charge_mode === 'daily' ? '按天' : '整月'}
+        {!r.auto_charge && ' · 手动'}
+      </Badge>
+    ),
+  },
   { key: 'bill_day', label: '账单日', render: (r) => (r.bill_day ? `${r.bill_day} 日` : '—') },
   { key: 'data_plan', label: '流量套餐', render: (r) => r.data_plan ?? '—' },
   {
@@ -259,14 +311,28 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
   },
   { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
   {
-    key: 'bill_paid_this_month',
-    label: '本月扣账',
-    render: (r) =>
-      r.bill_paid_this_month ? (
-        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
-      ) : (
-        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未扣账</Badge>
-      ),
+    key: 'month_progress',
+    label: '本月进度',
+    render: (r) => {
+      const expected = r.month_expected ?? 0
+      if (expected <= 0) return '—'
+      const charged = r.month_charged ?? 0
+      const pct = Math.min(100, Math.round((charged / expected) * 100))
+      return (
+        <div className="min-w-28">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span>{fmt(charged)} / {fmt(expected)}</span>
+            <span className="text-muted-foreground">{pct}%</span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+          </div>
+          {r.charge_mode === 'daily' && (
+            <div className="mt-0.5 text-[10px] text-muted-foreground">每日 {fmt(r.today_charge ?? 0)}</div>
+          )}
+        </div>
+      )
+    },
   },
   {
     key: 'status',
@@ -582,13 +648,27 @@ export function CardsPage() {
   const doDeduct = async (id: number) => {
     try {
       const rep = await api.post<PhoneCard>(`/lifestyle/phone-cards/${id}/deduct`)
-      toast.success('已记录当月扣账', { description: `${rep.phone_number} · ${fmt(rep.monthly_fee ?? 0)}` })
+      toast.success('已补齐本月应扣', { description: `${rep.phone_number} · 月租 ${fmt(rep.monthly_fee ?? 0)}` })
       setPhoneRefresh((v) => v + 1)
       setBillRefresh((v) => v + 1)
     } catch (e) {
       toast.error('扣账失败', { description: (e as Error).message })
     }
   }
+
+  // 进入手机号标签页时幂等补齐本月应扣（按天模式漏跑的天数会被一次性补上）
+  useEffect(() => {
+    if (tab !== 'phone') return
+    api
+      .post<{ charges: number }>('/lifestyle/phone-cards/settle')
+      .then((res) => {
+        if (res.charges > 0) {
+          setPhoneRefresh((v) => v + 1)
+          setBillRefresh((v) => v + 1)
+        }
+      })
+      .catch(() => {})
+  }, [tab])
 
   const [rechargeCardId, setRechargeCardId] = useState<number | null>(null)
   const [rechargeOpen, setRechargeOpen] = useState(false)
@@ -633,6 +713,47 @@ export function CardsPage() {
     setRechargeRecords([])
     setRechargeOpen(true)
     api.query<PhoneRecharge[]>(`/lifestyle/phone-cards/${id}/recharges`).then(setRechargeRecords).catch(() => {})
+  }
+
+  // ---------------------------------------------------------------- 余额校准
+  const [adjustCard, setAdjustCard] = useState<PhoneCard | null>(null)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState('')
+  const [adjustDate, setAdjustDate] = useState('')
+  const [adjustNote, setAdjustNote] = useState('')
+  const [adjustSaving, setAdjustSaving] = useState(false)
+
+  const openAdjust = (card: PhoneCard) => {
+    setAdjustCard(card)
+    setAdjustTarget((card.balance ?? 0).toFixed(2))
+    setAdjustDate('')
+    setAdjustNote('')
+    setAdjustOpen(true)
+  }
+
+  // 校准差额会以一条「校准」流水入账，不直接改余额，保证账面与运营商一致且可追溯
+  const doAdjust = async () => {
+    if (!adjustCard) return
+    const target = parseFloat(adjustTarget)
+    if (Number.isNaN(target)) {
+      toast.error('请输入有效的目标余额')
+      return
+    }
+    setAdjustSaving(true)
+    try {
+      const payload: Record<string, unknown> = { target_balance: target }
+      if (adjustDate) payload.adjust_date = adjustDate
+      if (adjustNote) payload.note = adjustNote
+      await api.post(`/lifestyle/phone-cards/${adjustCard.id}/adjust`, payload)
+      toast.success('余额已校准', { description: `${adjustCard.phone_number} → ${fmt(target)}` })
+      setAdjustOpen(false)
+      setAdjustCard(null)
+      setPhoneRefresh((v) => v + 1)
+    } catch (e) {
+      toast.error('校准失败', { description: (e as Error).message })
+    } finally {
+      setAdjustSaving(false)
+    }
   }
 
   return (
@@ -680,8 +801,18 @@ export function CardsPage() {
                   <Coins className="size-4" />
                 </Button>
               </Tip>
+              <Tip label="校准余额">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-sky-600 dark:text-sky-400"
+                  onClick={() => openAdjust(r)}
+                >
+                  <Settings2 className="size-4" />
+                </Button>
+              </Tip>
               {!r.bill_paid_this_month ? (
-                <Tip label="记录当月扣账">
+                <Tip label="补齐本月应扣">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -762,6 +893,48 @@ export function CardsPage() {
             <Button onClick={doRecharge} disabled={rechargeSaving}>
               {rechargeSaving && <Loader2 className="animate-spin" />}
               确认充值
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>校准余额</DialogTitle>
+            <DialogDescription>
+              按运营商 App 显示的真实余额对齐账面，系统只记录一条差额流水，不影响历史扣费。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>当前账面余额</Label>
+              <Input value={(adjustCard?.balance ?? 0).toFixed(2)} readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label>真实余额 *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={adjustTarget}
+                onChange={(e) => setAdjustTarget(e.target.value)}
+                placeholder="可填负数，如 -3.50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>校准日期</Label>
+              <DatePicker value={adjustDate} onChange={setAdjustDate} placeholder="默认为今天" />
+            </div>
+            <div className="space-y-2">
+              <Label>备注</Label>
+              <Textarea value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="如 与运营商核对后校准" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustOpen(false)}>取消</Button>
+            <Button onClick={doAdjust} disabled={adjustSaving}>
+              {adjustSaving && <Loader2 className="animate-spin" />}
+              确认校准
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,6 +34,7 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
+  CardHeaderActions,
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -931,9 +932,9 @@ export function BackupPage() {
       {tab === 'schedule' && (
         <div className="space-y-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <div>
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className="flex items-center gap-2 text-lg min-w-0 max-w-[55%] truncate">
                   <Clock className="h-5 w-5" />
                   定时备份任务
                 </CardTitle>
@@ -941,137 +942,139 @@ export function BackupPage() {
                   设置自动备份计划，系统将按 cron 表达式定时执行数据导出
                 </CardDescription>
               </div>
-              <Dialog open={showScheduleDialog} onOpenChange={(v) => {
-                setShowScheduleDialog(v)
-                if (!v) setEditingSchedule(null)
-              }}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => { setEditingSchedule(null); setNewSchedule({ name: '', cron_expression: '0 3 * * *', export_format: 'json', compress: false, table_selection: 'all' }); setCronMode('preset'); setCronCustom('0 3 * * *') }}>
-                    <Plus className="mr-1 h-4 w-4" />
-                    新建任务
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  onPointerDownOutside={(e) => e.preventDefault()}
-                  onEscapeKeyDown={(e) => e.preventDefault()}
-                >
-                  <DialogHeader>
-                    <DialogTitle>{editingSchedule ? '编辑定时备份任务' : '新建定时备份任务'}</DialogTitle>
-                    <DialogDescription>
-                      {editingSchedule ? '修改定时备份的计划和参数' : '设置自动备份的计划和参数'}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <div className="space-y-1">
-                      <Label>任务名称</Label>
-                      <Input
-                        value={newSchedule.name}
-                        onChange={(e) =>
-                          setNewSchedule({ ...newSchedule, name: e.target.value })
-                        }
-                        placeholder="例如：每日凌晨备份"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>执行计划</Label>
-                      <div className="space-y-2">
+              <CardHeaderActions>
+                <Dialog open={showScheduleDialog} onOpenChange={(v) => {
+                  setShowScheduleDialog(v)
+                  if (!v) setEditingSchedule(null)
+                }}>
+                  <DialogTrigger asChild>
+                    <Button onClick={() => { setEditingSchedule(null); setNewSchedule({ name: '', cron_expression: '0 3 * * *', export_format: 'json', compress: false, table_selection: 'all' }); setCronMode('preset'); setCronCustom('0 3 * * *') }}>
+                      <Plus className="mr-1 h-4 w-4" />
+                      新建任务
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onEscapeKeyDown={(e) => e.preventDefault()}
+                  >
+                    <DialogHeader>
+                      <DialogTitle>{editingSchedule ? '编辑定时备份任务' : '新建定时备份任务'}</DialogTitle>
+                      <DialogDescription>
+                        {editingSchedule ? '修改定时备份的计划和参数' : '设置自动备份的计划和参数'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                      <div className="space-y-1">
+                        <Label>任务名称</Label>
+                        <Input
+                          value={newSchedule.name}
+                          onChange={(e) =>
+                            setNewSchedule({ ...newSchedule, name: e.target.value })
+                          }
+                          placeholder="例如：每日凌晨备份"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>执行计划</Label>
+                        <div className="space-y-2">
+                          <Select
+                            value={cronMode === 'custom' ? '__custom__' : newSchedule.cron_expression}
+                            onValueChange={(v) => {
+                              if (v === '__custom__') {
+                                setCronMode('custom')
+                              } else {
+                                setCronMode('preset')
+                                setNewSchedule({ ...newSchedule, cron_expression: v })
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CRON_PRESETS.map((p) => (
+                                <SelectItem key={p.value} value={p.value}>
+                                  {p.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {cronMode === 'custom' && (
+                            <Input
+                              value={cronCustom}
+                              onChange={(e) => setCronCustom(e.target.value)}
+                              placeholder="5-field cron, e.g. 0 3 * * *"
+                              className="font-mono text-xs"
+                            />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          cron 格式：分 时 日 月 周（例如 <code className="rounded bg-muted px-1">0 3 * * *</code> 表示每天 03:00）
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>导出格式</Label>
                         <Select
-                          value={cronMode === 'custom' ? '__custom__' : newSchedule.cron_expression}
-                          onValueChange={(v) => {
-                            if (v === '__custom__') {
-                              setCronMode('custom')
-                            } else {
-                              setCronMode('preset')
-                              setNewSchedule({ ...newSchedule, cron_expression: v })
-                            }
-                          }}
+                          value={newSchedule.export_format}
+                          onValueChange={(v) =>
+                            setNewSchedule({ ...newSchedule, export_format: v })
+                          }
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {CRON_PRESETS.map((p) => (
-                              <SelectItem key={p.value} value={p.value}>
-                                {p.label}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="json">JSON</SelectItem>
+                            <SelectItem value="sql">SQL</SelectItem>
                           </SelectContent>
                         </Select>
-                        {cronMode === 'custom' && (
-                          <Input
-                            value={cronCustom}
-                            onChange={(e) => setCronCustom(e.target.value)}
-                            placeholder="5-field cron, e.g. 0 3 * * *"
-                            className="font-mono text-xs"
+                      </div>
+                      {newSchedule.export_format === 'json' && (
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="schedule-compress"
+                            checked={newSchedule.compress}
+                            onCheckedChange={(v) =>
+                              setNewSchedule({ ...newSchedule, compress: v })
+                            }
                           />
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        cron 格式：分 时 日 月 周（例如 <code className="rounded bg-muted px-1">0 3 * * *</code> 表示每天 03:00）
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>导出格式</Label>
-                      <Select
-                        value={newSchedule.export_format}
-                        onValueChange={(v) =>
-                          setNewSchedule({ ...newSchedule, export_format: v })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="json">JSON</SelectItem>
-                          <SelectItem value="sql">SQL</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {newSchedule.export_format === 'json' && (
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="schedule-compress"
-                          checked={newSchedule.compress}
-                          onCheckedChange={(v) =>
-                            setNewSchedule({ ...newSchedule, compress: v })
+                          <Label htmlFor="schedule-compress" className="cursor-pointer">
+                            压缩为 ZIP
+                          </Label>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <Label>导出范围</Label>
+                        <Select
+                          value={newSchedule.table_selection}
+                          onValueChange={(v) =>
+                            setNewSchedule({ ...newSchedule, table_selection: v })
                           }
-                        />
-                        <Label htmlFor="schedule-compress" className="cursor-pointer">
-                          压缩为 ZIP
-                        </Label>
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全部数据表</SelectItem>
+                            <SelectItem value="selected">选中的数据表</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    )}
-                    <div className="space-y-1">
-                      <Label>导出范围</Label>
-                      <Select
-                        value={newSchedule.table_selection}
-                        onValueChange={(v) =>
-                          setNewSchedule({ ...newSchedule, table_selection: v })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">全部数据表</SelectItem>
-                          <SelectItem value="selected">选中的数据表</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
-                      取消
-                    </Button>
-                    <Button onClick={handleCreateSchedule} disabled={savingSchedule}>
-                      {savingSchedule ? (
-                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                      ) : null}
-                      保存
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
+                        取消
+                      </Button>
+                      <Button onClick={handleCreateSchedule} disabled={savingSchedule}>
+                        {savingSchedule ? (
+                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : null}
+                        保存
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </CardHeaderActions>
             </CardHeader>
             <CardContent>
               {loadingSchedules ? (

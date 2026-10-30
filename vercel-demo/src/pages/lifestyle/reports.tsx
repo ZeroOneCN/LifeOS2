@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -239,11 +239,11 @@ export function LifestyleReportsPage() {
                 <ChevronDown
                   className={`size-4 shrink-0 text-rose-600 dark:text-rose-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
-                <CardTitle className="text-base">{preview.title}</CardTitle>
+                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
               </div>
               {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
             </button>
-            <div className="flex shrink-0 items-center gap-2">
+            <CardHeaderActions>
               <Tip label={previewCollapsed ? '展开' : '收起'}>
                 <Button
                   size="sm"
@@ -262,7 +262,7 @@ export function LifestyleReportsPage() {
                 {exportingId === preview.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                 导出 PDF
               </Button>
-            </div>
+            </CardHeaderActions>
           </CardHeader>
           {!previewCollapsed && (
             <CardContent className="pt-4">

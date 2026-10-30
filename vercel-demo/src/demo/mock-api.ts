@@ -324,6 +324,41 @@ function computeCheckupStats(params: Params): Json {
   }
 }
 
+/** 演示版备份表清单（count 取自模拟数据实际条数） */
+function demoTables(): Json[] {
+  const specs: Array<[string, string, string, string]> = [
+    ['finance_bills', '账单', '/finance/bills', '财务'],
+    ['finance_shopping', '购物记录', '/finance/shopping', '财务'],
+    ['finance_travel_details', '旅行明细', '/finance/travel/details', '财务'],
+    ['finance_debts', '债务', '/finance/debts', '财务'],
+    ['finance_loan_platforms', '借款平台', '/finance/loan-platforms', '财务'],
+    ['health_checkup', '体检记录', '/health/checkup', '健康'],
+    ['health_medication', '用药记录', '/health/medication', '健康'],
+    ['health_fitness', '健身记录', '/health/fitness', '健康'],
+    ['lifestyle_phone_cards', '手机卡', '/lifestyle/phone-cards', '生活'],
+    ['lifestyle_bank_cards', '银行卡', '/lifestyle/bank-cards', '生活'],
+    ['lifestyle_items', '物品', '/lifestyle/items', '生活'],
+    ['investment_forex', '外汇交易', '/investment/forex', '投资'],
+    ['notification_records', '通知记录', '/notifications', '通知'],
+    ['activity_logs', '活动日志', '/activity-logs', '系统'],
+    ['login_audits', '登录审计', '/login-audits', '系统'],
+  ]
+  return specs.map(([name, label, apiPath, moduleLabel]) => {
+    const entry =
+      entries.find((item) => item.path === apiPath) ??
+      entries.find((item) => item.path.startsWith(`${apiPath}/`))
+    const count = entry ? collectionOf(entry.path).length : collectAll(apiPath).length
+    return {
+      name,
+      count,
+      label,
+      mapped: true,
+      module: apiPath.split('/')[1] || 'system',
+      module_label: moduleLabel,
+    }
+  })
+}
+
 /** 保存某个分页集合的本地修改 */
 function saveList(entry: SnapshotEntry, items: any[]) {
   if (Array.isArray(entry.value)) {
@@ -504,6 +539,11 @@ function handleSpecialRead(path: string, params: Params): Response | null {
   if (detailMatch) {
     const [, kind, id] = detailMatch
     return jsonResponse(reportDetail(kind, Number(id)))
+  }
+
+  // 备份数据表清单（演示版按快照数据量生成）
+  if (path === '/backup/tables') {
+    return jsonResponse(demoTables())
   }
 
   // 备份文件预览
@@ -691,9 +731,72 @@ function handleSpecialWrite(path: string, method: string, body: Json, params: Pa
     return jsonResponse(clone(card))
   }
 
+  // 手机卡整月结算（演示版不做真实计费）
+  if (path === '/lifestyle/phone-cards/settle' && method === 'POST') {
+    return jsonResponse({ charges: 0 })
+  }
+
+  // 手机卡充值
+  const recharge = path.match(/^\/lifestyle\/phone-cards\/(\d+)\/recharge$/)
+  if (recharge && method === 'POST') {
+    const id = Number(recharge[1])
+    const amount = Number(body.amount) || 0
+    const entry = findEntry('/lifestyle/phone-cards')
+    const cards = collectionOf('/lifestyle/phone-cards')
+    const card = cards.find((item) => Number(item.id) === id)
+    if (!card || !entry) return errorResponse(404, '手机卡不存在')
+    card.balance = Math.round((Number(card.balance) + amount) * 100) / 100
+    card.updated_at = nowIso()
+    saveList(entry, cards)
+    pushRecharge(id, amount, body.recharge_date, body.note)
+    return jsonResponse(clone(card))
+  }
+
+  // 手机卡余额校准
+  const adjust = path.match(/^\/lifestyle\/phone-cards\/(\d+)\/adjust$/)
+  if (adjust && method === 'POST') {
+    const id = Number(adjust[1])
+    const entry = findEntry('/lifestyle/phone-cards')
+    const cards = collectionOf('/lifestyle/phone-cards')
+    const card = cards.find((item) => Number(item.id) === id)
+    if (!card || !entry) return errorResponse(404, '手机卡不存在')
+    const target = Number(body.target_balance)
+    if (Number.isNaN(target)) return errorResponse(422, '目标余额不合法')
+    const diff = Math.round((target - Number(card.balance)) * 100) / 100
+    if (diff !== 0) pushRecharge(id, diff, body.adjust_date, body.note || '余额校准')
+    card.balance = target
+    card.updated_at = nowIso()
+    saveList(entry, cards)
+    return jsonResponse(clone(card))
+  }
+
+  // 手机卡充值记录写入
+  function pushRecharge(cardId: number, amount: number, date?: string, note?: string) {
+    const entry = findEntry(`/lifestyle/phone-cards/${cardId}/recharges`)
+    if (!entry) return
+    const items = collectionOf(`/lifestyle/phone-cards/${cardId}/recharges`)
+    items.unshift({
+      id: nextId(items),
+      phone_card_id: cardId,
+      amount,
+      recharge_date: date || today(),
+      note: note || null,
+      created_at: nowIso(),
+    })
+    saveList(entry, items)
+  }
+
   // 物品同步
   if (path === '/lifestyle/items/sync' && method === 'POST') {
     return jsonResponse({ created: 0, skipped: 16 })
+  }
+
+  // Excel 导入（演示版不入库，返回模拟结果）
+  if (path === '/finance/shopping/import' && method === 'POST') {
+    return jsonResponse({ imported: 0, skipped: 0 })
+  }
+  if (path === '/investment/forex/import' && method === 'POST') {
+    return jsonResponse({ imported: 0, trade_imported: 0, fund_imported: 0, skipped: 0 })
   }
 
   // 备份相关

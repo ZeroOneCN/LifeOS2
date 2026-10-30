@@ -71,8 +71,9 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 
 /**
  * 卡片头部操作区：容纳标题右侧的按钮 / 下拉框等控件。
- * 小屏（<640px）下不会挤掉或裁切按钮，改为在固定高度内单行横向滚动；
- * 宽度充足时自动右对齐，与改动前的 `justify-between` 视觉一致。
+ * 默认按内容宽度排布并由父级 `justify-between` 右对齐（与改造前视觉一致）；
+ * 空间不足（如 <640px）时会收缩并改为单行横向滚动，而不是被卡片的 `overflow-hidden` 裁切掉。
+ * 这里不设置 `flex-1`，避免与「标题按钮自带 flex-1」的头部（如报告预览卡）抢占宽度。
  * @param className 附加样式（内容间距 gap 已内置，无需重复传 flex/gap 类）
  * @returns 可横向滚动的操作区容器
  */
@@ -81,12 +82,12 @@ function CardHeaderActions({ className, children, ...props }: React.ComponentPro
     <div
       data-slot="card-header-actions"
       className={cn(
-        "min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:thin]",
+        "min-w-0 shrink overflow-x-auto overscroll-x-contain [scrollbar-width:thin]",
         className
       )}
       {...props}
     >
-      {/* 内层 w-max + ml-auto：空间足够时右对齐，内容超宽时可完整滚动到最左（避免 justify-end 的溢出裁剪） */}
+      {/* 内层 w-max：整体宽度不小于内容宽度，超出时由外层滚动；ml-auto 在容器被拉宽时保持右对齐 */}
       <div className="ml-auto flex w-max items-center gap-1.5">{children}</div>
     </div>
   )

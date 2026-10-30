@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -212,14 +212,16 @@ export function ChannelsPanel() {
         <div className="grid gap-4 lg:grid-cols-2">
           {byType.map((group) => (
             <Card key={group.type}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div>
-                  <CardTitle className="text-sm font-medium">{group.label}</CardTitle>
+                  <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">{group.label}</CardTitle>
                   <CardDescription>{group.type}</CardDescription>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => openCreate(group.type)}>
-                  <Plus /> 新建
-                </Button>
+                <CardHeaderActions>
+                  <Button size="sm" variant="outline" onClick={() => openCreate(group.type)}>
+                    <Plus /> 新建
+                  </Button>
+                </CardHeaderActions>
               </CardHeader>
               <CardContent className="space-y-2">
                 {group.items.length === 0 ? (
