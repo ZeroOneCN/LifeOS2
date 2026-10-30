@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FFB0_SERVICE, FFB1_WRITE, FFB2_NOTIFY, parseFrame, buildUserInfoPacket, isValidGrams, type ScaleMeasurement } from '@/lib/bluetooth/scale-protocol'
 import { calculateBodyComposition } from '@/lib/bluetooth/body-composition'
-import { decodeHeartRate, classifyBluetoothError, detectBluetoothCapability, type BluetoothCapability } from '@/lib/bluetooth/hr-protocol'
+import { decodeHeartRate, classifyBluetoothError, detectBluetoothCapability, HR_SERVICE_UUID, type BluetoothCapability } from '@/lib/bluetooth/hr-protocol'
 import { api } from '@/lib/api'
 
 /** 体重秤用户资料 */
@@ -74,6 +74,8 @@ export function useScaleBluetooth(): UseScaleBluetooth {
   const pendingStableRef = useRef<ScaleMeasurement | null>(null)
   const deviceTypeRef = useRef(0x29)
   const profileResendRef = useRef<number | null>(null)
+  const receivedRef = useRef(false)
+  const waitTimerRef = useRef<number | null>(null)
 
   /** 清理所有资源 */
   const cleanup = useCallback(() => {
@@ -84,6 +86,10 @@ export function useScaleBluetooth(): UseScaleBluetooth {
     if (profileResendRef.current !== null) {
       window.clearInterval(profileResendRef.current)
       profileResendRef.current = null
+    }
+    if (waitTimerRef.current !== null) {
+      window.clearTimeout(waitTimerRef.current)
+      waitTimerRef.current = null
     }
     notifyRef.current = null
     serverRef.current = null
@@ -145,6 +151,8 @@ export function useScaleBluetooth(): UseScaleBluetooth {
           bodyComposition: bodyComp,
           measuredAt: new Date(),
         })
+        receivedRef.current = true
+        setError(null)
       }, 3000) // 等待阻抗包
     },
     [],
@@ -158,6 +166,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
         return
       }
       profileRef.current = profile
+      receivedRef.current = false
       setError(null)
       setConnecting(true)
 
@@ -205,20 +214,17 @@ export function useScaleBluetooth(): UseScaleBluetooth {
           if (serverRef.current?.connected) sendProfile()
         }, 15000)
 
-        // 等 20 秒看能不能收到数据
-        await new Promise<void>((resolve, reject) => {
-          const timer = window.setTimeout(() => {
-            cleanup()
-            reject(new Error('连接成功但 20 秒内未收到数据，请确认秤已开机且处于蓝牙广播状态'))
-          }, 20000)
-          const check = window.setInterval(() => {
-            if (measurement || !serverRef.current?.connected) {
-              window.clearTimeout(timer)
-              window.clearInterval(check)
-              resolve()
-            }
-          }, 500)
-        })
+        // 连接成功后立即返回，数据由通知异步推送。
+        // 25 秒内没有任何数据时给出可操作提示，但不主动断开连接（用户可能还没上秤）。
+        waitTimerRef.current = window.setTimeout(() => {
+          waitTimerRef.current = null
+          if (!receivedRef.current && serverRef.current?.connected) {
+            setError(
+              '已连接但 25 秒内未收到称重数据：请站上秤并保持 3~5 秒。' +
+                '若后端采集器（ENABLE_SCALE_COLLECTOR=true）正在运行，会独占体重秤的通知通道，请先关闭后端采集再重试。',
+            )
+          }
+        }, 25000)
       } catch (err) {
         const { code, message } = classifyBluetoothError(err)
         setError(message)
@@ -228,7 +234,7 @@ export function useScaleBluetooth(): UseScaleBluetooth {
         setConnecting(false)
       }
     },
-    [supported, cleanup, sendProfile, handleStableMeasurement, measurement],
+    [supported, cleanup, sendProfile, handleStableMeasurement],
   )
 
   const disconnect = useCallback(() => {
@@ -354,37 +360,43 @@ export function useHrListener(): UseHrListener {
     setConnecting(true)
 
     try {
-      // requestLEScan 可以用来扫描广播（Chrome Android 支持较好）
-      // 桌面端通常通过 requestDevice + watchAdvertisements
+      // 桌面端通过 requestDevice + watchAdvertisements 监听广播。
+      // 不能用 services/namePrefix 过滤：小米手环的广播包几乎不含标准服务 UUID，
+      // 且设备名常为空，过滤会导致选择框里根本看不到手环。
+      // 因此放开为 acceptAllDevices，由用户在列表中选择自己的设备。
       const device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: ['generic_access'] }, { namePrefix: 'Mi' }],
-        optionalServices: [],
+        acceptAllDevices: true,
+        optionalServices: [HR_SERVICE_UUID],
       })
 
-      // watchAdvertisements 是较新的 API
-      if ((device as unknown as { watchAdvertisements?: () => Promise<unknown> }).watchAdvertisements) {
-        await device.watchAdvertisements()
-        device.addEventListener('advertisementreceived', (ev) => {
-          const { bpm, source } = decodeHeartRate(ev)
-          if (bpm === null) return
-
-          const now = Date.now()
-          // 节流
-          if (now - lastSampleAtRef.current < SAMPLE_INTERVAL_MS) return
-          // 冻结检测
-          if (freezeValueRef.current) {
-            if (freezeValueRef.current.bpm === bpm && now - freezeValueRef.current.since > FREEZE_MS) return
-            if (freezeValueRef.current.bpm !== bpm) freezeValueRef.current = { bpm, since: now }
-          } else {
-            freezeValueRef.current = { bpm, since: now }
-          }
-
-          lastSampleAtRef.current = now
-          samplesRef.current.push(bpm)
-          setSampleCount((c) => c + 1)
-          setLastHr({ bpm, at: new Date(), source: source || 'xiaomi' })
-        })
+      // watchAdvertisements 是接收广播的前提，不可用则无法采集心率
+      if (typeof device.watchAdvertisements !== 'function') {
+        setError('当前浏览器不支持广播监听（watchAdvertisements），无法采集手环心率')
+        setConnecting(false)
+        return
       }
+
+      await device.watchAdvertisements()
+      device.addEventListener('advertisementreceived', (ev) => {
+        const { bpm, source } = decodeHeartRate(ev)
+        if (bpm === null) return
+
+        const now = Date.now()
+        // 节流
+        if (now - lastSampleAtRef.current < SAMPLE_INTERVAL_MS) return
+        // 冻结检测
+        if (freezeValueRef.current) {
+          if (freezeValueRef.current.bpm === bpm && now - freezeValueRef.current.since > FREEZE_MS) return
+          if (freezeValueRef.current.bpm !== bpm) freezeValueRef.current = { bpm, since: now }
+        } else {
+          freezeValueRef.current = { bpm, since: now }
+        }
+
+        lastSampleAtRef.current = now
+        samplesRef.current.push(bpm)
+        setSampleCount((c) => c + 1)
+        setLastHr({ bpm, at: new Date(), source: source || 'xiaomi' })
+      })
 
       abortRef.current = false
       setListening(true)

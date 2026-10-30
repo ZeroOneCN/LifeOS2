@@ -65,10 +65,15 @@ export function HrListenerDialog({ open, onOpenChange, onSynced }: Props) {
             手环心率监听
           </DialogTitle>
           <DialogDescription>
-            开始监听后，浏览器会扫描附近手环的蓝牙广播，自动同步心率到健康中心。
-            建议让本页面保持打开状态。
+            开始监听后，浏览器会持续接收手环的蓝牙广播并自动同步心率。
+            选择设备时请确认手环已与手机 App 断开（被 App 占用时手环会停止广播），
+            并保持本页面打开。
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
+          设备列表里可能只显示手环的 MAC 地址或英文型号，按名称或信号强度选择你手环对应的那一个即可。
+        </div>
 
         {!supported && (
           <div className="rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">

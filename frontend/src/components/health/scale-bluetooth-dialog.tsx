@@ -105,6 +105,12 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
           </DialogDescription>
         </DialogHeader>
 
+        <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5 text-xs text-muted-foreground">
+          同一台秤同一时间只能被一个程序占用：若后端采集器
+          <code className="mx-1 rounded bg-background px-1 py-0.5">ENABLE_SCALE_COLLECTOR</code>
+          正在运行，请先在 <code className="rounded bg-background px-1 py-0.5">.env</code> 中关闭并重启后端，否则浏览器收不到称重数据。
+        </div>
+
         {!supported && (
           <div className="rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
             <div className="font-medium mb-1">⚠️ {capability.reason}</div>
