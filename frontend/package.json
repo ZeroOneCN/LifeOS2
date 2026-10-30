@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cert:trust": "powershell -ExecutionPolicy Bypass -File scripts/trust-dev-cert.ps1"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -31,8 +32,10 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/web-bluetooth": "^0.0.22",
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
+    "selfsigned": "^5.5.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }

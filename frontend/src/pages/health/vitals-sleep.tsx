@@ -1,4 +1,5 @@
 ﻿import { useState } from 'react'
+import { Activity } from 'lucide-react'
 import {
   BarChartCard,
   LineChartCard,
@@ -7,7 +8,9 @@ import {
   useStats,
   type StatsDays,
 } from '@/components/health/charts'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { HrListenerDialog } from '@/components/health/hr-listener-dialog'
 import {
   RecordManager,
   type ColumnDef,
@@ -169,6 +172,7 @@ const columns: ColumnDef<VitalsRecord>[] = [
 export function VitalsSleepPage() {
   const [days, setDays] = useState<StatsDays>(7)
   const [refresh, setRefresh] = useState(0)
+  const [hrDialogOpen, setHrDialogOpen] = useState(false)
   const { data: stats } = useStats<VitalsStats>('/health/vitals-sleep', days, refresh)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
@@ -182,16 +186,22 @@ export function VitalsSleepPage() {
   const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
 
   const periodPicker = (
-    <StatsPeriodPicker
-      value={days}
-      onChange={(d) => {
-        setDays(d)
-        setGlobalStatsDays(d)
-      }}
-    />
+    <div className="flex items-center gap-2">
+      <StatsPeriodPicker
+        value={days}
+        onChange={(d) => {
+          setDays(d)
+          setGlobalStatsDays(d)
+        }}
+      />
+      <Button variant="outline" size="sm" onClick={() => setHrDialogOpen(true)}>
+        <Activity /> 手环监听
+      </Button>
+    </div>
   )
 
   return (
+    <>
     <RecordManager<VitalsRecord>
       title="睡眠体征"
       description="记录每日生命体征（血压、心率、血氧等）与睡眠质量。"
@@ -330,5 +340,12 @@ export function VitalsSleepPage() {
         </>
       }
     />
+
+    <HrListenerDialog
+      open={hrDialogOpen}
+      onOpenChange={setHrDialogOpen}
+      onSynced={() => setRefresh((v) => v + 1)}
+    />
+    </>
   )
 }

@@ -1,10 +1,11 @@
 ﻿import { useEffect, useState } from 'react'
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Bluetooth, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
+import { ScaleBluetoothDialog } from '@/components/health/scale-bluetooth-dialog'
 import {
   Dialog,
   DialogContent,
@@ -97,6 +98,7 @@ export function BodyPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [bluetoothOpen, setBluetoothOpen] = useState(false)
   const [editing, setEditing] = useState<BodyRecord | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(EMPTY)
@@ -214,6 +216,9 @@ export function BodyPage() {
             setGlobalStatsDays(d)
           }}
         />
+        <Button variant="outline" onClick={() => setBluetoothOpen(true)}>
+          <Bluetooth /> 蓝牙称重
+        </Button>
         <Button onClick={openCreate}>
           <Plus /> 新增体重记录
         </Button>
@@ -407,6 +412,15 @@ export function BodyPage() {
       </Dialog>
 
       {confirmDialog}
+
+      <ScaleBluetoothDialog
+        open={bluetoothOpen}
+        onOpenChange={setBluetoothOpen}
+        onSynced={() => {
+          load()
+          setRefresh((v) => v + 1)
+        }}
+      />
     </div>
   )
 }

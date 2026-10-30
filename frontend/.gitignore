@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# 本地开发 HTTPS 证书（含私钥，禁止入库）
+certs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
