@@ -107,7 +107,7 @@ function StatCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        <p className="min-h-4 truncate text-xs text-muted-foreground" title={hint}>{hint ?? ''}</p>
       </CardContent>
     </Card>
   )
@@ -177,7 +177,7 @@ export function LoginAuditPage() {
         </Button>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-4 gap-4">
         <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-blue-500" />
         <StatCard icon={ShieldAlert} label="今日失败" value={String(failToday)} className="text-amber-500" />
         <StatCard icon={Ban} label="今日锁定" value={String(lockedToday)} className="text-red-500" />
