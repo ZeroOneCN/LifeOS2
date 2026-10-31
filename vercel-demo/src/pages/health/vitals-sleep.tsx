@@ -31,13 +31,6 @@ type VitalsRecord = {
   wake_count?: number
   sleep_quality?: number
   note?: string
-  // 手环蓝牙自动采集统计（后端进程内采集器写入）
-  hr_min?: number
-  hr_max?: number
-  hr_avg?: number
-  hr_samples?: number
-  hr_source?: string
-  hr_measured_at?: string
 }
 
 type VitalsStats = {
@@ -70,15 +63,6 @@ type VitalsStats = {
     deep_sleep_min?: number
     sleep_quality?: number
   }
-  latest_hr?: {
-    record_date: string
-    hr_avg?: number
-    hr_min?: number
-    hr_max?: number
-    hr_samples?: number
-    hr_source?: string
-    hr_measured_at?: string
-  } | null
   record_count?: number
 }
 
@@ -126,20 +110,7 @@ const columns: ColumnDef<VitalsRecord>[] = [
   {
     key: 'heart_rate',
     label: '心率',
-    render: (r) =>
-      r.heart_rate ? (
-        <span
-          title={
-            r.hr_samples
-              ? `手环采集：${r.hr_min ?? '—'}~${r.hr_max ?? '—'} bpm · ${r.hr_samples} 个样本`
-              : undefined
-          }
-        >
-          {r.heart_rate} bpm
-        </span>
-      ) : (
-        '—'
-      ),
+    render: (r) => (r.heart_rate ? `${r.heart_rate} bpm` : '—'),
   },
   { key: 'blood_oxygen', label: '血氧', render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—') },
   { key: 'blood_glucose', label: '血糖', render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—') },
@@ -172,7 +143,6 @@ export function VitalsSleepPage() {
   const { data: stats } = useStats<VitalsStats>('/health/vitals-sleep', days, refresh)
   const trend = stats?.trend ?? []
   const avg = stats?.avg
-  const latestHr = stats?.latest_hr
 
   const fmtSleep = (m?: number) => {
     if (m == null) return '—'
@@ -182,13 +152,15 @@ export function VitalsSleepPage() {
   const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
 
   const periodPicker = (
-    <StatsPeriodPicker
-      value={days}
-      onChange={(d) => {
-        setDays(d)
-        setGlobalStatsDays(d)
-      }}
-    />
+    <div className="flex items-center gap-2">
+      <StatsPeriodPicker
+        value={days}
+        onChange={(d) => {
+          setDays(d)
+          setGlobalStatsDays(d)
+        }}
+      />
+    </div>
   )
 
   return (
@@ -219,26 +191,6 @@ export function VitalsSleepPage() {
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均心率</div>
                   <div className="mt-1 text-2xl font-semibold text-rose-600 dark:text-rose-400">{fmt(avg?.heart_rate, ' bpm')}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm text-muted-foreground">手环采集</div>
-                    {latestHr?.hr_source && (
-                      <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">
-                        {latestHr.hr_source === 'xiaomi' ? '小米手环' : latestHr.hr_source}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold text-cyan-600 dark:text-cyan-400">
-                    {latestHr?.hr_avg != null ? `${latestHr.hr_avg} bpm` : '—'}
-                  </div>
-                  <div className="mt-0.5 text-xs text-muted-foreground" title={latestHr?.hr_measured_at}>
-                    {latestHr
-                      ? `${latestHr.hr_min ?? '—'}~${latestHr.hr_max ?? '—'} · ${latestHr.hr_samples ?? 0} 个样本 · ${latestHr.record_date}`
-                      : '等待手环数据'}
-                  </div>
                 </CardContent>
               </Card>
               <Card>

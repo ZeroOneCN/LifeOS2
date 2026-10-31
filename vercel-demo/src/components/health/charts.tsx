@@ -196,7 +196,7 @@ export function LineChartCard({
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xKey} tick={{ fontSize: 12 }} minTickGap={24} />
             <YAxis
               tick={{ fontSize: 12 }}
               allowDecimals={!intTick}

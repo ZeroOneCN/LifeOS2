@@ -670,6 +670,44 @@ function handleSpecialWrite(path: string, method: string, body: Json, params: Pa
     }
   }
 
+  // 蓝牙体脂秤同步：把测量结果写入体重记录
+  if (path === '/health/body/blesync' && method === 'POST') {
+    const records = collectionOf('/health/body')
+    const weight = Number(body.weight_kg) || 0
+    const height = Number(body.height_cm) || 0
+    const bc: Json = body.body_composition || {}
+    const record: Json = {
+      id: nextId(records),
+      record_date: String(body.measured_at || nowIso()).slice(0, 10),
+      gender: body.gender || 'male',
+      height_cm: height || null,
+      weight_kg: weight || null,
+      bmi: bc.bmi ?? (height > 0 ? Math.round((weight / (height / 100) ** 2) * 10) / 10 : null),
+      body_fat_percent: bc.body_fat ?? null,
+      fat_mass_kg: bc.fat_mass ?? null,
+      visceral_fat: bc.visceral_fat ?? null,
+      subcutaneous_fat_percent: bc.sub_fat_pct ?? null,
+      subcutaneous_fat_kg: bc.sub_fat_mass ?? null,
+      muscle_percent: bc.muscle_rate ?? null,
+      muscle_kg: bc.muscle ?? null,
+      skeletal_muscle_percent: bc.skeletal_muscle_rate ?? null,
+      skeletal_muscle_kg: bc.skeletal_muscle ?? null,
+      water_percent: bc.water ?? null,
+      water_kg: bc.water_mass ?? null,
+      protein_percent: bc.protein_rate ?? null,
+      protein_kg: bc.protein_mass ?? null,
+      bone_percent: bc.bone_rate ?? null,
+      bone_kg: bc.bone ?? null,
+      note: '蓝牙体脂秤同步',
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    }
+    records.unshift(record)
+    const entry = findEntry('/health/body')
+    if (entry) saveList(entry, records)
+    return jsonResponse(clone(record))
+  }
+
   // 通知扫描 / 测试发送 / 模板重置
   if (path === '/notifications/scan' && method === 'POST') {
     return jsonResponse({ scanned: 9, created: 0, skipped: 9, sent: 0, failed: 0 })

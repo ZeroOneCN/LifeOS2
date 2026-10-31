@@ -164,6 +164,12 @@ export const api = {
     broadcastDataChanged()
     return res
   },
+  /** 清空整个资源（不带 ID），如清除全部登录审计记录。 */
+  removeAll: async <T>(path: string) => {
+    const res = await request<T>(path, { method: 'DELETE' })
+    broadcastDataChanged()
+    return res
+  },
   /** 批量删除：传入 ID 列表，后端仅删除当前用户归属的记录。 */
   batchRemove: async (path: string, ids: number[]) => {
     const res = await request<void>(`${path}/batch`, {

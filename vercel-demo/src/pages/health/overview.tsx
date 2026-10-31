@@ -227,7 +227,7 @@ export function HealthOverviewPage() {
                 ['睡眠', v.sleep_duration_min ? `${Math.floor(v.sleep_duration_min / 60)}h${v.sleep_duration_min % 60}m` : '—'],
                 ['睡眠质量', v.sleep_quality ? `${v.sleep_quality}/10` : '—'],
                 // 体重接入健身运动的体重记录
-                body && ['体重', body.weight_kg ? `${body.weight_kg} kg` : '—'],
+                body && ['体重', typeof body.weight_kg === 'number' ? `${body.weight_kg.toFixed(2)} kg` : '—'],
               ]
                 .filter((t): t is [string, string] => !!t)
                 .map(([label, value]) =>
