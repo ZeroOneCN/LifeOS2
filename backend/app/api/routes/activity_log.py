@@ -2,11 +2,12 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.middleware.activity_logger import module_display_name
 from app.models import ActivityLog, UserProfile
 from app.schemas.activity_log import ActivityLogRead
 from app.schemas.health import PageOut
@@ -50,18 +51,16 @@ def list_logs(
 
 @router.get("/stats")
 def stats(
-    days: int = Query(30, ge=1, le=365),
+    days: int = Query(0, ge=0, le=36500),
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_user),
 ):
-    """统计近 N 天活动日志：总数/今日/按操作类型/按模块/按日趋势。"""
-    since = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
-    rows = db.scalars(
-        select(ActivityLog).where(
-            ActivityLog.created_at >= since,
-            ActivityLog.user_id == current_user.id,
-        )
-    ).all()
+    """统计活动日志：days=0 表示全部历史，>0 表示近 N 天。"""
+    stmt = select(ActivityLog).where(ActivityLog.user_id == current_user.id)
+    if days > 0:
+        since = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time())
+        stmt = stmt.where(ActivityLog.created_at >= since)
+    rows = db.scalars(stmt).all()
 
     daily: dict[date, int] = defaultdict(int)
     by_action: dict[str, int] = defaultdict(int)
@@ -81,7 +80,7 @@ def stats(
             for a, n in sorted(by_action.items(), key=lambda x: -x[1])
         ],
         "by_module": [
-            {"module": m, "count": n}
+            {"module": m, "name": module_display_name(m), "count": n}
             for m, n in sorted(by_module.items(), key=lambda x: -x[1])
         ],
         "trend": [
@@ -89,3 +88,14 @@ def stats(
             for d, n in sorted(daily.items())
         ],
     }
+
+
+@router.delete("")
+def clear_logs(
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """清空当前用户的全部活动日志，返回删除记录数。"""
+    result = db.execute(delete(ActivityLog).where(ActivityLog.user_id == current_user.id))
+    db.commit()
+    return {"deleted": result.rowcount or 0}

@@ -17,20 +17,28 @@ MODULE_NAMES = {
     "health/body": "体重记录",
     "health/steps": "步数统计",
     "health/checkup": "体检指标",
+    "health/checkup/templates": "体检模板",
+    "health/checkup/panels": "体检组合",
     "health/reports": "健康报告",
+    "health/overview": "健康概览",
+    "health/dashboard": "健康看板",
     "health/medication": "用药跟踪",
     "health/medication/purchases": "购药记录",
     "health/medication/stocks": "药品库存",
     "finance/shopping/records": "购物记录",
+    "finance/shopping/categories": "购物分类",
     "finance/shopping/ledgers": "购物账本",
     "finance/shopping/platforms": "购物平台",
-    "finance/shopping/import": "购物记录",
+    "finance/shopping/import": "购物导入",
     "finance/travel/details": "行程明细",
     "finance/travel/ledgers": "行程账本",
+    "finance/travel/payment-channels": "行程支付渠道",
     "finance/travel/reports": "旅行报告",
     "finance/travel/report": "旅行报告",
     "finance/travel/report/generate": "旅行报告",
-    "finance/housing": "房租水电",
+    "finance/rent-channels": "租赁渠道",
+    "finance/rent-terms": "租约条款",
+    "finance/housing": "住房记录",
     "finance/utilities": "水电账单",
     "finance/subscriptions": "服务订阅",
     "finance/subscription-categories": "订阅分类",
@@ -44,11 +52,23 @@ MODULE_NAMES = {
     "finance/debts": "债务管理",
     "finance/reports": "财务报告",
     "finance/reports/generate": "财务报告",
+    "finance/overview": "财务概览",
     "lifestyle/items": "物品追踪",
+    "lifestyle/phone-cards": "手机卡管理",
+    "lifestyle/bank-cards": "银行卡管理",
+    "lifestyle/carriers": "运营商管理",
+    "lifestyle/card-bills": "卡片账单",
     "lifestyle/sim-cards": "卡片管理",
+    "lifestyle/todos": "待办清单",
     "lifestyle/schedule": "日程管理",
+    "lifestyle/reports": "生活报告",
+    "lifestyle/overview": "生活概览",
     "investment/forex": "外汇交易",
+    "investment/funds": "基金投资",
+    "investment/overview": "投资概览",
+    "investment/reports": "投资报告",
     "notifications": "通知中心",
+    "motivation": "激励语录",
     "user/profile": "个人资料",
     "user/settings": "账号设置",
     "auth/login": "登录系统",
@@ -67,9 +87,39 @@ MODULE_NAMES = {
     "notifications/channels": "通知渠道",
     "notifications/settings": "提醒设置",
     "notifications/templates": "通知模板",
+    "notifications/send-logs": "发送记录",
     "site-config": "系统设置",
     "site-config/reset": "系统设置",
 }
+
+# 顶级路径兜底中文名：用于未显式登记的深层子路径
+MODULE_PREFIX_NAMES = {
+    "health": "健康管理",
+    "finance": "财务管理",
+    "lifestyle": "生活管理",
+    "investment": "投资管理",
+    "notifications": "通知中心",
+    "auth": "账号安全",
+    "backup": "数据备份",
+    "user": "用户中心",
+    "site-config": "系统设置",
+    "motivation": "激励语录",
+}
+
+
+def module_display_name(module: str) -> str:
+    """将模块路径转换为中文名；优先精确匹配，其次按最长前缀匹配，最后按顶级路径兜底。"""
+    if not module:
+        return "未知模块"
+    if module in MODULE_NAMES:
+        return MODULE_NAMES[module]
+    parts = module.split("/")
+    for i in range(len(parts) - 1, 0, -1):
+        key = "/".join(parts[:i])
+        if key in MODULE_NAMES:
+            return MODULE_NAMES[key]
+    root = parts[0]
+    return MODULE_PREFIX_NAMES.get(root, module)
 
 ACTION_NAMES = {"create": "新增", "update": "更新", "patch": "部分更新", "delete": "删除"}
 
@@ -214,7 +264,7 @@ class ActivityLoggerMiddleware:
     def _build_summary(action: str, module: str, resource_id: int | None) -> str:
         if module == "notifications/read-all":
             return "全部通知标记为已读"
-        module_name = MODULE_NAMES.get(module, module)
+        module_name = module_display_name(module)
         if action == "delete" and resource_id is not None:
             return f"删除{module_name}记录（ID={resource_id}）"
         return f"{ACTION_NAMES.get(action, action)}{module_name}记录"
