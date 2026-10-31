@@ -100,7 +100,62 @@ LifeOS 将个人生活的核心维度整合到一个统一平台：记录健康�
 
 ![系统首页](images/系统首页.png)
 
-> 更多模块截图将持续更新。
+### 功能演示（GIF）
+
+> 下列 GIF 均录制自在线演示站 <https://lifeos-eta-puce.vercel.app/>（账号 `demo` / 密码 `demo123456`，数据为内置 mock 数据）。每张为 6 帧滚动演示，体积约 125–280 KB。
+
+**系统**
+
+| 页面 | 演示 |
+|---|---|
+| 系统首页 | <img src="images/gifs/01-home.gif" width="420" /> |
+| 通知中心 | <img src="images/gifs/02-notifications.gif" width="420" /> |
+| 活动日志 | <img src="images/gifs/03-activity-logs.gif" width="420" /> |
+| 安全审计 | <img src="images/gifs/04-login-audit.gif" width="420" /> |
+| 会话管理 | <img src="images/gifs/05-sessions.gif" width="420" /> |
+| 数据备份 | <img src="images/gifs/06-backup.gif" width="420" /> |
+| 系统设置 | <img src="images/gifs/07-system-settings.gif" width="420" /> |
+
+**健康中心**
+
+| 页面 | 演示 |
+|---|---|
+| 健康总览 | <img src="images/gifs/08-health-overview.gif" width="420" /> |
+| 睡眠体征 | <img src="images/gifs/09-vitals-sleep.gif" width="420" /> |
+| 健身运动 | <img src="images/gifs/10-fitness.gif" width="420" /> |
+| 步数统计 | <img src="images/gifs/11-steps.gif" width="420" /> |
+| 体检指标 | <img src="images/gifs/12-checkup.gif" width="420" /> |
+| 用药跟踪 | <img src="images/gifs/13-medication.gif" width="420" /> |
+| 健康报告 | <img src="images/gifs/14-health-reports.gif" width="420" /> |
+
+**财务中心**
+
+| 页面 | 演示 |
+|---|---|
+| 财务总览 | <img src="images/gifs/15-finance-overview.gif" width="420" /> |
+| 购物记录 | <img src="images/gifs/16-shopping.gif" width="420" /> |
+| 旅行开支 | <img src="images/gifs/17-travel.gif" width="420" /> |
+| 账单管理 | <img src="images/gifs/18-bills.gif" width="420" /> |
+| 财务规划 | <img src="images/gifs/19-planning.gif" width="420" /> |
+| 债务管理 | <img src="images/gifs/20-debts.gif" width="420" /> |
+| 财务报告 | <img src="images/gifs/21-finance-reports.gif" width="420" /> |
+
+**生活中心**
+
+| 页面 | 演示 |
+|---|---|
+| 生活总览 | <img src="images/gifs/22-lifestyle-overview.gif" width="420" /> |
+| 物品追踪 | <img src="images/gifs/23-items.gif" width="420" /> |
+| 卡片管理 | <img src="images/gifs/24-cards.gif" width="420" /> |
+| 生活报告 | <img src="images/gifs/25-lifestyle-reports.gif" width="420" /> |
+
+**投资中心**
+
+| 页面 | 演示 |
+|---|---|
+| 投资总览 | <img src="images/gifs/26-investment-overview.gif" width="420" /> |
+| 外汇交易 | <img src="images/gifs/27-forex.gif" width="420" /> |
+| 投资报告 | <img src="images/gifs/28-investment-reports.gif" width="420" /> |
 
 ---
 
