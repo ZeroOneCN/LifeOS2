@@ -215,13 +215,13 @@ export function LoginAuditPage() {
       )}
 
       {byResult.length > 0 && (
-        <section className="grid gap-4 sm:grid-cols-3">
+        <section className="grid grid-cols-3 gap-4">
           {byResult.map((r) => {
             const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400', icon: Shield }
             const Icon = meta.icon
             return (
               <Card key={r.result}>
-                <CardContent className="flex items-center gap-3 p-6">
+                <CardContent className="flex items-center gap-3 p-4">
                   <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
                     <Icon className="size-4" />
                   </span>
