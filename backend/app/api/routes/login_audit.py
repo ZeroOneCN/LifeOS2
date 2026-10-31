@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -52,29 +52,47 @@ def list_audits(
     return PageOut(items=rows, total=total, page=page, page_size=page_size)
 
 
-@router.get("/stats")
-def stats(
-    days: int = Query(30, ge=1, le=365),
+@router.delete("")
+def clear_audits(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(get_current_admin),
 ):
-    """统计近 N 天登录审计：总数/今日/按结果/按 IP(Top10)/趋势/暴力破解嫌疑 IP。仅管理员。"""
-    since = datetime.combine(
-        date.today() - timedelta(days=days - 1), datetime.min.time()
-    )
-    rows = db.scalars(
-        select(LoginAudit).where(LoginAudit.created_at >= since)
-    ).all()
+    """清除全部登录审计记录（仅管理员，操作不可恢复），返回删除条数。"""
+    result = db.execute(delete(LoginAudit))
+    db.commit()
+    return {"deleted": result.rowcount or 0}
+
+
+@router.get("/stats")
+def stats(
+    days: int | None = Query(None, ge=1, le=3650),
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_admin),
+):
+    """统计登录审计：总数/今日/按结果/按 IP(Top10)/趋势/暴力破解嫌疑 IP。
+
+    days 不传时统计全部历史记录；传入则只统计最近 N 天。仅管理员。
+    """
+    stmt = select(LoginAudit)
+    if days is not None:
+        since = datetime.combine(
+            date.today() - timedelta(days=days - 1), datetime.min.time()
+        )
+        stmt = stmt.where(LoginAudit.created_at >= since)
+    rows = db.scalars(stmt).all()
 
     daily: dict[date, int] = defaultdict(int)
     by_result: dict[str, int] = defaultdict(int)
     by_ip: dict[str | None, int] = defaultdict(int)
+    today_by_result: dict[str, int] = defaultdict(int)
     today = date.today()
     for r in rows:
         d = r.created_at.date()
         daily[d] += 1
         by_result[r.result] += 1
         by_ip[r.ip_address] += 1
+        if d == today:
+            today_by_result[r.result] += 1
 
     # 暴力破解嫌疑 IP：近窗口内同 IP 失败次数 ≥ 阈值
     window_since = datetime.now() - timedelta(
@@ -108,7 +126,11 @@ def stats(
 
     return {
         "total": len(rows),
-        "today": sum(1 for r in rows if r.created_at.date() == today),
+        "today": sum(today_by_result.values()),
+        "today_by_result": [
+            {"result": k, "count": v}
+            for k, v in sorted(today_by_result.items(), key=lambda x: -x[1])
+        ],
         "by_result": [
             {"result": k, "count": v}
             for k, v in sorted(by_result.items(), key=lambda x: -x[1])

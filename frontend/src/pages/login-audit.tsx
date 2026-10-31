@@ -8,8 +8,10 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,6 +27,7 @@ import {
 import { DatePicker } from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   Select,
   SelectContent,
@@ -53,6 +56,7 @@ type LoginAudit = {
 type LoginAuditStats = {
   total: number
   today: number
+  today_by_result: { result: string; count: number }[]
   by_result: { result: string; count: number }[]
   by_ip: { ip: string; count: number }[]
   trend: { log_date: string; count: number }[]
@@ -125,6 +129,9 @@ export function LoginAuditPage() {
   const [end, setEnd] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const totalPages = Math.max(1, Math.ceil(total / 10))
 
   const loadList = async () => {
@@ -146,8 +153,18 @@ export function LoginAuditPage() {
     }
   }
 
+  /** 加载统计（不传 days 表示统计全部历史数据）。 */
+  const loadStats = async () => {
+    try {
+      const data = await api.query<LoginAuditStats>('/login-audits/stats')
+      setStats(data)
+    } catch {
+      setStats(null)
+    }
+  }
+
   useEffect(() => {
-    api.query<LoginAuditStats>('/login-audits/stats?days=30').then(setStats).catch(() => setStats(null))
+    loadStats()
   }, [realtimeTick])
 
   useEffect(() => {
@@ -155,13 +172,48 @@ export function LoginAuditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, result, start, end, realtimeTick])
 
+  /** 手动刷新：列表与统计并行加载，按钮在请求期间显示旋转反馈。 */
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([loadList(), loadStats()])
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  /** 清除全部审计记录：二次确认后执行，完成后重置分页并刷新。 */
+  const clearAll = async () => {
+    const ok = await confirm({
+      title: '清除登录审计记录',
+      description: '将删除全部登录审计记录且不可恢复，确定继续吗？',
+      confirmText: '清除',
+      danger: true,
+    })
+    if (!ok) return
+    setClearing(true)
+    try {
+      const res = await api.removeAll<{ deleted: number }>('/login-audits')
+      toast.success(`已清除 ${res.deleted} 条登录审计记录`)
+      setPage(1)
+      await Promise.all([loadList(), loadStats()])
+    } catch (e) {
+      toast.error('清除失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setClearing(false)
+    }
+  }
+
   const byResult = stats?.by_result ?? []
   const byIp = stats?.by_ip ?? []
   const trend = stats?.trend ?? []
   const bruteIps = stats?.brute_force_ips ?? []
   const todayCount = stats?.today ?? 0
-  const failToday = byResult.find((r) => r.result === 'fail')?.count ?? 0
-  const lockedToday = byResult.find((r) => r.result === 'locked')?.count ?? 0
+  const todayByResult = stats?.today_by_result ?? []
+  const failToday = todayByResult.find((r) => r.result === 'fail')?.count ?? 0
+  const lockedToday = todayByResult.find((r) => r.result === 'locked')?.count ?? 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -172,9 +224,19 @@ export function LoginAuditPage() {
             记录所有登录尝试的账号、IP、时间与结果，自动检测暴力破解行为。
           </p>
         </div>
-        <Button variant="outline" onClick={loadList}>
-          <RefreshCw /> 刷新
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? 'animate-spin' : ''} /> 刷新
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive hover:text-destructive"
+            onClick={clearAll}
+            disabled={clearing}
+          >
+            {clearing ? <Loader2 className="animate-spin" /> : <Trash2 />} 清除记录
+          </Button>
+        </div>
       </section>
 
       <section className="grid grid-cols-4 gap-4">
@@ -240,7 +302,7 @@ export function LoginAuditPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">来源 IP 分布（Top10）</CardTitle>
-            <CardDescription>近 30 天登录尝试最频繁的来源 IP</CardDescription>
+            <CardDescription>全部历史登录尝试最频繁的来源 IP</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2">
             {byIp.map((b) => (
@@ -261,7 +323,7 @@ export function LoginAuditPage() {
 
       {trend.length > 0 && (
         <LineChartCard
-          title="近30天登录尝试趋势"
+          title="历史登录尝试趋势"
           data={trend}
           xKey="log_date"
           series={[{ key: 'count', name: '尝试数', color: '#0ea5e9' }]}
@@ -382,6 +444,7 @@ export function LoginAuditPage() {
           </CardFooter>
         )}
       </Card>
+      {confirmDialog}
     </div>
   )
 }
