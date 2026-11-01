@@ -20,6 +20,7 @@ from app.models import (
     LifestylePhoneCard,
     LifestylePhoneLedger,
 )
+from app.services.activity import AUTO_ACTION, log_activity as write_activity_log
 
 MONTHLY_MODE = "monthly"
 DAILY_MODE = "daily"
@@ -291,10 +292,30 @@ def settle_user(
     return total
 
 
-def settle_all(db: Session, today: date | None = None) -> dict:
-    """结算全库所有手机卡（定时任务调用），返回统计信息。"""
+def settle_all(
+    db: Session, today: date | None = None, log_activity: bool = False
+) -> dict:
+    """结算全库所有手机卡（定时任务调用），返回统计信息。
+
+    Args:
+        db: 数据库会话。
+        today: 结算基准日期，默认今天。
+        log_activity: 为 True 时对产生扣费的用户写入「自动」活动日志
+            （仅定时任务使用；手动扣费由活动日志中间件记录）。
+    """
     user_ids = db.scalars(select(LifestylePhoneCard.user_id).distinct()).all()
     charged = 0
     for uid in user_ids:
-        charged += settle_user(db, uid, today=today, respect_auto=True)
+        user_charged = settle_user(db, uid, today=today, respect_auto=True)
+        charged += user_charged
+        if log_activity and user_charged:
+            write_activity_log(
+                db,
+                user_id=uid,
+                action=AUTO_ACTION,
+                module="lifestyle/card-bills",
+                resource_type="card_bill",
+                summary=f"自动话费结算：新增 {user_charged} 笔扣费",
+                detail={"charges": user_charged, "date": (today or date.today()).isoformat()},
+            )
     return {"users": len(user_ids), "charges": charged}

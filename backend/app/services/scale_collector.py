@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import date, datetime
 from typing import Any
@@ -22,7 +21,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.models import ActivityLog, HealthBody, UserProfile
+from app.models import HealthBody, UserProfile
+from app.services.activity import AUTO_ACTION, log_activity
 from app.services.scale import ScaleReader
 
 try:  # 无蓝牙依赖时安全降级
@@ -315,20 +315,19 @@ class ScaleWeightCollector:
                 "source": "ble-scale",
                 "body": body or None,
             }
-            db.add(
-                ActivityLog(
-                    user_id=user_id,
-                    action="create" if created else "update",
-                    module="health/body",
-                    resource_type="body",
-                    resource_id=row.id,
-                    summary=(
-                        f"体重秤自动记录体重 {kg} kg"
-                        + ("（含体成分）" if body else "")
-                    ),
-                    detail=json.dumps(detail, ensure_ascii=False)[:2000],
-                    user_agent="ble-scale",
-                )
+            log_activity(
+                db,
+                user_id=user_id,
+                action=AUTO_ACTION,
+                module="health/body",
+                resource_type="body",
+                resource_id=row.id,
+                summary=(
+                    f"体重秤自动记录体重 {kg} kg"
+                    + ("（含体成分）" if body else "")
+                ),
+                detail=detail,
+                user_agent="ble-scale",
             )
             db.commit()
             self._last_written = {

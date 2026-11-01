@@ -30,6 +30,10 @@ from app.services.backup_scheduler import (
     start_scheduler as start_backup_scheduler,
     stop_scheduler as stop_backup_scheduler,
 )
+from app.services.report_scheduler import (
+    start_scheduler as start_report_scheduler,
+    stop_scheduler as stop_report_scheduler,
+)
 from app.services.scale_collector import scale_collector
 
 
@@ -46,9 +50,11 @@ async def lifespan(app: FastAPI):
         db.close()
     start_scheduler()
     start_backup_scheduler()
+    start_report_scheduler()
     await scale_collector.start()
     yield
     await scale_collector.stop()
+    stop_report_scheduler()
     stop_backup_scheduler()
     stop_scheduler()
 

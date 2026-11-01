@@ -37,6 +37,8 @@ from app.models.notification_center import (
 )
 from app.models.user import UserProfile
 
+from app.services.activity import AUTO_ACTION, log_activity
+
 from .channels import send_to_channel
 from .templates import render
 
@@ -876,14 +878,53 @@ def _merge_summaries(target: dict, src: dict) -> None:
     target["detail"].extend(src["detail"])
 
 
-def scan_all(db: Session, user_id: int | None = None) -> dict:
+def _log_scan_activity(db: Session, user_id: int, summary: dict, overdue: bool) -> None:
+    """为自动提醒扫描写入活动日志（仅有新通知时记录）。
+
+    Args:
+        db: 数据库会话。
+        user_id: 用户 ID。
+        summary: 单用户扫描结果。
+        overdue: 是否为逐小时逾期扫描。
+    """
+    if not summary.get("created"):
+        return
+    name = "逾期提醒" if overdue else "到期提醒"
+    log_activity(
+        db,
+        user_id=user_id,
+        action=AUTO_ACTION,
+        module="notifications/scan",
+        resource_type="notification",
+        summary=(
+            f"自动{name}扫描：生成 {summary['created']} 条提醒"
+            f"（发送成功 {summary['sent']} 条，失败 {summary['failed']} 条）"
+        ),
+        detail={
+            "scanned": summary["scanned"],
+            "created": summary["created"],
+            "sent": summary["sent"],
+            "failed": summary["failed"],
+            "items": summary["detail"][:30],
+        },
+    )
+
+
+def scan_all(
+    db: Session, user_id: int | None = None, log_activity: bool = False
+) -> dict:
     """遍历启用中的功能开关，生成站内通知并下发配置渠道。
 
     - user_id 指定时：仅扫描该用户。
     - user_id 为空时：扫描所有用户（向后兼容）。
+    - log_activity 为 True 时，为产生新通知的用户写入「自动」活动日志
+      （定时任务使用；接口手动扫描由活动日志中间件记录，不重复写入）。
     """
     if user_id is not None:
-        return _scan_user(db, user_id)
+        summary = _scan_user(db, user_id)
+        if log_activity:
+            _log_scan_activity(db, user_id, summary, overdue=False)
+        return summary
     user_ids = db.scalars(select(UserProfile.id)).all()
     summary = {
         "scanned": 0,
@@ -894,11 +935,16 @@ def scan_all(db: Session, user_id: int | None = None) -> dict:
         "detail": [],
     }
     for uid in user_ids:
-        _merge_summaries(summary, _scan_user(db, uid))
+        user_summary = _scan_user(db, uid)
+        _merge_summaries(summary, user_summary)
+        if log_activity:
+            _log_scan_activity(db, uid, user_summary, overdue=False)
     return summary
 
 
-def scan_overdue(db: Session, user_id: int | None = None) -> dict:
+def scan_overdue(
+    db: Session, user_id: int | None = None, log_activity: bool = False
+) -> dict:
     """扫描需要逐小时提醒的网贷账单（已逾期 / 容时最后一天），按“小时”去重。
 
     - user_id 指定时：仅扫描该用户。
@@ -906,7 +952,10 @@ def scan_overdue(db: Session, user_id: int | None = None) -> dict:
     仅处理启用了「网贷/房贷还款」提醒开关的用户，未开启则不产生任何通知。
     """
     if user_id is not None:
-        return _scan_user(db, user_id, overdue_only=True)
+        summary = _scan_user(db, user_id, overdue_only=True)
+        if log_activity:
+            _log_scan_activity(db, user_id, summary, overdue=True)
+        return summary
     user_ids = db.scalars(select(UserProfile.id)).all()
     summary = {
         "scanned": 0,
@@ -917,5 +966,8 @@ def scan_overdue(db: Session, user_id: int | None = None) -> dict:
         "detail": [],
     }
     for uid in user_ids:
-        _merge_summaries(summary, _scan_user(db, uid, overdue_only=True))
+        user_summary = _scan_user(db, uid, overdue_only=True)
+        _merge_summaries(summary, user_summary)
+        if log_activity:
+            _log_scan_activity(db, uid, user_summary, overdue=True)
     return summary

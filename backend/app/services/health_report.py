@@ -67,6 +67,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthVitalsSleep)
         .where(HealthVitalsSleep.user_id == user_id)
         .where(HealthVitalsSleep.record_date >= start)
+        .where(HealthVitalsSleep.record_date <= end)
         .order_by(HealthVitalsSleep.record_date)
     ).all()
     latest_v = vitals[-1] if vitals else None
@@ -78,6 +79,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthFitness)
         .where(HealthFitness.user_id == user_id)
         .where(HealthFitness.record_date >= start)
+        .where(HealthFitness.record_date <= end)
     ).all()
 
     # ---- 饮食 ----
@@ -85,6 +87,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthDiet)
         .where(HealthDiet.user_id == user_id)
         .where(HealthDiet.record_date >= start)
+        .where(HealthDiet.record_date <= end)
     ).all()
     diet_by_type: dict[str, int] = defaultdict(int)
     for d in diets:
@@ -103,6 +106,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthSteps)
         .where(HealthSteps.user_id == user_id)
         .where(HealthSteps.record_date >= start)
+        .where(HealthSteps.record_date <= end)
     ).all()
     step_by_day: dict[date, int] = {}
     for s in steps:
@@ -117,6 +121,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthCheckup)
         .where(HealthCheckup.user_id == user_id)
         .where(HealthCheckup.check_date >= start)
+        .where(HealthCheckup.check_date <= end)
     ).all()
     status_counts = {"normal": 0, "high": 0, "low": 0}
     abnormal = []
@@ -141,6 +146,7 @@ def build_report_data(db: Session, start: date, end: date, user_id: int) -> dict
         select(HealthMedication)
         .where(HealthMedication.user_id == user_id)
         .where(HealthMedication.record_date >= start)
+        .where(HealthMedication.record_date <= end)
     ).all()
     taken = [m for m in meds if m.taken_breakfast or m.taken_lunch or m.taken_dinner]
     # 库存按粒实时计算（购药粒数 - 已服用粒数），low_stock 取真正偏低项

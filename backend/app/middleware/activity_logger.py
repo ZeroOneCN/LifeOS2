@@ -121,7 +121,13 @@ def module_display_name(module: str) -> str:
     root = parts[0]
     return MODULE_PREFIX_NAMES.get(root, module)
 
-ACTION_NAMES = {"create": "新增", "update": "更新", "patch": "部分更新", "delete": "删除"}
+ACTION_NAMES = {
+    "create": "新增",
+    "update": "更新",
+    "patch": "部分更新",
+    "delete": "删除",
+    "auto": "自动",
+}
 
 MAX_DETAIL = 2000  # 详情字段最大保留长度
 

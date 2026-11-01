@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models.backup import ScheduledBackup
 from app.services import backup_service
+from app.services.activity import AUTO_ACTION, log_activity
 
 logger = logging.getLogger("app.backup_scheduler")
 
@@ -48,6 +49,20 @@ def _execute_backup(schedule_id: int, db: Session) -> str:
             db, sched.user_id, sched.name, sched.export_format, "success",
             schedule_id=sched.id, filename=filename, file_size=filepath.stat().st_size,
         )
+        log_activity(
+            db,
+            user_id=sched.user_id,
+            action=AUTO_ACTION,
+            module="backup/schedules",
+            resource_type="backup",
+            resource_id=sched.id,
+            summary=f"定时备份「{sched.name}」执行成功",
+            detail={
+                "filename": filename,
+                "file_size": filepath.stat().st_size,
+                "export_format": sched.export_format,
+            },
+        )
 
         logger.info("定时备份 '%s' 完成：%s", sched.name, filename)
         return "success"
@@ -56,6 +71,16 @@ def _execute_backup(schedule_id: int, db: Session) -> str:
         backup_service.write_backup_log(
             db, sched.user_id, sched.name, sched.export_format, "failed",
             schedule_id=sched.id, error_message=str(exc)[:2000],
+        )
+        log_activity(
+            db,
+            user_id=sched.user_id,
+            action=AUTO_ACTION,
+            module="backup/schedules",
+            resource_type="backup",
+            resource_id=sched.id,
+            summary=f"定时备份「{sched.name}」执行失败",
+            detail=str(exc)[:2000],
         )
         return "failed"
 

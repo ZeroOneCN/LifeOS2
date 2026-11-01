@@ -13,7 +13,7 @@ class ActivityLog(UserOwned, Base):
     __tablename__ = "activity_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    action: Mapped[str] = mapped_column(String(16), index=True)  # create/update/delete
+    action: Mapped[str] = mapped_column(String(16), index=True)  # create/update/patch/delete/auto
     module: Mapped[str] = mapped_column(String(64), index=True)  # 所属模块路径，如 health/steps
     resource_type: Mapped[str] = mapped_column(String(64))  # 资源类型（末段路径）
     resource_id: Mapped[int | None] = mapped_column(Integer)  # 资源ID

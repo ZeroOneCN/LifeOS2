@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     NOTIFICATION_ENC_KEY: str = ""
     # 每日提醒扫描时间（HH:MM），默认每天 0:00 执行
     NOTIFY_SCAN_TIME: str = "00:00"
+    # 每月 1 日自动生成上月报告的时间（HH:MM），默认 00:10
+    MONTHLY_REPORT_TIME: str = "00:10"
     # JWT 签名密钥（生产环境务必修改为随机值）
     JWT_SECRET_KEY: str = _DEFAULT_JWT_SECRET
     JWT_ALGORITHM: str = "HS256"

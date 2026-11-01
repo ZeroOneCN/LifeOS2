@@ -24,7 +24,7 @@ def _job() -> None:
         from app.services.notification.seed import ensure_seed
 
         ensure_seed(db)
-        summary = scan_all(db)
+        summary = scan_all(db, log_activity=True)
         db.commit()
         logger.info("提醒扫描完成：%s", summary)
     except Exception as exc:  # noqa: BLE001
@@ -41,7 +41,7 @@ def _job_overdue() -> None:
         from app.services.notification.seed import ensure_seed
 
         ensure_seed(db)
-        summary = scan_overdue(db)
+        summary = scan_overdue(db, log_activity=True)
         db.commit()
         logger.info("逾期提醒扫描完成：%s", summary)
     except Exception as exc:  # noqa: BLE001
@@ -56,7 +56,7 @@ def _job_phone_settle() -> None:
     try:
         from app.services.phone_billing import settle_all
 
-        summary = settle_all(db)
+        summary = settle_all(db, log_activity=True)
         db.commit()
         logger.info("手机卡话费结算完成：%s", summary)
     except Exception as exc:  # noqa: BLE001
@@ -70,21 +70,39 @@ def _cleanup_expired_sessions() -> None:
     """每日清理过期的用户会话记录，防止 user_sessions 表无限膨胀。"""
     from datetime import datetime, timezone
 
-    from sqlalchemy import delete
+    from sqlalchemy import delete, func, select
 
     from app.models import UserSession
+    from app.services.activity import AUTO_ACTION, log_activity
 
     db = SessionLocal()
     try:
         # 与 expires_at 列存储口径一致：使用「无时区 UTC」
         now = datetime.now(timezone.utc).replace(tzinfo=None)
+        # 先按用户统计待清理数量，删除后逐用户写入活动日志，保证自动化操作可追溯
+        per_user = db.execute(
+            select(UserSession.user_id, func.count(UserSession.id))
+            .where(UserSession.expires_at < now)
+            .group_by(UserSession.user_id)
+        ).all()
         result = db.execute(
             delete(UserSession).where(UserSession.expires_at < now)
         )
+        for uid, count in per_user:
+            log_activity(
+                db,
+                user_id=uid,
+                action=AUTO_ACTION,
+                module="auth/sessions",
+                resource_type="session",
+                summary=f"自动清理 {count} 条过期会话",
+                detail={"expired_count": count, "expires_before": now.isoformat()},
+            )
         db.commit()
         if result.rowcount > 0:
             logger.info("已清理 %d 条过期会话", result.rowcount)
     except Exception as exc:  # noqa: BLE001
+        db.rollback()
         logger.exception("过期会话清理失败：%s", exc)
     finally:
         db.close()
