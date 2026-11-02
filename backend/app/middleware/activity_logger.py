@@ -131,6 +131,9 @@ ACTION_NAMES = {
 
 MAX_DETAIL = 2000  # 详情字段最大保留长度
 
+# 请求/响应体含明文密码或令牌的认证类接口：详情禁止原样入库
+SENSITIVE_BODY_MODULES = {"auth/login", "auth/register", "auth/refresh"}
+
 
 class ActivityLoggerMiddleware:
     """纯 ASGI 中间件：拦截 /api/v1 下的写操作（POST/PUT/DELETE），自动写入活动日志。"""
@@ -227,7 +230,10 @@ class ActivityLoggerMiddleware:
 
         summary = self._build_summary(action, module, resource_id)
         detail = None
-        if action == "delete":
+        if module in SENSITIVE_BODY_MODULES:
+            # 认证类接口的请求体含密码、响应体含 access/refresh token，均不得写入活动日志
+            detail = self._auth_detail(module, req_data)
+        elif action == "delete":
             detail = f"删除 {module} 记录，ID={resource_id}"
         elif req_data is not None:
             detail = json.dumps(req_data, ensure_ascii=False)
@@ -235,6 +241,16 @@ class ActivityLoggerMiddleware:
             detail = json.dumps(resp_data, ensure_ascii=False)
         if detail and len(detail) > MAX_DETAIL:
             detail = detail[:MAX_DETAIL] + "…"
+
+        # auth/login、auth/register 请求不带 Bearer，只能从响应体 user.id 取归属；
+        # activity_logs.user_id 为非空列，拿不到归属时跳过写入，避免静默插入失败
+        if user_id is None and module in ("auth/login", "auth/register"):
+            if isinstance(resp_data, dict) and isinstance(resp_data.get("user"), dict):
+                rid = resp_data["user"].get("id")
+                if isinstance(rid, int):
+                    user_id = rid
+        if module in SENSITIVE_BODY_MODULES and user_id is None:
+            return
 
         db = SessionLocal()
         try:
@@ -256,6 +272,24 @@ class ActivityLoggerMiddleware:
             db.rollback()
         finally:
             db.close()
+
+    @staticmethod
+    def _auth_detail(module: str, req_data: dict | list | None) -> str | None:
+        """生成认证类接口的脱敏详情，仅保留非敏感字段。
+
+        Args:
+            module: 去掉 API 前缀后的模块路径，如 auth/login、auth/refresh。
+            req_data: 已解析的请求体（JSON 对象/数组，解析失败时为 None）。
+
+        Returns:
+            可直接入库的 JSON 字符串；登录/注册仅保留 account，刷新令牌接口返回 None。
+        """
+        if module == "auth/refresh" or not isinstance(req_data, dict):
+            return None
+        account = req_data.get("account")
+        if not isinstance(account, str) or not account:
+            return None
+        return json.dumps({"account": account[:64]}, ensure_ascii=False)
 
     @staticmethod
     def _parse_json(data: bytearray) -> dict | list | None:
