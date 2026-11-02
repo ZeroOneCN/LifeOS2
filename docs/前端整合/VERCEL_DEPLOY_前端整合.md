@@ -11,7 +11,7 @@
 | 环境变量 | `VITE_DEMO` = `1`（必须精确为字符串 `1`） |
 | Root Directory | `frontend`（仓库根目录已没有 `vercel-demo/`） |
 
-补充：mock 登录**只校验账号是否为 `demo`，不校验密码**（`handleLogin` 里没有比对密码字段）。密码 `demo123456` 是公开演示值，出现在 mock 的错误提示、登录页预填提示和快照的站点文案里。
+补充：mock 登录**只校验账号是否为 `demo`，不校验密码**（`handleLogin` 里没有比对密码字段）。密码 `demo123456` 是公开演示值，出现在 mock 的 401/403 提示、登录页预填与提示块、`/site-config/reset` 的 fallback 文案中。
 
 ---
 
