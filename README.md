@@ -183,8 +183,7 @@ LifeOS V2.0/
 │   ├── app/             # 应用代码（模型 / 接口 / 服务 / 定时任务）
 │   └── backups/         # 数据库备份归档（仅本地，不入库）
 ├── frontend/            # 前端应用（Vite，端口 9015）
-│   └── src/             # 页面、组件与配置源码
-├── vercel-demo/         # Vercel 在线演示版（完整前端 + 内置模拟数据，无需后端）
+│   └── src/             # 页面、组件与配置源码（src/demo/ 为演示 mock 数据层）
 ├── images/              # 文档配图
 ├── 说明文档.md           # 项目管理载体（规划 / 实施方案 / 进度记录）
 └── README.md
@@ -245,17 +244,19 @@ Web Bluetooth（浏览器直连体重秤）要求「安全上下文」，`http:/
 - 想彻底消除警告：以管理员身份执行 `npm run cert:trust`（导入受信任根证书），之后完全退出并重启浏览器
 - 后端仍以 HTTP 运行在 9515，由 Vite 代理转发，无需单独配置 HTTPS
 
-### 3. 在线演示版（vercel-demo，端口 4173）
+### 3. 在线演示版（同一份前端 + VITE_DEMO=1）
 
-`vercel-demo/` 是前端的独立副本，内置模拟数据层（`src/demo/snapshot.json` + `src/demo/mock-api.ts`），通过拦截 `/api/v1/*` 请求返回演示数据，**无需后端即可运行全部页面**。
+演示版不再是独立源码副本，直接复用 `frontend/src`；内置模拟数据层（`frontend/src/demo/snapshot.json` + `mock-api.ts`）在启动阶段拦截 `/api/v1/*` 请求返回演示数据，**无需后端即可运行全部页面**。
 
 ```bash
-cd vercel-demo
+cd frontend
 npm install
-npm run dev        # 本地调试
-npm run build      # 构建产物输出到 dist/
-npm run preview    # 预览构建产物
+VITE_DEMO=1 npm run dev        # 本地调试（端口 9015）
+VITE_DEMO=1 npm run build      # 演示构建，产物输出到 dist/
+npm run preview                # 预览构建产物
 ```
+
+> Windows PowerShell 写法：`$env:VITE_DEMO="1"; npm run build`
 
 - 演示账号：`demo`　密码：`demo123456`（注册入口已关闭）
 - 新增 / 编辑 / 删除等写操作仅保存在浏览器 `localStorage`，刷新后仍保留；清除该站点的本地存储即可恢复初始演示数据
@@ -272,15 +273,17 @@ npm run preview    # 预览构建产物
 
 ## Vercel 在线演示部署
 
-演示版是纯静态站点，无需数据库与后端服务，可直接部署到 Vercel：
+演示版是纯静态站点，无需数据库与后端服务。它与正式前端共用同一份源码，只靠环境变量开启 mock：
 
 1. 在 Vercel 控制台 **Add New → Project**，导入本仓库（`ZeroOneCN/LifeOS2`）。
-2. **Root Directory** 选择 `vercel-demo`。
-3. **Framework Preset** 选择 `Vite`；Build Command 为 `npm run build`，Output Directory 为 `dist`（`vercel-demo/vercel.json` 已内置该配置与 SPA 路由重写）。
-4. 无需配置任何环境变量，点击 Deploy 即可。
+2. **Root Directory** 选择 `frontend`。
+3. **Framework Preset** 选择 `Vite`；Build Command 为 `npm run build`，Output Directory 为 `dist`（`frontend/vercel.json` 已内置该配置与 SPA 路由重写）。
+4. 在 **Environment Variables** 中添加 `VITE_DEMO` = `1`（Production 与 Preview 均需添加）。
 5. 部署完成后访问生成的域名，使用演示账号 `demo` / `demo123456` 登录体验。
 
-> 后续若前端有更新，同步复制到 `vercel-demo/` 后重新提交即可；演示数据由 `src/demo/snapshot.json` 提供，可按需替换。
+> ⚠️ **已有 Vercel 项目必须同步调整**：若原项目的 Root Directory 仍指向 `vercel-demo`，该目录已删除，部署会因构建目录不存在而失败——请改指 `frontend`，并补上 `VITE_DEMO=1`。反之，若 `frontend` 部署未设置 `VITE_DEMO`，站点会请求真实 `/api/v1`，在没有后端的环境下页面不可用。
+>
+> 演示数据由 `frontend/src/demo/snapshot.json` 提供，可按需替换；此后前端更新再无需要同步的第二份副本。
 
 ---
 
