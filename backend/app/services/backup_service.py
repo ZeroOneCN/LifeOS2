@@ -290,6 +290,17 @@ def _export_sql_via_mysqldump(
         params["database"],
     ]
     if table_names:
+        # 二次校验：只允许真实存在的表进入命令行，防止表名被解释成 mysqldump 参数
+        from app.core.database import SessionLocal
+
+        probe = SessionLocal()
+        try:
+            allowed = set(inspect(probe.get_bind()).get_table_names())
+        finally:
+            probe.close()
+        invalid = [t for t in table_names if t not in allowed]
+        if invalid:
+            raise ValueError(f"非法表名: {', '.join(invalid)}")
         cmd.extend(table_names)
 
     try:

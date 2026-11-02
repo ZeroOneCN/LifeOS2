@@ -5,11 +5,11 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import select, update
+from sqlalchemy import inspect, select, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_admin
 from app.models import UserProfile
 from app.models.backup import ScheduledBackup
 from app.services import backup_service
@@ -100,10 +100,32 @@ class ScheduleRead(BaseModel):
 
 # ── 接口 ──────────────────────────────────────────────────────────────────
 
+def _validate_tables(db: Session, tables: list[str] | None) -> None:
+    """校验导出表名是否都属于当前数据库，非法表名直接返回 400。
+
+    Args:
+        db: 当前请求的数据库会话，用于读取真实表名白名单。
+        tables: 客户端提交的表名列表；为空/None 表示导出全部表。
+
+    Raises:
+        HTTPException: 存在不属于当前库的表名时抛出 400，避免表名被拼进
+            mysqldump 命令行形成参数注入。
+    """
+    if not tables:
+        return
+    allowed = set(inspect(db.get_bind()).get_table_names())
+    invalid = [t for t in tables if t not in allowed]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"非法表名: {', '.join(invalid)}",
+        )
+
+
 @router.get("/tables", response_model=list[TableInfo])
 def list_tables(
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """获取所有数据表及其记录数。"""
     return backup_service.get_table_list(db)
@@ -113,9 +135,10 @@ def list_tables(
 def export_data(
     payload: ExportReq,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """导出数据为 JSON 或 SQL 格式。"""
+    _validate_tables(db, payload.tables)
     try:
         if payload.format == "sql":
             data, filename = backup_service.export_sql_mysqldump(payload.tables)
@@ -135,6 +158,12 @@ def export_data(
             error_message=str(e)[:2000],
         )
         raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as e:
+        backup_service.write_backup_log(
+            db, user.id, "手动导出", payload.format, "failed",
+            error_message=str(e)[:2000],
+        )
+        raise HTTPException(status_code=400, detail=str(e))
 
     media_type = (
         "application/zip" if filename.endswith(".zip")
@@ -150,7 +179,7 @@ def export_data(
 def list_backups(
     page: int = 1,
     page_size: int = 10,
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """分页列出所有已生成的备份文件。"""
     items, total = backup_service.list_backup_files(page, page_size)
@@ -160,7 +189,7 @@ def list_backups(
 @router.get("/exports/{filename}/preview", response_model=BackupPreview)
 def preview_backup(
     filename: str,
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """在线预览备份文件内容（支持 .sql / .json，超大文件自动截断）。"""
     try:
@@ -174,7 +203,7 @@ def preview_backup(
 @router.get("/exports/{filename}")
 def download_backup(
     filename: str,
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """下载指定的备份文件。"""
     filepath = backup_service.BACKUP_DIR / filename
@@ -196,7 +225,7 @@ def download_backup(
 @router.delete("/exports")
 def clear_old_backups(
     keep_days: int = 3,
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """清除超过保留天数的备份文件（默认保留最近 3 天）。"""
     try:
@@ -209,7 +238,7 @@ def clear_old_backups(
 @router.delete("/exports/{filename}")
 def delete_backup(
     filename: str,
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """删除指定的备份文件。"""
     try:
@@ -225,7 +254,7 @@ def delete_backup(
 def import_data(
     file: UploadFile,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """上传 JSON 备份文件并导入数据。"""
     if not file.filename or not file.filename.endswith(".json"):
@@ -252,7 +281,7 @@ def import_data(
 @router.get("/schedules", response_model=list[ScheduleRead])
 def list_schedules(
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """列出当前用户的定时备份任务。"""
     rows = db.scalars(
@@ -267,7 +296,7 @@ def list_schedules(
 def create_schedule(
     payload: ScheduleCreate,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """创建定时备份任务。"""
     s = ScheduledBackup(
@@ -291,7 +320,7 @@ def update_schedule(
     schedule_id: int,
     payload: ScheduleUpdate,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """更新定时备份任务。"""
     s = db.scalar(
@@ -322,7 +351,7 @@ def update_schedule(
 def delete_schedule(
     schedule_id: int,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """删除定时备份任务。"""
     s = db.scalar(
@@ -343,7 +372,7 @@ def delete_schedule(
 def toggle_schedule(
     schedule_id: int,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """启用/禁用定时备份任务。"""
     s = db.scalar(
@@ -408,7 +437,7 @@ def list_logs(
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """分页查询备份执行日志。"""
     items, total = backup_service.get_backup_logs(db, user.id, page, page_size)
@@ -418,7 +447,7 @@ def list_logs(
 @router.delete("/logs")
 def clear_logs(
     db: Session = Depends(get_db),
-    user: UserProfile = Depends(get_current_user),
+    user: UserProfile = Depends(get_current_admin),
 ):
     """清除当前用户的全部备份执行日志（不影响已生成的备份文件）。"""
     deleted = backup_service.clear_backup_logs(db, user.id)
