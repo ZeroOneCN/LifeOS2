@@ -16,22 +16,17 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-import { findNavEntry } from '@/config/navigation'
+import { findRoute, findSection } from '@/config/routes'
 import { useSiteConfig } from '@/lib/site-config'
-
-// 底部用户入口等不在侧边栏导航中的页面标题
-const PAGE_TITLES: Record<string, string> = {
-  '/user-center': '用户中心',
-  '/user-center/settings': '账号设置',
-}
 
 export function AdminLayout() {
   const { pathname } = useLocation()
   const { config } = useSiteConfig()
-  const found = findNavEntry(pathname)
-  const sectionTitle = found?.section.title
-  const showSection = found ? !found.section.system : false
-  const pageTitle = found?.entry.title ?? PAGE_TITLES[pathname] ?? '页面'
+  const route = findRoute(pathname)
+  const section = findSection(route?.section)
+  const sectionTitle = section?.title
+  const showSection = section ? !section.system : false
+  const pageTitle = route?.title ?? '页面'
 
   // 按当前页面自动更新网页标签标题（品牌名取自系统设置）
   useEffect(() => {
