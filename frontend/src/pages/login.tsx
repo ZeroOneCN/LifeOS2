@@ -14,14 +14,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth'
+import { IS_DEMO } from '@/lib/demo-mode'
 import { resolveLogo, useSiteConfig } from '@/lib/site-config'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const { config } = useSiteConfig()
-  const [account, setAccount] = useState('')
-  const [password, setPassword] = useState('')
+  const [account, setAccount] = useState(IS_DEMO ? 'demo' : '')
+  const [password, setPassword] = useState(IS_DEMO ? 'demo123456' : '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,6 +59,11 @@ export function LoginPage() {
           />
           <CardTitle className="text-xl">{config.login_title}</CardTitle>
           <CardDescription>{config.login_subtitle}</CardDescription>
+          {IS_DEMO && (
+            <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              演示账号：demo　密码：demo123456
+            </p>
+          )}
         </CardHeader>
         <form onSubmit={submit}>
           <CardContent className="space-y-4">

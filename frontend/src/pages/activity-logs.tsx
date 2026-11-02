@@ -39,6 +39,7 @@ import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
+import { IS_DEMO } from '@/lib/demo-mode'
 
 type ActivityRecord = {
   id: number
@@ -178,7 +179,12 @@ const ACTION_META: Record<string, { name: string; className: string; icon: Lucid
   update: { name: '更新', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300', icon: Pencil },
   patch: { name: '部分更新', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300', icon: Pencil },
   delete: { name: '删除', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300', icon: Trash2 },
-  auto: { name: '自动', className: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300', icon: Bot },
+  // 演示快照不含自动化任务日志，演示构建隐藏该类型入口
+  ...(IS_DEMO
+    ? {}
+    : {
+        auto: { name: '自动', className: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300', icon: Bot },
+      }),
 }
 
 function formatTime(iso: string) {
@@ -302,7 +308,9 @@ export function ActivityLogsPage() {
         <div className="space-y-1">
           <h1 className="font-heading text-2xl font-semibold tracking-tight">活动日志</h1>
           <p className="text-sm text-muted-foreground">
-            自动记录各模块的新增、编辑、删除操作，以及报告生成、提醒扫描、话费结算、定时备份等自动化任务。
+            {IS_DEMO
+              ? '自动记录各模块的新增、编辑与删除操作。'
+              : '自动记录各模块的新增、编辑、删除操作，以及报告生成、提醒扫描、话费结算、定时备份等自动化任务。'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -394,7 +402,7 @@ export function ActivityLogsPage() {
                 <SelectItem value="update">更新</SelectItem>
                 <SelectItem value="patch">部分更新</SelectItem>
                 <SelectItem value="delete">删除</SelectItem>
-                <SelectItem value="auto">自动</SelectItem>
+                {!IS_DEMO && <SelectItem value="auto">自动</SelectItem>}
               </SelectContent>
             </Select>
           </div>
