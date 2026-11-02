@@ -62,7 +62,7 @@ def _serialize_vitals(r: HealthVitalsSleep | None) -> dict | None:
 def overview(
     db: Session = Depends(get_db), user: UserProfile = Depends(get_current_user)
 ) -> dict:
-    cache_key = f"health:overview:{user.id}"
+    cache_key = f"overview:{user.id}:health"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached

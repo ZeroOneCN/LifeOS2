@@ -14,7 +14,7 @@ router = APIRouter(prefix="/investment/overview", tags=["investment-overview"])
 @router.get("")
 def overview(db: Session = Depends(get_db),
              current_user: UserProfile = Depends(get_current_user)):
-    cache_key = f"investment:overview:{current_user.id}"
+    cache_key = f"overview:{current_user.id}:investment"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
