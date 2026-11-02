@@ -4,6 +4,7 @@ from typing import Any, Callable
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.cache import invalidate as cache_invalidate
@@ -64,6 +65,24 @@ def _raise_if_conflict(
             status_code=409,
             detail=conflict_msg or "已存在相同记录",
         )
+
+
+def _commit_or_conflict(db: Session, detail: str = "已存在相同记录") -> None:
+    """提交事务；数据库唯一约束冲突时回滚并转为 409。
+
+    用于兜住业务层校验覆盖不到的唯一约束（如唯一键含默认值、并发请求竞争），
+    语义与 `_raise_if_conflict` 保持一致：409 + 中文提示，而不是把 IntegrityError
+    冒泡成 500。
+
+    Args:
+        db: 数据库会话。
+        detail: 冲突时返回给前端的提示文案。
+    """
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=detail) from exc
 
 
 def days_since(days: int):
@@ -280,7 +299,7 @@ def crud_router(
                 conflict_msg=conflict_msg,
             )
         db.add(obj)
-        db.commit()
+        _commit_or_conflict(db, conflict_msg or "已存在相同记录")
         if after_write and user_owned:
             after_write(db, current_user.id)
         if user_owned:
