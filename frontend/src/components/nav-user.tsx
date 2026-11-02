@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BadgeCheck, LogOut, Settings } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -104,12 +104,8 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onSelect={() => navigate('/user-center')}>
-                <BadgeCheck />
-                个人资料
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navigate('/user-center/settings')}>
-                <Settings />
-                账号设置
+                <User />
+                账户设置
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

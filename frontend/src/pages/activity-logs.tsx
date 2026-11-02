@@ -122,7 +122,7 @@ const MODULE_NAMES: Record<string, string> = {
   notifications: '通知中心',
   motivation: '激励语录',
   'user/profile': '个人资料',
-  'user/settings': '账号设置',
+  'user/settings': '账户设置',
   'auth/login': '登录系统',
   'auth/register': '注册账号',
   'auth/logout': '退出登录',
@@ -154,7 +154,7 @@ const MODULE_PREFIX_NAMES: Record<string, string> = {
   notifications: '通知中心',
   auth: '账号安全',
   backup: '数据备份',
-  user: '用户中心',
+  user: '账户设置',
   'site-config': '系统设置',
   motivation: '激励语录',
 }
