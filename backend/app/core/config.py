@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 默认（不安全）密钥，用于本地开发；生产环境必须修改
 _DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-me-2f8d6c4b9a1e"
+# 视为本地开发的环境名，其余取值均按生产环境校验密钥
+_DEV_ENVIRONMENTS = {"development", "dev", "local", "test"}
 
 
 class Settings(BaseSettings):
@@ -12,6 +14,8 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str = "LifeOS API"
     API_V1_PREFIX: str = "/api/v1"
+    # 运行环境：development（默认，本地开发）/ production（生产）
+    ENVIRONMENT: str = "development"
     CORS_ORIGINS: list[str] = [
         "http://localhost:9015",
         "http://127.0.0.1:9015",
@@ -62,12 +66,32 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """加载配置并校验 JWT 密钥。
+
+    本地开发环境（ENVIRONMENT 为 development/dev/local/test）允许使用默认密钥，
+    仅输出警告；其他环境视为生产，若 JWT_SECRET_KEY 为空或仍为默认值则直接抛错，
+    让进程启动失败，避免用公开默认密钥签发令牌。
+
+    Returns:
+        校验通过的 Settings 实例。
+
+    Raises:
+        RuntimeError: 非开发环境下 JWT_SECRET_KEY 缺失或仍为默认值。
+    """
     s = Settings()
-    # 启动校验：JWT 密钥仍为默认值时输出警告
-    if s.JWT_SECRET_KEY == _DEFAULT_JWT_SECRET:
-        warnings.warn(
-            "JWT_SECRET_KEY 仍为默认不安全值！生产环境必须在 .env 中设置为随机长字符串。",
-            stacklevel=2,
+    env = s.ENVIRONMENT.strip().lower()
+    if env in _DEV_ENVIRONMENTS:
+        # 仅在本地开发环境告警，不阻断启动
+        if s.JWT_SECRET_KEY == _DEFAULT_JWT_SECRET:
+            warnings.warn(
+                "JWT_SECRET_KEY 仍为默认不安全值！生产环境必须在 .env 中设置为随机长字符串。",
+                stacklevel=2,
+            )
+        return s
+    if not s.JWT_SECRET_KEY.strip() or s.JWT_SECRET_KEY == _DEFAULT_JWT_SECRET:
+        raise RuntimeError(
+            f"ENVIRONMENT={s.ENVIRONMENT} 为非开发环境，"
+            "JWT_SECRET_KEY 必须设置为随机长字符串，禁止使用空值或默认密钥。"
         )
     return s
 
