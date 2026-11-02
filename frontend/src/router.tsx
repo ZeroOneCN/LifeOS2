@@ -98,7 +98,7 @@ const implementedPages: Record<string, React.ReactNode> = {
 }
 
 // 需要管理员权限的页面路径
-const ADMIN_PATHS = new Set(['/system-settings', '/backup', '/activity-logs', '/login-audit'])
+const ADMIN_PATHS = new Set(['/system-settings', '/backup', '/activity-logs', '/login-audit', '/sessions'])
 
 const placeholderRoutes = navigation.flatMap((section) =>
   section.children
@@ -133,7 +133,6 @@ export const router = createBrowserRouter([
       { path: '/home', element: withSuspense(<HomePage />) },
       { path: '/user-center', element: withSuspense(<UserCenterPage />) },
       { path: '/user-center/settings', element: withSuspense(<AccountSettingsPage />) },
-      { path: '/sessions', element: withSuspense(<SessionsPage />) },
       ...placeholderRoutes,
       { path: '*', element: withSuspense(<NotFoundPage />) },
     ],
