@@ -235,38 +235,38 @@ export function VitalsSleepPage() {
                 data={trend}
                 xKey="record_date"
                 series={[
-                  { key: 'blood_pressure_high', name: '高压', color: '#ef4444' },
-                  { key: 'blood_pressure_low', name: '低压', color: '#3b82f6' },
+                  { key: 'blood_pressure_high', name: '高压', color: 'danger' },
+                  { key: 'blood_pressure_low', name: '低压', color: 'chart-5' },
                 ]}
               />
               <LineChartCard
                 title="心率趋势"
                 data={trend}
                 xKey="record_date"
-                series={[{ key: 'heart_rate', name: '心率(bpm)', color: '#f43f5e' }]}
+                series={[{ key: 'heart_rate', name: '心率(bpm)', color: 'chart-7' }]}
               />
               <LineChartCard
                 title="血氧 / 体温趋势"
                 data={trend}
                 xKey="record_date"
                 series={[
-                  { key: 'blood_oxygen', name: '血氧(%)', color: '#10b981' },
-                  { key: 'body_temp', name: '体温(℃)', color: '#f59e0b' },
+                  { key: 'blood_oxygen', name: '血氧(%)', color: 'success' },
+                  { key: 'body_temp', name: '体温(℃)', color: 'warning' },
                 ]}
               />
               <LineChartCard
                 title="血糖趋势"
                 data={trend}
                 xKey="record_date"
-                series={[{ key: 'blood_glucose', name: '血糖(mmol/L)', color: '#0ea5e9' }]}
+                series={[{ key: 'blood_glucose', name: '血糖(mmol/L)', color: 'info' }]}
               />
               <LineChartCard
                 title="睡眠时长与质量"
                 data={trend}
                 xKey="record_date"
                 series={[
-                  { key: 'sleep_duration_min', name: '时长(分钟)', color: '#8b5cf6' },
-                  { key: 'sleep_quality', name: '质量(分)', color: '#10b981' },
+                  { key: 'sleep_duration_min', name: '时长(分钟)', color: 'chart-6' },
+                  { key: 'sleep_quality', name: '质量(分)', color: 'chart-2' },
                 ]}
               />
               <BarChartCard
@@ -274,8 +274,8 @@ export function VitalsSleepPage() {
                 data={trend}
                 xKey="record_date"
                 series={[
-                  { key: 'deep_sleep_min', name: '深睡(分钟)', color: '#3b82f6' },
-                  { key: 'light_sleep_min', name: '浅睡(分钟)', color: '#f59e0b' },
+                  { key: 'deep_sleep_min', name: '深睡(分钟)', color: 'chart-5' },
+                  { key: 'light_sleep_min', name: '浅睡(分钟)', color: 'chart-3' },
                 ]}
               />
             </div>

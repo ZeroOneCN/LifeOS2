@@ -264,13 +264,13 @@ export function DietPage() {
             title="每日热量摄入趋势"
             data={stats?.trend ?? []}
             xKey="record_date"
-            series={[{ key: 'calories', name: '摄入(千卡)', color: '#f59e0b' }]}
+            series={[{ key: 'calories', name: '摄入(千卡)', color: 'chart-3' }]}
           />
           <BarChartCard
             title="三餐热量分布"
             data={(stats?.by_meal ?? []).map((m) => ({ ...m, label: MEAL_LABEL[m.meal_type] ?? m.meal_type }))}
             xKey="label"
-            series={[{ key: 'calories', name: '热量(kcal)', color: '#0ea5e9' }]}
+            series={[{ key: 'calories', name: '热量(kcal)', color: 'chart-5' }]}
           />
         </div>
 

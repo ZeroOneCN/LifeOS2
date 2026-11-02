@@ -62,6 +62,7 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Tip } from '@/components/ui/tip'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
+import { useChartColors } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
 const tooltipStyle = {
@@ -238,6 +239,7 @@ const fmtDT = (v?: string) => {
 // 收益曲线（红绿基线：绿涨红跌，0 为基线）
 // ---------------------------------------------------------------------------
 function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
+  const palette = useChartColors()
   if (!data || data.length === 0)
     return <p className="py-10 text-center text-sm text-muted-foreground">暂无足够数据绘制收益曲线</p>
   return (
@@ -245,23 +247,23 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="gEquityPos" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#16a34a" stopOpacity={0.03} />
+            <stop offset="0%" stopColor={palette.success} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={palette.success} stopOpacity={0.03} />
           </linearGradient>
           <linearGradient id="gEquityNeg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity={0.03} />
-            <stop offset="100%" stopColor="#dc2626" stopOpacity={0.35} />
+            <stop offset="0%" stopColor={palette.danger} stopOpacity={0.03} />
+            <stop offset="100%" stopColor={palette.danger} stopOpacity={0.35} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
-        <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: '#6b7280' }} />
+        <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: palette['chart-axis'] }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke="#16a34a" fill="url(#gEquityPos)" />
-        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke="#dc2626" fill="url(#gEquityNeg)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#71717a" strokeWidth={1.5} dot={false} />
+        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gEquityPos)" />
+        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gEquityNeg)" />
+        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   )
@@ -688,6 +690,7 @@ const fundTypes = [
 ] as const
 
 function FundsSection() {
+  const palette = useChartColors()
   const [stats, setStats] = useState<FundStats | null>(null)
   const [items, setItems] = useState<FundRecord[]>([])
   const [open, setOpen] = useState(false)
@@ -828,9 +831,9 @@ function FundsSection() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="deposit" name="入金" fill="#16a34a" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="withdraw" name="出金" fill="#dc2626" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="experience" name="体验金" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="deposit" name="入金" fill={palette.success} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="withdraw" name="出金" fill={palette.danger} radius={[3, 3, 0, 0]} />
+              <Bar dataKey="experience" name="体验金" fill={palette.warning} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -939,6 +942,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '
 }
 
 export function ForexPage() {
+  const palette = useChartColors()
   const [stats, setStats] = useState<ForexStats | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [tab, setTab] = useState<'trades' | 'funds' | 'position'>('trades')
@@ -1034,7 +1038,7 @@ export function ForexPage() {
                         <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                           {stats.by_symbol.map((d, i) => (
-                            <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
+                            <Cell key={i} fill={d.pnl >= 0 ? palette.success : palette.danger} />
                           ))}
                         </Bar>
                       </BarChart>

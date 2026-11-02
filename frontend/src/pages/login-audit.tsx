@@ -326,7 +326,7 @@ export function LoginAuditPage() {
           title="历史登录尝试趋势"
           data={trend}
           xKey="log_date"
-          series={[{ key: 'count', name: '尝试数', color: '#0ea5e9' }]}
+          series={[{ key: 'count', name: '尝试数', color: 'chart-5' }]}
         />
       )}
 

@@ -125,15 +125,15 @@ export function FitnessDashboardPage() {
           data={data.series}
           xKey="record_date"
           series={[
-            { key: 'intake', name: '摄入(kcal)', color: '#f59e0b' },
-            { key: 'expenditure', name: '消耗(kcal)', color: '#10b981' },
+            { key: 'intake', name: '摄入(kcal)', color: 'chart-3' },
+            { key: 'expenditure', name: '消耗(kcal)', color: 'chart-2' },
           ]}
         />
         <LineChartCard
           title="运动消耗趋势"
           data={data.expenditure_trend}
           xKey="record_date"
-          series={[{ key: 'calories', name: '消耗(kcal)', color: '#10b981' }]}
+          series={[{ key: 'calories', name: '消耗(kcal)', color: 'chart-2' }]}
         />
       </div>
 
@@ -160,8 +160,8 @@ export function FitnessDashboardPage() {
           xKey="record_date"
           height={280}
           series={[
-            { key: 'weight_kg', name: '体重(kg)', color: '#6366f1' },
-            { key: 'body_fat_percent', name: '体脂率(%)', color: '#f43f5e' },
+            { key: 'weight_kg', name: '体重(kg)', color: 'chart-1' },
+            { key: 'body_fat_percent', name: '体脂率(%)', color: 'chart-7' },
           ]}
         />
       )}

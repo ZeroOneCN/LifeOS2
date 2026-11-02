@@ -544,7 +544,7 @@ export function TravelPage() {
                 )}
               </CardContent>
             </Card>
-            <LineChartCard title="月度开支趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '实付', color: '#ef4444' }]} />
+            <LineChartCard title="月度开支趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '实付', color: 'chart-4' }]} />
           </section>
         </>
       )}

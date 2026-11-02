@@ -263,15 +263,15 @@ export function BodyPage() {
             title="体重趋势"
             data={stats?.trend ?? []}
             xKey="record_date"
-            series={[{ key: 'weight_kg', name: '体重(kg)', color: '#6366f1' }]}
+            series={[{ key: 'weight_kg', name: '体重(kg)', color: 'chart-1' }]}
           />
           <LineChartCard
             title="BMI 与体脂率趋势"
             data={stats?.trend ?? []}
             xKey="record_date"
             series={[
-              { key: 'bmi', name: 'BMI', color: '#10b981' },
-              { key: 'body_fat_percent', name: '体脂率(%)', color: '#f43f5e' },
+              { key: 'bmi', name: 'BMI', color: 'chart-2' },
+              { key: 'body_fat_percent', name: '体脂率(%)', color: 'chart-7' },
             ]}
           />
         </div>

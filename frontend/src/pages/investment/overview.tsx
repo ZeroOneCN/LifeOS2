@@ -19,6 +19,7 @@ import { CalendarClock, Download, FileText, Gift, Percent, TrendingUp } from 'lu
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { useChartColors } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
 const tooltipStyle = {
@@ -104,6 +105,7 @@ function StatCard({
 }
 
 function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
+  const palette = useChartColors()
   if (!data || data.length === 0)
     return <p className="py-10 text-center text-sm text-muted-foreground">暂无足够数据</p>
   return (
@@ -111,23 +113,23 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="gPosO" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="#16a34a" stopOpacity={0.03} />
+            <stop offset="0%" stopColor={palette.success} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={palette.success} stopOpacity={0.03} />
           </linearGradient>
           <linearGradient id="gNegO" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#dc2626" stopOpacity={0.03} />
-            <stop offset="100%" stopColor="#dc2626" stopOpacity={0.35} />
+            <stop offset="0%" stopColor={palette.danger} stopOpacity={0.03} />
+            <stop offset="100%" stopColor={palette.danger} stopOpacity={0.35} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
-        <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" />
+        <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke="#16a34a" fill="url(#gPosO)" />
-        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke="#dc2626" fill="url(#gNegO)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke="#71717a" strokeWidth={1.5} dot={false} />
+        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gPosO)" />
+        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gNegO)" />
+        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   )
@@ -135,6 +137,7 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
 
 export function InvestmentOverviewPage() {
   const realtimeTick = useRealtime(30_000)
+  const palette = useChartColors()
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
   useEffect(() => {
@@ -211,7 +214,7 @@ export function InvestmentOverviewPage() {
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                   {data.by_symbol.slice(0, 12).map((d, i) => (
-                    <Cell key={i} fill={d.pnl >= 0 ? '#16a34a' : '#dc2626'} />
+                    <Cell key={i} fill={d.pnl >= 0 ? palette.success : palette.danger} />
                   ))}
                 </Bar>
               </BarChart>
@@ -233,7 +236,7 @@ export function InvestmentOverviewPage() {
               <Tooltip contentStyle={tooltipStyle} />
               <Bar dataKey="amount" name="净盈亏" radius={[2, 2, 0, 0]}>
                 {data.daily_pnl.map((d, i) => (
-                  <Cell key={i} fill={d.amount >= 0 ? '#16a34a' : '#dc2626'} />
+                  <Cell key={i} fill={d.amount >= 0 ? palette.success : palette.danger} />
                 ))}
               </Bar>
             </BarChart>

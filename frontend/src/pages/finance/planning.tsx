@@ -125,7 +125,7 @@ export function PlanningPage() {
             title={`各类型已存金额（已存合计 ${stats ? fmt(stats.saved_total) : ''}）`}
             data={byType}
             xKey="plan_type"
-            series={[{ key: 'amount', name: '已存金额', color: '#10b981' }]}
+            series={[{ key: 'amount', name: '已存金额', color: 'success' }]}
           />
         </>
       }

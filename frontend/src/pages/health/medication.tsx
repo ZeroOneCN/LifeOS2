@@ -524,8 +524,8 @@ export function MedicationPage() {
             data={(stats?.by_slot ?? []).map((s) => ({ ...s, label: s.meal_label }))}
             xKey="label"
             series={[
-              { key: 'total', name: '计划(粒)', color: '#94a3b8' },
-              { key: 'taken', name: '已服(粒)', color: '#10b981' },
+              { key: 'total', name: '计划(粒)', color: 'chart-muted' },
+              { key: 'taken', name: '已服(粒)', color: 'chart-2' },
             ]}
           />
           <LineChartCard
@@ -533,8 +533,8 @@ export function MedicationPage() {
             data={stats?.trend ?? []}
             xKey="record_date"
             series={[
-              { key: 'total', name: '计划(粒)', color: '#94a3b8' },
-              { key: 'taken', name: '已服(粒)', color: '#10b981' },
+              { key: 'total', name: '计划(粒)', color: 'chart-muted' },
+              { key: 'taken', name: '已服(粒)', color: 'chart-2' },
             ]}
           />
         </div>

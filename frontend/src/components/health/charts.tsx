@@ -27,8 +27,10 @@ import {
 } from '@/components/ui/select'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { resolveChartColor, useChartColors, type ChartColorToken } from '@/lib/chart-theme'
 
-type Series = { key: string; name: string; color?: string }
+/** 图表系列配置；color 使用主题色板令牌，由图表组件按当前深浅色解析为具体颜色 */
+type Series = { key: string; name: string; color?: ChartColorToken }
 
 /** 统计天数：数字表示近 N 天，'all' 表示全部历史 */
 export type StatsDays = number | 'all'
@@ -187,6 +189,7 @@ export function LineChartCard({
   /** Y 轴使用整数刻度（步数等离散较大数值时避免小数刻度） */
   intTick?: boolean
 }) {
+  const palette = useChartColors()
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -210,7 +213,7 @@ export function LineChartCard({
                 type="monotone"
                 dataKey={s.key}
                 name={s.name}
-                stroke={s.color ?? '#4f46e5'}
+                stroke={resolveChartColor(s.color, palette)}
                 strokeWidth={2}
                 dot={false}
               />
@@ -244,6 +247,7 @@ export function BarChartCard({
   /** 选中条目的 key 值（用于高亮该柱） */
   selectedKey?: string
 }) {
+  const palette = useChartColors()
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -266,7 +270,7 @@ export function BarChartCard({
                 key={s.key}
                 dataKey={s.key}
                 name={s.name}
-                fill={s.color ?? '#4f46e5'}
+                fill={resolveChartColor(s.color, palette)}
                 radius={[4, 4, 0, 0]}
                 style={onBarClick ? { cursor: 'pointer' } : undefined}
                 onClick={
@@ -281,7 +285,11 @@ export function BarChartCard({
                   data.map((d) => (
                     <Cell
                       key={`cell-${String(d[xKey])}`}
-                      fill={String(d[xKey]) === String(selectedKey) ? '#f59e0b' : (s.color ?? '#4f46e5')}
+                      fill={
+                        String(d[xKey]) === String(selectedKey)
+                          ? palette.warning
+                          : resolveChartColor(s.color, palette)
+                      }
                     />
                   ))}
               </Bar>
@@ -292,20 +300,6 @@ export function BarChartCard({
     </Card>
   )
 }
-
-/** 默认饼图配色：一组对深色友好的鲜艳色 */
-const DEFAULT_PIE_COLORS = [
-  '#6366f1',
-  '#16a34a',
-  '#f59e0b',
-  '#dc2626',
-  '#06b6d4',
-  '#8b5cf6',
-  '#ec4899',
-  '#84cc16',
-  '#f97316',
-  '#14b8a6',
-]
 
 const DEFAULT_PIE_OUTER_RADIUS = '80%'
 const DEFAULT_PIE_INNER_RADIUS = '55%'
@@ -336,7 +330,7 @@ const renderPieSector = ({ isActive, ...sector }: PieSectorShapeProps) => (
  * @param nameKey   标签字段名
  * @param labels    可选：按 nameKey 值覆盖图例/悬浮文案
  * @param height    图表高度，默认 240
- * @param colors    可选：扇区颜色数组，缺省用一组深色友好色
+ * @param colors    可选：扇区颜色数组，缺省用当前主题的 10 色顺序色板
  * @param onClick   可选：点击扇区回调用 payload（对应该项数据）
  * @param centerValue  可选：饼图中心显示总量文案
  * @param centerLabel  可选：饼图中心总量说明文案
@@ -349,7 +343,7 @@ export function PieChartCard({
   nameKey,
   labels,
   height = 240,
-  colors = DEFAULT_PIE_COLORS,
+  colors,
   onClick,
   centerValue,
   centerLabel,
@@ -365,6 +359,10 @@ export function PieChartCard({
   centerValue?: string
   centerLabel?: string
 }) {
+  const palette = useChartColors()
+  // 未显式传入色板时，使用当前主题的顺序色板（深浅色由 CSS 变量决定）
+  const pieColors = colors ?? palette.series
+
   // 当前数据解析后的名称（支持 labels 覆盖，用于图例与悬浮）
   const displayName = (raw: unknown) => {
     const s = String(raw)
@@ -427,7 +425,7 @@ export function PieChartCard({
               {data.map((_, i) => (
                 <Cell
                   key={i}
-                  fill={colors[i % colors.length]}
+                  fill={pieColors[i % pieColors.length]}
                   stroke="transparent"
                   style={onClick ? { cursor: 'pointer' } : undefined}
                 />

@@ -277,13 +277,13 @@ export function FitnessPage() {
             title="运动类型时长分布"
             data={(stats?.by_type ?? []).map((t) => ({ name: exerciseLabel(t.exercise_type), minutes: t.minutes }))}
             xKey="name"
-            series={[{ key: 'minutes', name: '时长(分钟)', color: '#4f46e5' }]}
+            series={[{ key: 'minutes', name: '时长(分钟)', color: 'chart-1' }]}
           />
           <LineChartCard
             title="每日运动消耗"
             data={stats?.trend ?? []}
             xKey="record_date"
-            series={[{ key: 'calories', name: '消耗(kcal)', color: '#f59e0b' }]}
+            series={[{ key: 'calories', name: '消耗(kcal)', color: 'chart-3' }]}
           />
         </div>
 

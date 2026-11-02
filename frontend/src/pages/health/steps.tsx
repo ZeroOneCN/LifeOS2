@@ -467,7 +467,7 @@ export function StepsPage() {
           title="本月每日步数趋势（取每日最大值）"
           data={dailyTrend}
           xKey="record_date"
-          series={[{ key: 'steps', name: '步数', color: '#10b981' }]}
+          series={[{ key: 'steps', name: '步数', color: 'chart-2' }]}
           height={260}
           intTick
         />
@@ -475,7 +475,7 @@ export function StepsPage() {
           title="时间段分布（当月各时段最大值）"
           data={periodDist}
           xKey="label"
-          series={[{ key: 'steps', name: '步数', color: '#3b82f6' }]}
+          series={[{ key: 'steps', name: '步数', color: 'chart-5' }]}
           height={260}
           intTick
           onBarClick={(payload) => {
@@ -491,7 +491,7 @@ export function StepsPage() {
           title={`每天 ${periodLabel(activePeriod)} 步数对比（当月）`}
           data={periodCompare}
           xKey="record_date"
-          series={[{ key: 'steps', name: '步数', color: '#f59e0b' }]}
+          series={[{ key: 'steps', name: '步数', color: 'chart-3' }]}
           height={240}
           intTick
         />

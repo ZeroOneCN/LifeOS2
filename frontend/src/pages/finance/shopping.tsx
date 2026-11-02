@@ -480,7 +480,7 @@ export function ShoppingPage() {
             <StatCard icon={Wallet} label="涉及账本" value={`${stats.by_ledger.length} 个`} hint={stats.by_ledger[0] ? `最多 ${stats.by_ledger[0].ledger}` : '暂无账本'} />
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
-            <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: '#ef4444' }]} />
+            <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: 'chart-4' }]} />
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">按平台消费</CardTitle>

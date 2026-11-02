@@ -380,7 +380,7 @@ export function ActivityLogsPage() {
           title="历史操作趋势"
           data={trend}
           xKey="log_date"
-          series={[{ key: 'count', name: '操作数', color: '#0ea5e9' }]}
+          series={[{ key: 'count', name: '操作数', color: 'chart-5' }]}
         />
       )}
 
