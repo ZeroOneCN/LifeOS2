@@ -231,6 +231,9 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         )
         # 暴力破解检测：同 IP 跨账号高频失败时向管理员告警
         _notify_brute_force_if_needed(db, ip)
+        # 失败审计与告警必须先落库再抛异常：HTTPException 会让依赖会话关闭并回滚，
+        # 若此处不提交，fail/locked 记录与告警通知会随事务一起丢失，锁定功能整体失效。
+        db.commit()
         if triggered:
             raise HTTPException(
                 status_code=429,
