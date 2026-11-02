@@ -21,8 +21,7 @@ from app.api.routes import (
     user,
 )
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
-from app.core.db_indexes import ensure_composite_indexes
+from app.core.database import SessionLocal
 from app.middleware.activity_logger import ActivityLoggerMiddleware
 from app.services.notification.scheduler import start_scheduler, stop_scheduler
 from app.services.notification.seed import ensure_seed
@@ -39,12 +38,14 @@ from app.services.scale_collector import scale_collector
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时自动创建数据库表（若不存在）并启动提醒调度器与体重秤采集。"""
-    Base.metadata.create_all(bind=engine)
+    """启动时初始化基础数据并启动提醒调度器与体重秤采集。
+
+    数据库结构由 Alembic 迁移负责（启动前请先执行 ``python -m alembic upgrade head``），
+    应用启动阶段不再建表、不再补建索引。
+    """
     db = SessionLocal()
     try:
         ensure_seed(db)
-        ensure_composite_indexes(db)
         db.commit()
     finally:
         db.close()

@@ -213,11 +213,14 @@ pip install -r requirements.txt
 # 配置环境变量：复制 .env.example 为 .env，按需修改数据库连接与密钥
 cp .env.example .env
 
+# 建表/升级表结构：数据库为空库或需要更新结构时，先执行迁移（连接串取自 .env 的 DATABASE_URL）
+python -m alembic upgrade head
+
 # 启动服务
 python -m uvicorn app.main:app --host 0.0.0.0 --port 9515 --reload
 ```
 
-> 首次启动会自动创建数据库表，并初始化通知渠道等基础数据。**注册的第一个账号会自动成为管理员**，拥有「系统设置」的修改权限。
+> 首次启动前**必须先执行 `python -m alembic upgrade head`** 建表；应用启动阶段只初始化通知渠道等基础数据，不再自动建表。**注册的第一个账号会自动成为管理员**，拥有「系统设置」的修改权限。
 >
 > `.env` 中的体重秤采集默认关闭（`ENABLE_SCALE_COLLECTOR=false`）；需要自动采集时再开启，并确保机器蓝牙可用。
 
@@ -480,7 +483,7 @@ crontab -e
 - 过期会话每日 `03:00` 自动清理；登录有效期见「系统功能」（access 24 小时 + refresh 365 天滑动续期）
 - 上月报告由月度调度器在每月 1 日 `MONTHLY_REPORT_TIME`（默认 `00:10`）自动生成，服务当天稍晚启动也会补跑；上述所有自动化操作均写入「活动日志」（类型「自动」）
 - 服务器时区务必正确配置（提醒任务基于服务器本地时间）
-- 首次启动会自动建表；项目未接入 Alembic 迁移工具，**新增表**会随启动自动创建，已有表的字段变更需手工执行 SQL
+- 数据库结构由 Alembic 迁移管理：部署或拉取新版本后先执行 `python -m alembic upgrade head`；新增表/字段改动统一写成迁移脚本，不再随启动自动建表
 - 体重秤有两种接入方式：浏览器 Web Bluetooth 直连（无需服务器蓝牙，需 HTTPS）或后端进程内采集（`ENABLE_SCALE_COLLECTOR=true`，依赖服务器蓝牙适配器与 `bleak`，Windows 需 WinRT；无蓝牙时自动指数退避重试，不影响其他功能）
 - 升级代码前先 `git pull` 并阅读变更记录
 
