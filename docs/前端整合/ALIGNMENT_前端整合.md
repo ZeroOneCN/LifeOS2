@@ -18,6 +18,6 @@
 ## 验收标准
 
 - 每块 `npm run build` 通过；`npm run lint` 告警数不高于 83、错误 0。
-- 块 1：非管理员访问所有 `adminOnly` 页面被重定向到 `/home`；`/user-center`、`/user-center/settings` 无导航但可直达；面包屑与页面标题与改动前一致。
+- 块 1：非管理员访问所有 `adminOnly` 页面被重定向到 `/home`；`/user-center` 为账户设置页（个人资料与登录账号密码合并后的唯一入口），无侧边导航但可由用户菜单直达，`/user-center/settings` 已重定向到该路径；面包屑与页面标题由路由表统一派生。
 - 块 2：`VITE_DEMO=1` 与普通构建各出一份产物，主包体积不因 mock 增大，demo 代码独立 chunk 或 tree-shake；删除 `vercel-demo/` 前先确认演示构建可用。
 - 块 3：硬编码 hex 从 69 处降至个位数；深色模式下图表色值可辨（给出取值与对比度判断）。

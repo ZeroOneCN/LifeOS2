@@ -17,7 +17,8 @@
 - `routes.ts` 成为路由、侧边导航、面包屑标题的唯一真源；`adminOnly` 自动派生 `RequireAdmin`，手工 `ADMIN_PATHS` 已删除。
 - `implementedPages` 死键处置：
   - `/health/diet`、`/health/body`、`/health/fitness/dashboard`：确认由 `FitnessTabsPage` 内部 tab 承载，不单独注册路由；
-  - `/user-center`、`/user-center/settings`：确认由导航用户下拉菜单直达，保留为 `inNav: false` 的正常路由。
+  - `/user-center`：账户设置页（个人资料与登录账号密码合并后的唯一入口），确认由导航用户菜单「账户设置」直达，保留为 `inNav: false` 的正常路由；
+  - `/user-center/settings`：旧链接兼容项，已重定向到 `/user-center`，不再单独成页。
 - 验收：`npm run build` 通过（主包 470.93 kB）；`npm run lint` 52 warnings / 0 errors；非管理员访问 `/sessions`、`/system-settings`、`/backup` 均跳 `/home`；`/user-center` 可直达。
 
 ## 三、块 2 · 去掉双副本
