@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -161,6 +162,11 @@ class FinanceRentTerm(TimestampMixin, UserOwned, Base):
     """租房付款期次：按支付周期自动展开，每期标记是否已交，只有已交计入已发生成本。"""
 
     __tablename__ = "finance_rent_terms"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "housing_id", "term_no", name="uq_rentterm_user_house_no"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     housing_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联住房
@@ -175,6 +181,13 @@ class FinanceUtility(TimestampMixin, UserOwned, Base):
 
     __tablename__ = "finance_utilities"
     __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "housing_id",
+            "bill_month",
+            "fee_type",
+            name="uq_util_user_house_month_type",
+        ),
         Index("ix_utility_user_month", "user_id", "bill_month"),
     )
 

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,6 +33,7 @@ class Notification(TimestampMixin, UserOwned, Base):
 
     __tablename__ = "notifications"
     __table_args__ = (
+        UniqueConstraint("user_id", "source", name="uq_notif_user_source"),
         Index("ix_notif_user_date", "user_id", "notify_date"),
     )
 

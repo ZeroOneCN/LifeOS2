@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -130,6 +131,9 @@ class LifestyleCardBill(TimestampMixin, UserOwned, Base):
 
     __tablename__ = "lifestyle_card_bills"
     __table_args__ = (
+        UniqueConstraint(
+            "user_id", "phone_card_id", "bill_month", name="uq_cardbill_user_card_month"
+        ),
         Index("ix_cardbill_user_month", "user_id", "bill_month"),
     )
 

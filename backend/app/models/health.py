@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     Time,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -46,6 +47,7 @@ class HealthVitalsSleep(TimestampMixin, UserOwned, Base):
 
     __tablename__ = "health_vitals_sleep"
     __table_args__ = (
+        UniqueConstraint("user_id", "record_date", name="uq_vitals_user_date"),
         Index("ix_vitals_user_date", "user_id", "record_date"),
     )
 
@@ -144,6 +146,9 @@ class HealthSteps(TimestampMixin, UserOwned, Base):
 
     __tablename__ = "health_steps"
     __table_args__ = (
+        UniqueConstraint(
+            "user_id", "record_date", "period", name="uq_steps_user_date_period"
+        ),
         Index("ix_health_steps_user_date", "user_id", "record_date"),
     )
 
@@ -277,6 +282,9 @@ class HealthMedStock(TimestampMixin, UserOwned, Base):
     """用药跟踪：药品库存与低库存阈值。"""
 
     __tablename__ = "health_med_stock"
+    __table_args__ = (
+        UniqueConstraint("user_id", "medicine_name", name="uq_medstock_user_name"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     medicine_name: Mapped[str] = mapped_column(String(64), index=True)
