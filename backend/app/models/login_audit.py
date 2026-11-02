@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,6 +15,10 @@ class LoginAudit(Base):
     """
 
     __tablename__ = "login_audits"
+    __table_args__ = (
+        Index("ix_loginaudit_account_created", "account", "created_at"),
+        Index("ix_loginaudit_ip_created", "ip_address", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     # 登录尝试时提交的账号（原样保留，即使账号不存在）

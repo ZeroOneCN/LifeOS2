@@ -5,6 +5,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    Index,
     Integer,
     String,
     Text,
@@ -128,6 +129,9 @@ class LifestyleCardBill(TimestampMixin, UserOwned, Base):
     """卡片管理-扣账账单：手机号卡按月的扣账/缴费记录。"""
 
     __tablename__ = "lifestyle_card_bills"
+    __table_args__ = (
+        Index("ix_cardbill_user_month", "user_id", "bill_month"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     phone_card_id: Mapped[int] = mapped_column(Integer, index=True)  # 关联手机卡

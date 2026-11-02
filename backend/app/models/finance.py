@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     Double,
     Float,
+    Index,
     Integer,
     String,
     Text,
@@ -64,6 +65,9 @@ class FinanceShoppingRecord(TimestampMixin, UserOwned, Base):
     """购物记录：具体的购物明细，支持多账本与 xlsx 批量导入。"""
 
     __tablename__ = "finance_shopping_records"
+    __table_args__ = (
+        Index("ix_shopping_user_date", "user_id", "record_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)  # 日期
@@ -170,6 +174,9 @@ class FinanceUtility(TimestampMixin, UserOwned, Base):
     """水电燃气/宽带费用账单。"""
 
     __tablename__ = "finance_utilities"
+    __table_args__ = (
+        Index("ix_utility_user_month", "user_id", "bill_month"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     housing_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联住房

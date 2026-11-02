@@ -5,6 +5,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    Index,
     Integer,
     String,
     Text,
@@ -44,6 +45,9 @@ class HealthVitalsSleep(TimestampMixin, UserOwned, Base):
     """睡眠体征：每日生命体征与睡眠质量记录。"""
 
     __tablename__ = "health_vitals_sleep"
+    __table_args__ = (
+        Index("ix_vitals_user_date", "user_id", "record_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)
@@ -139,6 +143,9 @@ class HealthSteps(TimestampMixin, UserOwned, Base):
     """步数统计：按时间段录入每日步数。"""
 
     __tablename__ = "health_steps"
+    __table_args__ = (
+        Index("ix_health_steps_user_date", "user_id", "record_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)
@@ -175,6 +182,9 @@ class HealthCheckup(TimestampMixin, UserOwned, Base):
     """体检指标：各项体检数据。"""
 
     __tablename__ = "health_checkup"
+    __table_args__ = (
+        Index("ix_checkup_user_date", "user_id", "check_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     check_date: Mapped[date] = mapped_column(Date, index=True)
@@ -229,6 +239,9 @@ class HealthMedication(TimestampMixin, UserOwned, Base):
     """用药跟踪：每日按早/午/晚记录用药（同一药品同一天一行，剂量按粒计）。"""
 
     __tablename__ = "health_medication"
+    __table_args__ = (
+        Index("ix_medication_user_date", "user_id", "record_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     record_date: Mapped[date] = mapped_column(Date, index=True)

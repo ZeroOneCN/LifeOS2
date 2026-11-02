@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text, func
+from sqlalchemy import DateTime, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -11,6 +11,9 @@ class ActivityLog(UserOwned, Base):
     """活动日志：通过中间件自动记录各模块的新增/更新/删除操作。"""
 
     __tablename__ = "activity_logs"
+    __table_args__ = (
+        Index("ix_activity_user_created", "user_id", "created_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     action: Mapped[str] = mapped_column(String(16), index=True)  # create/update/patch/delete/auto

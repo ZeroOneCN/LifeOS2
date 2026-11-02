@@ -4,6 +4,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Index,
     Integer,
     String,
     Text,
@@ -30,6 +31,9 @@ class Notification(TimestampMixin, UserOwned, Base):
     """通知中心：系统与业务通知消息。"""
 
     __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notif_user_date", "user_id", "notify_date"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(128), index=True)  # 通知标题
