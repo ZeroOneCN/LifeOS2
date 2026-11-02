@@ -71,6 +71,25 @@ def days_since(days: int):
     return (date.today() - timedelta(days=days - 1)) if days and days > 0 else None
 
 
+def _allowed_patch_fields(model) -> set[str]:
+    """返回批量 PATCH 允许写入的字段白名单。
+
+    模型列中排除主键、归属用户与审计时间戳，避免批量更新越权改写记录归属或主键。
+
+    Args:
+        model: SQLAlchemy 模型类。
+
+    Returns:
+        允许通过批量 PATCH 修改的字段名集合。
+    """
+    protected = {"id", "user_id", "created_at", "updated_at"}
+    return {
+        column.name
+        for column in model.__table__.columns
+        if column.name not in protected
+    }
+
+
 def crud_router(
     *,
     prefix: str,
@@ -208,14 +227,20 @@ def crud_router(
     ):
         """批量更新：对指定 ID 列表批量设置相同字段值，仅更新当前用户归属的记录。"""
         ids = list(set(payload.ids))
+        allowed = _allowed_patch_fields(model)
+        invalid = sorted(k for k in payload.fields if k not in allowed)
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f"不允许批量修改字段: {', '.join(invalid)}",
+            )
         stmt = select(model).where(model.id.in_(ids))
         if user_owned:
             stmt = stmt.where(model.user_id == current_user.id)
         rows = db.scalars(stmt).all()
         for row in rows:
             for key, value in payload.fields.items():
-                if hasattr(model, key):
-                    setattr(row, key, value)
+                setattr(row, key, value)
         db.commit()
         if after_write and user_owned:
             after_write(db, current_user.id)
