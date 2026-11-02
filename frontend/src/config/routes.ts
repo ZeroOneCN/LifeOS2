@@ -1,7 +1,6 @@
 import { lazy } from 'react'
 import type { ComponentType } from 'react'
 import {
-  BadgeCheck,
   Bell,
   CandlestickChart,
   ClipboardList,
@@ -28,6 +27,7 @@ import {
   ShoppingCart,
   Target,
   TrendingUp,
+  User,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -41,21 +41,28 @@ export type NavSectionMeta = {
   system?: boolean
 }
 
-/** 单个页面的路由元数据，是路由、导航、面包屑的唯一真源。 */
-export type RouteEntry = {
+/** 单个页面的公共路由元数据。 */
+type RouteBase = {
   /** 路由路径，同时作为导航跳转地址 */
   path: string
   /** 页面标题，供侧边导航与面包屑共用 */
   title: string
-  /** 所属分区 key；未归属分区（如用户中心）时为空 */
+  /** 所属分区 key；未归属分区（如账户设置）时为空 */
   section?: string
   /** 仅管理员可访问，路由守卫据此自动包裹 RequireAdmin */
   adminOnly?: boolean
   /** 是否在侧边导航中展示 */
   inNav: boolean
   icon: LucideIcon
-  component: ComponentType
 }
+
+/**
+ * 路由元数据，是路由、导航、面包屑的唯一真源。
+ * 页面路由提供 component；旧链接兼容项提供 redirectTo，二选一。
+ */
+export type RouteEntry =
+  | (RouteBase & { component: ComponentType })
+  | (RouteBase & { redirectTo: string })
 
 /** 导航分区顺序：系统分区置顶，其后为四大业务中心。 */
 export const SECTIONS: NavSectionMeta[] = [
@@ -338,21 +345,20 @@ export const ROUTES: RouteEntry[] = [
   },
   {
     path: '/user-center',
-    title: '用户中心',
+    title: '账户设置',
     inNav: false,
-    icon: BadgeCheck,
+    icon: User,
     component: lazy(() =>
       import('@/pages/user-center').then((m) => ({ default: m.UserCenterPage })),
     ),
   },
   {
+    // 旧链接兼容：账号设置页已合并进账户设置，统一重定向避免 404
     path: '/user-center/settings',
-    title: '账号设置',
+    title: '账户设置',
     inNav: false,
-    icon: Settings,
-    component: lazy(() =>
-      import('@/pages/account-settings').then((m) => ({ default: m.AccountSettingsPage })),
-    ),
+    icon: User,
+    redirectTo: '/user-center',
   },
 ]
 

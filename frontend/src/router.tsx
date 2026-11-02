@@ -31,9 +31,16 @@ function withSuspense(element: React.ReactNode) {
 
 /**
  * 按 routes.ts 的路由表生成业务路由。
- * 管理员守卫由 adminOnly 自动派生，避免手工维护路径集合造成漏配。
+ * 管理员守卫由 adminOnly 自动派生，避免手工维护路径集合造成漏配；
+ * 标记 redirectTo 的旧链接直接重定向到新地址。
  */
 const businessRoutes = ROUTES.map((route) => {
+  if ('redirectTo' in route) {
+    return {
+      path: route.path,
+      element: <Navigate to={route.redirectTo} replace />,
+    }
+  }
   const Page = route.component
   return {
     path: route.path,
