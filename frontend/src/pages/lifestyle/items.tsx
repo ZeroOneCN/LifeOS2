@@ -138,7 +138,7 @@ const columns: ColumnDef<ItemRecord>[] = [
     label: '来源',
     render: (r) =>
       r.source === 'shopping' ? (
-        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">购物同步</Badge>
+        <Badge className="bg-decor-purple/15 text-decor-purple">购物同步</Badge>
       ) : (
         <Badge className="bg-muted text-muted-foreground">手动</Badge>
       ),
@@ -445,7 +445,7 @@ function DistCard({
                   <span className="font-medium">{count} 件 · {pct}%</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                  <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />
                 </div>
               </li>
             )

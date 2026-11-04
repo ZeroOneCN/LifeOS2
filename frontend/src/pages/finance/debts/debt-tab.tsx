@@ -317,9 +317,9 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
 
       {/* 网贷只读同步 */}
       {loanSync && loanSync.platform_count > 0 && (
-        <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/60 dark:bg-indigo-500/10">
+        <Card className="border-decor-indigo/30 bg-decor-indigo/10">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-decor-indigo">
               <Receipt className="size-4" /> 网贷欠款同步（来源：账单管理 · 网贷借还）
             </CardTitle>
           </CardHeader>
@@ -331,7 +331,7 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                   <span className="text-muted-foreground">（{p.bill_count} 笔）</span>
                 </Badge>
               ))}
-              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
+              <Badge className="bg-decor-indigo/15 text-decor-indigo">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
             </div>
           </CardContent>
         </Card>

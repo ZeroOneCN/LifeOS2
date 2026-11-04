@@ -355,7 +355,7 @@ export function ActivityLogsPage() {
               操作类型分布
             </CardTitle>
             <CardHeaderActions>
-              <Pencil className="size-4 text-violet-500" />
+              <Pencil className="size-4 text-decor-violet" />
             </CardHeaderActions>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-x-4 gap-y-1">

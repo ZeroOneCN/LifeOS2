@@ -220,7 +220,7 @@ export function FinanceOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <CalendarClock className="size-4 text-violet-500" />
+              <CalendarClock className="size-4 text-decor-violet" />
               即将续费订阅
             </CardTitle>
             <CardDescription>临近到期，记得续费</CardDescription>

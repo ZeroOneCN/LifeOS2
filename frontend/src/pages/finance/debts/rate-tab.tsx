@@ -74,7 +74,7 @@ export function RateTab({ currencies, setCurrencies, currency, setCurrency }: {
                   <Button size="sm" variant="ghost" onClick={resetToCny}>当前显示：人民币</Button>
                 )}
                 {c.currency !== 'CNY' && (
-                  <Button size="sm" variant="ghost" onClick={() => setCurrency(c)} className={currency?.currency === c.currency ? 'text-indigo-600 dark:text-indigo-400' : ''}>
+                  <Button size="sm" variant="ghost" onClick={() => setCurrency(c)} className={currency?.currency === c.currency ? 'text-decor-indigo' : ''}>
                     {currency?.currency === c.currency ? '当前显示' : '设为显示'}
                   </Button>
                 )}

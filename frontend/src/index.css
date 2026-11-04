@@ -21,6 +21,10 @@
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
     --color-chart-1: var(--chart-1);
+    /* 装饰强调色：分类标签、强调块等非状态语义的固定色相，深浅两套由 :root / .dark 提供具体值 */
+    --color-decor-indigo: var(--decor-indigo);
+    --color-decor-violet: var(--decor-violet);
+    --color-decor-purple: var(--decor-purple);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -98,6 +102,11 @@
     /* 中性辅助色：次要系列与参考线/基线，区别于彩色系列 */
     --chart-muted: oklch(0.554 0.046 257.417);
     --chart-axis: oklch(0.446 0.03 256.802);
+    /* 装饰强调色：浅色模式取 600/700 级，作为小的文字与描边使用时白底/浅底对比度 ≥4.5:1；
+       淡色底由 bg-decor-*/10~15 的透明度叠加得到，无需单独的 muted 令牌 */
+    --decor-indigo: oklch(0.511 0.262 276.966); /* 靛蓝 */
+    --decor-violet: oklch(0.541 0.281 293.009); /* 紫罗兰 */
+    --decor-purple: oklch(0.496 0.265 301.924); /* 紫 */
     /* 语义状态色：供红涨绿跌、告警等固定含义的图表使用 */
     --success: oklch(0.627 0.194 149.214);
     --warning: oklch(0.666 0.179 58.318);
@@ -161,6 +170,10 @@
     /* 中性辅助色：深色下需提亮，避免次要系列与参考线糊在深底上 */
     --chart-muted: oklch(0.704 0.04 256.788);
     --chart-axis: oklch(0.707 0.022 261.325);
+    /* 装饰强调色：深色模式取 400 级提亮，与卡片底色（oklch 0.205）对比度 ≥5:1 */
+    --decor-indigo: oklch(0.673 0.182 276.935); /* 靛蓝 */
+    --decor-violet: oklch(0.702 0.183 293.541); /* 紫罗兰 */
+    --decor-purple: oklch(0.714 0.203 305.504); /* 紫 */
     /* 语义状态色 */
     --success: oklch(0.792 0.209 151.711);
     --warning: oklch(0.828 0.189 84.429);

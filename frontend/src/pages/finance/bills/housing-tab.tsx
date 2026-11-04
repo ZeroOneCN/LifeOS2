@@ -486,7 +486,7 @@ export function HousingTab() {
             const occupiedCount = stats.houses.filter((h) => !h.move_out_date).length
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-indigo-500" />
+                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-decor-indigo" />
                 <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-success" />
                 <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-info" />
                 <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-danger" />

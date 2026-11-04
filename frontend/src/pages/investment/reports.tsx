@@ -51,7 +51,7 @@ function SectionBody({ section }: { section: ContentSection }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-sm">
             <thead>
-              <tr className="bg-indigo-600">
+              <tr className="bg-decor-indigo">
                 {header.map((h) => (
                   <th key={h} className="px-3 py-2 text-left font-medium text-white">{h}</th>
                 ))}
@@ -100,7 +100,7 @@ function ReportContent({ content }: { content?: unknown }) {
     <div className="space-y-4">
       {sections.map((s, i) =>
         s.type === 'h2' ? (
-          <h3 key={i} className="border-l-4 border-indigo-500 pl-3 text-base font-semibold">{s.text}</h3>
+          <h3 key={i} className="border-l-4 border-decor-indigo pl-3 text-base font-semibold">{s.text}</h3>
         ) : (
           <div key={i}><SectionBody section={s} /></div>
         ),
@@ -200,11 +200,11 @@ export function InvestmentReportsPage() {
       </div>
 
       {preview && (
-        <Card className="border-indigo-200 dark:border-indigo-500/40">
+        <Card className="border-decor-indigo/30">
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b pb-3">
             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setPreviewCollapsed((v) => !v)}>
               <div className="flex items-center gap-2">
-                <ChevronDown className={`size-4 shrink-0 text-indigo-600 dark:text-indigo-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
+                <ChevronDown className={`size-4 shrink-0 text-decor-indigo transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
                 <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
               </div>
               {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
@@ -243,7 +243,7 @@ export function InvestmentReportsPage() {
                 <div key={r.id} className="flex items-start justify-between gap-3 rounded-lg border p-3 hover:bg-muted/40">
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => loadDetail(r.id)}>
                     <div className="flex items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                      <FileText className="size-4 shrink-0 text-decor-indigo" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}</div>

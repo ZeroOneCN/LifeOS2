@@ -81,7 +81,7 @@ const columns: ColumnDef<PlanRecord>[] = [
       return (
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+            <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />
           </div>
           <span className="text-xs text-muted-foreground">{pct}%</span>
         </div>

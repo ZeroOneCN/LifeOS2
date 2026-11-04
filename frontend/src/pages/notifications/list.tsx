@@ -129,7 +129,7 @@ export function NotificationList() {
                           <span className="font-medium">{c.count} 条 · {pct}%</span>
                         </div>
                         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                          <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />
                         </div>
                       </li>
                     )

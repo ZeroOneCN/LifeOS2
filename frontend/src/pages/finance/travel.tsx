@@ -108,7 +108,7 @@ function ReportContent({ content }: { content?: ContentSection[] }) {
       {sections.map((s, i) => {
         if (s.type === 'h2')
           return (
-            <h3 key={i} className="border-l-4 border-indigo-500 pl-3 text-sm font-semibold">
+            <h3 key={i} className="border-l-4 border-decor-indigo pl-3 text-sm font-semibold">
               {s.text}
             </h3>
           )
@@ -116,7 +116,7 @@ function ReportContent({ content }: { content?: ContentSection[] }) {
           return <p key={i} className="whitespace-pre-wrap text-sm text-muted-foreground">{s.text}</p>
         return (
           <div key={i}>
-            {s.label && <div className="mb-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">{s.label}</div>}
+            {s.label && <div className="mb-1 text-xs font-semibold text-decor-indigo">{s.label}</div>}
             <div className="overflow-hidden rounded-lg border">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[280px] text-sm">
@@ -553,9 +553,9 @@ export function TravelPage() {
         const cur = ledgers.find((l) => l.id === Number(currentLedger))
         if (!cur) return null
         return (
-          <Card className="border-indigo-200 dark:border-indigo-500/40 bg-indigo-50/50 dark:bg-indigo-500/10">
+          <Card className="border-decor-indigo/30 bg-decor-indigo/10">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 min-w-0 max-w-[55%] truncate">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium text-decor-indigo min-w-0 max-w-[55%] truncate">
                 <TrendingUp className="size-4" /> 行程总结 · {cur.name}
               </CardTitle>
               <CardHeaderActions>
@@ -790,7 +790,7 @@ export function TravelPage() {
               <div className="flex items-start justify-between gap-2">
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setReportCollapsed((v) => !v)}>
                   <div className="flex items-center gap-1">
-                    <ChevronDown className={`size-4 text-indigo-600 dark:text-indigo-400 transition-transform ${reportCollapsed ? '-rotate-90' : ''}`} />
+                    <ChevronDown className={`size-4 text-decor-indigo transition-transform ${reportCollapsed ? '-rotate-90' : ''}`} />
                     <span className="font-medium">{report.title}</span>
                   </div>
                   {report.summary && <p className="mt-1 text-sm text-muted-foreground">{report.summary}</p>}

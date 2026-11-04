@@ -226,7 +226,7 @@ export function VitalsSleepPage() {
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均睡眠质量</div>
-                  <div className="mt-1 text-2xl font-semibold text-violet-600 dark:text-violet-400">{fmt(avg?.sleep_quality, ' 分')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-decor-violet">{fmt(avg?.sleep_quality, ' 分')}</div>
                 </CardContent>
               </Card>
             </div>

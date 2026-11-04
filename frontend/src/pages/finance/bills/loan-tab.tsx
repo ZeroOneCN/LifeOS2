@@ -520,9 +520,9 @@ export function LoanTab() {
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-danger" />
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-warning" />
           <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-success" />
-          <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
+          <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-decor-indigo" />
           <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
-          <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
+          <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-decor-indigo" />
           <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
           <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-success" />
         </section>
@@ -634,7 +634,7 @@ export function LoanTab() {
                       {b.due_date ?? '—'}
                       {graceOn && (
                         <Tip label={`${grace.auto ? '自动容时' : '已申请容时'} ${grace.days} 天 · 最终还款日 ${graceDeadlineText(b.platform_id, b.due_date)}`}>
-                          <Badge variant="outline" className="ml-1.5 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{grace.auto ? `自动容时 ${grace.days} 天` : `容时 +${grace.days}`}</Badge>
+                          <Badge variant="outline" className="ml-1.5 border-decor-indigo/40 text-decor-indigo">{grace.auto ? `自动容时 ${grace.days} 天` : `容时 +${grace.days}`}</Badge>
                         </Tip>
                       )}
                     </TableCell>
@@ -688,7 +688,7 @@ export function LoanTab() {
                     if (!on) return null
                     return (
                       <Tip label={`最终还款日 ${graceDeadlineText(u.platform_id, u.due_date)}`}>
-                        <Badge variant="outline" className="ml-1 border-indigo-300 text-indigo-600 dark:border-indigo-500/50 dark:text-indigo-400">{g.auto ? `自动容时 ${g.days} 天` : `容时 +${g.days}`}</Badge>
+                        <Badge variant="outline" className="ml-1 border-decor-indigo/40 text-decor-indigo">{g.auto ? `自动容时 ${g.days} 天` : `容时 +${g.days}`}</Badge>
                       </Tip>
                     )
                   })()}
@@ -1009,7 +1009,7 @@ export function LoanTab() {
                       const g = graceOf(b.platform_id)
                       if (!(g.days > 0 && (g.auto || !!b.grace_applied))) return null
                       return (
-                        <span className="rounded-md border border-indigo-400 px-2 py-0.5 text-sm font-semibold text-indigo-600 dark:border-indigo-500/60 dark:text-indigo-400">
+                        <span className="rounded-md border border-decor-indigo/50 px-2 py-0.5 text-sm font-semibold text-decor-indigo">
                           {g.auto ? `自动容时 ${g.days} 天` : '已申请容时'}
                         </span>
                       )

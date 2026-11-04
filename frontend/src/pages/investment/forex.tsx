@@ -321,7 +321,7 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
         <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
-          <CalendarDays className="size-4 text-indigo-500" /> 交易日历
+          <CalendarDays className="size-4 text-decor-indigo" /> 交易日历
         </CardTitle>
         <CardHeaderActions>
           <Select value={month} onValueChange={(v) => setMonth(v)}>
@@ -540,7 +540,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <div>
             <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
-              <Plus className="size-4 text-indigo-500" /> 持仓清单（多仓位并行）
+              <Plus className="size-4 text-decor-indigo" /> 持仓清单（多仓位并行）
             </CardTitle>
             <CardDescription>每个仓位独立杠杆，共同占用保证金，联动计算爆仓价格</CardDescription>
           </div>
@@ -617,7 +617,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
                 </div>
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">总保证金</div>
-                  <div className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">{fmtVal(result.totalMargin)}</div>
+                  <div className="text-lg font-semibold text-decor-indigo">{fmtVal(result.totalMargin)}</div>
                 </div>
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">可用保证金</div>
@@ -660,7 +660,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
                       <TableCell>{p.lots}</TableCell>
                       <TableCell>1:{p.lev}</TableCell>
                       <TableCell className="text-right">{fmtVal(p.notional)}</TableCell>
-                      <TableCell className="text-right text-indigo-600 dark:text-indigo-400">{fmtVal(p.margin)}</TableCell>
+                      <TableCell className="text-right text-decor-indigo">{fmtVal(p.margin)}</TableCell>
                       <TableCell className="text-right font-medium">
                         {p.liqPrice != null && Number.isFinite(p.liqPrice) ? p.liqPrice.toFixed(p.open < 10 ? 4 : 2) : '—'}
                       </TableCell>
@@ -752,7 +752,7 @@ function FundsSection() {
       <CardHeader className="flex flex-row items-start justify-between gap-2 pb-2">
         <div>
           <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
-            <TrendingUp className="size-4 text-indigo-500" /> 资金动态
+            <TrendingUp className="size-4 text-decor-indigo" /> 资金动态
           </CardTitle>
           <CardDescription>记录出入金与体验金，构成账户净值</CardDescription>
         </div>
@@ -780,10 +780,10 @@ function FundsSection() {
               <Badge className="bg-warning-muted text-warning-muted-foreground">{stats ? fmtVal(stats.experience) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-indigo-200 dark:border-indigo-500/40">
+          <Card className="border-decor-indigo/30">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">净投入</span>
-              <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{stats ? fmtVal(stats.net) : '—'}</Badge>
+              <Badge className="bg-decor-indigo/15 text-decor-indigo">{stats ? fmtVal(stats.net) : '—'}</Badge>
             </CardContent>
           </Card>
         </div>
