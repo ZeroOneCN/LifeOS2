@@ -508,7 +508,7 @@ export function LoanTab() {
             <span className="text-base font-extrabold text-danger">
               已超过最终还款日，将上报征信
             </span>
-            <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
+            <span className="text-sm font-normal text-muted-foreground">
               容时规则按平台配置（如邮储 4 天至 17:00、其余平台 3 天）· 以每笔账单的「最终还款日」为准
             </span>
           </div>
@@ -919,12 +919,12 @@ export function LoanTab() {
           <div className="rounded-lg border-2 border-warning bg-warning-muted p-4 border-warning/40 bg-warning-muted">
             <p className="flex flex-wrap items-center gap-2">
               <ShieldAlert className="size-5 shrink-0 text-warning" />
-              <span className="text-base font-extrabold text-gray-900 dark:text-gray-100">
+              <span className="text-base font-extrabold text-foreground">
                 请至少还够<span className="text-warning-muted-foreground">最低还款额</span>
               </span>
               <span className="rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-white">不会再次延期</span>
             </p>
-            <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
               容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
               超过最终截止时刻将上报征信。容时期间不计违约金，逾期后按平台日费率为你估算。
             </p>
@@ -935,8 +935,8 @@ export function LoanTab() {
               <div key={b.id} className="rounded-xl border-2 border-warning/80 bg-gradient-to-br from-warning-muted/90 to-background p-4 border-warning/40 from-warning-muted">
                 {/* 头部：平台 + 账单月份 + 容时标记 */}
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)}</span>
-                  <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{b.bill_month.slice(0, 7)}</span>
+                  <span className="truncate text-sm font-bold text-foreground">{platformName(b.platform_id)}</span>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground">{b.bill_month.slice(0, 7)}</span>
                   <span className="ml-auto shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
                 </div>
                 {/* 两个核心数据：剩余时间（强调色）/ 待还金额（大粗体） */}
@@ -948,15 +948,15 @@ export function LoanTab() {
                     </p>
                   </div>
                   <div className="min-w-0 border-l border-warning/70 pl-4 border-warning/30">
-                    <p className="text-[11px] font-bold tracking-widest text-gray-500 dark:text-gray-400">待还金额</p>
-                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-gray-900 sm:text-2xl dark:text-gray-50">
+                    <p className="text-[11px] font-bold tracking-widest text-muted-foreground">待还金额</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-foreground sm:text-2xl">
                       {fmt(remainingOf(b.amount, b.paid_amount))}
                     </p>
                   </div>
                 </div>
                 {/* 时间轴：原还款日 → 最终还款日 */}
                 <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-warning/60 pt-2.5 text-xs border-warning/25">
-                  <span className="text-gray-500 dark:text-gray-400">原还款日 {b.due_date}</span>
+                  <span className="text-muted-foreground">原还款日 {b.due_date}</span>
                   <span className="font-bold text-warning-muted-foreground">
                     最终 {graceDeadlineText(b.platform_id, b.due_date)} · 超过即上报征信
                   </span>
@@ -991,10 +991,10 @@ export function LoanTab() {
           <div className="rounded-lg border-2 border-danger bg-danger-muted px-4 py-3 border-danger/40 bg-danger-muted">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
               <ShieldAlert className="size-5 shrink-0 text-danger" />
-              <span className="font-bold text-gray-900 dark:text-gray-100">已超过最终还款日</span>
+              <span className="font-bold text-foreground">已超过最终还款日</span>
               <span className="font-extrabold text-danger">将上报征信</span>
             </p>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-1 text-sm text-muted-foreground">
               容时天数与截止时刻按平台配置（如邮储 4 天、至第 4 天 17:00 且自动生效；其余平台 3 天、需申请），每笔账单以其「最终还款日」为准。
               <span className="font-bold text-danger">容时已用完，不存在再次延期。</span>
             </p>
@@ -1003,7 +1003,7 @@ export function LoanTab() {
             {overdueBills.map((b) => (
               <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-danger bg-muted/50 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                  <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
                     {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
                     {(() => {
                       const g = graceOf(b.platform_id)
@@ -1016,23 +1016,23 @@ export function LoanTab() {
                     })()}
                     <span className="rounded-md bg-danger px-2 py-0.5 text-sm font-extrabold text-white">已超容时 · 将上报征信</span>
                   </p>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-warning">{overdueDays(b.due_date)}</span> 天
+                  <p className="text-sm font-medium text-muted-foreground">
+                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-foreground">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-warning">{overdueDays(b.due_date)}</span> 天
                   </p>
                   {(() => {
                     const pe = penaltyEstimate(b)
-                    if (!pe.rate) return <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">该平台未设置违约金</p>
+                    if (!pe.rate) return <p className="mt-0.5 text-xs text-muted-foreground">该平台未设置违约金</p>
                     return (
                       <p className="mt-0.5 text-sm font-semibold text-danger">
                         预计违约金 <span className="text-base font-extrabold">{fmt(pe.amount)}</span>
-                        <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
                       </p>
                     )
                   })()}
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-2xl font-extrabold text-warning">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
+                  <p className="text-xs font-medium text-muted-foreground">待还金额</p>
                 </div>
               </div>
             ))}

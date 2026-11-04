@@ -279,7 +279,7 @@ export function LoginAuditPage() {
       {byResult.length > 0 && (
         <section className="grid grid-cols-3 gap-4">
           {byResult.map((r) => {
-            const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400', icon: Shield }
+            const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-muted text-muted-foreground', icon: Shield }
             const Icon = meta.icon
             return (
               <Card key={r.result}>
@@ -396,7 +396,7 @@ export function LoginAuditPage() {
           ) : (
             <ol className="space-y-3">
               {items.map((row) => {
-                const meta = RESULT_META[row.result] ?? { name: row.result, className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400', icon: Shield }
+                const meta = RESULT_META[row.result] ?? { name: row.result, className: 'bg-muted text-muted-foreground', icon: Shield }
                 const Icon = meta.icon
                 return (
                   <li key={row.id} className="rounded-lg border px-4 py-3">

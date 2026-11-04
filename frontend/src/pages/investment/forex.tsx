@@ -493,7 +493,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
 
   const statusBadge =
     result == null
-      ? { text: '待输入', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' }
+      ? { text: '待输入', cls: 'bg-muted text-muted-foreground' }
       : result.status === 'danger'
         ? { text: '已爆仓/强平', cls: 'bg-danger-muted text-danger-muted-foreground' }
         : result.status === 'warn'

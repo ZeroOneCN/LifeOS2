@@ -44,7 +44,7 @@ export const CATEGORY_STYLE: Record<string, string> = {
   财务: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
   生活: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
   投资: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300',
-  其他: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
+  其他: 'bg-muted text-muted-foreground',
 }
 
 /**

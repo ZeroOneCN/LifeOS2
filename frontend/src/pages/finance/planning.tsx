@@ -58,7 +58,7 @@ const fields: FieldDef[] = [
 const statusMeta: Record<string, { label: string; className: string }> = {
   active: { label: '进行中', className: 'bg-info-muted text-info-muted-foreground' },
   done: { label: '已完成', className: 'bg-success-muted text-success-muted-foreground' },
-  abandoned: { label: '已放弃', className: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400' },
+  abandoned: { label: '已放弃', className: 'bg-muted text-muted-foreground' },
 }
 
 const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`

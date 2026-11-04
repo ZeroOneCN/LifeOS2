@@ -32,7 +32,7 @@ export type DebtRecord = {
 export type DebtPayment = { id: number; debt_id: number; repay_date: string; amount: number; discount?: number; actual?: number; note?: string }
 export const channelOptions = ['现金', '银行转账', '微信', '支付宝', '其他']
 export const channelMeta: Record<string, { className: string }> = {
-  现金: { className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-500/15 dark:text-zinc-300' },
+  现金: { className: 'bg-muted text-muted-foreground' },
   银行转账: { className: 'bg-info-muted text-info-muted-foreground' },
   微信: { className: 'bg-success-muted text-success-muted-foreground' },
   支付宝: { className: 'bg-info-muted text-info-muted-foreground' },

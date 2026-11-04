@@ -102,7 +102,7 @@ const statusMeta: Record<string, { label: string; className: string }> = {
   in_use: { label: '使用中', className: 'bg-success-muted text-success-muted-foreground' },
   loaned: { label: '借出', className: 'bg-info-muted text-info-muted-foreground' },
   lost: { label: '丢失', className: 'bg-danger-muted text-danger-muted-foreground' },
-  recycled: { label: '已淘汰', className: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400' },
+  recycled: { label: '已淘汰', className: 'bg-muted text-muted-foreground' },
 }
 
 function usageDays(r: ItemRecord): number {
@@ -140,7 +140,7 @@ const columns: ColumnDef<ItemRecord>[] = [
       r.source === 'shopping' ? (
         <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">购物同步</Badge>
       ) : (
-        <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">手动</Badge>
+        <Badge className="bg-muted text-muted-foreground">手动</Badge>
       ),
   },
   {

@@ -240,7 +240,7 @@ export function ChannelsPanel() {
                           {ch.enabled ? (
                             <Badge className="bg-success-muted text-success-muted-foreground">启用</Badge>
                           ) : (
-                            <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400">停用</Badge>
+                            <Badge className="bg-muted text-muted-foreground">停用</Badge>
                           )}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">

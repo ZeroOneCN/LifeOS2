@@ -454,7 +454,7 @@ export function ActivityLogsPage() {
               {items.map((row) => {
                 const meta = ACTION_META[row.action] ?? {
                   name: row.action,
-                  className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400',
+                  className: 'bg-muted text-muted-foreground',
                   icon: Activity,
                 }
                 const Icon = meta.icon

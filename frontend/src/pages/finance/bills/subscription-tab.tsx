@@ -60,7 +60,7 @@ function durationLabel(start?: string, end?: string): string {
 const subStatusMeta: Record<string, { label: string; className: string }> = {
   active: { label: '生效中', className: 'bg-success-muted text-success-muted-foreground' },
   expired: { label: '已过期', className: 'bg-danger-muted text-danger-muted-foreground' },
-  cancelled: { label: '已取消', className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' },
+  cancelled: { label: '已取消', className: 'bg-muted text-muted-foreground' },
 }
 
 type Subscription = {
