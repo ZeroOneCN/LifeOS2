@@ -11,18 +11,8 @@ function Dialog({
   open,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  // 受控弹窗打开时锁定页面滚动（背景不动），关闭恢复
-  React.useEffect(() => {
-    if (!open) return
-    const prevBody = document.body.style.overflow
-    const prevHtml = document.documentElement.style.overflow
-    document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prevBody
-      document.documentElement.style.overflow = prevHtml
-    }
-  }, [open])
+  // 背景滚动锁定由 Radix 内置的 react-remove-scroll 负责，
+  // 这里不再重复改写 html/body 的 overflow，避免打开瞬间触发整页样式重算。
   return <DialogPrimitive.Root data-slot="dialog" open={open} {...props} />
 }
 
@@ -52,7 +42,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
