@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Library,
   Loader2,
-  Minus,
   Pencil,
   Plus,
   Trash2,
@@ -51,192 +50,21 @@ import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 
-type CheckupRecord = {
-  id: number
-  check_date: string
-  item_name: string
-  value?: number
-  unit?: string
-  ref_low?: number
-  ref_high?: number
-  reference_range?: string
-  result?: string
-  note?: string
-}
-
-type TrendPoint = { check_date: string; value?: number | null; result?: string | null }
-
-type CheckupStats = {
-  items: {
-    item_name: string
-    unit?: string
-    reference_range?: string
-    ref_low?: number | null
-    ref_high?: number | null
-    latest: { check_date: string; value?: number; result?: string } | null
-    count: number
-    trend?: TrendPoint[]
-  }[]
-  total_count?: number
-  abnormal_count: number
-  status_counts: { normal: number; high: number; low: number }
-  abnormal_items: { check_date: string; value?: number; result?: string }[]
-}
-
-type Template = { id: number; item_name: string; category?: string; unit?: string; ref_low?: number; ref_high?: number }
-
-type PanelItem = { item_name: string; unit?: string; ref_low?: number | null; ref_high?: number | null; reference_range?: string }
-type Panel = { id: number; panel_name: string; note?: string; items: PanelItem[] }
-
-type RecordItemForm = {
-  item_name: string
-  value: string
-  unit?: string
-  ref_low?: number | null
-  ref_high?: number | null
-  reference_range?: string
-}
-
-const resultMeta: Record<string, { label: string; className: string }> = {
-  normal: { label: '正常', className: 'bg-success-muted text-success-muted-foreground' },
-  high: { label: '偏高', className: 'bg-danger-muted text-danger-muted-foreground' },
-  low: { label: '偏低', className: 'bg-warning-muted text-warning-muted-foreground' },
-}
-
-function judge(value: string, lo?: number | null, hi?: number | null): string {
-  const v = Number(value)
-  if (Number.isNaN(v)) return ''
-  if (hi != null && v > hi) return 'high'
-  if (lo != null && v < lo) return 'low'
-  return 'normal'
-}
-
-function fmtRange(lo?: number | null, hi?: number | null): string {
-  if (lo == null && hi == null) return ''
-  if (lo != null && hi != null) return `${lo}~${hi}`
-  if (lo != null) return `≥${lo}`
-  return `≤${hi}`
-}
-
-/** 结果严重度排序：偏高/偏低（异常）优先，正常次之，未判定最后。 */
-const RESULT_RANK: Record<string, number> = { high: 0, low: 1, normal: 2 }
-
-/** 概览筛选维度。 */
-const OVERVIEW_FILTERS = [
-  { key: 'all', label: '全部' },
-  { key: 'abnormal', label: '异常' },
-  { key: 'normal', label: '正常' },
-] as const
-
-type OverviewFilter = (typeof OVERVIEW_FILTERS)[number]['key']
-
-const STAT_TONE: Record<'danger' | 'success' | 'warn' | 'neutral', string> = {
-  danger: 'text-danger',
-  success: 'text-success',
-  warn: 'text-warning',
-  neutral: 'text-foreground',
-}
-
-/** 计算最新一次相对上一次的数值变化；数据不足两次返回 null。 */
-function deltaOf(trend?: TrendPoint[]): number | null {
-  if (!trend || trend.length < 2) return null
-  const cur = trend[trend.length - 1]?.value
-  const prev = trend[trend.length - 2]?.value
-  if (cur == null || prev == null) return null
-  return Number((cur - prev).toFixed(2))
-}
-
-/** 顶部概览统计卡：点击可按该状态筛选下方指标概览。 */
-function StatCard({
-  label,
-  value,
-  tone = 'neutral',
-  icon,
-  active,
-  onClick,
-}: {
-  label: string
-  value: number
-  tone?: 'danger' | 'success' | 'warn' | 'neutral'
-  icon: ReactNode
-  active?: boolean
-  onClick?: () => void
-}) {
-  return (
-    <Card
-      onClick={onClick}
-      className={`transition-colors ${onClick ? 'cursor-pointer hover:border-foreground/25' : ''} ${
-        active ? 'border-primary/60 ring-1 ring-primary/30' : ''
-      }`}
-    >
-      <CardContent className="flex items-center justify-between py-4">
-        <div>
-          <div className="text-sm text-muted-foreground">{label}</div>
-          <div className={`mt-1 text-2xl font-semibold tabular-nums ${STAT_TONE[tone]}`}>
-            {value}
-            <span className="ml-1 text-sm font-normal text-muted-foreground">项</span>
-          </div>
-        </div>
-        <span className={`${STAT_TONE[tone]} opacity-70`}>{icon}</span>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** 趋势提示：展示最新值相较上一次的变化方向与幅度。 */
-function TrendHint({ delta }: { delta: number | null }) {
-  if (delta == null) {
-    return <div className="mt-0.5 text-xs text-muted-foreground">首次记录</div>
-  }
-  if (delta === 0) {
-    return (
-      <div className="mt-0.5 flex items-center justify-end gap-0.5 text-xs text-muted-foreground">
-        <Minus className="size-3" /> 持平
-      </div>
-    )
-  }
-  const up = delta > 0
-  return (
-    <div className="mt-0.5 flex items-center justify-end gap-0.5 text-xs text-muted-foreground">
-      {up ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-      {up ? '+' : ''}
-      {delta}
-    </div>
-  )
-}
-
-/** 指标概览卡：展示单个指标的最新值、参考范围、判定结果与较上次变化。 */
-function IndicatorCard({ item }: { item: CheckupStats['items'][number] }) {
-  const meta = item.latest?.result ? resultMeta[item.latest.result] : undefined
-  const delta = deltaOf(item.trend)
-  const range = item.reference_range || fmtRange(item.ref_low, item.ref_high) || '—'
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <Tip label={item.item_name}>
-            <span className="truncate text-sm font-medium">
-              {item.item_name}
-            </span>
-          </Tip>
-          {meta && <Badge className={meta.className}>{meta.label}</Badge>}
-        </div>
-        <Tip label={`参考 ${range} · 共 ${item.count} 次`}>
-          <div className="mt-1 truncate text-xs text-muted-foreground">
-            参考 {range} · {item.count} 次
-          </div>
-        </Tip>
-      </div>
-      <div className="shrink-0 text-right">
-        <div className="text-lg font-semibold tabular-nums">
-          {item.latest?.value != null ? item.latest.value : '—'}
-          <span className="ml-1 text-xs font-normal text-muted-foreground">{item.unit ?? ''}</span>
-        </div>
-        <TrendHint delta={delta} />
-      </div>
-    </div>
-  )
-}
+import {
+  judge,
+  fmtRange,
+  resultMeta,
+  RESULT_RANK,
+  OVERVIEW_FILTERS,
+  type CheckupRecord,
+  type CheckupStats,
+  type OverviewFilter,
+  type Panel,
+  type PanelItem,
+  type RecordItemForm,
+  type Template,
+} from './shared'
+import { IndicatorCard, StatCard } from './indicator-card'
 
 export function CheckupPage() {
   const [items, setItems] = useState<CheckupRecord[]>([])
@@ -1203,3 +1031,4 @@ export function CheckupPage() {
     </div>
   )
 }
+
