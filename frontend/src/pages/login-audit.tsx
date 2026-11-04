@@ -111,7 +111,7 @@ function StatCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
-        <p className="min-h-4 truncate text-xs text-muted-foreground" title={hint}>{hint ?? ''}</p>
+        <p className="min-h-4 truncate text-xs text-muted-foreground" title={hint?.trim() || undefined}>{hint ?? ''}</p>
       </CardContent>
     </Card>
   )

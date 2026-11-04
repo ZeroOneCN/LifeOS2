@@ -11,7 +11,7 @@ type Side = 'top' | 'right' | 'bottom' | 'left'
  * 用于替代浏览器原生 title 提示（例如按钮的动作说明），保证全站悬停样式统一。
  * 若包裹的是本项目的 Button，则直接透传 tip 属性（Button 内部已统一挂载提示），
  * 避免出现内外两层气泡。
- * @param label 悬停时展示的文字
+ * @param label 悬停时展示的文字；空值（null / undefined / 空字符串 / 纯空白）时不渲染气泡，直接透传子元素
  * @param children 触发元素（如 Button、Link、span、div 等）
  * @param side 气泡出现方向，默认 top
  * @returns 带样式 Tooltip 的包裹元素
@@ -25,6 +25,9 @@ export function Tip({
   children: React.ReactNode
   side?: Side
 }) {
+  // 空内容不挂 Tooltip：避免表格空单元格、空备注悬停时弹出空白气泡
+  if (!label?.trim()) return children
+
   if (React.isValidElement(children) && children.type === Button) {
     return React.cloneElement(
       children as React.ReactElement<{ tip?: string; tipSide?: Side }>,
