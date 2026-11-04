@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction } from 'react'
 import { Eraser, Loader2, ScrollText } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -23,45 +23,25 @@ import {
 } from '@/components/ui/table'
 import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
-import { formatTime, type LogItem, type LogPage } from './shared'
+import { formatTime, type LogItem } from './shared'
 
 type LogsTabProps = {
-  refreshTick: number
   // 当前页码由页面持有，切换 Tab 后不重置（与原单组件行为一致）
   logPage: number
   setLogPage: Dispatch<SetStateAction<number>>
+  // 列表数据由页面层的统一轮询提供
+  logs: LogItem[]
+  logTotal: number
+  loadingLogs: boolean
+  /** 清除日志后复位页面层缓存 */
+  resetLogs: () => void
 }
 
-export function LogsTab({ refreshTick, logPage, setLogPage }: LogsTabProps) {
+export function LogsTab({ logPage, setLogPage, logs, logTotal, loadingLogs, resetLogs }: LogsTabProps) {
   const { confirm, dialog: confirmDialog } = useConfirm()
-  const realtimeTick = useRealtime(30_000)
-
-  // 执行日志
-  const [logs, setLogs] = useState<LogItem[]>([])
-  const [logTotal, setLogTotal] = useState(0)
-  const [loadingLogs, setLoadingLogs] = useState(false)
   const logPageSize = 10
-
-  const loadLogs = async () => {
-    setLoadingLogs(true)
-    try {
-      const data = await api.query<LogPage>(`/backup/logs?page=${logPage}&page_size=${logPageSize}`)
-      setLogs(data.items)
-      setLogTotal(data.total)
-    } catch {
-      toast.error('加载备份日志失败')
-    } finally {
-      setLoadingLogs(false)
-    }
-  }
-
-  useEffect(() => {
-    loadLogs()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logPage, realtimeTick, refreshTick])
 
   const handleClearLogs = async () => {
     const ok = await confirm({
@@ -74,8 +54,7 @@ export function LogsTab({ refreshTick, logPage, setLogPage }: LogsTabProps) {
     try {
       const res = await api.del<{ deleted: number }>('/backup/logs')
       toast.success(`已清除 ${res.deleted} 条执行日志`)
-      setLogs([])
-      setLogTotal(0)
+      resetLogs()
       setLogPage(1)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '清除日志失败')

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Clock, Loader2, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -40,7 +40,6 @@ import {
 } from '@/components/ui/table'
 import { Switch } from '@/components/ui/switch'
 import { Tip } from '@/components/ui/tip'
-import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 import { formatTime, type CronOption, type ScheduleItem } from './shared'
@@ -59,14 +58,18 @@ const CRON_PRESETS = [
 
 type ScheduleTabProps = {
   selectedTables: Set<string>
-  refreshTick: number
+  // 列表数据由页面层的统一轮询提供，未挂载时也保持刷新
+  schedules: ScheduleItem[]
+  loadingSchedules: boolean
+  reloadSchedules: () => Promise<void>
 }
 
-export function ScheduleTab({ selectedTables, refreshTick }: ScheduleTabProps) {
-  const realtimeTick = useRealtime(30_000)
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([])
-  const [loadingSchedules, setLoadingSchedules] = useState(false)
-
+export function ScheduleTab({
+  selectedTables,
+  schedules,
+  loadingSchedules,
+  reloadSchedules,
+}: ScheduleTabProps) {
   // 新增/编辑定时备份弹窗
   const [showScheduleDialog, setShowScheduleDialog] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
@@ -80,23 +83,6 @@ export function ScheduleTab({ selectedTables, refreshTick }: ScheduleTabProps) {
     table_selection: 'all',
   })
   const [savingSchedule, setSavingSchedule] = useState(false)
-
-  const loadSchedules = async () => {
-    setLoadingSchedules(true)
-    try {
-      const data = await api.query<ScheduleItem[]>('/backup/schedules')
-      setSchedules(data)
-    } catch {
-      toast.error('加载定时备份任务列表失败')
-    } finally {
-      setLoadingSchedules(false)
-    }
-  }
-
-  useEffect(() => {
-    loadSchedules()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realtimeTick, refreshTick])
 
   // ── 定时备份 ──
 
@@ -169,7 +155,7 @@ export function ScheduleTab({ selectedTables, refreshTick }: ScheduleTabProps) {
         compress: false,
         table_selection: 'all',
       })
-      loadSchedules()
+      reloadSchedules()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '操作失败')
     } finally {
@@ -181,7 +167,7 @@ export function ScheduleTab({ selectedTables, refreshTick }: ScheduleTabProps) {
     try {
       const result = await api.post<ScheduleItem>(`/backup/schedules/${id}/toggle`)
       toast.success(result.enabled ? '定时备份已启用' : '定时备份已暂停')
-      loadSchedules()
+      reloadSchedules()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '操作失败')
     }
@@ -191,7 +177,7 @@ export function ScheduleTab({ selectedTables, refreshTick }: ScheduleTabProps) {
     try {
       await api.del(`/backup/schedules/${id}`)
       toast.success('定时备份任务已删除')
-      loadSchedules()
+      reloadSchedules()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除失败')
     }

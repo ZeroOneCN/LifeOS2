@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { Download, Eraser, Eye, HardDrive, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -30,56 +30,39 @@ import {
 } from '@/components/ui/table'
 import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
-import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 
 import {
   formatTime,
   type BackupFile,
-  type BackupPage,
   type BackupPreview,
 } from './shared'
 
 type ManageTabProps = {
-  refreshTick: number
   // 当前页码由页面持有，切换 Tab 后不重置（与原单组件行为一致）
   backupPage: number
   setBackupPage: Dispatch<SetStateAction<number>>
+  // 列表数据由页面层的统一轮询提供，未挂载时也保持刷新
+  backups: BackupFile[]
+  backupTotal: number
+  loadingBackups: boolean
+  reloadBackups: () => Promise<void>
 }
 
-export function ManageTab({ refreshTick, backupPage, setBackupPage }: ManageTabProps) {
+export function ManageTab({
+  backupPage,
+  setBackupPage,
+  backups,
+  backupTotal,
+  loadingBackups,
+  reloadBackups,
+}: ManageTabProps) {
   const { confirm, dialog: confirmDialog } = useConfirm()
-  const realtimeTick = useRealtime(30_000)
-
-  const [backups, setBackups] = useState<BackupFile[]>([])
-  const [loadingBackups, setLoadingBackups] = useState(false)
-  // 备份管理：总数与每页条数（分页页码由页面持有）
-  const [backupTotal, setBackupTotal] = useState(0)
   const backupPageSize = 10
   // SQL 在线预览
   const [previewFile, setPreviewFile] = useState<BackupFile | null>(null)
   const [previewContent, setPreviewContent] = useState<BackupPreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
-
-  const loadBackups = async () => {
-    setLoadingBackups(true)
-    try {
-      const data = await api.query<BackupPage>(
-        `/backup/exports?page=${backupPage}&page_size=${backupPageSize}`
-      )
-      setBackups(data.items)
-      setBackupTotal(data.total)
-    } catch {
-      toast.error('加载备份文件列表失败')
-    } finally {
-      setLoadingBackups(false)
-    }
-  }
-
-  useEffect(() => {
-    loadBackups()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backupPage, realtimeTick, refreshTick])
 
   const handleDownloadBackup = (filename: string) => {
     api.download(`/backup/exports/${encodeURIComponent(filename)}`, filename)
@@ -100,7 +83,7 @@ export function ManageTab({ refreshTick, backupPage, setBackupPage }: ManageTabP
       if (backups.length === 1 && backupPage > 1) {
         setBackupPage((p) => p - 1)
       } else {
-        loadBackups()
+        reloadBackups()
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '删除失败')
@@ -118,7 +101,7 @@ export function ManageTab({ refreshTick, backupPage, setBackupPage }: ManageTabP
     try {
       const res = await api.del<{ deleted: number }>('/backup/exports?keep_days=3')
       toast.success(`已清除 ${res.deleted} 个旧备份文件（保留近 3 天）`)
-      if (backupPage === 1) loadBackups()
+      if (backupPage === 1) reloadBackups()
       else setBackupPage(1)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '清除备份失败')

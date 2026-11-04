@@ -10,6 +10,7 @@ import { ImportTab } from './import-tab'
 import { LogsTab } from './logs-tab'
 import { ManageTab } from './manage-tab'
 import { ScheduleTab } from './schedule-tab'
+import { useBackupPolling } from './polling'
 import type { ImportResult, TableInfo } from './shared'
 
 const TABS = [
@@ -30,7 +31,6 @@ type TabKey = (typeof TABS)[number]['key']
 export function BackupPage() {
   const [tab, setTab] = useState<TabKey>('export')
   const [refreshing, setRefreshing] = useState(false)
-  const [refreshTick, setRefreshTick] = useState(0)
   const [tables, setTables] = useState<TableInfo[]>([])
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set())
   const [loadingTables, setLoadingTables] = useState(false)
@@ -45,6 +45,9 @@ export function BackupPage() {
   // 日志 / 备份管理：分页页码
   const [logPage, setLogPage] = useState(1)
   const [backupPage, setBackupPage] = useState(1)
+
+  // 统一轮询调度：定时任务与备份列表不随 Tab 挂载与否，始终按 30s 刷新
+  const polling = useBackupPolling({ backupPage, logPage, logsActive: tab === 'logs' })
 
   const loadTables = async () => {
     setLoadingTables(true)
@@ -80,8 +83,7 @@ export function BackupPage() {
             disabled={refreshing}
             onClick={async () => {
               setRefreshing(true)
-              setRefreshTick((t) => t + 1)
-              await loadTables()
+              await Promise.all([loadTables(), polling.reloadAll()])
               setRefreshing(false)
             }}
           >
@@ -133,13 +135,32 @@ export function BackupPage() {
         />
       )}
       {tab === 'schedule' && (
-        <ScheduleTab selectedTables={selectedTables} refreshTick={refreshTick} />
+        <ScheduleTab
+          selectedTables={selectedTables}
+          schedules={polling.schedules}
+          loadingSchedules={polling.loadingSchedules}
+          reloadSchedules={polling.loadSchedules}
+        />
       )}
       {tab === 'logs' && (
-        <LogsTab refreshTick={refreshTick} logPage={logPage} setLogPage={setLogPage} />
+        <LogsTab
+          logPage={logPage}
+          setLogPage={setLogPage}
+          logs={polling.logs}
+          logTotal={polling.logTotal}
+          loadingLogs={polling.loadingLogs}
+          resetLogs={polling.resetLogs}
+        />
       )}
       {tab === 'manage' && (
-        <ManageTab refreshTick={refreshTick} backupPage={backupPage} setBackupPage={setBackupPage} />
+        <ManageTab
+          backupPage={backupPage}
+          setBackupPage={setBackupPage}
+          backups={polling.backups}
+          backupTotal={polling.backupTotal}
+          loadingBackups={polling.loadingBackups}
+          reloadBackups={polling.loadBackups}
+        />
       )}
     </div>
   )
