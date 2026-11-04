@@ -1,4 +1,4 @@
 -r requirements.txt
 
 # 测试依赖（仅开发/CI 使用，生产不安装）
-pytest
+pytest==9.2.0
