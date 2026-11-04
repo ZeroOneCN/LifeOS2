@@ -2,11 +2,13 @@
 import {
   BarChartCard,
   LineChartCard,
+} from '@/components/health/charts'
+import {
   StatsPeriodPicker,
   setGlobalStatsDays,
   useStats,
   type StatsDays,
-} from '@/components/health/charts'
+} from '@/components/health/chart-utils'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   RecordManager,

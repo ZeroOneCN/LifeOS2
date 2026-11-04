@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tip'
-import { getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { getDefaultStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import {
   RecordManager,
   type ColumnDef,

@@ -45,7 +45,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/components/ui/confirm-dialog'

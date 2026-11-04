@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { BarChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { BarChartCard } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import {
   RecordManager,
   type ColumnDef,

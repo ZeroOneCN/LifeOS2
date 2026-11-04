@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/charts'
+import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/chart-utils'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 

@@ -32,7 +32,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { BarChartCard, LineChartCard, StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/charts'
+import { BarChartCard, LineChartCard } from '@/components/health/charts'
+import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
