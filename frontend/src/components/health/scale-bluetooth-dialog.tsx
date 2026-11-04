@@ -86,10 +86,10 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
   }
 
   const statusBadge = () => {
-    if (!supported) return <span className="text-amber-500">⚠️ 当前浏览器不支持</span>
-    if (connecting) return <span className="flex items-center gap-1 text-blue-500"><Loader2 className="size-3 animate-spin" />连接中...</span>
-    if (gattConnected && !dataReady) return <span className="text-amber-500">GATT 已连接，等待数据通道...</span>
-    if (dataReady) return <span className="flex items-center gap-1 text-emerald-500"><CheckCircle className="size-3" />已就绪，请上秤</span>
+    if (!supported) return <span className="text-warning">⚠️ 当前浏览器不支持</span>
+    if (connecting) return <span className="flex items-center gap-1 text-info"><Loader2 className="size-3 animate-spin" />连接中...</span>
+    if (gattConnected && !dataReady) return <span className="text-warning">GATT 已连接，等待数据通道...</span>
+    if (dataReady) return <span className="flex items-center gap-1 text-success"><CheckCircle className="size-3" />已就绪，请上秤</span>
     return <span className="text-muted-foreground">未连接</span>
   }
 
@@ -98,7 +98,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Scale className="size-5 text-cyan-500" />
+            <Scale className="size-5 text-info" />
             蓝牙体重秤
           </DialogTitle>
           <DialogDescription>
@@ -113,7 +113,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
         </div>
 
         {!supported && (
-          <div className="rounded-lg border border-amber-300/50 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <div className="rounded-lg border border-warning/50 bg-warning-muted p-3 text-sm text-warning-muted-foreground">
             <div className="font-medium mb-1">⚠️ {capability.reason}</div>
             {capability.suggestion && (
               <pre className="mt-1 whitespace-pre-wrap text-xs leading-relaxed font-mono">
@@ -179,7 +179,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
           )}
 
           {hint && (
-            <div className="rounded-lg border border-amber-300/50 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            <div className="rounded-lg border border-warning/50 bg-warning-muted p-2 text-xs text-warning-muted-foreground">
               {hint}
             </div>
           )}
@@ -193,7 +193,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
                 </div>
               </div>
               <div className="mt-2 text-center">
-                <div className="text-4xl font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
+                <div className="text-4xl font-bold tabular-nums text-info">
                   {measurement.weightKg.toFixed(2)}
                   <span className="ml-1 text-base font-normal text-muted-foreground">kg</span>
                 </div>
@@ -205,11 +205,11 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
                     </div>
                     <div>
                       <div className="text-muted-foreground">体脂率</div>
-                      <div className="font-semibold text-rose-500">{measurement.bodyComposition.body_fat}%</div>
+                      <div className="font-semibold text-danger">{measurement.bodyComposition.body_fat}%</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">肌肉率</div>
-                      <div className="font-semibold text-emerald-500">{measurement.bodyComposition.muscle_rate}%</div>
+                      <div className="font-semibold text-success">{measurement.bodyComposition.muscle_rate}%</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">基础代谢</div>
@@ -222,7 +222,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
           )}
 
           {lastSynced && (
-            <div className="flex items-center gap-1 text-xs text-emerald-500">
+            <div className="flex items-center gap-1 text-xs text-success">
               <CheckCircle className="size-3" />
               已同步 {lastSynced.weightKg.toFixed(2)} kg（{lastSynced.at.toLocaleTimeString()}）
             </div>

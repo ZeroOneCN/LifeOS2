@@ -178,7 +178,7 @@ export function SiteSettingsPage() {
       </section>
 
       {!isAdmin ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-muted px-3 py-2 text-sm text-warning-muted-foreground">
           <ShieldAlert className="size-4 shrink-0" />
           系统品牌配置为全局设置，仅管理员账号可修改，当前为只读查看。
         </div>

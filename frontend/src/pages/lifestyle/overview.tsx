@@ -172,7 +172,7 @@ export function LifestyleOverviewPage() {
                     </div>
                   </div>
                   <Badge
-                    className={item.days_left <= 7 ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'}
+                    className={item.days_left <= 7 ? 'bg-danger-muted text-danger-muted-foreground' : 'bg-warning-muted text-warning-muted-foreground'}
                   >
                     剩 {item.days_left} 天
                   </Badge>
@@ -190,7 +190,7 @@ export function LifestyleOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="size-4 text-amber-500" />
+              <AlertTriangle className="size-4 text-warning" />
               卡片待办
             </CardTitle>
             <CardDescription>本月尚未扣账的手机卡与临期提醒</CardDescription>
@@ -202,7 +202,7 @@ export function LifestyleOverviewPage() {
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">本月累计扣账</span>
-              <span className="font-medium text-red-600 dark:text-red-400">{fmt(data.month_deduct)}</span>
+              <span className="font-medium text-danger">{fmt(data.month_deduct)}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">有效物品日均成本（平均）</span>
@@ -214,7 +214,7 @@ export function LifestyleOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <FileText className="size-4 text-emerald-500" />
+              <FileText className="size-4 text-success" />
               最新生活报告
             </CardTitle>
           </CardHeader>
@@ -228,7 +228,7 @@ export function LifestyleOverviewPage() {
                 )}
                 <Link
                   to="/lifestyle/reports"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-success hover:underline"
                 >
                   <CalendarClock className="size-3.5" />
                   前往生活报告

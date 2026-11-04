@@ -118,7 +118,7 @@ export function TemplatesPanel() {
                     className={
                       t.is_default
                         ? 'bg-muted text-muted-foreground'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                        : 'bg-info-muted text-info-muted-foreground'
                     }
                   >
                     {t.is_default ? '系统默认' : '已自定义'}

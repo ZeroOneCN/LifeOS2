@@ -526,9 +526,9 @@ function HousingTab() {
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-indigo-500" />
-                <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-emerald-500" />
-                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-blue-500" />
-                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-red-500" />
+                <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-success" />
+                <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-info" />
+                <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-danger" />
               </section>
             )
           })()}
@@ -568,7 +568,7 @@ function HousingTab() {
                     {/* 主信息：整段总花费（大字） + 月租/居住周期（小字） */}
                     <div className="mt-3">
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">总花费</p>
-                      <p className="mt-1 text-2xl font-bold leading-none text-emerald-600 dark:text-emerald-400">
+                      <p className="mt-1 text-2xl font-bold leading-none text-success">
                         {totalSpent > 0 ? fmt(totalSpent) : '—'}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -577,9 +577,9 @@ function HousingTab() {
                     </div>
 
                     {/* 平均单日成本 */}
-                    <div className="mt-2 flex items-center justify-between rounded-md bg-blue-50 dark:bg-blue-500/10 px-2 py-1.5">
-                      <span className="text-xs text-blue-700 dark:text-blue-300">平均单日</span>
-                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">{daily > 0 ? fmt(daily) : '—'}</span>
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-info-muted px-2 py-1.5">
+                      <span className="text-xs text-info-muted-foreground">平均单日</span>
+                      <span className="text-sm font-semibold text-info-muted-foreground">{daily > 0 ? fmt(daily) : '—'}</span>
                     </div>
 
                     {/* 操作按钮 */}
@@ -627,7 +627,7 @@ function HousingTab() {
                   <TableCell>{g.byType['水费'] ? fmt(g.byType['水费']) : '—'}</TableCell>
                   <TableCell>{g.byType['燃气费'] ? fmt(g.byType['燃气费']) : '—'}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(g.total)}</TableCell>
-                  <TableCell>{g.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}</TableCell>
+                  <TableCell>{g.paid ? <Badge className="bg-success-muted text-success-muted-foreground">已缴</Badge> : <Badge className="bg-warning-muted text-warning-muted-foreground">待缴</Badge>}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Tip label="明细/编辑"><Button variant="ghost" size="icon" onClick={() => setUGroup({ housing_id: g.housing_id, bill_month: g.bill_month, ids: g.ids })}><ListTree /></Button></Tip>
@@ -735,7 +735,7 @@ function HousingTab() {
                           <DatePicker value={t.due_date} onChange={(v) => updateTermDueDate(t, v)} className="h-7 w-32" />
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className={`text-xs ${t.paid ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
+                          <span className={`text-xs ${t.paid ? 'text-success' : 'text-muted-foreground'}`}>{t.paid ? '已交' : '未交'}</span>
                           <Switch checked={t.paid} onCheckedChange={() => toggleTermPaid(t)} />
                           <Tip label="删除"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteTerm(t)}><Trash2 className="size-4" /></Button></Tip>
                         </div>
@@ -765,7 +765,7 @@ function HousingTab() {
                             <div className="truncate font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</div>
                             <div className="mt-0.5 flex items-center gap-1.5">
                               <span className="font-medium">{fmt(u.amount)}</span>
-                              {u.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                              {u.paid ? <Badge className="bg-success-muted text-success-muted-foreground">已缴</Badge> : <Badge className="bg-warning-muted text-warning-muted-foreground">待缴</Badge>}
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
@@ -875,7 +875,7 @@ function HousingTab() {
                             <span className="font-medium">{u.bill_month.slice(0, 7)} · {u.fee_type}</span>
                             <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
                           </div></Tip>
-                          {u.paid ? <Badge className="shrink-0 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="shrink-0 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                          {u.paid ? <Badge className="shrink-0 bg-success-muted text-success-muted-foreground">已缴</Badge> : <Badge className="shrink-0 bg-warning-muted text-warning-muted-foreground">待缴</Badge>}
                         </div>
                       ))}
                     </div>
@@ -902,7 +902,7 @@ function HousingTab() {
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-2 text-muted-foreground">
                               <span>{fmt(t.amount)}</span>
                               {t.due_date ? <span>到期 {t.due_date}</span> : null}
-                              {t.paid ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已交</Badge> : <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">未交</Badge>}
+                              {t.paid ? <Badge className="bg-success-muted text-success-muted-foreground">已交</Badge> : <Badge className="bg-warning-muted text-warning-muted-foreground">未交</Badge>}
                             </div>
                           </div>
                         ))}
@@ -976,7 +976,7 @@ function HousingTab() {
                     <span className="font-medium">{u.fee_type}</span>
                     <span className="ml-2 text-muted-foreground">{fmt(u.amount)}</span>
                     {u.due_date && <span className="ml-2 text-xs text-muted-foreground">到期 {u.due_date}</span>}
-                    {u.paid ? <Badge className="ml-2 bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已缴</Badge> : <Badge className="ml-2 bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待缴</Badge>}
+                    {u.paid ? <Badge className="ml-2 bg-success-muted text-success-muted-foreground">已缴</Badge> : <Badge className="ml-2 bg-warning-muted text-warning-muted-foreground">待缴</Badge>}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => openUEdit(u)}><Pencil /></Button></Tip>
@@ -1093,8 +1093,8 @@ function durationLabel(start?: string, end?: string): string {
   return `${totalDays}天`
 }
 const subStatusMeta: Record<string, { label: string; className: string }> = {
-  active: { label: '生效中', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
-  expired: { label: '已过期', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
+  active: { label: '生效中', className: 'bg-success-muted text-success-muted-foreground' },
+  expired: { label: '已过期', className: 'bg-danger-muted text-danger-muted-foreground' },
   cancelled: { label: '已取消', className: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' },
 }
 
@@ -1234,7 +1234,7 @@ function SubscriptionTab() {
             <StatCard icon={Repeat} label="每月订阅支出" value={fmt(stats.total_active)} hint={`${stats.active_count} 项生效中`} className="text-indigo-500" />
             <StatCard icon={Wallet} label="总订阅数" value={`${stats.total_count} 项`} hint={`${stats.active_count} 项生效`} />
             <StatCard icon={Layers} label="订阅分类" value={`${stats.by_category.length} 类`} hint={stats.by_category[0] ? `最多 ${stats.by_category[0].category}` : '暂无分类'} />
-            <StatCard icon={Repeat} label="即将续费" value={`${stats.upcoming.length} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-amber-500" />
+            <StatCard icon={Repeat} label="即将续费" value={`${stats.upcoming.length} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-warning" />
           </section>
           {stats.by_category.length > 0 && (
             <Card>
@@ -1249,8 +1249,8 @@ function SubscriptionTab() {
             </Card>
           )}
           {stats.upcoming.length > 0 && (
-            <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">即将续费提醒</CardTitle></CardHeader>
+            <Card className="border-warning/40 bg-warning-muted">
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-warning-muted-foreground">即将续费提醒</CardTitle></CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 {stats.upcoming.map((u) => (
                   <div key={u.id} className="flex flex-wrap items-center justify-between rounded-md bg-white/70 dark:bg-white/5 px-3 py-1.5">
@@ -1296,7 +1296,7 @@ function SubscriptionTab() {
                   <TableCell className="text-muted-foreground">{dur}</TableCell>
                   <TableCell className="text-right font-medium">{fmt(s.amount)}</TableCell>
                   <TableCell>{cycleMeta[s.billing_cycle] ?? s.billing_cycle}</TableCell>
-                  <TableCell>{s.auto_renew ? <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
+                  <TableCell>{s.auto_renew ? <Badge className="bg-success-muted text-success-muted-foreground">是</Badge> : <Badge variant="outline">否</Badge>}</TableCell>
                   <TableCell><Badge className={subStatusMeta[s.status]?.className}>{subStatusMeta[s.status]?.label ?? s.status}</Badge></TableCell>
                   <Tip label={s.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{s.note ?? '—'}</TableCell></Tip>
                   <TableCell className="text-right">
@@ -1436,9 +1436,9 @@ type LoanBillStats = {
 type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
 
 const billStatusMeta: Record<string, { label: string; className: string }> = {
-  pending: { label: '待还', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
-  partial: { label: '部分已还', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300' },
-  cleared: { label: '已结清', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
+  pending: { label: '待还', className: 'bg-warning-muted text-warning-muted-foreground' },
+  partial: { label: '部分已还', className: 'bg-info-muted text-info-muted-foreground' },
+  cleared: { label: '已结清', className: 'bg-success-muted text-success-muted-foreground' },
 }
 
 function LoanTab() {
@@ -1825,15 +1825,15 @@ function LoanTab() {
     <div className="flex flex-col gap-4">
       {/* 容时倒计时横幅：已过原还款日但仍在容时窗口内，强调最低还款与不可再次延期 */}
       {graceBills.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 px-4 py-2.5 dark:bg-amber-500/10">
-          <Clock className="size-5 shrink-0 animate-pulse text-amber-600 dark:text-amber-400" />
-          <span className="text-lg font-extrabold tracking-wide text-amber-700 dark:text-amber-300">容时最后机会</span>
-          <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border-2 border-warning bg-warning-muted px-4 py-2.5 bg-warning-muted">
+          <Clock className="size-5 shrink-0 animate-pulse text-warning" />
+          <span className="text-lg font-extrabold tracking-wide text-warning-muted-foreground">容时最后机会</span>
+          <span className="text-sm font-medium text-warning-muted-foreground">
             共 <span className="font-extrabold">{graceBills.length}</span> 笔账单已过原还款日，请至少还够最低还款额，容时不会再次延期
           </span>
           <Button
             size="sm"
-            className="ml-auto bg-amber-600 font-bold text-white hover:bg-amber-700"
+            className="ml-auto bg-warning font-bold text-white hover:bg-warning"
             onClick={() => setGraceAlertOpen(true)}
           >
             查看容时明细
@@ -1842,21 +1842,21 @@ function LoanTab() {
       )}
       {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
       {overdueBills.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 dark:bg-red-500/10">
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-danger bg-danger-muted px-4 py-3 dark:bg-red-500/10">
           <div className="flex flex-wrap items-center gap-3">
-            <AlertTriangle className="size-6 shrink-0 animate-pulse text-red-600 dark:text-red-400" />
-            <span className="text-xl font-extrabold tracking-wide text-red-700 dark:text-red-300">账单逾期提醒</span>
-            <span className="text-sm font-medium text-red-700 dark:text-red-300">
-              共 <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
+            <AlertTriangle className="size-6 shrink-0 animate-pulse text-danger" />
+            <span className="text-xl font-extrabold tracking-wide text-danger-muted-foreground">账单逾期提醒</span>
+            <span className="text-sm font-medium text-danger-muted-foreground">
+              共 <span className="text-lg font-extrabold text-warning">{overdueBills.length}</span> 笔账单已逾期，请尽快还款
             </span>
             <Button size="sm" variant="destructive" className="ml-auto font-bold" onClick={() => setOverdueAlertOpen(true)}>
               查看逾期明细
             </Button>
           </div>
           {/* 容时规则：各平台天数/截止时刻不同（如邮储 4 天至第 4 天 17:00 且自动生效） */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-red-500 bg-red-100 px-3 py-2 dark:border-red-500/60 dark:bg-red-500/20">
-            <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
-            <span className="text-base font-extrabold text-red-600 dark:text-red-400">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-danger bg-danger-muted px-3 py-2 border-danger/40 bg-danger-muted">
+            <ShieldAlert className="size-5 shrink-0 text-danger" />
+            <span className="text-base font-extrabold text-danger">
               已超过最终还款日，将上报征信
             </span>
             <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
@@ -1867,15 +1867,15 @@ function LoanTab() {
       )}
       {platformStats && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-red-500" />
-          <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-red-500" />
-          <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-amber-500" />
-          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-green-600 dark:text-green-400" />
+          <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-danger" />
+          <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-danger" />
+          <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-warning" />
+          <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-success" />
           <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-indigo-500" />
           <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
           <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-indigo-500" />
           <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
-          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-green-600 dark:text-green-400" />
+          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-success" />
         </section>
       )}
 
@@ -1937,7 +1937,7 @@ function LoanTab() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">待还</p>
-                  <p className={`mt-1 text-lg font-bold leading-none tabular-nums ${p.remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{fmt(p.remaining)}</p>
+                  <p className={`mt-1 text-lg font-bold leading-none tabular-nums ${p.remaining > 0 ? 'text-danger' : 'text-success'}`}>{fmt(p.remaining)}</p>
                 </div>
               </div>
             </div>
@@ -1994,14 +1994,14 @@ function LoanTab() {
                       {interest > 0 && (
                         <>
                           <span className="mx-1.5 text-muted-foreground/40">|</span>
-                          <span className="text-amber-600 dark:text-amber-400">{fmt(interest)}</span>
+                          <span className="text-warning">{fmt(interest)}</span>
                         </>
                       )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">
                       <span className="font-medium">{fmt(b.paid_amount)}</span>
                       <span className="mx-1.5 text-muted-foreground/40">|</span>
-                      <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>{fmt(remaining)}</span>
+                      <span className={remaining > 0 ? 'text-danger' : 'text-success'}>{fmt(remaining)}</span>
                     </TableCell>
                     <TableCell><Badge className={billStatusMeta[b.status]?.className}>{billStatusMeta[b.status]?.label ?? b.status}</Badge></TableCell>
                     <TableCell>
@@ -2027,11 +2027,11 @@ function LoanTab() {
 
       {/* 还款记录 */}
       {(billStats?.upcoming ?? []).length > 0 && (
-        <Card className="border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10">
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">近期待还（30 天内）</CardTitle></CardHeader>
+        <Card className="border-warning/40 bg-warning-muted">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-warning-muted-foreground">近期待还（30 天内）</CardTitle></CardHeader>
           <CardContent className="space-y-1.5 text-sm">
             {billStats?.upcoming.map((u) => (
-              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/40' : 'bg-white/70 dark:bg-white/5'}`}>
+              <div key={u.id} className={`flex flex-wrap items-center justify-between rounded-md px-3 py-1.5 ${u.overdue ? 'bg-danger-muted border border-danger/40' : 'bg-white/70 dark:bg-white/5'}`}>
                 <span>{platformName(u.platform_id)} · {u.due_date} <Badge variant="outline">{billStatusMeta[u.status]?.label}</Badge>
                   {(() => {
                     const g = graceOf(u.platform_id)
@@ -2045,8 +2045,8 @@ function LoanTab() {
                   })()}
                 </span>
                 <span className="text-muted-foreground">
-                  {u.overdue ? <span className="text-red-600 dark:text-red-400 font-semibold">已逾期 · </span> : ''}
-                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-red-700 dark:text-red-300">{fmt(u.remaining)}</span>
+                  {u.overdue ? <span className="text-danger font-semibold">已逾期 · </span> : ''}
+                  到期 {u.due_date ?? '—'} · 剩余 <span className="font-medium text-danger-muted-foreground">{fmt(u.remaining)}</span>
                 </span>
               </div>
             ))}
@@ -2078,7 +2078,7 @@ function LoanTab() {
                   <TableRow key={r.id}>
                     <TableCell>{r.repay_date}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(r.amount)}</TableCell>
-                    <TableCell className="text-right text-green-600 dark:text-green-400">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
+                    <TableCell className="text-right text-success">{r.discount && r.discount > 0 ? `-${fmt(r.discount)}` : '—'}</TableCell>
                     <TableCell>{r.method ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{r.note ?? '—'}</TableCell>
                     <TableCell className="text-right">
@@ -2208,7 +2208,7 @@ function LoanTab() {
               <div className="rounded-lg border px-3 py-2 text-sm font-medium">
                 {fmt(actualPay())}
                 {(Number(repayForm.discount) || 0) > 0 && (
-                  <span className="ml-2 text-xs text-green-600 dark:text-green-400">优惠抵减 {fmt(Number(repayForm.discount))}</span>
+                  <span className="ml-2 text-xs text-success">优惠抵减 {fmt(Number(repayForm.discount))}</span>
                 )}
               </div>
             </div>
@@ -2258,22 +2258,22 @@ function LoanTab() {
       <Dialog open={graceAlertOpen} onOpenChange={setGraceAlertOpen}>
         <DialogContent className="sm:max-w-lg" showCloseButton={false}>
           <DialogHeader className="space-y-1">
-            <DialogTitle className="flex items-center gap-2 text-xl font-extrabold text-amber-600 dark:text-amber-400">
+            <DialogTitle className="flex items-center gap-2 text-xl font-extrabold text-warning">
               <Clock className="size-6 animate-pulse" /> 容时最后机会
             </DialogTitle>
-            <DialogDescription className="text-sm font-medium text-amber-700 dark:text-amber-400">
+            <DialogDescription className="text-sm font-medium text-warning-muted-foreground">
               以下 {graceBills.length} 笔账单已过原还款日，仍在容时保护期内。
             </DialogDescription>
           </DialogHeader>
 
           {/* 核心警告：最低还款 + 不可再次延期 */}
-          <div className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4 dark:border-amber-500/60 dark:bg-amber-500/10">
+          <div className="rounded-lg border-2 border-warning bg-warning-muted p-4 border-warning/40 bg-warning-muted">
             <p className="flex flex-wrap items-center gap-2">
-              <ShieldAlert className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <ShieldAlert className="size-5 shrink-0 text-warning" />
               <span className="text-base font-extrabold text-gray-900 dark:text-gray-100">
-                请至少还够<span className="text-amber-700 dark:text-amber-300">最低还款额</span>
+                请至少还够<span className="text-warning-muted-foreground">最低还款额</span>
               </span>
-              <span className="rounded-md bg-amber-600 px-1.5 py-0.5 text-xs font-bold text-white">不会再次延期</span>
+              <span className="rounded-md bg-warning px-1.5 py-0.5 text-xs font-bold text-white">不会再次延期</span>
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
               容时只有这一次，不叠加、不可二次顺延；还够最低还款额可暂不视为逾期，剩余欠款仍需尽快结清，
@@ -2283,22 +2283,22 @@ function LoanTab() {
 
           <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
             {graceBills.map((b) => (
-              <div key={b.id} className="rounded-xl border-2 border-amber-400/80 bg-gradient-to-br from-amber-50/90 to-background p-4 dark:border-amber-500/40 dark:from-amber-500/10">
+              <div key={b.id} className="rounded-xl border-2 border-warning/80 bg-gradient-to-br from-warning-muted/90 to-background p-4 border-warning/40 from-warning-muted">
                 {/* 头部：平台 + 账单月份 + 容时标记 */}
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-bold text-gray-900 dark:text-gray-100">{platformName(b.platform_id)}</span>
                   <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400">{b.bill_month.slice(0, 7)}</span>
-                  <span className="ml-auto shrink-0 rounded-full bg-amber-600 px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
+                  <span className="ml-auto shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
                 </div>
                 {/* 两个核心数据：剩余时间（强调色）/ 待还金额（大粗体） */}
                 <div className="mt-3 grid grid-cols-2 gap-4">
                   <div className="min-w-0">
-                    <p className="text-[11px] font-bold tracking-widest text-amber-700/70 dark:text-amber-400/70">剩余时间</p>
-                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-amber-600 sm:text-2xl dark:text-amber-400">
+                    <p className="text-[11px] font-bold tracking-widest text-warning-muted-foreground/70">剩余时间</p>
+                    <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-warning sm:text-2xl text-warning">
                       {graceRemainValue(b.platform_id, b.due_date)}
                     </p>
                   </div>
-                  <div className="min-w-0 border-l border-amber-300/70 pl-4 dark:border-amber-500/30">
+                  <div className="min-w-0 border-l border-warning/70 pl-4 border-warning/30">
                     <p className="text-[11px] font-bold tracking-widest text-gray-500 dark:text-gray-400">待还金额</p>
                     <p className="mt-1 text-xl font-extrabold leading-none tabular-nums text-gray-900 sm:text-2xl dark:text-gray-50">
                       {fmt(remainingOf(b.amount, b.paid_amount))}
@@ -2306,9 +2306,9 @@ function LoanTab() {
                   </div>
                 </div>
                 {/* 时间轴：原还款日 → 最终还款日 */}
-                <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-amber-300/60 pt-2.5 text-xs dark:border-amber-500/25">
+                <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-warning/60 pt-2.5 text-xs border-warning/25">
                   <span className="text-gray-500 dark:text-gray-400">原还款日 {b.due_date}</span>
-                  <span className="font-bold text-amber-800 dark:text-amber-300">
+                  <span className="font-bold text-warning-muted-foreground">
                     最终 {graceDeadlineText(b.platform_id, b.due_date)} · 超过即上报征信
                   </span>
                 </div>
@@ -2318,7 +2318,7 @@ function LoanTab() {
 
           <DialogFooter>
             <Button
-              className="h-11 w-full bg-amber-600 text-base font-bold text-white hover:bg-amber-700"
+              className="h-11 w-full bg-warning text-base font-bold text-white hover:bg-warning"
               onClick={() => setGraceAlertOpen(false)}
             >
               我知道了，尽快还款
@@ -2331,28 +2331,28 @@ function LoanTab() {
       <Dialog open={overdueAlertOpen} onOpenChange={setOverdueAlertOpen}>
         <DialogContent className="sm:max-w-xl" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold text-red-600 dark:text-red-400">
+            <DialogTitle className="flex items-center gap-2 text-2xl font-extrabold text-danger">
               <AlertTriangle className="size-7 animate-pulse" /> 账单逾期警报
             </DialogTitle>
-            <DialogDescription className="text-base text-red-600 dark:text-red-400">
+            <DialogDescription className="text-base text-danger">
               以下账单已超过最终还款日（含容时），请立即处理，避免影响征信。
             </DialogDescription>
           </DialogHeader>
           {/* 容时规则：各平台天数/截止时刻不同，已超时的账单将上报征信 */}
-          <div className="rounded-lg border-2 border-red-500 bg-red-50 px-4 py-3 dark:border-red-500/60 dark:bg-red-500/10">
+          <div className="rounded-lg border-2 border-danger bg-danger-muted px-4 py-3 border-danger/40 bg-danger-muted">
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-lg">
-              <ShieldAlert className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+              <ShieldAlert className="size-5 shrink-0 text-danger" />
               <span className="font-bold text-gray-900 dark:text-gray-100">已超过最终还款日</span>
-              <span className="font-extrabold text-red-600 dark:text-red-400">将上报征信</span>
+              <span className="font-extrabold text-danger">将上报征信</span>
             </p>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
               容时天数与截止时刻按平台配置（如邮储 4 天、至第 4 天 17:00 且自动生效；其余平台 3 天、需申请），每笔账单以其「最终还款日」为准。
-              <span className="font-bold text-red-600 dark:text-red-400">容时已用完，不存在再次延期。</span>
+              <span className="font-bold text-danger">容时已用完，不存在再次延期。</span>
             </p>
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {overdueBills.map((b) => (
-              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-red-500 bg-muted/50 px-4 py-3">
+              <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-2 border-danger bg-muted/50 px-4 py-3">
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
                     {platformName(b.platform_id)} · {b.bill_month.slice(0, 7)}
@@ -2365,16 +2365,16 @@ function LoanTab() {
                         </span>
                       )
                     })()}
-                    <span className="rounded-md bg-red-600 px-2 py-0.5 text-sm font-extrabold text-white">已超容时 · 将上报征信</span>
+                    <span className="rounded-md bg-danger px-2 py-0.5 text-sm font-extrabold text-white">已超容时 · 将上报征信</span>
                   </p>
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">{overdueDays(b.due_date)}</span> 天
+                    还款日 {b.due_date} · 最终还款日 <span className="font-bold text-gray-900 dark:text-gray-100">{graceDeadlineText(b.platform_id, b.due_date)}</span> · 已逾期 <span className="text-xl font-extrabold text-warning">{overdueDays(b.due_date)}</span> 天
                   </p>
                   {(() => {
                     const pe = penaltyEstimate(b)
                     if (!pe.rate) return <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">该平台未设置违约金</p>
                     return (
-                      <p className="mt-0.5 text-sm font-semibold text-red-600 dark:text-red-400">
+                      <p className="mt-0.5 text-sm font-semibold text-danger">
                         预计违约金 <span className="text-base font-extrabold">{fmt(pe.amount)}</span>
                         <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
                       </p>
@@ -2382,7 +2382,7 @@ function LoanTab() {
                   })()}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
+                  <p className="text-2xl font-extrabold text-warning">{fmt(remainingOf(b.amount, b.paid_amount))}</p>
                   <p className="text-xs font-medium text-gray-600 dark:text-gray-300">待还金额</p>
                 </div>
               </div>

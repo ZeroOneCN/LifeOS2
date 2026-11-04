@@ -62,19 +62,19 @@ export function FitnessDashboardPage() {
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">总摄入</div>
-            <div className="mt-1 text-2xl font-semibold text-orange-500">{data.intake_total} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-warning">{data.intake_total} kcal</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">总消耗(运动)</div>
-            <div className="mt-1 text-2xl font-semibold text-emerald-500">{data.expenditure_total} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-success">{data.expenditure_total} kcal</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">净结余</div>
-            <div className="mt-1 text-2xl font-semibold text-sky-500">{data.series.at(-1)?.balance ?? '-'} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-info">{data.series.at(-1)?.balance ?? '-'} kcal</div>
           </CardContent>
         </Card>
         <Card>

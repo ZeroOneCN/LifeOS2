@@ -104,8 +104,8 @@ export function NotificationList() {
   return (
     <div className="flex flex-col gap-4">
       <section className="grid gap-4 sm:grid-cols-2">
-        <StatCard icon={Bell} label="今日提醒" value={String(stats?.today ?? '—')} className="text-amber-500" />
-        <StatCard icon={CheckCircle2} label="提醒总数" value={String(stats?.total ?? '—')} className="text-green-500" />
+        <StatCard icon={Bell} label="今日提醒" value={String(stats?.today ?? '—')} className="text-warning" />
+        <StatCard icon={CheckCircle2} label="提醒总数" value={String(stats?.total ?? '—')} className="text-success" />
       </section>
 
       {byCategory.length > 0 || trend.length > 0 ? (

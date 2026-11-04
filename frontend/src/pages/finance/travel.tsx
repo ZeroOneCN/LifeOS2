@@ -610,7 +610,7 @@ export function TravelPage() {
                     <TableCell><Badge variant="secondary">{row.category}</Badge></TableCell>
                     <TableCell>{row.item}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{fmt(row.original_price)}</TableCell>
-                    <TableCell className="text-right text-green-600 dark:text-green-400">{row.discount > 0 ? `-${fmt(row.discount)}` : '—'}</TableCell>
+                    <TableCell className="text-right text-success">{row.discount > 0 ? `-${fmt(row.discount)}` : '—'}</TableCell>
                     <TableCell className="text-right font-medium">{fmt(row.actual_price)}</TableCell>
                     <TableCell className="text-muted-foreground">{row.transport_info ?? '—'}</TableCell>
                     <TableCell className="text-muted-foreground">{row.payment_method ?? '—'}</TableCell>

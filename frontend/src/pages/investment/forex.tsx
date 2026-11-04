@@ -161,7 +161,7 @@ const fmtVal = (n: number) =>
 const fmtPnl = (n: number) =>
   `${n >= 0 ? '+' : ''}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 const pnlCls = (n: number) =>
-  n >= 0 ? 'font-semibold text-emerald-600 dark:text-emerald-400' : 'font-semibold text-red-600 dark:text-red-400'
+  n >= 0 ? 'font-semibold text-success' : 'font-semibold text-danger'
 const fmtHolding = (min?: number) => {
   if (min == null) return '—'
   if (min < 60) return `${min}分`
@@ -205,9 +205,9 @@ const tradeColumns: ColumnDef<ForexRecord>[] = [
     label: '订单类型',
     render: (r) =>
       r.order_type === 'buy' ? (
-        <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">做多 Buy</Badge>
+        <Badge className="bg-success-muted text-success-muted-foreground">做多 Buy</Badge>
       ) : (
-        <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">做空 Sell</Badge>
+        <Badge className="bg-danger-muted text-danger-muted-foreground">做空 Sell</Badge>
       ),
   },
   { key: 'open_price', label: '开仓价格' },
@@ -348,8 +348,8 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
               <div className="text-[11px] text-muted-foreground">交易日（盈/亏）</div>
               <div className="text-sm font-semibold">
                 {data.summary.trading_days}日
-                <span className="ml-1 text-emerald-600 dark:text-emerald-400">+{data.summary.win_days}</span>
-                <span className="text-red-600 dark:text-red-400">-{data.summary.loss_days}</span>
+                <span className="ml-1 text-success">+{data.summary.win_days}</span>
+                <span className="text-danger">-{data.summary.loss_days}</span>
               </div>
             </div>
             <div className="rounded-lg border bg-muted/40 px-2 py-2">
@@ -370,8 +370,8 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
                   d.count === 0
                     ? 'bg-muted/40 text-muted-foreground'
                     : d.pnl >= 0
-                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/40'
-                      : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/40'
+                      ? 'bg-success-muted border-success/40'
+                      : 'bg-danger-muted border-danger/40'
                 }`}
               >
                 <span className="self-start text-xs font-medium">{d.day}</span>
@@ -495,17 +495,17 @@ function PositionCalculator({ equity }: { equity?: number }) {
     result == null
       ? { text: '待输入', cls: 'bg-gray-100 text-gray-600 dark:bg-gray-500/15 dark:text-gray-400' }
       : result.status === 'danger'
-        ? { text: '已爆仓/强平', cls: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' }
+        ? { text: '已爆仓/强平', cls: 'bg-danger-muted text-danger-muted-foreground' }
         : result.status === 'warn'
-          ? { text: '预警', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' }
-          : { text: '正常', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' }
+          ? { text: '预警', cls: 'bg-warning-muted text-warning-muted-foreground' }
+          : { text: '正常', cls: 'bg-success-muted text-success-muted-foreground' }
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <HardHat className="size-4 text-amber-500" /> 账户与爆仓参数
+            <HardHat className="size-4 text-warning" /> 账户与爆仓参数
           </CardTitle>
           <CardDescription>基于实时净值（可手动变更）计算保证金比例与爆仓价格</CardDescription>
         </CardHeader>
@@ -596,7 +596,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
-            <TrendingUp className="size-4 text-emerald-500" /> 计算结果
+            <TrendingUp className="size-4 text-success" /> 计算结果
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -651,9 +651,9 @@ function PositionCalculator({ equity }: { equity?: number }) {
                       <TableCell className="font-medium">{p.symbol}</TableCell>
                       <TableCell>
                         {p.direction === 'buy' ? (
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">多</Badge>
+                          <Badge className="bg-success-muted text-success-muted-foreground">多</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">空</Badge>
+                          <Badge className="bg-danger-muted text-danger-muted-foreground">空</Badge>
                         )}
                       </TableCell>
                       <TableCell>{p.open}</TableCell>
@@ -762,22 +762,22 @@ function FundsSection() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Card className="border-green-200">
+          <Card className="border-success/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">累计入金</span>
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">{stats ? fmtVal(stats.deposit) : '—'}</Badge>
+              <Badge className="bg-success-muted text-success-muted-foreground">{stats ? fmtVal(stats.deposit) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-red-200 dark:border-red-500/40">
+          <Card className="border-danger/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">累计出金</span>
-              <Badge className="bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300">{stats ? fmtVal(stats.withdraw) : '—'}</Badge>
+              <Badge className="bg-danger-muted text-danger-muted-foreground">{stats ? fmtVal(stats.withdraw) : '—'}</Badge>
             </CardContent>
           </Card>
-          <Card className="border-amber-200 dark:border-amber-500/40">
+          <Card className="border-warning/40">
             <CardContent className="flex items-center justify-between py-3">
               <span className="text-sm text-muted-foreground">体验金</span>
-              <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{stats ? fmtVal(stats.experience) : '—'}</Badge>
+              <Badge className="bg-warning-muted text-warning-muted-foreground">{stats ? fmtVal(stats.experience) : '—'}</Badge>
             </CardContent>
           </Card>
           <Card className="border-indigo-200 dark:border-indigo-500/40">
@@ -796,16 +796,16 @@ function FundsSection() {
               <div key={r.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
                 <div className="flex items-center gap-3">
                   {r.record_type === 'deposit' ? (
-                    <ArrowDownToLine className="size-4 text-green-600 dark:text-green-400" />
+                    <ArrowDownToLine className="size-4 text-success" />
                   ) : r.record_type === 'withdraw' ? (
-                    <ArrowUpFromLine className="size-4 text-red-600 dark:text-red-400" />
+                    <ArrowUpFromLine className="size-4 text-danger" />
                   ) : (
-                    <Gift className="size-4 text-amber-500" />
+                    <Gift className="size-4 text-warning" />
                   )}
                   <div>
                     <div className="text-sm font-medium">
                       {fundTypes.find((t) => t.value === r.record_type)?.label}
-                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{fmtVal(r.amount)}</span>
+                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-danger' : 'text-success'}`}>{fmtVal(r.amount)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">{r.record_date}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
@@ -924,7 +924,7 @@ function ImportButton({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '' }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; accent?: boolean; valueCls?: string }) {
   const numeric = Number(value.replace(/[^0-9.-]/g, ''))
-  const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''
+  const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-success' : 'text-danger') : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -934,7 +934,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earningsStyle} ${valueCls}`}>{value}</div>
+        <div className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${earningsStyle} ${valueCls}`}>{value}</div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

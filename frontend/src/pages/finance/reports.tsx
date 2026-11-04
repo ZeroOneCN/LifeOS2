@@ -61,7 +61,7 @@ function SectionBody({ section }: { section: ContentSection }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[320px] text-sm">
             <thead>
-              <tr className="bg-emerald-600">
+              <tr className="bg-success">
                 {header.map((h) => (
                   <th key={h} className="px-3 py-2 text-left font-medium text-white">
                     {h}
@@ -117,7 +117,7 @@ function ReportContent({ content }: { content?: unknown }) {
     <div className="space-y-4">
       {sections.map((s, i) =>
         s.type === 'h2' ? (
-          <h3 key={i} className="border-l-4 border-emerald-500 pl-3 text-base font-semibold">
+          <h3 key={i} className="border-l-4 border-success pl-3 text-base font-semibold">
             {s.text}
           </h3>
         ) : (
@@ -229,7 +229,7 @@ export function FinanceReportsPage() {
       </div>
 
       {preview && (
-        <Card className="border-emerald-200 dark:border-emerald-500/40">
+        <Card className="border-success/40">
           <CardHeader className="flex flex-row items-start justify-between gap-3 border-b pb-3">
             <button
               type="button"
@@ -238,7 +238,7 @@ export function FinanceReportsPage() {
             >
               <div className="flex items-center gap-2">
                 <ChevronDown
-                  className={`size-4 shrink-0 text-emerald-600 dark:text-emerald-400 transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
+                  className={`size-4 shrink-0 text-success transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
                 <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
               </div>
@@ -310,7 +310,7 @@ export function FinanceReportsPage() {
                     onClick={() => loadDetail(r.id)}
                   >
                     <div className="flex items-center gap-2">
-                      <FileText className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <FileText className="size-4 shrink-0 text-success" />
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">

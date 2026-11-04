@@ -191,7 +191,7 @@ export function ReminderSettingsPanel() {
                 <CardFooter className="justify-between gap-2 py-2.5">
                   <span
                     className={`inline-flex items-center gap-1.5 text-xs ${
-                      d.enabled ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                      d.enabled ? 'text-success' : 'text-muted-foreground'
                     }`}
                   >
                     <span className="size-1.5 rounded-full bg-current" />

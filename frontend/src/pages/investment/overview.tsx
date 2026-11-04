@@ -95,7 +95,7 @@ function StatCard({
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${earn ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : ''}`}>
+        <div className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${earn ? (numeric >= 0 ? 'text-success' : 'text-danger') : ''}`}>
           {value}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}

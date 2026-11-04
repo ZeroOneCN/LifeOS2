@@ -173,7 +173,7 @@ export function EmailConfigPanel() {
                   </CardDescription>
                 </div>
                 <CardHeaderActions>
-                  <Badge className={ch.enabled ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'}>
+                  <Badge className={ch.enabled ? 'bg-success-muted text-success-muted-foreground' : 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'}>
                     {ch.enabled ? '启用' : '停用'}
                   </Badge>
                 </CardHeaderActions>

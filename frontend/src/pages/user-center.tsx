@@ -436,7 +436,7 @@ export function UserCenterPage() {
                   <span className="text-muted-foreground">密码状态</span>
                   {settings ? (
                     settings.has_password ? (
-                      <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">
+                      <Badge className="bg-success-muted text-success-muted-foreground">
                         已设置
                       </Badge>
                     ) : (

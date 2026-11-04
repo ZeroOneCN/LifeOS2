@@ -98,9 +98,9 @@ type RecordItemForm = {
 }
 
 const resultMeta: Record<string, { label: string; className: string }> = {
-  normal: { label: '正常', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
-  high: { label: '偏高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
-  low: { label: '偏低', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  normal: { label: '正常', className: 'bg-success-muted text-success-muted-foreground' },
+  high: { label: '偏高', className: 'bg-danger-muted text-danger-muted-foreground' },
+  low: { label: '偏低', className: 'bg-warning-muted text-warning-muted-foreground' },
 }
 
 function judge(value: string, lo?: number | null, hi?: number | null): string {
@@ -131,9 +131,9 @@ const OVERVIEW_FILTERS = [
 type OverviewFilter = (typeof OVERVIEW_FILTERS)[number]['key']
 
 const STAT_TONE: Record<'danger' | 'success' | 'warn' | 'neutral', string> = {
-  danger: 'text-red-600 dark:text-red-400',
-  success: 'text-green-600 dark:text-green-400',
-  warn: 'text-amber-500',
+  danger: 'text-danger',
+  success: 'text-success',
+  warn: 'text-warning',
   neutral: 'text-foreground',
 }
 

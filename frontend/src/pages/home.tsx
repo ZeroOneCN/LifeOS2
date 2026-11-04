@@ -213,18 +213,18 @@ function buildFlowItems(fin: FinOverview | null, life: LifeOverview | null): Flo
 /** 紧急度 → 角标配色（含深色模式变体） */
 function toneBadgeClass(tone: Tone): string {
   return tone === 'danger'
-    ? 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300'
+    ? 'bg-danger-muted text-danger-muted-foreground'
     : tone === 'warning'
-      ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+      ? 'bg-warning-muted text-warning-muted-foreground'
       : 'bg-muted text-muted-foreground'
 }
 
 /** 紧急度 → 金额文字配色（含深色模式变体） */
 function toneTextClass(tone: Tone): string {
   return tone === 'danger'
-    ? 'text-red-600 dark:text-red-400'
+    ? 'text-danger'
     : tone === 'warning'
-      ? 'text-amber-600 dark:text-amber-400'
+      ? 'text-warning'
       : 'text-foreground'
 }
 
@@ -255,7 +255,7 @@ function StatCard({
   pnl?: boolean
 }) {
   const numeric = Number(value.replace(/[.-]/g, '').replace(/,/g, ''))
-  const color = pnl ? (numeric >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400') : money ? 'text-emerald-600 dark:text-emerald-400' : ''
+  const color = pnl ? (numeric >= 0 ? 'text-success' : 'text-danger') : money ? 'text-success' : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -312,7 +312,7 @@ function PendingFlowCard({ items }: { items: FlowItem[] }) {
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-sm">
           <span className="flex items-center gap-2">
-            <AlertTriangle className="size-4 text-amber-500" />
+            <AlertTriangle className="size-4 text-warning" />
             待处理
           </span>
           <Badge className={items.length ? toneBadgeClass(items[0].tone) : 'bg-muted text-muted-foreground'}>
@@ -504,7 +504,7 @@ export function HomePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Receipt className="size-4 text-emerald-500" />
+                <Receipt className="size-4 text-success" />
                 最新生活报告
               </CardTitle>
             </CardHeader>

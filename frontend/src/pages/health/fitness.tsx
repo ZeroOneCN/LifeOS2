@@ -260,7 +260,7 @@ export function FitnessPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总消耗</div>
-              <div className="mt-1 text-2xl font-semibold text-emerald-500">{stats?.total_calories ?? 0} kcal</div>
+              <div className="mt-1 text-2xl font-semibold text-success">{stats?.total_calories ?? 0} kcal</div>
             </CardContent>
           </Card>
           <Card>

@@ -67,9 +67,9 @@ type OverviewData = {
 }
 
 const resultMeta: Record<string, { label: string; className: string }> = {
-  normal: { label: '正常', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' },
-  high: { label: '偏高', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300' },
-  low: { label: '偏低', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
+  normal: { label: '正常', className: 'bg-success-muted text-success-muted-foreground' },
+  high: { label: '偏高', className: 'bg-danger-muted text-danger-muted-foreground' },
+  low: { label: '偏低', className: 'bg-warning-muted text-warning-muted-foreground' },
 }
 
 function StatCard({
@@ -274,7 +274,7 @@ export function HealthOverviewPage() {
                       {[item.dosage, item.frequency].filter(Boolean).join(' · ') || '—'}
                     </div>
                   </div>
-                  <Badge className={item.taken ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'}>
+                  <Badge className={item.taken ? 'bg-success-muted text-success-muted-foreground' : 'bg-warning-muted text-warning-muted-foreground'}>
                     {item.taken ? '已服' : '待服'}
                   </Badge>
                 </div>

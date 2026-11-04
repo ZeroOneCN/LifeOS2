@@ -79,7 +79,7 @@ function StatCard({
       </CardHeader>
       <CardContent>
         <div
-          className={`text-2xl font-semibold ${accent ? 'text-emerald-600 dark:text-emerald-400' : ''} ${label.includes('盈亏') ? (Number(value.replace(/[^0-9.-]/g, '')) >= 0 ? '' : 'text-red-600 dark:text-red-400') : ''}`}
+          className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${label.includes('盈亏') ? (Number(value.replace(/[^0-9.-]/g, '')) >= 0 ? '' : 'text-danger') : ''}`}
         >
           {value}
         </div>
@@ -96,7 +96,7 @@ function ItemRow({ item }: { item: PendingItem }) {
         <div className="text-sm font-medium">{item.bill_type}</div>
         <div className="text-xs text-muted-foreground">到期 {item.due_date ?? '—'}</div>
       </div>
-      <span className="text-sm font-medium text-red-600 dark:text-red-400">{fmt(item.remaining ?? item.amount)}</span>
+      <span className="text-sm font-medium text-danger">{fmt(item.remaining ?? item.amount)}</span>
     </div>
   )
 }
@@ -203,7 +203,7 @@ export function FinanceOverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="size-4 text-amber-500" />
+              <AlertTriangle className="size-4 text-warning" />
               待支付网贷账单
             </CardTitle>
             <CardDescription>按到期日排序，请及时处理</CardDescription>
@@ -248,7 +248,7 @@ export function FinanceOverviewPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
-            <PiggyBank className="size-4 text-emerald-500" />
+            <PiggyBank className="size-4 text-success" />
             进行中的财务规划
           </CardTitle>
         </CardHeader>
@@ -269,7 +269,7 @@ export function FinanceOverviewPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-sm font-medium">{p.title}</span>
-                        <Badge className="ml-2 bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{p.plan_type}</Badge>
+                        <Badge className="ml-2 bg-info-muted text-info-muted-foreground">{p.plan_type}</Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {p.saved_amount != null ? fmt(p.saved_amount) : '—'} /{' '}
@@ -279,7 +279,7 @@ export function FinanceOverviewPage() {
                     {p.target_amount && p.saved_amount ? (
                       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full rounded-full bg-emerald-50 dark:bg-emerald-500/100"
+                          className="h-full rounded-full bg-success-muted"
                           style={{ width: `${pct}%` }}
                         />
                       </div>

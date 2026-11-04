@@ -72,7 +72,7 @@ export function RegisterPage() {
         <form onSubmit={submit}>
           <CardContent className="space-y-4">
             {error && (
-              <p className="rounded-md border border-red-200 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              <p className="rounded-md border border-danger/40 bg-danger-muted px-3 py-2 text-sm text-danger-muted-foreground">
                 {error}
               </p>
             )}

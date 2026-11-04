@@ -723,7 +723,7 @@ export function BackupPage() {
                                       <div className="flex items-center gap-1 truncate">
                                         <span className="truncate">{t.label ?? t.name}</span>
                                         {!t.mapped && (
-                                          <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                          <Badge variant="outline" className="shrink-0 px-1 py-0 text-[10px] text-warning">
                                             未配置中文名
                                           </Badge>
                                         )}
@@ -862,7 +862,7 @@ export function BackupPage() {
                   已选择：{importFile.name}（{(importFile.size / 1024).toFixed(1)} KB）
                 </div>
               )}
-              <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              <div className="flex items-center gap-2 rounded-lg bg-warning-muted px-4 py-3 text-sm text-warning-muted-foreground">
                 <Database className="h-4 w-4" />
                 导入将使用 INSERT IGNORE 方式，遇到主键冲突会自动跳过，不会覆盖已有数据
               </div>
@@ -909,7 +909,7 @@ export function BackupPage() {
                                 <span className="inline-flex items-center gap-1.5">
                                   {info?.label ?? tableName}
                                   {info && !info.mapped && (
-                                    <Badge variant="outline" className="px-1 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                                    <Badge variant="outline" className="px-1 py-0 text-[10px] text-warning">
                                       未配置中文名
                                     </Badge>
                                   )}
@@ -1120,13 +1120,13 @@ export function BackupPage() {
                           </TableCell>
                           <TableCell>
                             {s.last_status === 'success' ? (
-                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <Badge className="bg-success-muted text-success-muted-foreground">
                                 成功
                               </Badge>
                             ) : s.last_status === 'failed' ? (
                               <Badge variant="destructive">失败</Badge>
                             ) : s.enabled ? (
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                              <Badge variant="secondary" className="bg-info-muted text-info-muted-foreground">
                                 等待中
                               </Badge>
                             ) : (
@@ -1256,7 +1256,7 @@ export function BackupPage() {
                           <TableCell>
                             {l.status === 'success' ? (
                               <div className="flex items-center gap-1.5">
-                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <Badge className="bg-success-muted text-success-muted-foreground">
                                   成功
                                 </Badge>
                                 {l.file_size_display && (
@@ -1436,7 +1436,7 @@ export function BackupPage() {
             </pre>
           )}
           {previewContent?.truncated && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+            <p className="text-xs text-warning">
               内容过长，已截断显示（完整内容请下载后查看）
             </p>
           )}

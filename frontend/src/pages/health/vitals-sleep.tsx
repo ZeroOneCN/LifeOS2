@@ -192,25 +192,25 @@ export function VitalsSleepPage() {
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均心率</div>
-                  <div className="mt-1 text-2xl font-semibold text-rose-600 dark:text-rose-400">{fmt(avg?.heart_rate, ' bpm')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-danger">{fmt(avg?.heart_rate, ' bpm')}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均血氧</div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{fmt(avg?.blood_oxygen, '%')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-success">{fmt(avg?.blood_oxygen, '%')}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均体温</div>
-                  <div className="mt-1 text-2xl font-semibold text-orange-600 dark:text-orange-400">{fmt(avg?.body_temp, '℃')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-warning">{fmt(avg?.body_temp, '℃')}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均血糖</div>
-                  <div className="mt-1 text-2xl font-semibold text-sky-600 dark:text-sky-400">{fmt(avg?.blood_glucose, ' mmol/L')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-info">{fmt(avg?.blood_glucose, ' mmol/L')}</div>
                 </CardContent>
               </Card>
               <Card>

@@ -733,7 +733,7 @@ export function StepsPage() {
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-amber-500" />
+              <AlertTriangle className="size-5 text-warning" />
               步数记录待补充
             </DialogTitle>
             <DialogDescription>
@@ -753,7 +753,7 @@ export function StepsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{d.record_date}</span>
-                      <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                      <Badge className="bg-warning-muted text-warning-muted-foreground">
                         已录 {d.recorded}/{PERIODS.length}
                       </Badge>
                     </div>
