@@ -491,7 +491,7 @@ export function LoanTab() {
       )}
       {/* 逾期常驻横幅：进入网贷页即可看到，点击可再次打开重大提醒弹窗 */}
       {overdueBills.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border-2 border-danger bg-danger-muted px-4 py-3 dark:bg-red-500/10">
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-danger bg-danger-muted px-4 py-3 dark:bg-danger-muted">
           <div className="flex flex-wrap items-center gap-3">
             <AlertTriangle className="size-6 shrink-0 animate-pulse text-danger" />
             <span className="text-xl font-extrabold tracking-wide text-danger-muted-foreground">账单逾期提醒</span>

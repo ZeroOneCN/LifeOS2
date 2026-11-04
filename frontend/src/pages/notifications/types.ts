@@ -39,11 +39,11 @@ export function getSourceLabel(source?: string | null): string {
 
 // 通知分类 → 徽章配色
 export const CATEGORY_STYLE: Record<string, string> = {
-  系统: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-  健康: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
-  财务: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  系统: 'bg-decor-blue/15 text-decor-blue',
+  健康: 'bg-decor-green/15 text-decor-green',
+  财务: 'bg-decor-amber/15 text-decor-amber',
   生活: 'bg-decor-purple/15 text-decor-purple',
-  投资: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300',
+  投资: 'bg-decor-cyan/15 text-decor-cyan',
   其他: 'bg-muted text-muted-foreground',
 }
 

@@ -25,6 +25,10 @@
     --color-decor-indigo: var(--decor-indigo);
     --color-decor-violet: var(--decor-violet);
     --color-decor-purple: var(--decor-purple);
+    --color-decor-blue: var(--decor-blue);
+    --color-decor-green: var(--decor-green);
+    --color-decor-amber: var(--decor-amber);
+    --color-decor-cyan: var(--decor-cyan);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -107,6 +111,10 @@
     --decor-indigo: oklch(0.511 0.262 276.966); /* 靛蓝 */
     --decor-violet: oklch(0.541 0.281 293.009); /* 紫罗兰 */
     --decor-purple: oklch(0.496 0.265 301.924); /* 紫 */
+    --decor-blue: oklch(0.488 0.243 264.376); /* 蓝 */
+    --decor-green: oklch(0.448 0.119 151.328); /* 绿 */
+    --decor-amber: oklch(0.52 0.145 46); /* 琥珀：比 700 档再深一档，保证 bg-decor-amber/15 上的文字 ≥4.5:1 */
+    --decor-cyan: oklch(0.48 0.095 220); /* 青：同上，补偿淡色底拉低对比度 */
     /* 语义状态色：供红涨绿跌、告警等固定含义的图表使用 */
     --success: oklch(0.627 0.194 149.214);
     --warning: oklch(0.666 0.179 58.318);
@@ -174,6 +182,10 @@
     --decor-indigo: oklch(0.673 0.182 276.935); /* 靛蓝 */
     --decor-violet: oklch(0.702 0.183 293.541); /* 紫罗兰 */
     --decor-purple: oklch(0.714 0.203 305.504); /* 紫 */
+    --decor-blue: oklch(0.707 0.165 254.624); /* 蓝 */
+    --decor-green: oklch(0.792 0.209 151.711); /* 绿 */
+    --decor-amber: oklch(0.828 0.189 84.429); /* 琥珀 */
+    --decor-cyan: oklch(0.789 0.154 211.53); /* 青 */
     /* 语义状态色 */
     --success: oklch(0.792 0.209 151.711);
     --warning: oklch(0.828 0.189 84.429);
