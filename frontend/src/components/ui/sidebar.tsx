@@ -270,7 +270,7 @@ function SidebarTrigger({
       {...props}
     >
       <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">切换侧边栏</span>
     </Button>
   )
 }
@@ -279,11 +279,11 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
 
   return (
-    <Tip label="Toggle Sidebar">
+    <Tip label="切换侧边栏">
       <button
         data-sidebar="rail"
         data-slot="sidebar-rail"
-        aria-label="Toggle Sidebar"
+        aria-label="切换侧边栏"
         tabIndex={-1}
         onClick={toggleSidebar}
         className={cn(

@@ -420,8 +420,8 @@ function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                       {d.status === 'active' && remaining(d) > 0 && (
                         <Tip label="还款/收款"><Button variant="ghost" size="icon" onClick={() => openRepay(d)}><Banknote /></Button></Tip>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ debt_date: d.debt_date, name: d.name, direction: d.direction, counterparty: d.counterparty ?? '', amount: String(d.amount), remaining: d.remaining != null ? String(d.remaining) : '', interest_rate: d.interest_rate != null ? String(d.interest_rate) : '', interest_total: d.interest_total != null ? String(d.interest_total) : '', channel: d.channel ?? '现金', due_date: d.due_date ?? '', status: d.status, note: d.note ?? '' }); setDialog({ editing: d }) }}><Pencil /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(d)}><Trash2 /></Button>
+                      <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setForm({ debt_date: d.debt_date, name: d.name, direction: d.direction, counterparty: d.counterparty ?? '', amount: String(d.amount), remaining: d.remaining != null ? String(d.remaining) : '', interest_rate: d.interest_rate != null ? String(d.interest_rate) : '', interest_total: d.interest_total != null ? String(d.interest_total) : '', channel: d.channel ?? '现金', due_date: d.due_date ?? '', status: d.status, note: d.note ?? '' }); setDialog({ editing: d }) }}><Pencil /></Button></Tip>
+                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(d)}><Trash2 /></Button></Tip>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -745,8 +745,8 @@ function InvestTab() {
                   <Tip label={iv.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{iv.note ?? '—'}</TableCell></Tip>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', pnl: String(iv.pnl), note: iv.note ?? '' }); setSelCats(iv.category.split(',').map((s) => s.trim()).filter(Boolean)); setDialog({ editing: iv }) }}><Pencil /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(iv)}><Trash2 /></Button>
+                      <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setForm({ platform: iv.platform, account: iv.account ?? '', pnl: String(iv.pnl), note: iv.note ?? '' }); setSelCats(iv.category.split(',').map((s) => s.trim()).filter(Boolean)); setDialog({ editing: iv }) }}><Pencil /></Button></Tip>
+                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(iv)}><Trash2 /></Button></Tip>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -863,8 +863,8 @@ function MemoTab() {
                     {m.memo_date && <div className="mt-0.5 text-xs text-muted-foreground">{m.memo_date}</div>}
                   </div>
                   <div className="flex shrink-0 gap-0.5">
-                    <Button variant="ghost" size="icon" onClick={() => { setForm({ title: m.title, content: m.content ?? '', memo_date: m.memo_date ?? '' }); setDialog({ editing: m }) }}><Pencil /></Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(m)}><Trash2 /></Button>
+                    <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setForm({ title: m.title, content: m.content ?? '', memo_date: m.memo_date ?? '' }); setDialog({ editing: m }) }}><Pencil /></Button></Tip>
+                    <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(m)}><Trash2 /></Button></Tip>
                   </div>
                 </div>
                 {m.content && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{m.content}</p>}

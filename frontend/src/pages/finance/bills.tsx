@@ -538,8 +538,8 @@ function HousingTab() {
                 <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">住房清单</CardTitle>
                 <CardHeaderActions className="text-xs text-muted-foreground">
                   <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button>
+                  <Tip label="上一页"><Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button></Tip>
+                  <Tip label="下一页"><Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button></Tip>
                 </CardHeaderActions>
               </CardHeader>
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1301,8 +1301,8 @@ function SubscriptionTab() {
                   <Tip label={s.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{s.note ?? '—'}</TableCell></Tip>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(s)}><Trash2 /></Button>
+                      <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setForm({ name: s.name, plan_name: s.plan_name ?? '', category: s.category, billing_cycle: s.billing_cycle, amount: String(s.amount), start_date: s.start_date, end_date: s.end_date ?? '', auto_renew: s.auto_renew ? 'true' : 'false', status: s.status, note: s.note ?? '' }); setDialog({ editing: s }) }}><Pencil /></Button></Tip>
+                      <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(s)}><Trash2 /></Button></Tip>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -2013,8 +2013,8 @@ function LoanTab() {
                         ) : (
                           <Button variant="ghost" size="icon" className="invisible" aria-hidden tabIndex={-1}><Banknote className="size-3.5" /></Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, grace_applied: b.grace_applied ? '1' : '0', note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setBillForm({ platform_id: b.platform_id ? String(b.platform_id) : '', bill_month: b.bill_month, due_date: b.due_date ?? '', amount: String(b.amount), interest: String(b.interest ?? 0), paid_amount: String(b.paid_amount), status: b.status, grace_applied: b.grace_applied ? '1' : '0', note: b.note ?? '' }); setBillDialog({ editing: b }) }}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeBill(b)}><Trash2 /></Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>
