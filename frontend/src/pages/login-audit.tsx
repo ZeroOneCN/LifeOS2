@@ -71,9 +71,9 @@ type LoginAuditStats = {
 }
 
 const RESULT_META: Record<string, { name: string; className: string; icon: LucideIcon }> = {
-  success: { name: '登录成功', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300', icon: CheckCircle2 },
-  fail: { name: '登录失败', className: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300', icon: ShieldAlert },
-  locked: { name: '触发锁定', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300', icon: Ban },
+  success: { name: '登录成功', className: 'bg-success-muted text-success-muted-foreground', icon: CheckCircle2 },
+  fail: { name: '登录失败', className: 'bg-warning-muted text-warning-muted-foreground', icon: ShieldAlert },
+  locked: { name: '触发锁定', className: 'bg-danger-muted text-danger-muted-foreground', icon: Ban },
 }
 
 const FAILURE_REASONS: Record<string, string> = {
@@ -240,22 +240,22 @@ export function LoginAuditPage() {
       </section>
 
       <section className="grid grid-cols-4 gap-4">
-        <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-blue-500" />
-        <StatCard icon={ShieldAlert} label="今日失败" value={String(failToday)} className="text-amber-500" />
-        <StatCard icon={Ban} label="今日锁定" value={String(lockedToday)} className="text-red-500" />
+        <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-info" />
+        <StatCard icon={ShieldAlert} label="今日失败" value={String(failToday)} className="text-warning" />
+        <StatCard icon={Ban} label="今日锁定" value={String(lockedToday)} className="text-danger" />
         <StatCard
           icon={AlertTriangle}
           label="暴力破解嫌疑 IP"
           value={String(bruteIps.length)}
           hint={stats ? `窗口 ${stats.brute_force_window_minutes} 分钟 / 阈值 ${stats.brute_force_threshold} 次` : undefined}
-          className="text-red-500"
+          className="text-danger"
         />
       </section>
 
       {bruteIps.length > 0 && (
-        <Card className="border-red-200 dark:border-red-500/30">
+        <Card className="border-danger/40">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-red-600 dark:text-red-400">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-danger">
               <AlertTriangle className="size-4" /> 暴力破解告警
             </CardTitle>
 
@@ -265,7 +265,7 @@ export function LoginAuditPage() {
             {bruteIps.map((b) => (
               <div key={b.ip} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-sm">
                 <Badge variant="outline" className="font-mono">IP: {b.ip}</Badge>
-                <span className="text-red-600 dark:text-red-400">失败 {b.fail_count} 次</span>
+                <span className="text-danger">失败 {b.fail_count} 次</span>
                 <span className="text-muted-foreground">尝试账号 {b.account_count} 个</span>
                 {b.last_attempt && (
                   <span className="ml-auto text-xs text-muted-foreground">最近: {formatTime(b.last_attempt)}</span>
@@ -310,7 +310,7 @@ export function LoginAuditPage() {
                 <Badge variant="outline" className="font-mono">{b.ip}</Badge>
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full bg-blue-500"
+                    className="h-full rounded-full bg-info"
                     style={{ width: `${Math.min(100, (b.count / (byIp[0]?.count || 1)) * 100)}%` }}
                   />
                 </div>
@@ -412,7 +412,7 @@ export function LoginAuditPage() {
                         </span>
                       )}
                       {row.lock_triggered && (
-                        <Badge variant="outline" className="text-xs font-normal text-red-600 dark:text-red-400">
+                        <Badge variant="outline" className="text-xs font-normal text-danger">
                           触发锁定
                         </Badge>
                       )}

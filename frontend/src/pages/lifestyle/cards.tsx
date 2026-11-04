@@ -254,7 +254,7 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       <div className="flex items-center gap-1.5">
         <span className="font-medium">{r.phone_number}</span>
         {r.billing_type !== 'monthly' && (
-          <Badge className="bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300">
+          <Badge className="bg-muted text-muted-foreground">
             {billingTypes.find((b) => b.value === r.billing_type)?.label ?? r.billing_type}
           </Badge>
         )}
@@ -270,7 +270,7 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       r.balance == null ? (
         '—'
       ) : (
-        <span className={r.balance < 0 ? 'font-medium text-red-600 dark:text-red-400' : undefined}>
+        <span className={r.balance < 0 ? 'font-medium text-danger' : undefined}>
           {fmt(r.balance)}
         </span>
       ),
@@ -283,8 +283,8 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       <Badge
         className={
           r.charge_mode === 'daily'
-            ? 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300'
-            : 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300'
+            ? 'bg-info-muted text-info-muted-foreground'
+            : 'bg-muted text-muted-foreground'
         }
       >
         {r.charge_mode === 'daily' ? '按天' : '整月'}
@@ -325,7 +325,7 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
             <span className="text-muted-foreground">{pct}%</span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+            <div className="h-full rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
           </div>
           {r.charge_mode === 'daily' && (
             <div className="mt-0.5 text-[10px] text-muted-foreground">每日 {fmt(r.today_charge ?? 0)}</div>
@@ -385,7 +385,7 @@ const bankColumns: ColumnDef<BankCard>[] = [
     key: 'card_category',
     label: '类型',
     render: (r) => (
-      <Badge className={r.card_category === 'credit' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'}>
+      <Badge className={r.card_category === 'credit' ? 'bg-warning-muted text-warning-muted-foreground' : 'bg-success-muted text-success-muted-foreground'}>
         {r.card_category === 'credit' ? '信用卡' : '储蓄卡'}
       </Badge>
     ),
@@ -403,14 +403,14 @@ const bankColumns: ColumnDef<BankCard>[] = [
       const days = daysUntil(r.expire_date)
       if (days < 0) {
         return (
-          <span className="text-red-600 dark:text-red-400">
+          <span className="text-danger">
             {r.expire_date}（已过期 {Math.abs(days)} 天）
           </span>
         )
       }
       if (days <= 90) {
         return (
-          <span className="text-amber-600 dark:text-amber-400">
+          <span className="text-warning">
             {r.expire_date}（剩余 {days} 天）
           </span>
         )
@@ -444,13 +444,13 @@ const carrierColumns: ColumnDef<Carrier>[] = [
 
 function metaClass(status: string): string {
   const map: Record<string, string> = {
-    active: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
-    frozen: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-    expired: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
-    disabled: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
-    closed: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
+    active: 'bg-success-muted text-success-muted-foreground',
+    frozen: 'bg-warning-muted text-warning-muted-foreground',
+    expired: 'bg-danger-muted text-danger-muted-foreground',
+    disabled: 'bg-muted text-muted-foreground',
+    closed: 'bg-muted text-muted-foreground',
   }
-  return map[status] ?? 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400'
+  return map[status] ?? 'bg-muted text-muted-foreground'
 }
 
 function StatRow({ children, cols = 4 }: { children: ReactNode; cols?: number }) {
@@ -526,7 +526,7 @@ function DistCard({
                       <span className="font-medium">{count} 张 · {pct}%</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-indigo-500" style={{ width: `${pct}%` }} />
+                      <div className="h-full rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
                     </div>
                   </li>
                 )
@@ -638,9 +638,9 @@ export function CardsPage() {
       label: '状态',
       render: (r) =>
         r.paid ? (
-          <Badge className="bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300">已扣账</Badge>
+          <Badge className="bg-success-muted text-success-muted-foreground">已扣账</Badge>
         ) : (
-          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">待扣</Badge>
+          <Badge className="bg-warning-muted text-warning-muted-foreground">待扣</Badge>
         ),
     },
   ]
@@ -795,7 +795,7 @@ export function CardsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-emerald-600 dark:text-emerald-400"
+                  className="text-success"
                   onClick={() => openRecharge(r.id)}
                 >
                   <Coins className="size-4" />
@@ -805,7 +805,7 @@ export function CardsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-sky-600 dark:text-sky-400"
+                  className="text-info"
                   onClick={() => openAdjust(r)}
                 >
                   <Settings2 className="size-4" />
@@ -816,7 +816,7 @@ export function CardsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-indigo-600 dark:text-indigo-400"
+                    className="text-chart-1"
                     onClick={() => doDeduct(r.id)}
                   >
                     <Banknote className="size-4" />
@@ -881,7 +881,7 @@ export function CardsPage() {
                 {rechargeRecords.map((r) => (
                   <div key={r.id} className="flex items-center justify-between rounded bg-muted/30 px-2.5 py-1.5 text-xs">
                     <span className="text-muted-foreground">{r.recharge_date}</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(r.amount)}</span>
+                    <span className="font-semibold text-success">{fmt(r.amount)}</span>
                     {r.note && <span className="text-muted-foreground">{r.note}</span>}
                   </div>
                 ))}

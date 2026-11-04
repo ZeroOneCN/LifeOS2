@@ -175,15 +175,15 @@ function moduleLabel(module: string): string {
 }
 
 const ACTION_META: Record<string, { name: string; className: string; icon: LucideIcon }> = {
-  create: { name: '新增', className: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300', icon: Plus },
-  update: { name: '更新', className: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300', icon: Pencil },
-  patch: { name: '部分更新', className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300', icon: Pencil },
-  delete: { name: '删除', className: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300', icon: Trash2 },
+  create: { name: '新增', className: 'bg-success-muted text-success-muted-foreground', icon: Plus },
+  update: { name: '更新', className: 'bg-info-muted text-info-muted-foreground', icon: Pencil },
+  patch: { name: '部分更新', className: 'bg-warning-muted text-warning-muted-foreground', icon: Pencil },
+  delete: { name: '删除', className: 'bg-danger-muted text-danger-muted-foreground', icon: Trash2 },
   // 演示快照不含自动化任务日志，演示构建隐藏该类型入口
   ...(IS_DEMO
     ? {}
     : {
-        auto: { name: '自动', className: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300', icon: Bot },
+        auto: { name: '自动', className: 'bg-info-muted text-info-muted-foreground', icon: Bot },
       }),
 }
 
@@ -335,19 +335,19 @@ export function ActivityLogsPage() {
           icon={Activity}
           label="今日操作"
           value={String(stats?.today ?? '—')}
-          className="text-amber-500"
+          className="text-warning"
         />
         <StatCard
           icon={History}
           label="历史总操作"
           value={String(stats?.total ?? '—')}
-          className="text-blue-500"
+          className="text-info"
         />
         <StatCard
           icon={History}
           label="操作模块数"
           value={String(byModule.length)}
-          className="text-green-500"
+          className="text-success"
         />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
