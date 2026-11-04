@@ -47,7 +47,7 @@ export function BackupPage() {
   const [backupPage, setBackupPage] = useState(1)
 
   // 统一轮询调度：定时任务与备份列表不随 Tab 挂载与否，始终按 30s 刷新
-  const polling = useBackupPolling({ backupPage, logPage, logsActive: tab === 'logs' })
+  const polling = useBackupPolling({ backupPage, logPage, activeTab: tab })
 
   const loadTables = async () => {
     setLoadingTables(true)

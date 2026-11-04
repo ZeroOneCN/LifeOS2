@@ -14,8 +14,8 @@ type PollingOptions = {
   backupPage: number
   /** 执行日志当前页码（由页面持有） */
   logPage: number
-  /** 执行日志 Tab 是否可见：与原实现一致，日志仅在其 Tab 可见时轮询 */
-  logsActive: boolean
+  /** 当前激活的 Tab：日志仅在其 Tab 可见时轮询，切到定时任务/备份管理时立即拉取一次 */
+  activeTab: string
 }
 
 /**
@@ -24,10 +24,11 @@ type PollingOptions = {
  * 拆分前所有请求都在同一个组件里，定时任务列表与备份文件列表即使当前不在对应 Tab 也照常每 30s 刷新；
  * 拆分后子组件按需挂载会让未挂载 Tab 的轮询停掉。这里把轮询与数据状态上提到页面层：
  * 无论 Tab 是否挂载，定时任务与备份文件都按 30s 周期执行，可见的 Tab 直接读取这里的数据。
- * （执行日志按原逻辑依赖分页参数，仅在其 Tab 可见时轮询。）
+ * （执行日志按原逻辑依赖分页参数，仅在其 Tab 可见时轮询；切 Tab 时对应列表立即拉取一次。）
  */
-export function useBackupPolling({ backupPage, logPage, logsActive }: PollingOptions) {
+export function useBackupPolling({ backupPage, logPage, activeTab }: PollingOptions) {
   const realtimeTick = useRealtime(30_000)
+  const logsActive = activeTab === 'logs'
 
   const [backups, setBackups] = useState<BackupFile[]>([])
   const [backupTotal, setBackupTotal] = useState(0)
@@ -99,6 +100,13 @@ export function useBackupPolling({ backupPage, logPage, logsActive }: PollingOpt
     if (logsActive) loadLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logsActive, logPage, realtimeTick])
+
+  // 切换到定时任务 / 备份管理时立即拉取一次，与原单组件版本一致（不等下一轮 30s）
+  useEffect(() => {
+    if (activeTab === 'manage') loadBackups()
+    if (activeTab === 'schedule') loadSchedules()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
   /** 手动刷新：并行拉取定时任务、备份列表，日志可见时一并刷新 */
   const reloadAll = async () => {
