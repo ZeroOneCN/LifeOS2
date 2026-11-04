@@ -22,7 +22,10 @@ from app.api.routes import (
 )
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.errors import register_exception_handlers
+from app.core.logging_config import setup_logging
 from app.middleware.activity_logger import ActivityLoggerMiddleware
+from app.middleware.request_id import RequestIdMiddleware
 from app.services.notification.scheduler import start_scheduler, stop_scheduler
 from app.services.notification.seed import ensure_seed
 from app.services.backup_scheduler import (
@@ -34,6 +37,9 @@ from app.services.report_scheduler import (
     stop_scheduler as stop_report_scheduler,
 )
 from app.services.scale_collector import scale_collector
+
+# 日志配置在应用导入时完成，保证启动阶段与请求阶段格式一致
+setup_logging()
 
 
 @asynccontextmanager
@@ -61,6 +67,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+register_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,6 +80,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(ActivityLoggerMiddleware)
+# request id 中间件最后添加 => 位于最外层，确保活动日志及下游异常都能带上 request id
+app.add_middleware(RequestIdMiddleware)
 
 app.include_router(health_check.router, prefix=settings.API_V1_PREFIX)
 app.include_router(activity_log.router, prefix=settings.API_V1_PREFIX)

@@ -1,6 +1,7 @@
 """数据备份与恢复路由：导出/导入/管理备份文件。"""
 
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -16,6 +17,8 @@ from app.services import backup_service
 from app.services.backup_scheduler import reload_schedules
 
 router = APIRouter(prefix="/backup", tags=["backup"])
+
+logger = logging.getLogger("app.backup")
 
 
 # ── 请求/响应模型 ──────────────────────────────────────────────────────────
@@ -153,11 +156,13 @@ def export_data(
             filename=filename, file_size=filepath.stat().st_size if filepath.exists() else None,
         )
     except RuntimeError as e:
+        # 内部细节（mysqldump 输出、路径等）只写日志与执行日志，不回显给客户端
+        logger.exception("数据导出失败：format=%s", payload.format)
         backup_service.write_backup_log(
             db, user.id, "手动导出", payload.format, "failed",
             error_message=str(e)[:2000],
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="导出失败，请稍后重试")
     except ValueError as e:
         backup_service.write_backup_log(
             db, user.id, "手动导出", payload.format, "failed",
@@ -265,8 +270,10 @@ def import_data(
         result = backup_service.import_json_data(db, content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"导入失败: {e}")
+    except Exception:  # noqa: BLE001 - 兜住导入过程的全部内部异常
+        # 异常原文（含表名、SQL 错误）只写日志，客户端仅拿到通用提示
+        logger.exception("备份导入失败")
+        raise HTTPException(status_code=500, detail="导入失败，请稍后重试")
 
     return {
         "message": "导入完成",
