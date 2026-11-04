@@ -16,7 +16,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import SessionLocal
 from app.models import (
     FinanceReport,
     FinanceTravelReport,
@@ -27,6 +26,7 @@ from app.models import (
 )
 from app.services import finance_report, health_report, investment_report, lifestyle_report
 from app.services.activity import AUTO_ACTION, log_activity
+from app.services.job_runner import JOB_MONTHLY_REPORT, run_job
 
 logger = logging.getLogger("app.report_scheduler")
 
@@ -299,17 +299,21 @@ def generate_all(
     return result
 
 
-def _job() -> None:
-    """调度任务入口：生成上月报告并写入日志。"""
-    db = SessionLocal()
-    try:
-        start, end, label = previous_month_range()
-        summary = generate_all(db, start, end, label)
-        logger.info("月度报告自动生成完成：%s", summary)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("月度报告自动生成失败：%s", exc)
-    finally:
-        db.close()
+def _job(db: Session) -> None:
+    """生成上月报告并写入日志。
+
+    Args:
+        db: 由任务执行器传入的数据库会话；报告标题去重保留为业务层兜底，
+        跨实例幂等由 ``run_job`` 的命名锁保证。
+    """
+    start, end, label = previous_month_range()
+    summary = generate_all(db, start, end, label)
+    logger.info("月度报告自动生成完成：%s", summary)
+
+
+def _scheduled_job() -> None:
+    """调度入口：抢占执行锁后生成月度报告并落库执行状态。"""
+    run_job(JOB_MONTHLY_REPORT, _job)
 
 
 def start_scheduler() -> None:
@@ -326,7 +330,7 @@ def start_scheduler() -> None:
 
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(
-        _job,
+        _scheduled_job,
         "cron",
         day=1,
         hour=hour,

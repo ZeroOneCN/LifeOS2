@@ -83,6 +83,7 @@ def test_health_hides_internal_error_and_includes_report_scheduler(monkeypatch):
     monkeypatch.setattr(health_check.notification_scheduler, "is_running", lambda: True)
     monkeypatch.setattr(health_check.backup_scheduler, "is_running", lambda: True)
     monkeypatch.setattr(health_check.report_scheduler, "is_running", lambda: True)
+    monkeypatch.setattr(health_check, "get_job_states", lambda: {})
 
     data = health_check.health_check()
 
@@ -102,8 +103,32 @@ def test_health_ok_when_database_and_schedulers_up(monkeypatch):
     monkeypatch.setattr(health_check.notification_scheduler, "is_running", lambda: True)
     monkeypatch.setattr(health_check.backup_scheduler, "is_running", lambda: True)
     monkeypatch.setattr(health_check.report_scheduler, "is_running", lambda: True)
+    monkeypatch.setattr(health_check, "get_job_states", lambda: {})
 
     data = health_check.health_check()
 
     assert data["status"] == "ok"
     assert data["database"] == {"status": "ok"}
+
+
+def test_health_exposes_job_status_without_error_text(monkeypatch):
+    """健康检查展示各 job 最近执行结果，但不暴露错误摘要原文。"""
+    states = {
+        "backup_scheduled_scan": {
+            "status": "failed",
+            "started_at": "2026-11-04T03:00:00",
+            "finished_at": "2026-11-04T03:00:01",
+            "duration_ms": 1000,
+        }
+    }
+    monkeypatch.setattr(health_check, "_check_database", lambda: True)
+    monkeypatch.setattr(health_check.notification_scheduler, "is_running", lambda: True)
+    monkeypatch.setattr(health_check.backup_scheduler, "is_running", lambda: True)
+    monkeypatch.setattr(health_check.report_scheduler, "is_running", lambda: True)
+    monkeypatch.setattr(health_check, "get_job_states", lambda: states)
+
+    data = health_check.health_check()
+
+    assert data["jobs"]["backup_scheduled_scan"]["status"] == "failed"
+    assert "error_summary" not in data["jobs"]["backup_scheduled_scan"]
+    assert "detail" not in str(data)

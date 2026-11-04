@@ -47,6 +47,7 @@ from app.models.investment import (
     InvestmentFundRecord,
     InvestmentReport,
 )
+from app.models.job_run import ScheduledJobState
 from app.models.lifestyle import (
     LifestyleBankCard,
     LifestyleCardBill,
@@ -121,6 +122,7 @@ __all__ = [
     "InvestmentForex",
     "InvestmentFundRecord",
     "InvestmentReport",
+    "ScheduledJobState",
     "Notification",
     "NotificationChannel",
     "NotificationTemplate",

@@ -12,6 +12,7 @@ from sqlalchemy import text
 
 from app.core.database import engine
 from app.services import backup_scheduler, report_scheduler
+from app.services.job_runner import get_job_states
 from app.services.notification import scheduler as notification_scheduler
 
 router = APIRouter(tags=["health-check"])
@@ -53,9 +54,25 @@ def _scheduler_status() -> dict[str, str]:
     }
 
 
+def _job_status() -> dict[str, dict]:
+    """读取各定时任务最近一次执行状态（不含错误原文）。
+
+    kwargs:
+        无。
+
+    Returns:
+        任务名到状态摘要的映射；读取失败时返回空字典，保证健康接口不因此 500。
+    """
+    try:
+        return get_job_states()
+    except Exception:  # noqa: BLE001 - 健康检查必须兜住所有异常
+        logger.exception("健康检查读取定时任务执行状态失败")
+        return {}
+
+
 @router.get("/health")
 def health_check() -> dict:
-    """健康检查：返回整体状态、数据库状态与调度器状态。
+    """健康检查：返回整体状态、数据库状态、调度器状态与任务最近执行结果。
 
     kwargs:
         无。
@@ -72,4 +89,5 @@ def health_check() -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": {"status": "ok" if db_ok else "error"},
         "schedulers": schedulers,
+        "jobs": _job_status(),
     }

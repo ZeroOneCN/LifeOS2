@@ -9,10 +9,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
 from app.models.backup import ScheduledBackup
 from app.services import backup_service
 from app.services.activity import AUTO_ACTION, log_activity
+from app.services.job_runner import JOB_BACKUP_SCAN, run_job
 
 logger = logging.getLogger("app.backup_scheduler")
 
@@ -85,42 +85,36 @@ def _execute_backup(schedule_id: int, db: Session) -> str:
         return "failed"
 
 
-def _scan_job() -> None:
-    """每分钟扫描，执行所有到期且启用的定时备份任务。"""
-    db = SessionLocal()
-    try:
-        now = datetime.now()
-        schedules = db.scalars(
-            select(ScheduledBackup).where(ScheduledBackup.enabled == True)  # noqa: E712
-        ).all()
+def _scan_job(db: Session) -> None:
+    """扫描并执行所有到期且启用的定时备份任务。
 
-        for s in schedules:
-            if not _cron_matches(s.cron_expression, now):
-                continue
+    幂等由 ``run_job`` 的 MySQL 命名锁统一保证，扫描本身不再做分钟级去重；
+    ``last_run_at`` / ``last_status`` 仅作为任务展示状态写回。
 
-            # 幂等保护：同一匹配分钟内只执行一次。
-            # last_run_at 持久化于共享数据库，跨进程可见——即使误启动了多个
-            # 后端实例（各自持有调度器），也不会在同一分钟内重复备份。
-            last = s.last_run_at
-            if last is not None and (
-                last.year, last.month, last.day, last.hour, last.minute
-            ) == (now.year, now.month, now.day, now.hour, now.minute):
-                logger.info(
-                    "定时备份 '%s' 本分钟（%s）已执行过，跳过重复触发", s.name, last
-                )
-                continue
+    Args:
+        db: 由任务执行器传入的数据库会话。
+    """
+    now = datetime.now()
+    schedules = db.scalars(
+        select(ScheduledBackup).where(ScheduledBackup.enabled == True)  # noqa: E712
+    ).all()
 
-            status = _execute_backup(s.id, db)
-            db.execute(
-                update(ScheduledBackup)
-                .where(ScheduledBackup.id == s.id)
-                .values(last_run_at=now, last_status=status)
-            )
-            db.commit()
-    except Exception as exc:
-        logger.exception("定时备份扫描异常：%s", exc)
-    finally:
-        db.close()
+    for s in schedules:
+        if not _cron_matches(s.cron_expression, now):
+            continue
+
+        status = _execute_backup(s.id, db)
+        db.execute(
+            update(ScheduledBackup)
+            .where(ScheduledBackup.id == s.id)
+            .values(last_run_at=now, last_status=status)
+        )
+        db.commit()
+
+
+def _scheduled_job() -> None:
+    """调度入口：抢占执行锁后扫描定时备份任务并落库执行状态。"""
+    run_job(JOB_BACKUP_SCAN, _scan_job)
 
 
 def _cron_matches(expr: str, dt: datetime) -> bool:
@@ -181,7 +175,7 @@ def start_scheduler() -> None:
 
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(
-        _scan_job,
+        _scheduled_job,
         "interval",
         minutes=1,
         id="backup_scheduled_scan",
