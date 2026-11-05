@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { useRealtime } from '@/hooks/use-realtime'
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -447,12 +448,11 @@ export function MedicationPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">用药跟踪</h1>
-          <p className="text-sm text-muted-foreground">每日按早/午/晚记录剂量与服用情况，登记购药并按粒监控库存。</p>
-        </div>
-        <div>
+      <PageHeader
+        title="用药跟踪"
+        description="每日按早/午/晚记录剂量与服用情况，登记购药并按粒监控库存。"
+        actions={
+          <>
           {tab === 'med' && (
             <Button onClick={openMedCreate}>
               <Plus /> 新增用药
@@ -468,8 +468,9 @@ export function MedicationPage() {
               <Plus /> 新增库存
             </Button>
           )}
-        </div>
-      </section>
+          </>
+        }
+      />
 
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         {tabs.map((t) => (
@@ -637,12 +638,12 @@ export function MedicationPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openMedEdit(row)}>
+                          <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openMedEdit(row)}>
                             <Pencil />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeMed(row)}>
+                          </Button></Tip>
+                          <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removeMed(row)}>
                             <Trash2 />
-                          </Button>
+                          </Button></Tip>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -720,8 +721,8 @@ export function MedicationPage() {
                         <TableCell>{formatCny(row.total_price)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openPurEdit(row)}><Pencil /></Button>
-                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePur(row)}><Trash2 /></Button>
+                            <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openPurEdit(row)}><Pencil /></Button></Tip>
+                            <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removePur(row)}><Trash2 /></Button></Tip>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -794,15 +795,16 @@ export function MedicationPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openStockEdit(row)}><Pencil /></Button>
-                          <Button
+                          <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openStockEdit(row)}><Pencil /></Button></Tip>
+                          <Tip label="删除"><Button
                             variant="ghost"
                             size="icon"
+                            aria-label="删除"
                             className="text-destructive"
                             onClick={() => removeStock(row)}
                           >
                             <Trash2 />
-                          </Button>
+                          </Button></Tip>
                         </div>
                       </TableCell>
                     </TableRow>

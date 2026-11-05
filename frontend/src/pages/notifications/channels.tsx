@@ -267,17 +267,18 @@ export function ChannelsPanel() {
                             )}
                           </Button>
                         </Tip>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(ch)}>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(ch)}>
                           <Pencil />
-                        </Button>
-                        <Button
+                        </Button></Tip>
+                        <Tip label="删除"><Button
                           variant="ghost"
                           size="icon"
+                          aria-label="删除"
                           className="text-destructive"
                           onClick={() => remove(ch)}
                         >
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </div>
                   ))

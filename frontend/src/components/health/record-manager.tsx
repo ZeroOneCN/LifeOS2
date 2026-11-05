@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react
 import { ChevronLeft, ChevronRight, Download, Loader2, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -387,18 +388,8 @@ export function RecordManager<T extends { id: number }>({
     }
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <section className={`flex flex-wrap items-end gap-3 ${hideHeader ? 'justify-end' : 'justify-between'}`}>
-        {!hideHeader && (
-          <div className="space-y-1">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight">
-              {title}
-            </h1>
-            <p className="text-sm text-muted-foreground">{description}</p>
-          </div>
-        )}
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+  const toolbar = (
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {monthMode ? (
             <div className="flex items-center gap-1 rounded-lg border p-1">
               <Tip label="上一月"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft /></Button></Tip>
@@ -461,8 +452,16 @@ export function RecordManager<T extends { id: number }>({
           <Button id={createButtonId} className="shrink-0" onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
-        </div>
-      </section>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      {hideHeader ? (
+        <div className="flex justify-end">{toolbar}</div>
+      ) : (
+        <PageHeader title={title} description={description} actions={toolbar} />
+      )}
 
       {extra}
 
@@ -473,7 +472,12 @@ export function RecordManager<T extends { id: number }>({
           </span>
           <div className="ml-auto flex items-center gap-2">
             {batchToolbar?.([...selectedIds], clearSelection)}
-            <Button variant="destructive" size="sm" onClick={batchRemove}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={batchRemove}
+            >
               <Trash2 /> 批量删除
             </Button>
             <Tip label="取消选择">
@@ -570,17 +574,18 @@ export function RecordManager<T extends { id: number }>({
                     <TableCell className={`text-right ${stickyRightClass}`}>
                       <div className="flex justify-end gap-1">
                         {rowActions?.(row)}
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}>
                           <Pencil />
-                        </Button>
-                        <Button
+                        </Button></Tip>
+                        <Tip label="删除"><Button
                           variant="ghost"
                           size="icon"
+                          aria-label="删除"
                           className="text-destructive"
                           onClick={() => remove(row)}
                         >
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>

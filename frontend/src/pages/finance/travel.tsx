@@ -16,6 +16,7 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -494,12 +495,11 @@ export function TravelPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">旅行开支</h1>
-          <p className="text-sm text-muted-foreground">多行程账本管理、费用明细与旅行报告。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="旅行开支"
+        description="多行程账本管理、费用明细与旅行报告。"
+        actions={
+          <>
           <Select value={currentLedger} onValueChange={(v) => { setCurrentLedger(v); setPage(1) }}>
             <SelectTrigger className="w-44"><SelectValue placeholder="全部账本" /></SelectTrigger>
             <SelectContent>
@@ -512,8 +512,9 @@ export function TravelPage() {
           <Tip label="支付方式设置"><Button variant="outline" size="icon" onClick={() => setPayDialog(true)}><Settings2 /></Button></Tip>
           <Button variant="outline" onClick={() => { setReportDialog(true); setReport(null); setReportLedger(currentLedger || ''); loadReportHistory() }}><TrendingUp /> 旅行报告</Button>
           <Button onClick={openCreate}><Plus /> 新增明细</Button>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       {stats && (
         <>
@@ -616,8 +617,8 @@ export function TravelPage() {
                     <Tip label={row.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{row.note ?? '—'}</TableCell></Tip>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeItem(row)}><Trash2 /></Button>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removeItem(row)}><Trash2 /></Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>

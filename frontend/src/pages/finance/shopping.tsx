@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
@@ -411,12 +412,11 @@ export function ShoppingPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">购物记录</h1>
-          <p className="text-sm text-muted-foreground">管理购物明细、多账本切换与批量导入。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <PageHeader
+        title="购物记录"
+        description="管理购物明细、多账本切换与批量导入。"
+        actions={
+          <>
           <Select value={currentLedger} onValueChange={(v) => { setCurrentLedger(v); setPage(1) }}>
             <SelectTrigger className="w-32">
               <SelectValue placeholder="选择账本" />
@@ -471,8 +471,9 @@ export function ShoppingPage() {
           <Button onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       {stats && (
         <>
@@ -594,8 +595,8 @@ export function ShoppingPage() {
                     </TableCell>
                     <TableCell className={`text-right ${stickyRightClass}`}>
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRecord(row)}><Trash2 /></Button>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}><Pencil /></Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removeRecord(row)}><Trash2 /></Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -649,7 +650,7 @@ export function ShoppingPage() {
               {platforms.map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                   <span>{p.name}</span>
-                  <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePlatform(p.id)}><Trash2 /></Button>
+                  <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removePlatform(p.id)}><Trash2 /></Button></Tip>
                 </div>
               ))}
               {platforms.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">暂无平台</p>}

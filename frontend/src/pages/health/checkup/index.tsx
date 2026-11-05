@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner'
 
 import { useRealtime } from '@/hooks/use-realtime'
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -414,27 +415,27 @@ export function CheckupPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">体检指标</h1>
-          <p className="text-sm text-muted-foreground">使用组合模板或自由选择指标批量录入，依据参考范围自动判断正常/异常。</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatsPeriodPicker
-            value={days}
-            onChange={(d) => {
-              setDays(d)
-              setGlobalStatsDays(d)
-            }}
-          />
-          <Button variant="outline" onClick={openTemplateDialog}>
-            <Library /> 模板库({templates.length})
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus /> 新增体检记录
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title="体检指标"
+        description="使用组合模板或自由选择指标批量录入，依据参考范围自动判断正常/异常。"
+        actions={
+          <>
+            <StatsPeriodPicker
+              value={days}
+              onChange={(d) => {
+                setDays(d)
+                setGlobalStatsDays(d)
+              }}
+            />
+            <Button variant="outline" onClick={openTemplateDialog}>
+              <Library /> 模板库({templates.length})
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus /> 新增体检记录
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -559,12 +560,12 @@ export function CheckupPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}>
                           <Pencil />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(row)}>
+                        </Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => remove(row)}>
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -772,12 +773,12 @@ export function CheckupPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => openTemplateEdit(t)}>
+                      <Tip label="编辑模板"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openTemplateEdit(t)}>
                         <Pencil />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeTemplate(t)}>
+                      </Button></Tip>
+                      <Tip label="删除模板"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removeTemplate(t)}>
                         <Trash2 />
-                      </Button>
+                      </Button></Tip>
                     </div>
                   </div>
                 ))
@@ -801,12 +802,12 @@ export function CheckupPage() {
                         {p.note && <div className="mt-0.5 text-xs text-muted-foreground">{p.note}</div>}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openPanelEdit(p)}>
+                        <Tip label="编辑组合"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openPanelEdit(p)}>
                           <Pencil />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removePanel(p)}>
+                        </Button></Tip>
+                        <Tip label="删除组合"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => removePanel(p)}>
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1">

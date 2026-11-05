@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tip } from '@/components/ui/tip'
 import { ScaleBluetoothDialog } from '@/components/health/scale-bluetooth-dialog'
 import {
   Dialog,
@@ -334,12 +335,12 @@ export function BodyPage() {
                     <TableCell>{withUnit(row.muscle_percent, '%')}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}>
                           <Pencil />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(row)}>
+                        </Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => remove(row)}>
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -26,6 +26,7 @@ import {
   ListOrdered,
   Loader2,
   Percent,
+  Pencil,
   Plus,
   RefreshCw,
   Trash2,
@@ -34,6 +35,7 @@ import {
   Upload,
 } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
@@ -609,9 +611,9 @@ function PositionCalculator({ equity }: { equity?: number }) {
                   <Input type="number" value={row.leverage} onChange={(e) => updateRow(row.id, { leverage: e.target.value })} placeholder="100" />
                 </div>
                 <div className="flex justify-end">
-                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => removeRow(row.id)}>
+                  <Tip label="删除"><Button size="icon" variant="ghost" aria-label="删除" className="text-destructive" onClick={() => removeRow(row.id)}>
                     <Trash2 className="size-4" />
-                  </Button>
+                  </Button></Tip>
                 </div>
               </div>
             ))
@@ -837,8 +839,8 @@ function FundsSection() {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => openEdit(r)}>编辑</Button>
-                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => remove(r)}>删除</Button>
+                  <Tip label="编辑"><Button size="icon" variant="ghost" aria-label="编辑" onClick={() => openEdit(r)}><Pencil className="size-4" /></Button></Tip>
+                  <Tip label="删除"><Button size="icon" variant="ghost" aria-label="删除" className="text-destructive" onClick={() => remove(r)}><Trash2 className="size-4" /></Button></Tip>
                 </div>
               </div>
             ))}
@@ -1002,10 +1004,10 @@ export function ForexPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">外汇交易</h1>
-        <p className="text-sm text-muted-foreground">MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。</p>
-      </section>
+      <PageHeader
+        title="外汇交易"
+        description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
+      />
 
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         {tabs.map((t) => (
