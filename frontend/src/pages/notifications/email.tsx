@@ -166,7 +166,7 @@ export function EmailConfigPanel() {
             <Card key={ch.id}>
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
                 <div>
-                  <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">{ch.name}</CardTitle>
+                  <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate" title={ch.name}>{ch.name}</CardTitle>
                   <CardDescription>
                     {String(ch.config.smtp_host ?? '')}:{String(ch.config.smtp_port ?? '')}　
                     {ch.recipients || '未配置收件人'}

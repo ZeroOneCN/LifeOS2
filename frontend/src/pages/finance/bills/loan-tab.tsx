@@ -562,7 +562,7 @@ export function LoanTab() {
             ? platformStats.platforms.map((p) => (
             <div key={p.id} className="rounded-lg border p-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[15px] font-semibold">{p.name}</span>
+                <span className="truncate text-[15px] font-semibold" title={p.name}>{p.name}</span>
                 <div className="flex shrink-0 gap-0.5">
                   <Tip label="编辑平台"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openPfEdit(p)}><Pencil className="size-3.5" /></Button></Tip>
                   <Tip label="删除平台"><Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePlatform(p.id)}><Trash2 className="size-3.5" /></Button></Tip>
@@ -981,7 +981,7 @@ export function LoanTab() {
               <div key={b.id} className="rounded-xl border-2 border-warning/80 bg-gradient-to-br from-warning-muted/90 to-background p-4 border-warning/40 from-warning-muted">
                 {/* 头部：平台 + 账单月份 + 容时标记 */}
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-bold text-foreground">{platformName(b.platform_id)}</span>
+                  <span className="truncate text-sm font-bold text-foreground" title={platformName(b.platform_id)}>{platformName(b.platform_id)}</span>
                   <span className="shrink-0 text-xs font-medium text-muted-foreground">{b.bill_month.slice(0, 7)}</span>
                   <span className="ml-auto shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold tracking-wide text-white">容时中</span>
                 </div>

@@ -171,7 +171,7 @@ export function FinanceOverviewPage() {
               <ul className="grid gap-2 sm:grid-cols-2">
                 {data.categories.map((c) => (
                   <li key={c.label} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <span className="truncate text-sm text-muted-foreground">{c.label}</span>
+                    <span className="truncate text-sm text-muted-foreground" title={c.label}>{c.label}</span>
                     <span className="shrink-0 text-sm font-medium">{fmt(c.amount)}</span>
                   </li>
                 ))}

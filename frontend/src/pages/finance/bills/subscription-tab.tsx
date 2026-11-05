@@ -353,7 +353,7 @@ export function SubscriptionTab() {
                     </>
                   ) : (
                     <>
-                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      <span className="min-w-0 flex-1 truncate" title={c.name}>{c.name}</span>
                       <div className="flex shrink-0 gap-0.5">
                         <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => startEditCat(c)}><Pencil /></Button></Tip>
                         <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeCategory(c)}><Trash2 /></Button></Tip>

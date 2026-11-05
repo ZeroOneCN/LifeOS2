@@ -667,7 +667,7 @@ export function CheckupPage() {
                     <div key={r.item_name + idx} className="flex items-start gap-2 rounded-lg border p-2.5">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-medium">{r.item_name}</span>
+                          <span className="truncate text-sm font-medium" title={r.item_name}>{r.item_name}</span>
                           {!editing && (
                             <Tip label="移除该指标">
                               <button
@@ -764,7 +764,7 @@ export function CheckupPage() {
                   <div key={t.id} className="flex items-center justify-between rounded-lg border p-2.5">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{t.item_name}</span>
+                        <span className="truncate text-sm font-medium" title={t.item_name}>{t.item_name}</span>
                         {t.category && <Badge variant="secondary">{t.category}</Badge>}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
@@ -796,7 +796,7 @@ export function CheckupPage() {
                     <div className="flex items-center justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">{p.panel_name}</span>
+                          <span className="truncate text-sm font-medium" title={p.panel_name}>{p.panel_name}</span>
                           <Badge variant="secondary">{p.items.length} 项</Badge>
                         </div>
                         {p.note && <div className="mt-0.5 text-xs text-muted-foreground">{p.note}</div>}

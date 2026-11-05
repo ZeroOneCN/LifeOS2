@@ -236,14 +236,17 @@ export function ChannelsPanel() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">{ch.name}</span>
+                          <span className="truncate text-sm font-medium" title={ch.name}>{ch.name}</span>
                           {ch.enabled ? (
                             <Badge className="bg-success-muted text-success-muted-foreground">启用</Badge>
                           ) : (
                             <Badge className="bg-muted text-muted-foreground">停用</Badge>
                           )}
                         </div>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={ch.recipients || TYPE_LABEL[ch.channel_type]}
+                        >
                           {ch.recipients || TYPE_LABEL[ch.channel_type]}
                         </p>
                       </div>

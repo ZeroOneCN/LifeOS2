@@ -519,8 +519,8 @@ export function HousingTab() {
                     {/* 头部：名称 + 状态 */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate font-semibold text-foreground">{h.short_name || h.name}</div>
-                        <div className="truncate text-xs text-muted-foreground">{h.name}</div>
+                        <div className="truncate font-semibold text-foreground" title={h.short_name || h.name}>{h.short_name || h.name}</div>
+                        <div className="truncate text-xs text-muted-foreground" title={h.name}>{h.name}</div>
                       </div>
                       <Badge variant={h.move_out_date ? 'secondary' : 'default'} className="shrink-0">
                         {h.move_out_date ? '已退租' : '在住'}
@@ -972,7 +972,7 @@ export function HousingTab() {
             <div className="grid grid-cols-2 gap-2">
               {channels.map((c) => (
                 <div key={c.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">{c.name}</span>
+                  <span className="min-w-0 truncate" title={c.name}>{c.name}</span>
                   <div className="flex shrink-0 gap-1">
                     <Tip label="编辑"><Button variant="ghost" size="icon" onClick={() => { setChannelEdit(c); setChannelEditForm(c.name); }}><Pencil className="size-3.5" /></Button></Tip>
                     <Tip label="删除"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeChannel(c)}><Trash2 className="size-3.5" /></Button></Tip>

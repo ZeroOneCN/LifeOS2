@@ -496,7 +496,7 @@ export function ShoppingPage() {
                   <div className="grid grid-cols-2 gap-2">
                     {stats.by_platform.map((p) => (
                       <div key={p.platform_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
-                        <span className="truncate text-sm text-muted-foreground">{p.platform}</span>
+                        <span className="truncate text-sm text-muted-foreground" title={p.platform}>{p.platform}</span>
                         <span className="shrink-0 text-sm font-medium">{fmt(p.amount)}</span>
                       </div>
                     ))}
@@ -530,7 +530,7 @@ export function ShoppingPage() {
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {stats.by_category.map((c) => (
                     <div key={c.category_id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
-                      <span className="truncate text-sm text-muted-foreground">{c.category}</span>
+                      <span className="truncate text-sm text-muted-foreground" title={c.category}>{c.category}</span>
                       <span className="shrink-0 text-sm font-medium">{fmt(c.amount)}</span>
                     </div>
                   ))}
@@ -773,7 +773,12 @@ export function ShoppingPage() {
                       </div>
                     </div>
                     {c.keywords.length > 0 && (
-                      <p className="mt-1 truncate text-xs text-muted-foreground">关键词：{c.keywords.join('、')}</p>
+                      <p
+                        className="mt-1 truncate text-xs text-muted-foreground"
+                        title={c.keywords.join('、')}
+                      >
+                        关键词：{c.keywords.join('、')}
+                      </p>
                     )}
                   </div>
                 ))}

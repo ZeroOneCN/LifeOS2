@@ -60,7 +60,7 @@ export function NavUser() {
                 <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="flex items-center gap-1.5 truncate font-medium">
+                <span className="flex items-center gap-1.5 truncate font-medium" title={nickname}>
                   {nickname}
                   {user?.isAdmin ? (
                     <span className="rounded bg-primary/10 px-1 py-px text-[10px] font-semibold text-primary">
@@ -68,7 +68,7 @@ export function NavUser() {
                     </span>
                   ) : null}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">{email}</span>
+                <span className="truncate text-xs text-muted-foreground" title={email}>{email}</span>
               </div>
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -87,7 +87,7 @@ export function NavUser() {
                   <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="flex items-center gap-1.5 truncate font-medium">
+                  <span className="flex items-center gap-1.5 truncate font-medium" title={nickname}>
                     {nickname}
                     {user?.isAdmin ? (
                       <span className="rounded bg-primary/10 px-1 py-px text-[10px] font-semibold text-primary">
@@ -95,7 +95,10 @@ export function NavUser() {
                       </span>
                     ) : null}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span
+                    className="truncate text-xs text-muted-foreground"
+                    title={account ? `账号：${account}` : email}
+                  >
                     {account ? `账号：${account}` : email}
                   </span>
                 </div>
