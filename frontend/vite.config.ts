@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'vite'
 
+import { devBanner } from './plugins/dev-banner.ts'
 import { ensureDevCert } from './scripts/dev-cert.mjs'
 
 // 仅开发服务器（vite / vite serve）需要 HTTPS；构建产物交给生产环境的 HTTPS 网关
@@ -19,7 +20,7 @@ if (devCert?.regenerated) {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), devBanner({ name: 'LifeOS Web' })],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
