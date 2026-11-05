@@ -8,6 +8,7 @@ import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/chart-utils'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatHealth1, formatInt, formatPercent } from '@/lib/format'
 
 type DashboardData = {
   series: { record_date: string; intake: number; expenditure: number; balance: number }[]
@@ -90,26 +91,26 @@ export function FitnessDashboardPage({
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">总摄入</div>
-            <div className="mt-1 text-2xl font-semibold text-warning">{data.intake_total} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-warning">{formatInt(data.intake_total)} kcal</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">总消耗(运动)</div>
-            <div className="mt-1 text-2xl font-semibold text-success">{data.expenditure_total} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-success">{formatInt(data.expenditure_total)} kcal</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">净结余</div>
-            <div className="mt-1 text-2xl font-semibold text-info">{data.series.at(-1)?.balance ?? '-'} kcal</div>
+            <div className="mt-1 text-2xl font-semibold text-info">{data.series.at(-1)?.balance != null ? `${formatInt(data.series.at(-1)?.balance)} kcal` : DASH}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4">
             <div className="text-sm text-muted-foreground">运动次数 / 步数</div>
             <div className="mt-1 text-2xl font-semibold">
-              {data.exercise_count} 次 <span className="text-base text-muted-foreground">/ {data.step_total} 步</span>
+              {formatInt(data.exercise_count)} 次 <span className="text-base text-muted-foreground">/ {formatInt(data.step_total)} 步</span>
             </div>
           </CardContent>
         </Card>
@@ -121,19 +122,19 @@ export function FitnessDashboardPage({
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">当前体重</div>
               <div className="mt-1 text-2xl font-semibold">
-                {typeof latest.weight_kg === 'number' ? latest.weight_kg.toFixed(2) : '-'} kg
+                {typeof latest.weight_kg === 'number' ? `${formatDecimal(latest.weight_kg, 2)} kg` : DASH}
               </div>
-              <div className="text-xs text-muted-foreground">身高 {latest.height_cm ?? '-'} cm</div>
+              <div className="text-xs text-muted-foreground">身高 {typeof latest.height_cm === 'number' ? `${formatHealth1(latest.height_cm)} cm` : DASH}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">BMI</div>
-              <div className="mt-1 text-2xl font-semibold">{bmi ?? '-'}</div>
+              <div className="mt-1 text-2xl font-semibold">{typeof bmi === 'number' ? formatHealth1(bmi) : DASH}</div>
               <div className="text-xs text-muted-foreground">
                 {typeof bmi === 'number'
                   ? bmi < 18.5 ? '偏瘦' : bmi < 24 ? '正常' : bmi < 28 ? '超重' : '肥胖'
-                  : '-'}
+                  : DASH}
               </div>
             </CardContent>
           </Card>
@@ -141,7 +142,7 @@ export function FitnessDashboardPage({
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">体脂率</div>
               <div className="mt-1 text-2xl font-semibold">
-                {latest.body_fat_percent != null ? `${latest.body_fat_percent}%` : '-'}
+                {latest.body_fat_percent != null ? formatPercent(latest.body_fat_percent) : DASH}
               </div>
             </CardContent>
           </Card>

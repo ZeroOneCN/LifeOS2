@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Bluetooth, Loader2, WifiOff, CheckCircle, Scale } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { formatDateTime, formatDecimal } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -194,7 +195,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
               </div>
               <div className="mt-2 text-center">
                 <div className="text-4xl font-bold tabular-nums text-info">
-                  {measurement.weightKg.toFixed(2)}
+                  {formatDecimal(measurement.weightKg, 2)}
                   <span className="ml-1 text-base font-normal text-muted-foreground">kg</span>
                 </div>
                 {measurement.bodyComposition && (
@@ -224,7 +225,7 @@ export function ScaleBluetoothDialog({ open, onOpenChange, defaultProfile, onSyn
           {lastSynced && (
             <div className="flex items-center gap-1 text-xs text-success">
               <CheckCircle className="size-3" />
-              已同步 {lastSynced.weightKg.toFixed(2)} kg（{lastSynced.at.toLocaleTimeString()}）
+              已同步 {formatDecimal(lastSynced.weightKg, 2)} kg（{formatDateTime(lastSynced.at)}）
             </div>
           )}
         </div>

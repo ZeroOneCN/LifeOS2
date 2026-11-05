@@ -33,6 +33,13 @@ import { Tip } from '@/components/ui/tip'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import { api } from '@/lib/api'
+import {
+  DASH,
+  formatCny,
+  formatDecimal,
+  formatInt,
+  formatPercent,
+} from '@/lib/format'
 
 type MedRecord = {
   id: number
@@ -494,25 +501,25 @@ export function MedicationPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日已服</div>
-              <div className="mt-1 text-2xl font-semibold text-success">{stats?.today?.taken_count ?? 0} 粒</div>
+              <div className="mt-1 text-2xl font-semibold text-success">{formatInt(stats?.today?.taken_count ?? 0)} 粒</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日待服</div>
-              <div className="mt-1 text-2xl font-semibold text-warning">{stats?.today?.pending_count ?? 0} 粒</div>
+              <div className="mt-1 text-2xl font-semibold text-warning">{formatInt(stats?.today?.pending_count ?? 0)} 粒</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">依从率</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.adherence_rate ?? '-'}%</div>
+              <div className="mt-1 text-2xl font-semibold">{stats?.adherence_rate != null ? formatPercent(stats.adherence_rate) : DASH}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">低库存药品</div>
-              <div className="mt-1 text-2xl font-semibold text-danger">{lowCount}</div>
+              <div className="mt-1 text-2xl font-semibold text-danger">{formatInt(lowCount)}</div>
             </CardContent>
           </Card>
         </div>
@@ -658,13 +665,13 @@ export function MedicationPage() {
             <Card>
               <CardContent className="py-4">
                 <div className="text-sm text-muted-foreground">购药总支出</div>
-                <div className="mt-1 text-2xl font-semibold">¥{purchaseTotal.toFixed(2)}</div>
+                <div className="mt-1 text-2xl font-semibold">{formatCny(purchaseTotal)}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
                 <div className="text-sm text-muted-foreground">购药记录数</div>
-                <div className="mt-1 text-2xl font-semibold">{purStats?.total_count ?? purTotal}</div>
+                <div className="mt-1 text-2xl font-semibold">{formatInt(purStats?.total_count ?? purTotal)}</div>
               </CardContent>
             </Card>
           </div>
@@ -702,15 +709,15 @@ export function MedicationPage() {
                       <TableRow key={row.id}>
                         <TableCell>{row.buy_date}</TableCell>
                         <TableCell>{row.medicine_name}</TableCell>
-                        <TableCell>{row.channel ?? '—'}</TableCell>
+                        <TableCell>{row.channel ?? DASH}</TableCell>
                         <TableCell>
-                          {row.quantity}
+                          {formatInt(row.quantity)}
                           {row.unit ?? ''}
                         </TableCell>
-                        <TableCell>{row.pills_per_unit != null ? `${row.pills_per_unit} 粒` : '—'}</TableCell>
-                        <TableCell>{row.quantity * (row.pills_per_unit ?? 0)} 粒</TableCell>
-                        <TableCell>¥{row.unit_price}</TableCell>
-                        <TableCell>¥{row.total_price}</TableCell>
+                        <TableCell>{row.pills_per_unit != null ? `${formatInt(row.pills_per_unit)} 粒` : DASH}</TableCell>
+                        <TableCell>{formatInt(row.quantity * (row.pills_per_unit ?? 0))} 粒</TableCell>
+                        <TableCell>{formatCny(row.unit_price)}</TableCell>
+                        <TableCell>{formatCny(row.total_price)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" onClick={() => openPurEdit(row)}><Pencil /></Button>
@@ -762,22 +769,22 @@ export function MedicationPage() {
                     <TableRow key={row.id}>
                       <TableCell>{row.medicine_name}</TableCell>
                       <TableCell className="font-medium">
-                        {row.stock_qty} {row.unit ?? '粒'}
+                        {formatInt(row.stock_qty)} {row.unit ?? '粒'}
                       </TableCell>
-                      <TableCell>{row.purchased ?? '—'} 粒</TableCell>
-                      <TableCell>{row.consumed ?? 0} 粒</TableCell>
-                      <TableCell>{row.avg_daily != null ? row.avg_daily.toFixed(3) : '—'} 粒/天</TableCell>
+                      <TableCell>{row.purchased != null ? `${formatInt(row.purchased)} 粒` : DASH}</TableCell>
+                      <TableCell>{formatInt(row.consumed ?? 0)} 粒</TableCell>
+                      <TableCell>{row.avg_daily != null ? formatDecimal(row.avg_daily, 1, 2) : DASH} 粒/天</TableCell>
                       <TableCell>
                         {row.days_left != null ? (
                           <div className="flex items-center gap-1.5">
-                            <span>约 {row.days_left} 天</span>
+                            <span>约 {formatInt(row.days_left)} 天</span>
                             <span className="text-xs text-muted-foreground">{row.predicted_date}</span>
                           </div>
                         ) : (
                           '—'
                         )}
                       </TableCell>
-                      <TableCell>{row.threshold ?? '—'} 粒</TableCell>
+                      <TableCell>{row.threshold != null ? `${formatInt(row.threshold)} 粒` : DASH}</TableCell>
                       <TableCell>
                         {row.is_low ? (
                           <Badge className="bg-danger-muted text-danger-muted-foreground"><AlertTriangle className="mr-1 size-3" />低库存</Badge>

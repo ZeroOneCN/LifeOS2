@@ -15,6 +15,7 @@ import {
   type ColumnDef,
   type FieldDef,
 } from '@/components/health/record-manager'
+import { DASH, formatDecimal, formatDuration, formatInt, formatPercent } from '@/lib/format'
 
 type VitalsRecord = {
   id: number
@@ -101,11 +102,7 @@ const columns: ColumnDef<VitalsRecord>[] = [
     key: 'sleep_duration_min',
     label: '睡眠',
     hidden: blank('sleep_duration_min'),
-    render: (r) => {
-      if (r.sleep_duration_min == null) return '—'
-      const total = Math.round(r.sleep_duration_min)
-      return `${Math.floor(total / 60)}h${total % 60}m`
-    },
+    render: (r) => formatDuration(r.sleep_duration_min),
   },
   {
     key: 'bp',
@@ -121,50 +118,50 @@ const columns: ColumnDef<VitalsRecord>[] = [
     key: 'heart_rate',
     label: '心率',
     hidden: blank('heart_rate'),
-    render: (r) => (r.heart_rate ? `${r.heart_rate} bpm` : '—'),
+    render: (r) => (r.heart_rate ? `${formatInt(r.heart_rate)} bpm` : DASH),
   },
   {
     key: 'blood_oxygen',
     label: '血氧',
     hidden: blank('blood_oxygen'),
-    render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—'),
+    render: (r) => (r.blood_oxygen ? formatPercent(r.blood_oxygen) : DASH),
   },
   {
     key: 'blood_glucose',
     label: '血糖',
     hidden: blank('blood_glucose'),
-    render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—'),
+    render: (r) => (r.blood_glucose ? `${formatDecimal(r.blood_glucose, 1)} mmol/L` : DASH),
   },
   {
     key: 'body_temp',
     label: '体温',
     hidden: blank('body_temp'),
-    render: (r) => (r.body_temp ? `${r.body_temp}℃` : '—'),
+    render: (r) => (r.body_temp ? `${formatDecimal(r.body_temp, 1)}℃` : DASH),
   },
   {
     key: 'deep_sleep_min',
     label: '深睡',
     hidden: blank('deep_sleep_min'),
-    render: (r) => (r.deep_sleep_min != null ? `${r.deep_sleep_min}m` : '—'),
+    render: (r) => (r.deep_sleep_min != null ? formatDuration(r.deep_sleep_min) : DASH),
   },
   {
     key: 'light_sleep_min',
     label: '浅睡',
     hidden: blank('light_sleep_min'),
-    render: (r) => (r.light_sleep_min != null ? `${r.light_sleep_min}m` : '—'),
+    render: (r) => (r.light_sleep_min != null ? formatDuration(r.light_sleep_min) : DASH),
   },
   {
     key: 'wake_count',
     label: '醒来',
     // 醒来次数 0 是有效值（一觉到天亮），只在整列缺失时隐藏
     hidden: (rows) => rows.length > 0 && rows.every((r) => r.wake_count == null),
-    render: (r) => (r.wake_count != null ? `${r.wake_count} 次` : '—'),
+    render: (r) => (r.wake_count != null ? `${formatInt(r.wake_count)} 次` : DASH),
   },
   {
     key: 'sleep_quality',
     label: '质量',
     hidden: blank('sleep_quality'),
-    render: (r) => (r.sleep_quality != null ? `${r.sleep_quality}/10` : '—'),
+    render: (r) => (r.sleep_quality != null ? `${formatDecimal(r.sleep_quality, 1)}/10` : DASH),
   },
 ]
 
@@ -175,12 +172,10 @@ export function VitalsSleepPage() {
   const trend = stats?.trend ?? []
   const avg = stats?.avg
 
-  const fmtSleep = (m?: number) => {
-    if (m == null) return '—'
-    const total = Math.round(m)
-    return `${Math.floor(total / 60)}h${total % 60}m`
-  }
-  const fmt = (v?: number, unit = '') => (v != null ? `${v}${unit}` : '—')
+  const fmtSleep = (m?: number) => formatDuration(m)
+  /** 生命体征数值：按量级统一小数位（心率整数、血糖/体温 1 位） */
+  const fmt = (v?: number, unit = '', digits = 1) =>
+    v != null ? `${formatDecimal(v, digits)}${unit}` : DASH
 
   const periodPicker = (
     <div className="flex items-center gap-2">
@@ -221,13 +216,13 @@ export function VitalsSleepPage() {
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均心率</div>
-                  <div className="mt-1 text-2xl font-semibold text-danger">{fmt(avg?.heart_rate, ' bpm')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-danger">{fmt(avg?.heart_rate, ' bpm', 0)}</div>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="py-4">
                   <div className="text-sm text-muted-foreground">平均血氧</div>
-                  <div className="mt-1 text-2xl font-semibold text-success">{fmt(avg?.blood_oxygen, '%')}</div>
+                  <div className="mt-1 text-2xl font-semibold text-success">{avg?.blood_oxygen != null ? formatPercent(avg.blood_oxygen) : DASH}</div>
                 </CardContent>
               </Card>
               <Card>

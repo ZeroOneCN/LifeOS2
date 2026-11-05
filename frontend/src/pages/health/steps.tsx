@@ -37,6 +37,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Hint } from '@/components/ui/tip'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatInt } from '@/lib/format'
 
 type StepsRecord = {
   id: number
@@ -511,13 +512,11 @@ export function StepsPage() {
               <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
                 {daySum?.items.map((d) => {
                   // 卡片较窄，次级信息去掉「距离/消耗」前缀、由 km/kcal 单位自证，title 保留完整说明
-                  const meta = `${d.distance_km != null ? `${d.distance_km} km` : '—'} · ${
-                    d.calories != null ? `${d.calories} kcal` : '—'
-                  }`
-                  const metaTitle = `距离 ${d.distance_km != null ? `${d.distance_km} km` : '—'} · 消耗 ${
-                    d.calories != null ? `${d.calories} kcal` : '—'
-                  }`
-                  const countText = `录入 ${d.count ?? 0} 条时间段`
+                  const dist = d.distance_km != null ? `${formatDecimal(d.distance_km, 2)} km` : DASH
+                  const kcal = d.calories != null ? `${formatInt(d.calories)} kcal` : DASH
+                  const meta = `${dist} · ${kcal}`
+                  const metaTitle = `距离 ${dist} · 消耗 ${kcal}`
+                  const countText = `录入 ${formatInt(d.count ?? 0)} 条时间段`
                   return (
                     <Card key={d.record_date} className="border-dashed">
                       <CardContent className="px-4 py-3">
@@ -533,7 +532,7 @@ export function StepsPage() {
                           <div className="flex items-end justify-between gap-2">
                             <span className="flex shrink-0 items-baseline gap-1">
                               <span className="text-2xl font-semibold leading-none tabular-nums">
-                                {d.steps.toLocaleString()}
+                                {formatInt(d.steps)}
                               </span>
                               <span className="text-sm text-muted-foreground">步</span>
                             </span>
@@ -589,7 +588,7 @@ export function StepsPage() {
                           <div className="flex items-end justify-between gap-2">
                             <span className="flex shrink-0 items-baseline gap-1">
                               <span className="text-2xl font-semibold leading-none tabular-nums">
-                                {m.steps.toLocaleString()}
+                                {formatInt(m.steps)}
                               </span>
                               <span className="text-sm text-muted-foreground">步</span>
                             </span>
@@ -644,9 +643,9 @@ export function StepsPage() {
                   <TableRow key={row.id}>
                     <TableCell>{row.record_date}</TableCell>
                     <TableCell>{periodLabel(row.period)}</TableCell>
-                    <TableCell>{row.steps.toLocaleString()}</TableCell>
-                    <TableCell>{row.distance_km != null ? `${row.distance_km} km` : '—'}</TableCell>
-                    <TableCell>{row.calories != null ? `${row.calories} kcal` : '—'}</TableCell>
+                    <TableCell>{formatInt(row.steps)}</TableCell>
+                    <TableCell>{row.distance_km != null ? `${formatDecimal(row.distance_km, 2)} km` : DASH}</TableCell>
+                    <TableCell>{row.calories != null ? `${formatInt(row.calories)} kcal` : DASH}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>

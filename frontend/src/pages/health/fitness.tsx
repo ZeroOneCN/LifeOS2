@@ -37,6 +37,7 @@ import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, t
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatDuration, formatInt } from '@/lib/format'
 
 type FitnessRecord = {
   id: number
@@ -248,26 +249,26 @@ export function FitnessPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">运动次数</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.total_count ?? 0} 次</div>
+              <div className="mt-1 text-2xl font-semibold">{formatInt(stats?.total_count ?? 0)} 次</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">运动时长</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.total_minutes ?? 0} 分钟</div>
+              <div className="mt-1 text-2xl font-semibold">{formatDuration(stats?.total_minutes ?? 0)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总消耗</div>
-              <div className="mt-1 text-2xl font-semibold text-success">{stats?.total_calories ?? 0} kcal</div>
+              <div className="mt-1 text-2xl font-semibold text-success">{formatInt(stats?.total_calories ?? 0)} kcal</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">平均每次消耗</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats?.total_count ? Math.round(stats.total_calories / stats.total_count) : '-'} kcal
+                {stats?.total_count ? formatInt(Math.round(stats.total_calories / stats.total_count)) : DASH} kcal
               </div>
             </CardContent>
           </Card>
@@ -321,9 +322,9 @@ export function FitnessPage() {
                   <TableRow key={row.id}>
                     <TableCell>{row.record_date}</TableCell>
                     <TableCell>{exerciseLabel(row.exercise_type)}</TableCell>
-                    <TableCell>{row.duration_min} 分钟</TableCell>
-                    <TableCell>{row.calories != null ? `${row.calories} kcal` : '—'}</TableCell>
-                    <TableCell>{row.distance_km != null ? `${row.distance_km} km` : '—'}</TableCell>
+                    <TableCell>{formatDuration(row.duration_min)}</TableCell>
+                    <TableCell>{row.calories != null ? `${formatInt(row.calories)} kcal` : DASH}</TableCell>
+                    <TableCell>{row.distance_km != null ? `${formatDecimal(row.distance_km, 2)} km` : DASH}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>

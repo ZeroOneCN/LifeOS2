@@ -37,6 +37,7 @@ import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, t
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatPercent } from '@/lib/format'
 
 type BodyRecord = Record<string, unknown> & { id: number }
 
@@ -151,11 +152,12 @@ export function BodyPage() {
 
   const set = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }))
 
+  /** 新增/编辑弹窗内的 BMI 预览：与展示层一致保留 1 位小数 */
   const bmiValue = (() => {
     const h = Number(form.height_cm)
     const w = Number(form.weight_kg)
-    if (h > 0 && w > 0) return (w / (h / 100) ** 2).toFixed(1)
-    return '-'
+    if (h > 0 && w > 0) return formatDecimal(w / (h / 100) ** 2, 1)
+    return DASH
   })()
 
   const submit = async () => {
@@ -206,13 +208,14 @@ export function BodyPage() {
   }
 
   /** 体成分/体重等物理指标：0 表示未采集（同记录其他体成分有值时后端仍写 0），显示「—」 */
-  const n = (v: unknown) => (typeof v === 'number' && v !== 0 ? v.toFixed(1) : '—')
+  const n = (v: unknown) => (typeof v === 'number' && v !== 0 ? formatDecimal(v, 1) : DASH)
   /** 体重保留 2 位小数 */
-  const n2 = (v: unknown) => (typeof v === 'number' && v !== 0 ? v.toFixed(2) : '—')
-  /** 数值+单位：缺失时只显示「—」，不拼接单位 */
+  const n2 = (v: unknown) => (typeof v === 'number' && v !== 0 ? formatDecimal(v, 2) : DASH)
+  /** 数值+单位：缺失时只显示「—」，不拼接单位；百分比不带空格（22.3%） */
   const withUnit = (v: unknown, unit: string, digits: 1 | 2 = 1) => {
     const s = digits === 2 ? n2(v) : n(v)
-    return s === '—' ? s : `${s} ${unit}`
+    if (s === DASH) return s
+    return unit === '%' ? `${s}%` : `${s} ${unit}`
   }
 
   return (
@@ -250,7 +253,7 @@ export function BodyPage() {
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">体脂率</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats?.latest?.body_fat_percent ? `${stats.latest.body_fat_percent}%` : '—'}
+                {stats?.latest?.body_fat_percent ? formatPercent(stats.latest.body_fat_percent) : DASH}
               </div>
             </CardContent>
           </Card>

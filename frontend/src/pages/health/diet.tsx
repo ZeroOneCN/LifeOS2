@@ -37,6 +37,7 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatInt } from '@/lib/format'
 
 type DietRecord = {
   id: number
@@ -235,27 +236,27 @@ export function DietPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总摄入热量</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.total_calories ?? 0} kcal</div>
+              <div className="mt-1 text-2xl font-semibold">{formatInt(stats?.total_calories ?? 0)} kcal</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">总蛋白质</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.total_protein ?? 0} g</div>
+              <div className="mt-1 text-2xl font-semibold">{formatDecimal(stats?.total_protein ?? 0, 1)} g</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">日均热量</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats?.avg_calories_per_day ?? '-'} kcal
+                {stats?.avg_calories_per_day != null ? `${formatDecimal(stats.avg_calories_per_day, 1, 2)} kcal` : DASH}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">今日记录数</div>
-              <div className="mt-1 text-2xl font-semibold">{(stats?.trend ?? []).length}</div>
+              <div className="mt-1 text-2xl font-semibold">{formatInt((stats?.trend ?? []).length)}</div>
             </CardContent>
           </Card>
         </div>
@@ -318,9 +319,9 @@ export function DietPage() {
                     <TableCell>{row.food_name}</TableCell>
                     <TableCell>{row.weight_g} g</TableCell>
                     <TableCell>{row.calories} kcal</TableCell>
-                    <TableCell>{row.protein ?? '-'} g</TableCell>
-                    <TableCell>{row.carbs ?? '-'} g</TableCell>
-                    <TableCell>{row.fat ?? '-'} g</TableCell>
+                    <TableCell>{row.protein != null ? formatDecimal(row.protein, 1) : DASH} g</TableCell>
+                    <TableCell>{row.carbs != null ? formatDecimal(row.carbs, 1) : DASH} g</TableCell>
+                    <TableCell>{row.fat != null ? formatDecimal(row.fat, 1) : DASH} g</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>

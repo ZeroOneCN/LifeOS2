@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatDecimal, formatDuration, formatInt, formatPercent } from '@/lib/format'
 
 type Vitals = {
   id: number
@@ -198,10 +199,10 @@ export function HealthOverviewPage() {
         <StatCard
           icon={Footprints}
           label="近 7 天步数"
-          value={stepsWeek ? stepsWeek.total_steps.toLocaleString() : '—'}
+          value={stepsWeek ? formatInt(stepsWeek.total_steps) : DASH}
           hint={
             stepsWeek?.avg_steps != null
-              ? `按天日均 ${stepsWeek.avg_steps.toLocaleString()} 步 · ${stepsWeek.trend.length} 天有记录`
+              ? `按天日均 ${formatInt(stepsWeek.avg_steps)} 步 · ${formatInt(stepsWeek.trend.length)} 天有记录`
               : '暂无数据'
           }
           to="/health/steps"
@@ -211,8 +212,8 @@ export function HealthOverviewPage() {
           label="平均睡眠"
           value={
             data.week_summary.sleep_avg_min != null
-              ? `${Math.floor(data.week_summary.sleep_avg_min / 60)}h${data.week_summary.sleep_avg_min % 60}m`
-              : '—'
+              ? formatDuration(data.week_summary.sleep_avg_min)
+              : DASH
           }
           hint="近 7 天"
           to="/health/vitals-sleep"
@@ -220,15 +221,15 @@ export function HealthOverviewPage() {
         <StatCard
           icon={Timer}
           label="本周运动"
-          value={`${data.week_summary.fitness_count} 次`}
-          hint={`消耗 ${data.week_summary.fitness_calories} kcal`}
+          value={`${formatInt(data.week_summary.fitness_count)} 次`}
+          hint={`消耗 ${formatInt(data.week_summary.fitness_calories)} kcal`}
           to="/health/fitness?tab=exercise"
         />
         <StatCard
           icon={Pill}
           label="今日用药"
-          value={`${med.pending_count} 项待服`}
-          hint={`已服 ${med.taken_count} 项`}
+          value={`${formatInt(med.pending_count)} 项待服`}
+          hint={`已服 ${formatInt(med.taken_count)} 项`}
           to="/health/medication"
         />
       </section>
@@ -238,13 +239,13 @@ export function HealthOverviewPage() {
           {v ? (
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               {[
-                ['血压', v.blood_pressure_high && v.blood_pressure_low ? `${v.blood_pressure_high}/${v.blood_pressure_low}` : '—'],
-                ['心率', v.heart_rate ? `${v.heart_rate} bpm` : '—'],
-                ['血氧', v.blood_oxygen ? `${v.blood_oxygen}%` : '—'],
-                ['睡眠', v.sleep_duration_min ? `${Math.floor(v.sleep_duration_min / 60)}h${v.sleep_duration_min % 60}m` : '—'],
-                ['睡眠质量', v.sleep_quality ? `${v.sleep_quality}/10` : '—'],
+                ['血压', v.blood_pressure_high && v.blood_pressure_low ? `${v.blood_pressure_high}/${v.blood_pressure_low}` : DASH],
+                ['心率', v.heart_rate ? `${formatInt(v.heart_rate)} bpm` : DASH],
+                ['血氧', v.blood_oxygen ? formatPercent(v.blood_oxygen) : DASH],
+                ['睡眠', v.sleep_duration_min ? formatDuration(v.sleep_duration_min) : DASH],
+                ['睡眠质量', v.sleep_quality ? `${formatDecimal(v.sleep_quality, 1)}/10` : DASH],
                 // 体重接入健身运动的体重记录
-                body && ['体重', typeof body.weight_kg === 'number' ? `${body.weight_kg.toFixed(2)} kg` : '—'],
+                body && ['体重', typeof body.weight_kg === 'number' ? `${formatDecimal(body.weight_kg, 2)} kg` : DASH],
               ]
                 .filter((t): t is [string, string] => !!t)
                 .map(([label, value]) =>
@@ -317,7 +318,7 @@ export function HealthOverviewPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">
-                      {c.value != null ? `${c.value} ${c.unit ?? ''}` : '—'}
+                      {c.value != null ? `${formatDecimal(c.value, 1, 2)} ${c.unit ?? ''}` : DASH}
                     </span>
                     {c.result && (
                       <Badge className={resultMeta[c.result]?.className}>
