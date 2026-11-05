@@ -87,7 +87,8 @@ def _backup_filename(kind: str, suffix: str = ".json") -> str:
 # ---------------------------------------------------------------------------
 
 # 数据表中文名映射（唯一数据源）：
-# 所有新增的数据表必须在此补充中文映射，否则备份页面会将未映射的表标记为「未配置中文名」。
+# 所有新增的数据表必须在此补充中文映射，否则备份页面会将未映射的表标记为「未配置中文名」，
+# 未映射的表会在 /backup/tables 返回 mapped=false，前端据此提示「未配置中文名」。
 TABLE_LABELS: dict[str, str] = {
     "health_vitals_sleep": "睡眠体征",
     "health_fitness": "健身运动",
@@ -130,6 +131,7 @@ TABLE_LABELS: dict[str, str] = {
     "lifestyle_items": "物品追踪",
     "lifestyle_phone_cards": "手机号码",
     "lifestyle_phone_recharges": "充值记录",
+    "lifestyle_phone_ledgers": "话费流水",
     "lifestyle_bank_cards": "银行卡片",
     "lifestyle_carriers": "运营平台",
     "lifestyle_card_bills": "卡片账单",
@@ -146,6 +148,7 @@ TABLE_LABELS: dict[str, str] = {
     "user_profile": "用户信息",
     "scheduled_backups": "定时备份",
     "backup_logs": "执行日志",
+    "scheduled_job_state": "任务执行状态",
     "site_config": "品牌配置",
     "user_sessions": "用户会话",
     "login_audits": "登录审计",
