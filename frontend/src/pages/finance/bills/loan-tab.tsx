@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Hint, Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -95,6 +96,8 @@ export function LoanTab() {
   const [platforms, setPlatforms] = useState<LoanPlatform[]>([])
   const [platformStats, setPlatformStats] = useState<LoanPlatformStats | null>(null)
   const [bills, setBills] = useState<LoanBill[]>([])
+  // 账单列表是否已完成首次加载：用于区分"加载中"与"确实无账单"，避免空行先出现再被记录撑高
+  const [billsLoaded, setBillsLoaded] = useState(false)
   const [billStats, setBillStats] = useState<LoanBillStats | null>(null)
   const [loanMonth, setLoanMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}` })
   const [repayments, setRepayments] = useState<Repayment[]>([])
@@ -235,6 +238,7 @@ export function LoanTab() {
     // 固定排序：先按平台ID，再按月，避免同一月份内平台出现顺序跳动
     all.sort((a, b) => (a.platform_id ?? 0) - (b.platform_id ?? 0) || a.bill_month.localeCompare(b.bill_month))
     setBills(all)
+    setBillsLoaded(true)
     api.stats<LoanBillStats>('/finance/loan-bills').then(setBillStats).catch(() => null)
   }
   const loadRepayments = async (billId: number | null) => {
@@ -514,7 +518,7 @@ export function LoanTab() {
           </div>
         </div>
       )}
-      {platformStats && (
+      {platformStats ? (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard icon={Calendar} label="当月待还" value={fmt(thisMonthRemaining)} hint={`${thisMonth} · 本金 ${fmt(thisMonthPrincipal)} ＋ 利息 ${fmt(thisMonthInterest)}`} className="text-danger" />
           <StatCard icon={Wallet} label="累计待还" value={fmt(platformStats.total_remaining)} className="text-danger" />
@@ -525,6 +529,22 @@ export function LoanTab() {
           <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-decor-indigo" />
           <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
           <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-success" />
+        </section>
+      ) : (
+        // 统计卡与平台卡同时依赖平台统计接口：先按最终行数预留高度，避免数据返回后整页下移
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="size-4 rounded-full" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="mt-1 h-4 w-28" />
+              </CardContent>
+            </Card>
+          ))}
         </section>
       )}
 
@@ -537,7 +557,8 @@ export function LoanTab() {
           </CardHeaderActions>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {platformStats?.platforms.map((p) => (
+          {platformStats
+            ? platformStats.platforms.map((p) => (
             <div key={p.id} className="rounded-lg border p-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-[15px] font-semibold">{p.name}</span>
@@ -590,7 +611,12 @@ export function LoanTab() {
                 </div>
               </div>
             </div>
-          ))}
+            ))
+            : Array.from({ length: 12 }).map((_, i) => (
+                // 平台卡与统计接口并行加载：按 xl 四列三行预留与真实卡片等高的占位，
+                // 避免卡片出现时页面突然变高、滚动位置跳动
+                <div key={i} className="min-h-[255px] animate-pulse rounded-lg border bg-muted/30" />
+              ))}
           {platformStats && platformStats.platforms.length === 0 && (
             <p className="col-span-full py-6 text-center text-sm text-muted-foreground">暂无借款平台</p>
           )}
@@ -618,7 +644,16 @@ export function LoanTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {monthBills.length === 0 ? (
+              {!billsLoaded && bills.length === 0 ? (
+                // 首次加载：用 8 行骨架预留账单列表高度，避免空行→实际记录的撑高跳动
+                Array.from({ length: 8 }).map((_, i) => (
+                  <TableRow key={`bill-skeleton-${i}`}>
+                    <TableCell colSpan={7} className="h-[49px]">
+                      <Skeleton className="h-4 w-2/3" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : monthBills.length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="h-16 text-center text-muted-foreground">{bills.length === 0 ? '暂无账单' : `「${loanMonth}」无账单`}</TableCell></TableRow>
               ) : monthBills.map((b) => {
                 const remaining = remainingOf(b.amount, b.paid_amount)
@@ -675,7 +710,17 @@ export function LoanTab() {
       </Card>
 
       {/* 还款记录 */}
-      {(billStats?.upcoming ?? []).length > 0 && (
+      {billStats === null ? (
+        // 近期待还依赖账单统计接口，加载中先按最终高度预留区域，避免接口返回后页面被撑高
+        <Card className="min-h-[343px] border-warning/40 bg-warning-muted">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-warning-muted-foreground">近期待还（30 天内）</CardTitle></CardHeader>
+          <CardContent className="space-y-1.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-11 w-full rounded-md" />
+            ))}
+          </CardContent>
+        </Card>
+      ) : (billStats.upcoming ?? []).length > 0 && (
         <Card className="border-warning/40 bg-warning-muted">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-warning-muted-foreground">近期待还（30 天内）</CardTitle></CardHeader>
           <CardContent className="space-y-1.5 text-sm">

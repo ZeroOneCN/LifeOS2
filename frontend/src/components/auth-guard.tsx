@@ -1,19 +1,13 @@
 import { Navigate } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
 
+import { PageSkeleton } from '@/components/page-skeleton'
 import { useAuth } from '@/lib/auth'
 
 /** 认证守卫：未登录访问受保护页面时重定向到登录页。 */
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { isAuthed, userLoaded } = useAuth()
-  // token 存在但用户信息尚未拉取完成时，显示加载占位避免闪烁到登录页
-  if (isAuthed && !userLoaded) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  const { isAuthed } = useAuth()
+  // token 存在时立即放行，让应用外壳与页面骨架先渲染；
+  // 用户信息加载（/auth/me）不再阻塞整页，避免首屏只剩居中 spinner
   if (!isAuthed) return <Navigate to="/login" replace />
   return <>{children}</>
 }
@@ -21,13 +15,8 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 /** 管理员守卫：非管理员访问系统管理页面时重定向到首页。 */
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { isAuthed, user, userLoaded } = useAuth()
-  if (isAuthed && !userLoaded) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  // 用户信息未就绪时在内容区显示页面骨架，外壳（侧栏/页头）保持可见
+  if (isAuthed && !userLoaded) return <PageSkeleton />
   if (!isAuthed) return <Navigate to="/login" replace />
   if (!user?.isAdmin) return <Navigate to="/home" replace />
   return <>{children}</>
