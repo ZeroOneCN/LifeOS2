@@ -18,6 +18,7 @@ export type ChartColorToken =
   | 'info'
   | 'chart-muted'
   | 'chart-axis'
+  | 'chart-grid'
 
 /** 当前主题下的图表色板：语义令牌映射 + 饼图用的 10 色顺序色板 */
 export type ChartPalette = Record<ChartColorToken, string> & {
@@ -42,6 +43,7 @@ const CSS_VARIABLE: Record<ChartColorToken, string> = {
   info: '--info',
   'chart-muted': '--chart-muted',
   'chart-axis': '--chart-axis',
+  'chart-grid': '--chart-grid',
 }
 
 /** 顺序色板令牌，用于饼图按分类依次取色 */

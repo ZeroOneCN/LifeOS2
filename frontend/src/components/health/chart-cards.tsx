@@ -78,15 +78,22 @@ export function LineChartCard({
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey={xKey} tick={{ fontSize: 12 }} minTickGap={24} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+            <XAxis
+              dataKey={xKey}
+              minTickGap={24}
+              stroke={palette['chart-axis']}
+              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
+            />
             <YAxis
-              tick={{ fontSize: 12 }}
+              domain={yDomain}
               allowDecimals={!intTick}
+              stroke={palette['chart-axis']}
+              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
               tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
             />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: palette['chart-axis'] }} />
             {series.map((s) => (
               <Line
                 key={s.key}
@@ -148,15 +155,20 @@ export function BarChartCard({
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
           <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+            <XAxis
+              dataKey={xKey}
+              stroke={palette['chart-axis']}
+              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
+            />
             <YAxis
-              tick={{ fontSize: 12 }}
               allowDecimals={!intTick}
+              stroke={palette['chart-axis']}
+              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
               tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
             />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12, color: palette['chart-axis'] }} />
             {series.map((s) => (
               <Bar
                 key={s.key}

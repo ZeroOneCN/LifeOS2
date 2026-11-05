@@ -279,9 +279,9 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
             <stop offset="100%" stopColor={palette.danger} stopOpacity={0.35} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+        <XAxis dataKey="date" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+        <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: palette['chart-axis'] }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -850,9 +850,9 @@ function FundsSection() {
         {itemsSorted.length > 0 && stats && stats.by_date.length > 0 && (
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={stats.by_date}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+              <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
               <Tooltip formatter={(value) => fmtVal(Number(value))} contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="deposit" name="入金" fill={palette.success} radius={[3, 3, 0, 0]} />
@@ -1065,9 +1065,9 @@ export function ForexPage() {
                   <CardContent>
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+                        <XAxis dataKey="symbol" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+                        <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
                         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>

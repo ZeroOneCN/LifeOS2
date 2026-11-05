@@ -133,9 +133,9 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
             <stop offset="100%" stopColor={palette.danger} stopOpacity={0.35} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+        <XAxis dataKey="date" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+        <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" />
         <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -219,9 +219,9 @@ export function InvestmentOverviewPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={data.by_symbol.slice(0, 12)} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+                <XAxis dataKey="symbol" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+                <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
                 <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
@@ -242,9 +242,9 @@ export function InvestmentOverviewPage() {
         <CardContent>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.daily_pnl} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+              <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
               <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
               <Bar dataKey="amount" name="净盈亏" radius={[2, 2, 0, 0]}>
                 {data.daily_pnl.map((d, i) => (
