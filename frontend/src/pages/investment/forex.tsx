@@ -156,12 +156,17 @@ type FundStats = {
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
+/** 投资域金额统一为美元：负号在货币符号前，如 -$1,234.00 */
 const fmtVal = (n: number) =>
-  `${n < 0 ? '-' : ''}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+/** 盈亏带符号，0 不加正号 */
 const fmtPnl = (n: number) =>
-  `${n >= 0 ? '+' : ''}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  `${n > 0 ? '+$' : n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+/** 图表坐标轴：整数美元，避免坐标轴被小数挤满 */
+const fmtAxis = (n: number) => `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString()}`
+/** 颜色只由数值符号决定，0 为中性 */
 const pnlCls = (n: number) =>
-  n >= 0 ? 'font-semibold text-success' : 'font-semibold text-danger'
+  n > 0 ? 'font-semibold text-success' : n < 0 ? 'font-semibold text-danger' : 'font-semibold text-muted-foreground'
 const fmtHolding = (min?: number) => {
   if (min == null) return '—'
   if (min < 60) return `${min}分`
@@ -257,7 +262,7 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: palette['chart-axis'] }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -828,8 +833,8 @@ function FundsSection() {
             <BarChart data={stats.by_date}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={tooltipStyle} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+              <Tooltip formatter={(value) => fmtVal(Number(value))} contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="deposit" name="入金" fill={palette.success} radius={[3, 3, 0, 0]} />
               <Bar dataKey="withdraw" name="出金" fill={palette.danger} radius={[3, 3, 0, 0]} />
@@ -922,9 +927,19 @@ function ImportButton({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 // 页面
 // ---------------------------------------------------------------------------
-function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '' }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; accent?: boolean; valueCls?: string }) {
-  const numeric = Number(value.replace(/[^0-9.-]/g, ''))
-  const earningsStyle = label.includes('盈亏') || label.includes('收益') || label.includes('净值') ? (numeric >= 0 ? 'text-success' : 'text-danger') : ''
+function StatCard({ icon: Icon, label, value, hint, valueCls = '' }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; valueCls?: string }) {
+  const numeric = Number(value.replace(/[^0-9.-]/g, '')) || 0
+  const isMoneySign = label.includes('盈亏') || label.includes('收益') || label.includes('净值')
+  // 显式 valueCls 与按符号着色互斥，避免同一元素叠加冲突的颜色类
+  const tone = valueCls
+    ? valueCls
+    : isMoneySign
+      ? numeric > 0
+        ? 'text-success'
+        : numeric < 0
+          ? 'text-danger'
+          : 'text-muted-foreground'
+      : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -934,7 +949,7 @@ function StatCard({ icon: Icon, label, value, hint, accent = false, valueCls = '
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${earningsStyle} ${valueCls}`}>{value}</div>
+        <div className={`text-2xl font-semibold ${tone}`}>{value}</div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
@@ -1000,7 +1015,7 @@ export function ForexPage() {
               {s && (
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
-                  <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
+                  <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
                   <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
                   <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
                   <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
@@ -1033,8 +1048,8 @@ export function ForexPage() {
                       <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
-                        <Tooltip contentStyle={tooltipStyle} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+                        <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
                         <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                           {stats.by_symbol.map((d, i) => (

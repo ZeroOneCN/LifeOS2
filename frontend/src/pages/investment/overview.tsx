@@ -66,26 +66,38 @@ type OverviewData = {
   fund_count: number
 }
 
+/** 投资域金额统一为美元：负号在货币符号前，如 -$1,234.00 */
 const fmtVal = (n: number) =>
-  `${n < 0 ? '-' : ''}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+/** 盈亏带符号，0 不加正号 */
 const fmtPnl = (n: number) =>
-  `${n >= 0 ? '+' : ''}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  `${n > 0 ? '+$' : n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+/** 图表坐标轴：整数美元，避免坐标轴被小数挤满 */
+const fmtAxis = (n: number) => `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString()}`
+/** 非金额比率（如盈利因子），不带货币符号 */
+const fmtNum = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2 })
 
 function StatCard({
   icon: Icon,
   label,
   value,
   hint,
-  accent = false,
 }: {
   icon: typeof TrendingUp
   label: string
   value: string
   hint?: string
-  accent?: boolean
 }) {
-  const numeric = Number(value.replace(/[^0-9.-]/g, ''))
-  const earn = ['盈亏', '收益', '净值'].some((k) => label.includes(k))
+  const numeric = Number(value.replace(/[^0-9.-]/g, '')) || 0
+  const isMoneySign = ['盈亏', '收益', '净值'].some((k) => label.includes(k))
+  // 颜色只由数值符号决定，不再额外叠加装饰性颜色（0 为中性）
+  const tone = isMoneySign
+    ? numeric > 0
+      ? 'text-success'
+      : numeric < 0
+        ? 'text-danger'
+        : 'text-muted-foreground'
+    : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -95,7 +107,7 @@ function StatCard({
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${earn ? (numeric >= 0 ? 'text-success' : 'text-danger') : ''}`}>
+        <div className={`text-2xl font-semibold ${tone}`}>
           {value}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -123,7 +135,7 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
         <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" />
         <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -180,7 +192,7 @@ export function InvestmentOverviewPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} / 出金 ${fmtVal(s.total_withdraw)}`} />
-        <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} accent />
+        <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
         <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
         <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
         <StatCard icon={TrendingUp} label="手续费" value={fmtVal(s.total_commission)} hint={`隔夜费 ${fmtVal(s.total_overnight)}`} />
@@ -209,8 +221,8 @@ export function InvestmentOverviewPage() {
               <BarChart data={data.by_symbol.slice(0, 12)} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="symbol" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+                <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="pnl" name="净盈亏" radius={[4, 4, 0, 0]}>
                   {data.by_symbol.slice(0, 12).map((d, i) => (
@@ -232,8 +244,8 @@ export function InvestmentOverviewPage() {
             <BarChart data={data.daily_pnl} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={tooltipStyle} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={fmtAxis} />
+              <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
               <Bar dataKey="amount" name="净盈亏" radius={[2, 2, 0, 0]}>
                 {data.daily_pnl.map((d, i) => (
                   <Cell key={i} fill={d.amount >= 0 ? palette.success : palette.danger} />
@@ -248,7 +260,7 @@ export function InvestmentOverviewPage() {
         <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
         <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
         <StatCard icon={TrendingUp} label="最大回撤" value={fmtVal(a.max_drawdown)} hint={`幅度 ${a.max_drawdown_pct}%`} />
-        <StatCard icon={TrendingUp} label="盈利因子" value={a.profit_factor != null ? fmtVal(a.profit_factor) : '—'} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
+        <StatCard icon={TrendingUp} label="盈利因子" value={a.profit_factor != null ? fmtNum(a.profit_factor) : '—'} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
       </section>
     </div>
   )
