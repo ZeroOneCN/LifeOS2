@@ -2,19 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Eye, Image, Loader2, RotateCcw, Save, ShieldAlert, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import {
@@ -151,31 +152,10 @@ export function SiteSettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">系统设置</h1>
-          <p className="text-sm text-muted-foreground">
-            自定义系统 LOGO 与标题，保存后全站侧边栏、登录页、注册页与浏览器标签同步生效。
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {dirty ? <Badge variant="outline">有未保存的修改</Badge> : null}
-          <Tip label="恢复为系统内置默认值">
-            <Button
-              variant="outline"
-              onClick={resetAll}
-              disabled={!isAdmin || resetting || saving}
-            >
-              {resetting ? <Loader2 className="animate-spin" /> : <RotateCcw />}
-              恢复默认
-            </Button>
-          </Tip>
-          <Button onClick={save} disabled={!isAdmin || saving || !dirty}>
-            {saving ? <Loader2 className="animate-spin" /> : <Save />}
-            保存
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title="系统设置"
+        description="自定义系统 LOGO 与标题，保存后全站侧边栏、登录页、注册页与浏览器标签同步生效。"
+      />
 
       {!isAdmin ? (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-muted px-3 py-2 text-sm text-warning-muted-foreground">
@@ -300,6 +280,25 @@ export function SiteSettingsPage() {
                 onChange={patch('register_subtitle')}
               />
             </CardContent>
+          </Card>
+
+          {/* 保存动作统一放在表单区块底部，375 下右对齐且不拆成孤立按钮 */}
+          <Card className="py-0">
+            <CardFooter className="flex-wrap items-center justify-end gap-2 border-0 bg-transparent">
+              {dirty ? <Badge variant="outline">有未保存的修改</Badge> : null}
+              <Button
+                variant="outline"
+                onClick={resetAll}
+                disabled={!isAdmin || resetting || saving}
+              >
+                {resetting ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+                恢复默认
+              </Button>
+              <Button onClick={save} disabled={!isAdmin || saving || !dirty}>
+                {saving ? <Loader2 className="animate-spin" /> : <Save />}
+                保存
+              </Button>
+            </CardFooter>
           </Card>
         </div>
 
