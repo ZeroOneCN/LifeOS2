@@ -61,14 +61,23 @@ function StatCard({
   label,
   value,
   hint,
-  accent = false,
+  valueCls,
 }: {
   icon: typeof Wallet
   label: string
   value: string
   hint?: string
-  accent?: boolean
+  valueCls?: string
 }) {
+  const numeric = Number(value.replace(/[^0-9.-]/g, '')) || 0
+  // 盈亏类按数值符号着色（0 中性）；显式 valueCls 优先且不与符号色叠加
+  const signTone = label.includes('盈亏')
+    ? numeric > 0
+      ? 'text-success'
+      : numeric < 0
+        ? 'text-danger'
+        : 'text-muted-foreground'
+    : ''
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
@@ -78,9 +87,7 @@ function StatCard({
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div
-          className={`text-2xl font-semibold ${accent ? 'text-success' : ''} ${label.includes('盈亏') ? (Number(value.replace(/[^0-9.-]/g, '')) >= 0 ? '' : 'text-danger') : ''}`}
-        >
+        <div className={`text-2xl font-semibold ${valueCls || signTone}`}>
           {value}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -145,7 +152,7 @@ export function FinanceOverviewPage() {
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Wallet} label="本月支出" value={fmt(data.month_expense)} hint="购/旅/水电/订阅/租/贷" accent />
+        <StatCard icon={Wallet} label="本月支出" value={fmt(data.month_expense)} hint="购/旅/水电/订阅/租/贷" valueCls="text-warning" />
         <StatCard icon={ShoppingCart} label="购物记录" value={`${data.month_purchase_count} 笔`} hint="本月消费笔数" />
         <StatCard icon={Plane} label="旅行开支" value={`${data.month_travel_count} 笔`} hint="本月旅行费用笔数" />
         <StatCard icon={Receipt} label="网贷未还" value={fmt(data.unpaid_bills)} hint={`本月 ${data.month_bill_count} 笔账单`} />

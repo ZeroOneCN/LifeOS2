@@ -277,6 +277,13 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
     }
   }
 
+  /** 整列无有效值时隐藏，避免整列「—」占宽；任一记录填写则恢复显示 */
+  const showInterest =
+    items.length === 0 ||
+    items.some((d) => (d.interest_total ?? 0) > 0 || (d.interest_rate ?? 0) > 0)
+  const showDue = items.length === 0 || items.some((d) => !!d.due_date)
+  const colCount = 13 - (showInterest ? 0 : 1) - (showDue ? 0 : 1)
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
@@ -291,9 +298,9 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
       <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard icon={Wallet} label="民间债务总数" value={String(stats?.total ?? 0)} />
-            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className="text-success" />
-            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className="text-danger" />
-            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className="text-danger" />
+            <StatCard icon={ArrowDownCircle} label="借出应收" value={fmtMoney(stats?.lend_total ?? 0)} className={(stats?.lend_total ?? 0) > 0 ? 'text-success' : 'text-muted-foreground'} />
+            <StatCard icon={ArrowUpCircle} label="借入应付" value={fmtMoney(stats?.borrow_total ?? 0)} className={(stats?.borrow_total ?? 0) > 0 ? 'text-danger' : 'text-muted-foreground'} />
+            <StatCard icon={HandCoins} label="未结清余额" value={fmtMoney(stats?.outstanding ?? 0)} className={(stats?.outstanding ?? 0) > 0 ? 'text-danger' : 'text-muted-foreground'} />
           </section>
 
           {(stats?.overdue ?? 0) > 0 && (
@@ -349,15 +356,15 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             <TableHeader>
               <TableRow>
                 <TableHead>日期</TableHead><TableHead>名称</TableHead><TableHead>对方</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
-                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead><TableHead className="text-right">利息</TableHead><TableHead>到期</TableHead><TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
+                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead>{showInterest && <TableHead className="text-right">利息</TableHead>}{showDue && <TableHead>到期</TableHead>}<TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
               {items.length === 0 ? (
                 loading ? (
-                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground"><Loader2 className="mx-auto size-5 animate-spin" /></TableCell></TableRow>
                 ) : (
-                  <TableRow><TableCell colSpan={13} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">暂无民间借款记录</TableCell></TableRow>
                 )
               ) : items.map((d) => {
                 const paid = hasPaid(d)
@@ -371,12 +378,14 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                   <TableCell>{d.channel ? <Badge variant="outline" className={channelMeta[d.channel]?.className}>{d.channel}</Badge> : '—'}</TableCell>
                   <TableCell className="text-right">{fmtMoney(d.amount)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{paid > 0 ? fmtMoney(paid) : '—'}</TableCell>
-                  <TableCell className={`text-right font-medium ${remaining(d) > 0 ? 'text-danger' : 'text-success'}`}>{fmtMoney(remaining(d))}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="font-medium">{intr > 0 ? fmtMoney(intr) : '—'}</div>
-                    {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>
+                  <TableCell className={`text-right font-medium ${remaining(d) > 0 ? 'text-danger' : 'text-muted-foreground'}`}>{fmtMoney(remaining(d))}</TableCell>
+                  {showInterest && (
+                    <TableCell className="text-right">
+                      <div className="font-medium">{intr > 0 ? fmtMoney(intr) : '—'}</div>
+                      {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
+                    </TableCell>
+                  )}
+                  {showDue && <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>}
                   <Tip label={d.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{d.note ?? '—'}</TableCell></Tip>
                   <TableCell><Badge className={statusMeta[d.status]?.className}>{statusMeta[d.status]?.label}</Badge></TableCell>
                   <TableCell className="text-right">
