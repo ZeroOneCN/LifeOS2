@@ -5,6 +5,8 @@
  * 使用内置快照（snapshot.json）返回演示数据，并把用户的增删改保存在 localStorage，
  * 因此无需任何后端即可完整体验前端功能。
  */
+import { formatCny } from '@/lib/format'
+
 import snapshot from './snapshot.json'
 
 type Json = Record<string, any>
@@ -906,7 +908,7 @@ function handleSpecialWrite(path: string, method: string, body: Json, params: Pa
       categories.set(item.category, (categories.get(item.category) ?? 0) + (Number(item.actual_price) || 0))
     }
     const title = `${ledger?.name ?? '全部行程'}旅行开支报告（${periodStart} ~ ${periodEnd}）`
-    const summary = `共 ${details.length} 笔消费，合计 ¥${total.toFixed(2)}，覆盖 ${categories.size} 个消费类别。`
+    const summary = `共 ${details.length} 笔消费，合计 ${formatCny(total)}，覆盖 ${categories.size} 个消费类别。`
     const id = nextId(reports)
     const record = {
       id,
@@ -924,14 +926,14 @@ function handleSpecialWrite(path: string, method: string, body: Json, params: Pa
             ['行程', ledger?.name ?? '全部行程'],
             ['统计区间', `${periodStart} ~ ${periodEnd}`],
             ['记录笔数', `${details.length} 笔`],
-            ['合计支出', `¥${total.toFixed(2)}`],
+            ['合计支出', formatCny(total)],
           ],
         },
         { type: 'h2', text: '类别汇总' },
         {
           type: 'table',
           header: ['类别', '金额'],
-          rows: Array.from(categories.entries()).map(([name, amount]) => [name, `¥${amount.toFixed(2)}`]),
+          rows: Array.from(categories.entries()).map(([name, amount]) => [name, formatCny(amount)]),
         },
         { type: 'h2', text: '费用明细' },
         {
@@ -941,7 +943,7 @@ function handleSpecialWrite(path: string, method: string, body: Json, params: Pa
             String(item.detail_date),
             String(item.category ?? ''),
             String(item.item ?? ''),
-            `¥${(Number(item.actual_price) || 0).toFixed(2)}`,
+            formatCny(Number(item.actual_price) || 0),
           ]),
         },
       ],
