@@ -209,13 +209,13 @@ export function ChannelsPanel() {
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {byType.map((group) => (
             <Card key={group.type}>
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
-                <div>
-                  <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">{group.label}</CardTitle>
-                  <CardDescription>{group.type}</CardDescription>
+                <div className="min-w-0">
+                  <CardTitle className="whitespace-nowrap text-sm font-medium">{group.label}</CardTitle>
+                  <CardDescription className="truncate" title={group.type}>{group.type}</CardDescription>
                 </div>
                 <CardHeaderActions>
                   <Button size="sm" variant="outline" onClick={() => openCreate(group.type)}>
@@ -232,36 +232,40 @@ export function ChannelsPanel() {
                   group.items.map((ch) => (
                     <div
                       key={ch.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                      className="space-y-2 rounded-lg border px-3 py-2"
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium" title={ch.name}>{ch.name}</span>
-                          {ch.enabled ? (
-                            <Badge className="bg-success-muted text-success-muted-foreground">启用</Badge>
-                          ) : (
-                            <Badge className="bg-muted text-muted-foreground">停用</Badge>
-                          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium" title={ch.name}>{ch.name}</span>
+                            {ch.enabled ? (
+                              <Badge className="bg-success-muted text-success-muted-foreground">启用</Badge>
+                            ) : (
+                              <Badge className="bg-muted text-muted-foreground">停用</Badge>
+                            )}
+                          </div>
+                          <p
+                            className="truncate text-xs text-muted-foreground"
+                            title={ch.recipients || TYPE_LABEL[ch.channel_type]}
+                          >
+                            {ch.recipients || TYPE_LABEL[ch.channel_type]}
+                          </p>
                         </div>
-                        <p
-                          className="truncate text-xs text-muted-foreground"
-                          title={ch.recipients || TYPE_LABEL[ch.channel_type]}
-                        >
-                          {ch.recipients || TYPE_LABEL[ch.channel_type]}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
                         <Switch
                           checked={ch.enabled}
                           onCheckedChange={(v) => toggleEnable(ch, v)}
                           aria-label="启用/停用"
                         />
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
                         <Tip label="发送测试通知">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="size-8"
                             onClick={() => testSend(ch)}
                             disabled={testingId === ch.id}
+                            aria-label="发送测试通知"
                           >
                             {testingId === ch.id ? (
                               <Loader2 className="size-4 animate-spin" />
@@ -270,17 +274,17 @@ export function ChannelsPanel() {
                             )}
                           </Button>
                         </Tip>
-                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(ch)}>
-                          <Pencil />
+                        <Tip label="编辑"><Button variant="ghost" size="icon" className="size-8" aria-label="编辑" onClick={() => openEdit(ch)}>
+                          <Pencil className="size-4" />
                         </Button></Tip>
                         <Tip label="删除"><Button
                           variant="ghost"
                           size="icon"
+                          className="size-8 text-destructive"
                           aria-label="删除"
-                          className="text-destructive"
                           onClick={() => remove(ch)}
                         >
-                          <Trash2 />
+                          <Trash2 className="size-4" />
                         </Button></Tip>
                       </div>
                     </div>

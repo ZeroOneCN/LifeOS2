@@ -115,7 +115,7 @@ export function ReminderSettingsPanel() {
           <Loader2 className="size-5 animate-spin" />
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {items.map((s) => {
             const d = draft[s.id] ?? s
             return (
