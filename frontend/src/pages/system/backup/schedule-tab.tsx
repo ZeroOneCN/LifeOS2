@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   Select,
   SelectContent,
@@ -83,6 +84,7 @@ export function ScheduleTab({
     table_selection: 'all',
   })
   const [savingSchedule, setSavingSchedule] = useState(false)
+  const { confirm, dialog: confirmDialog } = useConfirm()
 
   // ── 定时备份 ──
 
@@ -173,7 +175,15 @@ export function ScheduleTab({
     }
   }
 
-  const handleDeleteSchedule = async (id: number) => {
+  /** 删除定时备份任务：二次确认后执行，避免误删后无法恢复。 */
+  const handleDeleteSchedule = async (id: number, name?: string) => {
+    const ok = await confirm({
+      title: '删除定时备份任务',
+      description: `将删除定时任务「${name ?? id}」且不可恢复，确定继续吗？`,
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await api.del(`/backup/schedules/${id}`)
       toast.success('定时备份任务已删除')
@@ -420,7 +430,7 @@ export function ScheduleTab({
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteSchedule(s.id)}
+                              onClick={() => handleDeleteSchedule(s.id, s.name)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -435,6 +445,7 @@ export function ScheduleTab({
           )}
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   )
 }
