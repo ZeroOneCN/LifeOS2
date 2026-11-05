@@ -140,6 +140,7 @@ export function ManageTab({
             <Button
               variant="outline"
               size="sm"
+              className="text-destructive hover:text-destructive"
               disabled={backupTotal === 0}
               onClick={handleClearBackups}
             >
@@ -165,7 +166,8 @@ export function ManageTab({
                 loadingBackups ? 'pointer-events-none opacity-60' : ''
               }`}
             >
-              <Table>
+              {/* 记录行统一规格：px-4 py-3 + 28px 图标按钮，行高约 53px */}
+              <Table className="[&_th]:px-4 [&_td]:px-4 [&_td]:py-3">
                 <TableHeader>
                   <TableRow>
                     <TableHead>文件名</TableHead>
@@ -193,7 +195,7 @@ export function ManageTab({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-7 w-7"
                                 onClick={() => handlePreviewBackup(f)}
                               >
                                 <Eye className="h-4 w-4" />
@@ -204,7 +206,7 @@ export function ManageTab({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7"
                               onClick={() => handleDownloadBackup(f.filename)}
                             >
                               <Download className="h-4 w-4" />
@@ -214,7 +216,7 @@ export function ManageTab({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
                               onClick={() => handleDeleteBackup(f.filename)}
                             >
                               <Trash2 className="h-4 w-4" />

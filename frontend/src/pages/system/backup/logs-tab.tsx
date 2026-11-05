@@ -77,6 +77,7 @@ export function LogsTab({ logPage, setLogPage, logs, logTotal, loadingLogs, rese
             <Button
               variant="outline"
               size="sm"
+              className="text-destructive hover:text-destructive"
               disabled={logTotal === 0}
               onClick={handleClearLogs}
             >
