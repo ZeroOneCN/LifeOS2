@@ -10,13 +10,11 @@ import {
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/page-header'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
 import { formatCny, formatInt, reportSummary, reportTitle } from '@/lib/format'
 
-type ExpiringItem = { id: number; item_name: string; category: string; expire_date?: string; days_left: number }
 type LatestReport = { id: number; title: string; period_label?: string; summary?: string }
 
 type OverviewData = {
@@ -34,7 +32,6 @@ type OverviewData = {
   bank_active: number
   month_deduct: number
   month_deduct_count: number
-  expiring_items: ExpiringItem[]
   latest_report: LatestReport | null
 }
 
@@ -69,24 +66,6 @@ function StatCard({
   )
   if (to) return <Link to={to} className="block">{body}</Link>
   return body
-}
-
-function SectionCard({ title, to, children }: { title: string; to?: string; children: React.ReactNode }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-sm">
-          <span>{title}</span>
-          {to && (
-            <Link to={to} className="text-xs text-muted-foreground hover:text-foreground">
-              查看
-            </Link>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  )
 }
 
 export function LifestyleOverviewPage() {
@@ -159,37 +138,6 @@ export function LifestyleOverviewPage() {
           hint={data.item_expired > 0 ? `另有 ${formatInt(data.item_expired)} 件已过期` : '30 天内到期'}
           to="/lifestyle/items"
         />
-      </section>
-
-      <section className="grid gap-4">
-        <SectionCard title="即将过期物品" to="/lifestyle/items">
-          {data.expiring_items.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              暂无临期物品{data.item_expired > 0 ? `，但已有 ${data.item_expired} 件过期` : ''}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {data.expiring_items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                  <div>
-                    <div className="text-sm font-medium">{item.item_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {item.category} · {item.expire_date ?? '—'}
-                    </div>
-                  </div>
-                  <Badge
-                    className={item.days_left <= 7 ? 'bg-danger-muted text-danger-muted-foreground' : 'bg-warning-muted text-warning-muted-foreground'}
-                  >
-                    剩 {item.days_left} 天
-                  </Badge>
-                </div>
-              ))}
-              {data.item_expired > 0 && (
-                <p className="text-xs text-destructive">另有 {data.item_expired} 件已过期</p>
-              )}
-            </div>
-          )}
-        </SectionCard>
       </section>
 
       <section className="grid items-start gap-4 lg:grid-cols-2">
