@@ -31,16 +31,22 @@ import { Tip } from '@/components/ui/tip'
 import { navigation } from '@/config/navigation'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import {
+  DASH,
+  formatCny,
+  formatDecimal,
+  formatHealth1,
+  formatInt,
+  formatPercent,
+  formatUsd,
+  formatUsdSigned,
+  reportTitle,
+} from '@/lib/format'
 
 const centers = navigation.filter((s) => !s.system)
 
-/** 金额格式化：保留两位小数并加货币符号 */
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-/** 带正负号的数值格式化，用于收益类指标 */
-const signFmt = (n: number) =>
-  `${n >= 0 ? '+' : ''}${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-/** 大数字格式化：最多保留一位小数 */
-const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })
+/** 金额/数值/报告区间格式化统一由公共层提供 */
+const fmt = formatCny
 
 /* ------------------------------ 数据接口类型 ------------------------------ */
 
@@ -476,22 +482,22 @@ export function HomePage() {
           <StatGroup icon={Wallet} title="财务与投资" cols="grid gap-4 grid-cols-2 sm:grid-cols-3 min-[1680px]:grid-cols-5">
             <StatCard icon={Wallet} label="本月支出" value={fmt(fin?.month_expense ?? 0)} hint="含购/旅/水电/订阅/租/贷" money />
             <StatCard icon={HandCoins} label="累计待还" value={fmt(outstanding)} hint={`网贷 ${fmt(fin?.outstanding_loans ?? 0)} + 民间 ${fmt(fin?.outstanding_debt ?? 0)}`} />
-            <StatCard icon={TrendingUp} label="投资净收益" value={signFmt(inv?.summary.net_profit ?? 0)} hint={`账户净值 ${fmt(inv?.summary.account_value ?? 0)}`} pnl />
-            <StatCard icon={CircleDollarSign} label="投资胜率" value={`${inv?.summary.win_rate ?? 0}%`} hint={`共 ${inv?.summary.trade_count ?? 0} 笔交易`} />
+            <StatCard icon={TrendingUp} label="投资净收益" value={formatUsdSigned(inv?.summary.net_profit ?? 0)} hint={`账户净值 ${formatUsd(inv?.summary.account_value ?? 0)}`} pnl />
+            <StatCard icon={CircleDollarSign} label="投资胜率" value={formatPercent(inv?.summary.win_rate ?? 0)} hint={`共 ${formatInt(inv?.summary.trade_count ?? 0)} 笔交易`} />
             <StatCard icon={CreditCard} label="本月扣款" value={fmt(life?.month_deduct ?? 0)} hint="生活卡片类月度支出" />
           </StatGroup>
 
           <StatGroup icon={HeartPulse} title="健康" cols="grid gap-4 grid-cols-2 sm:grid-cols-3 min-[1680px]:grid-cols-5">
-            <StatCard icon={Footprints} label="近期步数" value={`${num(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
-            <StatCard icon={Timer} label="近期运动" value={`${health?.exercise_count ?? 0} 次`} hint="近 30 天记录" />
-            <StatCard icon={Utensils} label="膳食摄入" value={`${num(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
-            <StatCard icon={Flame} label="运动消耗" value={`${num(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
-            <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${health.latest_body.weight_kg} kg` : '—'} hint={health?.latest_body?.bmi ? `BMI ${health.latest_body.bmi}` : '暂无记录'} />
+            <StatCard icon={Footprints} label="近期步数" value={`${formatInt(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
+            <StatCard icon={Timer} label="近期运动" value={`${formatInt(health?.exercise_count ?? 0)} 次`} hint="近 30 天记录" />
+            <StatCard icon={Utensils} label="膳食摄入" value={`${formatInt(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
+            <StatCard icon={Flame} label="运动消耗" value={`${formatInt(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
+            <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${formatDecimal(health.latest_body.weight_kg, 1)} kg` : DASH} hint={health?.latest_body?.bmi ? `BMI ${formatHealth1(health.latest_body.bmi)}` : '暂无记录'} />
           </StatGroup>
 
           <StatGroup icon={Package} title="生活" cols="grid gap-4 grid-cols-2 sm:grid-cols-3">
-            <StatCard icon={Package} label="临期物品" value={`${life?.item_expiring ?? 0} 项`} hint={life?.item_expired ? `另有 ${life.item_expired} 项已过期` : '30 天内到期'} />
-            <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${life?.phone_total ?? 0} 张 · 银行卡 ${life?.bank_total ?? 0} 张`} />
+            <StatCard icon={Package} label="临期物品" value={`${formatInt(life?.item_expiring ?? 0)} 项`} hint={life?.item_expired ? `另有 ${formatInt(life.item_expired)} 项已过期` : '30 天内到期'} />
+            <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${formatInt(life?.phone_total ?? 0)} 张 · 银行卡 ${formatInt(life?.bank_total ?? 0)} 张`} />
           </StatGroup>
         </section>
       </div>
@@ -512,7 +518,7 @@ export function HomePage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <Tip label={life.latest_report.title}>
-                    <div className="truncate text-sm font-medium">{life.latest_report.title}</div>
+                    <div className="truncate text-sm font-medium">{reportTitle(life.latest_report.title)}</div>
                   </Tip>
                   {life.latest_report.period_label && (
                     <div className="text-xs text-muted-foreground">{life.latest_report.period_label}</div>

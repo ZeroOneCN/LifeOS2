@@ -31,7 +31,12 @@ import {
 } from '@/components/reports/period-picker'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import {
+  formatDateTime,
+  formatInt,
+  formatRange,
+  reportTitle,
+} from '@/lib/format'
 
 type ReportItem = {
   id: number
@@ -178,7 +183,7 @@ export function FinanceReportsPage() {
     try {
       const rep = await api.post<ReportDetail>('/finance/reports/generate', period)
       setGenOpen(false)
-      toast.success('报告已生成', { description: rep.title })
+      toast.success('报告已生成', { description: reportTitle(rep.title) })
       setPreview(rep)
       setPreviewCollapsed(false)
       await load()
@@ -240,8 +245,13 @@ export function FinanceReportsPage() {
                 <ChevronDown
                   className={`size-4 shrink-0 text-success transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
-                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
+                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{reportTitle(preview.title)}</CardTitle>
               </div>
+              {formatRange(preview.period_start, preview.period_end, preview.period_label) && (
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {formatRange(preview.period_start, preview.period_end, preview.period_label)}
+                </span>
+              )}
               {preview.summary && (
                 <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>
               )}
@@ -283,7 +293,7 @@ export function FinanceReportsPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">历史报告（{items.length}）</CardTitle>
+          <CardTitle className="text-sm font-medium">历史报告（{formatInt(items.length)}）</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -311,10 +321,10 @@ export function FinanceReportsPage() {
                   >
                     <div className="flex items-center gap-2">
                       <FileText className="size-4 shrink-0 text-success" />
-                      <span className="truncate text-sm font-medium">{r.title}</span>
+                      <span className="truncate text-sm font-medium">{reportTitle(r.title)}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">
-                      {r.period_label}
+                      {formatRange(r.period_start, r.period_end, r.period_label)}
                       {r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}
                     </div>
                   </button>

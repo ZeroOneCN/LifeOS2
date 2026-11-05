@@ -30,7 +30,7 @@ import {
 } from '@/components/reports/period-picker'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, formatInt, reportTitle } from '@/lib/format'
 
 type ReportItem = { id: number; title: string; period_label?: string; created_at?: string }
 type ReportDetail = ReportItem & { summary?: string; content?: unknown }
@@ -152,7 +152,7 @@ export function InvestmentReportsPage() {
     try {
       const rep = await api.post<ReportDetail>('/investment/reports/generate', period)
       setGenOpen(false)
-      toast.success('报告已生成', { description: rep.title })
+      toast.success('报告已生成', { description: reportTitle(rep.title) })
       setPreview(rep)
       setPreviewCollapsed(false)
       await load()
@@ -205,7 +205,7 @@ export function InvestmentReportsPage() {
             <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setPreviewCollapsed((v) => !v)}>
               <div className="flex items-center gap-2">
                 <ChevronDown className={`size-4 shrink-0 text-decor-indigo transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
-                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
+                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{reportTitle(preview.title)}</CardTitle>
               </div>
               {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
             </button>
@@ -227,7 +227,7 @@ export function InvestmentReportsPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">历史报告（{items.length}）</CardTitle>
+          <CardTitle className="text-sm font-medium">历史报告（{formatInt(items.length)}）</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -244,7 +244,7 @@ export function InvestmentReportsPage() {
                   <button type="button" className="min-w-0 flex-1 text-left" onClick={() => loadDetail(r.id)}>
                     <div className="flex items-center gap-2">
                       <FileText className="size-4 shrink-0 text-decor-indigo" />
-                      <span className="truncate text-sm font-medium">{r.title}</span>
+                      <span className="truncate text-sm font-medium">{reportTitle(r.title)}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{r.period_label}{r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}</div>
                   </button>
