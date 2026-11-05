@@ -19,8 +19,18 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { resolveChartColor, useChartColors, type ChartColorToken } from '@/lib/chart-theme'
+import { formatDecimal, formatInt, formatPercent } from '@/lib/format'
 
 import { ChartEmptyCard } from './chart-empty-card'
+
+/** 坐标轴整数刻度：统一千分位，如 4,277 */
+const intTickFormatter = (v: number) => (Number.isInteger(v) ? formatInt(v) : '')
+
+/** Tooltip 数值：整数千分位，小数固定 2 位，与表格口径一致 */
+const tooltipNumber = (v: unknown) => {
+  const num = Number(v ?? 0)
+  return Number.isInteger(num) ? formatInt(num) : formatDecimal(num, 2)
+}
 
 /** 图表系列配置；color 使用主题色板令牌，由图表组件按当前深浅色解析为具体颜色 */
 export type Series = { key: string; name: string; color?: ChartColorToken }
@@ -90,9 +100,9 @@ export function LineChartCard({
               allowDecimals={!intTick}
               stroke={palette['chart-axis']}
               tick={{ fontSize: 12, fill: palette['chart-axis'] }}
-              tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
+              tickFormatter={intTick ? intTickFormatter : undefined}
             />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={tooltipNumber} />
             <Legend wrapperStyle={{ fontSize: 12, color: palette['chart-axis'] }} />
             {series.map((s) => (
               <Line
@@ -165,9 +175,9 @@ export function BarChartCard({
               allowDecimals={!intTick}
               stroke={palette['chart-axis']}
               tick={{ fontSize: 12, fill: palette['chart-axis'] }}
-              tickFormatter={intTick ? (v: number) => (Number.isInteger(v) ? String(v) : '') : undefined}
+              tickFormatter={intTick ? intTickFormatter : undefined}
             />
-            <Tooltip contentStyle={TOOLTIP_STYLE} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={tooltipNumber} />
             <Legend wrapperStyle={{ fontSize: 12, color: palette['chart-axis'] }} />
             {series.map((s) => (
               <Bar
@@ -284,7 +294,7 @@ export function PieChartCard({
     const num = Number(value ?? 0)
     const pct = total > 0 ? (num / total) * 100 : 0
     return [
-      `${Number.isInteger(num) ? num : num.toFixed(2)}（${pct.toFixed(1)}%）`,
+      `${tooltipNumber(num)}（${formatPercent(pct)}）`,
       displayName(name),
     ]
   }

@@ -40,6 +40,7 @@ import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
+import { formatDateTime, formatInt } from '@/lib/format'
 
 type LoginAudit = {
   id: number
@@ -82,11 +83,7 @@ const FAILURE_REASONS: Record<string, string> = {
   account_locked: '账号锁定',
 }
 
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+/** 时间列统一使用公共 formatDateTime（YYYY-MM-DD HH:mm，不再显示秒）。 */
 
 function StatCard({
   icon: Icon,
@@ -268,7 +265,7 @@ export function LoginAuditPage() {
                 <span className="text-danger">失败 {b.fail_count} 次</span>
                 <span className="text-muted-foreground">尝试账号 {b.account_count} 个</span>
                 {b.last_attempt && (
-                  <span className="ml-auto text-xs text-muted-foreground">最近: {formatTime(b.last_attempt)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">最近: {formatDateTime(b.last_attempt)}</span>
                 )}
               </div>
             ))}
@@ -384,7 +381,7 @@ export function LoginAuditPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">登录记录</CardTitle>
-          <CardDescription>共 {total.toLocaleString()} 条，按时间倒序排列</CardDescription>
+          <CardDescription>共 {formatInt(total)} 条，按时间倒序排列</CardDescription>
         </CardHeader>
         <CardContent className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
           {items.length === 0 ? (
@@ -432,7 +429,7 @@ export function LoginAuditPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
-                        <span className="whitespace-nowrap tabular-nums">{formatTime(row.created_at)}</span>
+                        <span className="whitespace-nowrap tabular-nums">{formatDateTime(row.created_at)}</span>
                         {row.ip_address && (
                           <Badge variant="outline" className="text-xs font-normal font-mono">
                             IP: {row.ip_address}

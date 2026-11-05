@@ -39,6 +39,7 @@ import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
+import { formatDateTime, formatInt } from '@/lib/format'
 import { IS_DEMO } from '@/lib/demo-mode'
 
 type ActivityRecord = {
@@ -187,13 +188,7 @@ const ACTION_META: Record<string, { name: string; className: string; icon: Lucid
       }),
 }
 
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
-    d.getMinutes(),
-  )}`
-}
+/** 时间列统一使用公共 formatDateTime（YYYY-MM-DD HH:mm）。 */
 
 function StatCard({
   icon: Icon,
@@ -436,7 +431,7 @@ export function ActivityLogsPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">操作记录</CardTitle>
-          <CardDescription>共 {total.toLocaleString()} 条，按时间倒序排列</CardDescription>
+          <CardDescription>共 {formatInt(total)} 条，按时间倒序排列</CardDescription>
         </CardHeader>
         <CardContent className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
           {items.length === 0 ? (
@@ -474,7 +469,7 @@ export function ActivityLogsPage() {
                         </span>
                       )}
                       <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                        {formatTime(row.created_at)}
+                        {formatDateTime(row.created_at)}
                       </span>
                       {row.ip && (
                         <Badge variant="outline" className="text-xs font-normal">

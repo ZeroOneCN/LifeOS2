@@ -24,6 +24,7 @@ import {
 import { Tip } from '@/components/ui/tip'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { api } from '@/lib/api'
+import { DASH } from '@/lib/format'
 
 import { formatTime, type LogItem } from './shared'
 
@@ -126,7 +127,7 @@ export function LogsTab({ logPage, setLogPage, logs, logTotal, loadingLogs, rese
                       </TableCell>
                       <Tip label={l.filename || ''}>
                         <TableCell className="max-w-[200px] truncate font-mono text-xs">
-                          {l.filename || '-'}
+                          {l.filename || DASH}
                         </TableCell>
                       </Tip>
                       <TableCell>

@@ -22,6 +22,7 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
+import { formatDateTime } from '@/lib/format'
 
 type NotificationBrief = {
   title: string
@@ -53,10 +54,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   webhook: 'Webhook',
 }
 
-/** 时间格式化：ISO 转 "YYYY-MM-DD HH:mm:ss"，空值返回占位符。 */
-function formatTime(v?: string | null) {
-  return v ? v.slice(0, 19).replace('T', ' ') : '—'
-}
+/** 时间列统一走公共 formatDateTime（YYYY-MM-DD HH:mm，不显示秒）。 */
 
 export function SendLogPanel() {
   const realtimeTick = useRealtime(30_000)
@@ -174,7 +172,7 @@ export function SendLogPanel() {
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                    {log.sent_at ? formatTime(log.sent_at) : formatTime(log.created_at)}
+                    {formatDateTime(log.sent_at ?? log.created_at)}
                     <Eye className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
                 </div>
@@ -235,11 +233,11 @@ export function SendLogPanel() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">发送时间</p>
-                    <p className="mt-0.5 break-words">{formatTime(detail.sent_at)}</p>
+                    <p className="mt-0.5 break-words">{formatDateTime(detail.sent_at)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">记录时间</p>
-                    <p className="mt-0.5 break-words">{formatTime(detail.created_at)}</p>
+                    <p className="mt-0.5 break-words">{formatDateTime(detail.created_at)}</p>
                   </div>
                 </div>
                 {detail.status === 'failed' && detail.error && (

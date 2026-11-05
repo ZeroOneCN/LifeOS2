@@ -14,6 +14,7 @@ import {
 import { PaginationBar } from '@/components/ui/pagination-bar'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { formatInt, formatPercent } from '@/lib/format'
 import { getCategoryStyle, getSourceLabel } from './types'
 
 type NotificationRecord = {
@@ -121,12 +122,12 @@ export function NotificationList() {
               ) : (
                 <ul className="space-y-2">
                   {byCategory.map((c) => {
-                    const pct = categoryTotal > 0 ? Math.round((c.count / categoryTotal) * 100) : 0
+                    const pct = categoryTotal > 0 ? (c.count / categoryTotal) * 100 : 0
                     return (
                       <li key={c.category}>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">{c.category}</span>
-                          <span className="font-medium">{c.count} 条 · {pct}%</span>
+                          <span className="font-medium">{formatInt(c.count)} 条 · {formatPercent(pct)}</span>
                         </div>
                         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />

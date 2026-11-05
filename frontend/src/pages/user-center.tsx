@@ -25,6 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Hint } from '@/components/ui/tip'
 import { api } from '@/lib/api'
+import { DASH, formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth'
 
 type Profile = {
@@ -74,14 +75,7 @@ function toForm(profile: Profile | null): Record<string, string> {
   }
 }
 
-/** 格式化注册时间（YYYY-MM-DD HH:mm）。 */
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`
-}
+/** 注册时间：统一走公共 formatDateTime（YYYY-MM-DD HH:mm）。 */
 
 export function UserCenterPage() {
   const { refresh: refreshAuth } = useAuth()
@@ -429,7 +423,7 @@ export function UserCenterPage() {
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="text-muted-foreground">注册时间</span>
                   <span className="tabular-nums">
-                    {settings ? formatDate(settings.created_at) : '—'}
+                    {settings ? formatDateTime(settings.created_at) : DASH}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm">

@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
+import { DASH, formatDateTime } from '@/lib/format'
 
 type UserSession = {
   id: number
@@ -19,12 +20,7 @@ type UserSession = {
   is_current: boolean
 }
 
-/** 格式化 ISO 时间为本地可读字符串。 */
-function formatTime(iso: string) {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+/** 格式化 ISO 时间为本地可读字符串（统一走公共 formatDateTime）。 */
 
 /** 会话管理页面：查看在线设备并支持强制下线。 */
 export function SessionsPage() {
@@ -136,10 +132,10 @@ export function SessionsPage() {
                     {s.is_current && <Badge variant="secondary">当前设备</Badge>}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    IP：{s.ip_address || '-'} · 最近活跃：{formatTime(s.last_used_at)}
+                    IP：{s.ip_address || DASH} · 最近活跃：{formatDateTime(s.last_used_at)}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    登录于 {formatTime(s.created_at)} · 过期于 {formatTime(s.expires_at)}
+                    登录于 {formatDateTime(s.created_at)} · 过期于 {formatDateTime(s.expires_at)}
                   </div>
                 </div>
                 {!s.is_current && (
