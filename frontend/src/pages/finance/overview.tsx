@@ -131,7 +131,7 @@ export function FinanceOverviewPage() {
 
   if (!data) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
             <CardContent className="h-24 animate-pulse bg-muted/50" />
@@ -150,7 +150,7 @@ export function FinanceOverviewPage() {
         </p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Wallet} label="本月支出" value={fmt(data.month_expense)} hint="购/旅/水电/订阅/租/贷" valueCls="text-warning" />
         <StatCard icon={ShoppingCart} label="购物记录" value={`${formatInt(data.month_purchase_count)} 笔`} hint="本月消费笔数" />
         <StatCard icon={Plane} label="旅行开支" value={`${formatInt(data.month_travel_count)} 笔`} hint="本月旅行费用笔数" />
@@ -169,7 +169,7 @@ export function FinanceOverviewPage() {
           </CardHeader>
           <CardContent>
             {data.categories.length > 0 ? (
-              <ul className="grid grid-cols-2 gap-2">
+              <ul className="grid gap-2 sm:grid-cols-2">
                 {data.categories.map((c) => (
                   <li key={c.label} className="flex items-center justify-between rounded-lg border px-3 py-2">
                     <span className="truncate text-sm text-muted-foreground">{c.label}</span>
@@ -190,7 +190,7 @@ export function FinanceOverviewPage() {
           </CardHeader>
           <CardContent>
             {data.week_trend.length > 0 ? (
-              <ul className="grid grid-cols-2 gap-2">
+              <ul className="grid gap-2 sm:grid-cols-2">
                 {data.week_trend.map((d) => (
                   <li key={d.date} className="flex items-center justify-between rounded-lg border px-3 py-2">
                     <span className="truncate text-sm text-muted-foreground">{d.date}</span>
@@ -205,7 +205,7 @@ export function FinanceOverviewPage() {
         </Card>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid items-start gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -246,6 +246,23 @@ export function FinanceOverviewPage() {
                   {s.amount != null && <span className="text-sm font-medium">{fmt(s.amount)}</span>}
                 </div>
               ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Banknote className="size-4 text-info" />
+              待缴水电账单
+            </CardTitle>
+            <CardDescription>按到期日排序，请及时处理</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {data.pending_utils.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">暂无待缴水电账单</p>
+            ) : (
+              data.pending_utils.map((u) => <ItemRow key={u.id} item={u} />)
             )}
           </CardContent>
         </Card>
