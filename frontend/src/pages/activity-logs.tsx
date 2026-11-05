@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   Activity,
   Bot,
+  ChevronDown,
+  ChevronRight,
   Eraser,
   History,
   Loader2,
@@ -236,6 +238,8 @@ export function ActivityLogsPage() {
   const [end, setEnd] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
+  /** 展开明细的日志 id 集合：默认全部收起，保证列表密度统一 */
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
   const totalPages = Math.max(1, Math.ceil(total / 10))
   const refreshing = loading || statsLoading
 
@@ -455,13 +459,22 @@ export function ActivityLogsPage() {
                   icon: Activity,
                 }
                 const Icon = meta.icon
+                const expanded = expandedIds.has(row.id)
+                /** 切换单条日志的明细展开状态，展开后明细显示在元信息行下方 */
+                const toggleDetail = () =>
+                  setExpandedIds((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(row.id)) next.delete(row.id)
+                    else next.add(row.id)
+                    return next
+                  })
                 return (
                   <li key={row.id} className={RECORD_ROW_CLASS}>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span
-                        className={`flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}
+                        className={`flex size-5 shrink-0 items-center justify-center rounded-full ${meta.className}`}
                       >
-                        <Icon className="size-3.5" />
+                        <Icon className="size-3" />
                       </span>
                       <span className="text-sm font-medium">{row.summary ?? '未知操作'}</span>
                       <Badge variant="outline">{moduleLabel(row.module)}</Badge>
@@ -480,16 +493,37 @@ export function ActivityLogsPage() {
                       )}
                       {row.user_agent && (
                         <Tip label={row.user_agent}>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="max-w-[220px] truncate text-xs text-muted-foreground">
                             UA: {row.user_agent}
                           </span>
                         </Tip>
                       )}
                     </div>
                     {row.detail && (
-                      <pre className="mt-2 max-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                        {row.detail}
-                      </pre>
+                      <>
+                        <button
+                          type="button"
+                          onClick={toggleDetail}
+                          aria-expanded={expanded}
+                          aria-label={expanded ? '收起操作明细' : '展开操作明细'}
+                          title={row.detail}
+                          className="mt-0.5 flex w-full min-w-0 items-center gap-1 rounded text-left text-[11px] leading-4 text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          {expanded ? (
+                            <ChevronDown className="size-3 shrink-0" />
+                          ) : (
+                            <ChevronRight className="size-3 shrink-0" />
+                          )}
+                          <span className={expanded ? 'shrink-0' : 'truncate font-mono'}>
+                            {expanded ? '收起明细' : row.detail.replace(/\s+/g, ' ')}
+                          </span>
+                        </button>
+                        {expanded && (
+                          <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                            {row.detail}
+                          </pre>
+                        )}
+                      </>
                     )}
                   </li>
                 )
