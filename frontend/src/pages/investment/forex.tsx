@@ -803,29 +803,29 @@ function FundsSection() {
         </CardHeaderActions>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Card className="border-success/40">
-            <CardContent className="flex items-center justify-between py-3">
-              <span className="text-sm text-muted-foreground">累计入金</span>
-              <Badge className="bg-success-muted text-success-muted-foreground">{stats ? fmtVal(stats.deposit) : '—'}</Badge>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground">累计入金</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-success">{stats ? fmtVal(stats.deposit) : '—'}</div>
             </CardContent>
           </Card>
           <Card className="border-danger/40">
-            <CardContent className="flex items-center justify-between py-3">
-              <span className="text-sm text-muted-foreground">累计出金</span>
-              <Badge className="bg-danger-muted text-danger-muted-foreground">{stats ? fmtVal(stats.withdraw) : '—'}</Badge>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground">累计出金</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-danger">{stats ? fmtVal(stats.withdraw) : '—'}</div>
             </CardContent>
           </Card>
           <Card className="border-warning/40">
-            <CardContent className="flex items-center justify-between py-3">
-              <span className="text-sm text-muted-foreground">体验金</span>
-              <Badge className="bg-warning-muted text-warning-muted-foreground">{stats ? fmtVal(stats.experience) : '—'}</Badge>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground">体验金</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-warning">{stats ? fmtVal(stats.experience) : '—'}</div>
             </CardContent>
           </Card>
           <Card className="border-decor-indigo/30">
-            <CardContent className="flex items-center justify-between py-3">
-              <span className="text-sm text-muted-foreground">净投入</span>
-              <Badge className="bg-decor-indigo/15 text-decor-indigo">{stats ? fmtVal(stats.net) : '—'}</Badge>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground">净投入</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-decor-indigo">{stats ? fmtVal(stats.net) : '—'}</div>
             </CardContent>
           </Card>
         </div>
@@ -834,30 +834,39 @@ function FundsSection() {
           <p className="py-6 text-center text-sm text-muted-foreground">暂无资金记录，点击「记录资金」添加入金/出金/体验金。</p>
         ) : (
           <div className="space-y-2">
-            {itemsSorted.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <div className="flex items-center gap-3">
-                  {r.record_type === 'deposit' ? (
-                    <ArrowDownToLine className="size-4 text-success" />
-                  ) : r.record_type === 'withdraw' ? (
-                    <ArrowUpFromLine className="size-4 text-danger" />
-                  ) : (
-                    <Gift className="size-4 text-warning" />
-                  )}
-                  <div>
-                    <div className="text-sm font-medium">
-                      {fundTypes.find((t) => t.value === r.record_type)?.label}
-                      <span className={`ml-2 font-semibold ${r.amount > 0 ? 'text-success' : r.amount < 0 ? 'text-danger' : 'text-muted-foreground'}`}>{fmtVal(r.amount)}</span>
+            {itemsSorted.map((r) => {
+              const orderNo = r.note?.trim() ? `#${r.id} · ${r.note.trim()}` : `#${r.id}`
+              return (
+                <div
+                  key={r.id}
+                  className="grid grid-cols-2 items-center gap-x-3 gap-y-0.5 rounded-lg border px-3 py-1 min-h-[56px] sm:grid-cols-[minmax(72px,auto)_minmax(88px,auto)_84px_minmax(0,1fr)] sm:gap-3 sm:gap-y-0 sm:py-2"
+                >
+                  <div className="flex items-center gap-2 whitespace-nowrap text-sm font-medium">
+                    {r.record_type === 'deposit' ? (
+                      <ArrowDownToLine className="size-4 text-success" />
+                    ) : r.record_type === 'withdraw' ? (
+                      <ArrowUpFromLine className="size-4 text-danger" />
+                    ) : (
+                      <Gift className="size-4 text-warning" />
+                    )}
+                    {fundTypes.find((t) => t.value === r.record_type)?.label}
+                  </div>
+                  <div className={`text-right font-semibold tabular-nums ${r.amount > 0 ? 'text-success' : r.amount < 0 ? 'text-danger' : 'text-muted-foreground'}`}>
+                    {fmtVal(r.amount)}
+                  </div>
+                  <div className="text-xs tabular-nums text-muted-foreground">{r.record_date}</div>
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs font-mono text-muted-foreground" title={orderNo}>
+                      {orderNo}
+                    </span>
+                    <div className="flex shrink-0 gap-0.5">
+                      <Tip label="编辑"><Button size="icon" variant="ghost" className="size-8" aria-label="编辑" onClick={() => openEdit(r)}><Pencil className="size-4" /></Button></Tip>
+                      <Tip label="删除"><Button size="icon" variant="ghost" className="size-8 text-destructive" aria-label="删除" onClick={() => remove(r)}><Trash2 className="size-4" /></Button></Tip>
                     </div>
-                    <div className="text-xs text-muted-foreground">{r.record_date}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <Tip label="编辑"><Button size="icon" variant="ghost" aria-label="编辑" onClick={() => openEdit(r)}><Pencil className="size-4" /></Button></Tip>
-                  <Tip label="删除"><Button size="icon" variant="ghost" aria-label="删除" className="text-destructive" onClick={() => remove(r)}><Trash2 className="size-4" /></Button></Tip>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
