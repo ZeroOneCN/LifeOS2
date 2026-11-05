@@ -454,7 +454,7 @@ export function HomePage() {
       {/* 主信息流：问候 → 待处理流（上移）→ 关键指标（下沉） */}
       <div className="flex min-w-0 flex-col gap-6">
         {/* 问候区 */}
-        <section className="rounded-xl border bg-gradient-to-r from-primary/10 via-background to-background p-6">
+        <section className="rounded-xl border bg-muted/40 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="font-heading text-2xl font-semibold tracking-tight">
