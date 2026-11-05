@@ -63,6 +63,8 @@ export type ColumnDef<T> = {
   label: string
   render?: (row: T) => ReactNode
   className?: string
+  /** 本页数据整列为空时隐藏该列（用于大量未采集字段），不删除字段也不改数据 */
+  hidden?: (rows: T[]) => boolean
 }
 
 type RecordManagerProps<T extends { id: number }> = {
@@ -180,6 +182,11 @@ export function RecordManager<T extends { id: number }>({
     })
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  /** 按本页数据动态隐藏整列为空的列，避免空列占宽 */
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !(c.hidden?.(items) ?? false)),
+    [columns, items],
+  )
   const { confirm, dialog: confirmDialog } = useConfirm({
     title: '确认删除',
     description: '确定删除这条记录吗？此操作不可恢复。',
@@ -268,8 +275,8 @@ export function RecordManager<T extends { id: number }>({
           description: '请缩小筛选范围后分批导出',
         })
       }
-      const headers = columns.map((c) => c.key)
-      const headerLabel = columns.map((c) => c.label)
+      const headers = visibleColumns.map((c) => c.key)
+      const headerLabel = visibleColumns.map((c) => c.label)
       const rows = res.items.map((item) =>
         headers.map((h) => {
           const val = (item as Record<string, unknown>)[h]
@@ -487,7 +494,7 @@ export function RecordManager<T extends { id: number }>({
                     />
                   </TableHead>
                 )}
-                {columns.map((col) => (
+                {visibleColumns.map((col) => (
                   <TableHead key={col.key} className={col.className}>
                     {col.label}
                   </TableHead>
@@ -508,7 +515,7 @@ export function RecordManager<T extends { id: number }>({
                             <Skeleton className="size-4" />
                           </TableCell>
                         )}
-                        {columns.map((col) => (
+                        {visibleColumns.map((col) => (
                           <TableCell key={col.key}>
                             <Skeleton className="h-4 w-[80%]" />
                           </TableCell>
@@ -522,7 +529,7 @@ export function RecordManager<T extends { id: number }>({
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={columns.length + 1 + batchColSpan}
+                      colSpan={visibleColumns.length + 1 + batchColSpan}
                       className="h-24 text-center text-muted-foreground"
                     >
                       暂无记录，点击"新增记录"添加第一条数据
@@ -541,7 +548,7 @@ export function RecordManager<T extends { id: number }>({
                         />
                       </TableCell>
                     )}
-                    {columns.map((col) => (
+                    {visibleColumns.map((col) => (
                       <TableCell key={col.key} className={col.className}>
                         {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
                       </TableCell>

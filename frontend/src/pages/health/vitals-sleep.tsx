@@ -84,17 +84,23 @@ const fields: FieldDef[] = [
   { key: 'note', label: '备注', type: 'textarea', full: true },
 ]
 
+/** 本页整列无采集值时隐藏（null / 0 均视为未采集），避免空列占宽 */
+const blank = (key: keyof VitalsRecord) => (rows: VitalsRecord[]) =>
+  rows.length > 0 && rows.every((r) => r[key] == null || r[key] === 0)
+
 const columns: ColumnDef<VitalsRecord>[] = [
   { key: 'record_date', label: '日期' },
   {
     key: 'sleep',
     label: '睡眠时段',
+    hidden: (rows) => rows.length > 0 && rows.every((r) => !(r.bedtime && r.wake_time)),
     render: (r) =>
       r.bedtime && r.wake_time ? `${r.bedtime.slice(0, 5)} - ${r.wake_time.slice(0, 5)}` : '—',
   },
   {
     key: 'sleep_duration_min',
     label: '睡眠',
+    hidden: blank('sleep_duration_min'),
     render: (r) => {
       if (r.sleep_duration_min == null) return '—'
       const total = Math.round(r.sleep_duration_min)
@@ -104,6 +110,8 @@ const columns: ColumnDef<VitalsRecord>[] = [
   {
     key: 'bp',
     label: '血压',
+    hidden: (rows) =>
+      rows.length > 0 && rows.every((r) => !(r.blood_pressure_high && r.blood_pressure_low)),
     render: (r) =>
       r.blood_pressure_high && r.blood_pressure_low
         ? `${r.blood_pressure_high}/${r.blood_pressure_low}`
@@ -112,29 +120,50 @@ const columns: ColumnDef<VitalsRecord>[] = [
   {
     key: 'heart_rate',
     label: '心率',
+    hidden: blank('heart_rate'),
     render: (r) => (r.heart_rate ? `${r.heart_rate} bpm` : '—'),
   },
-  { key: 'blood_oxygen', label: '血氧', render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—') },
-  { key: 'blood_glucose', label: '血糖', render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—') },
-  { key: 'body_temp', label: '体温', render: (r) => (r.body_temp ? `${r.body_temp}℃` : '—') },
+  {
+    key: 'blood_oxygen',
+    label: '血氧',
+    hidden: blank('blood_oxygen'),
+    render: (r) => (r.blood_oxygen ? `${r.blood_oxygen}%` : '—'),
+  },
+  {
+    key: 'blood_glucose',
+    label: '血糖',
+    hidden: blank('blood_glucose'),
+    render: (r) => (r.blood_glucose ? `${r.blood_glucose}` : '—'),
+  },
+  {
+    key: 'body_temp',
+    label: '体温',
+    hidden: blank('body_temp'),
+    render: (r) => (r.body_temp ? `${r.body_temp}℃` : '—'),
+  },
   {
     key: 'deep_sleep_min',
     label: '深睡',
+    hidden: blank('deep_sleep_min'),
     render: (r) => (r.deep_sleep_min != null ? `${r.deep_sleep_min}m` : '—'),
   },
   {
     key: 'light_sleep_min',
     label: '浅睡',
+    hidden: blank('light_sleep_min'),
     render: (r) => (r.light_sleep_min != null ? `${r.light_sleep_min}m` : '—'),
   },
   {
     key: 'wake_count',
     label: '醒来',
+    // 醒来次数 0 是有效值（一觉到天亮），只在整列缺失时隐藏
+    hidden: (rows) => rows.length > 0 && rows.every((r) => r.wake_count == null),
     render: (r) => (r.wake_count != null ? `${r.wake_count} 次` : '—'),
   },
   {
     key: 'sleep_quality',
     label: '质量',
+    hidden: blank('sleep_quality'),
     render: (r) => (r.sleep_quality != null ? `${r.sleep_quality}/10` : '—'),
   },
 ]

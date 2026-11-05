@@ -205,9 +205,15 @@ export function BodyPage() {
     }
   }
 
-  const n = (v: unknown) => (typeof v === 'number' ? v.toFixed(1) : '-')
+  /** 体成分/体重等物理指标：0 表示未采集（同记录其他体成分有值时后端仍写 0），显示「—」 */
+  const n = (v: unknown) => (typeof v === 'number' && v !== 0 ? v.toFixed(1) : '—')
   /** 体重保留 2 位小数 */
-  const n2 = (v: unknown) => (typeof v === 'number' ? v.toFixed(2) : '-')
+  const n2 = (v: unknown) => (typeof v === 'number' && v !== 0 ? v.toFixed(2) : '—')
+  /** 数值+单位：缺失时只显示「—」，不拼接单位 */
+  const withUnit = (v: unknown, unit: string, digits: 1 | 2 = 1) => {
+    const s = digits === 2 ? n2(v) : n(v)
+    return s === '—' ? s : `${s} ${unit}`
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -237,14 +243,14 @@ export function BodyPage() {
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">最新 BMI</div>
-              <div className="mt-1 text-2xl font-semibold">{stats?.latest?.bmi ?? '-'}</div>
+              <div className="mt-1 text-2xl font-semibold">{n(stats?.latest?.bmi)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">体脂率</div>
               <div className="mt-1 text-2xl font-semibold">
-                {stats?.latest?.body_fat_percent != null ? `${stats.latest.body_fat_percent}%` : '-'}
+                {stats?.latest?.body_fat_percent ? `${stats.latest.body_fat_percent}%` : '—'}
               </div>
             </CardContent>
           </Card>
@@ -312,11 +318,11 @@ export function BodyPage() {
                   <TableRow key={row.id}>
                     <TableCell>{String(row.record_date)}</TableCell>
                     <TableCell>{row.gender === 'female' ? '女' : '男'}</TableCell>
-                    <TableCell>{n(row.height_cm)} cm</TableCell>
-                    <TableCell>{n2(row.weight_kg)} kg</TableCell>
+                    <TableCell>{withUnit(row.height_cm, 'cm')}</TableCell>
+                    <TableCell>{withUnit(row.weight_kg, 'kg', 2)}</TableCell>
                     <TableCell>{n(row.bmi)}</TableCell>
-                    <TableCell>{n(row.body_fat_percent)} %</TableCell>
-                    <TableCell>{n(row.muscle_percent)} %</TableCell>
+                    <TableCell>{withUnit(row.body_fat_percent, '%')}</TableCell>
+                    <TableCell>{withUnit(row.muscle_percent, '%')}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>

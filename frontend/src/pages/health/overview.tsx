@@ -66,6 +66,13 @@ type OverviewData = {
   }
 }
 
+/** /health/steps/stats 返回：同一天多时段采样按「当日最大值」聚合后的合计 */
+type StepsWeekStats = {
+  total_steps: number
+  avg_steps: number | null
+  trend: { record_date: string; steps: number }[]
+}
+
 const resultMeta: Record<string, { label: string; className: string }> = {
   normal: { label: '正常', className: 'bg-success-muted text-success-muted-foreground' },
   high: { label: '偏高', className: 'bg-danger-muted text-danger-muted-foreground' },
@@ -138,12 +145,18 @@ export function HealthOverviewPage() {
   const realtimeTick = useRealtime(30_000)
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
+  /** 近 7 天步数按「每天取最大值」聚合，避免把同日多条累计采样当成多天 */
+  const [stepsWeek, setStepsWeek] = useState<StepsWeekStats | null>(null)
 
   useEffect(() => {
     api
       .query<OverviewData>('/health/overview')
       .then(setData)
       .catch(() => setError(true))
+    api
+      .stats<StepsWeekStats>('/health/steps', 7)
+      .then(setStepsWeek)
+      .catch(() => setStepsWeek(null))
   }, [realtimeTick])
 
   if (error) {
@@ -184,9 +197,13 @@ export function HealthOverviewPage() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Footprints}
-          label="本周步数"
-          value={data.week_summary.steps_total.toLocaleString()}
-          hint={data.week_summary.steps_avg ? `日均 ${data.week_summary.steps_avg.toLocaleString()} 步` : '暂无数据'}
+          label="近 7 天步数"
+          value={stepsWeek ? stepsWeek.total_steps.toLocaleString() : '—'}
+          hint={
+            stepsWeek?.avg_steps != null
+              ? `按天日均 ${stepsWeek.avg_steps.toLocaleString()} 步 · ${stepsWeek.trend.length} 天有记录`
+              : '暂无数据'
+          }
           to="/health/steps"
         />
         <StatCard
