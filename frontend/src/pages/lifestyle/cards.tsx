@@ -25,6 +25,7 @@ import {
   type FieldDef,
 } from '@/components/health/record-manager'
 import { api, type PageResult } from '@/lib/api'
+import { DASH, formatCny, formatInt, formatPercent } from '@/lib/format'
 
 // ------------------------------------------------------------------ 类型
 type PhoneCard = {
@@ -113,8 +114,7 @@ type BankStats = {
 
 type BillStats = { total: number; month_total: number; by_month: { bill_month: string; amount: number }[] }
 
-const fmt = (n?: number | null) =>
-  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = formatCny
 
 const TAB_META = [
   { key: 'phone', label: '手机号', icon: Smartphone },
@@ -349,14 +349,14 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
     label: '本月进度',
     render: (r) => {
       const expected = r.month_expected ?? 0
-      if (expected <= 0) return '—'
+      if (expected <= 0) return DASH
       const charged = r.month_charged ?? 0
-      const pct = Math.min(100, Math.round((charged / expected) * 100))
+      const pct = Math.min(100, (charged / expected) * 100)
       return (
         <div className="min-w-28">
           <div className="flex items-center justify-between gap-2 text-xs">
             <span>{fmt(charged)} / {fmt(expected)}</span>
-            <span className="text-muted-foreground">{pct}%</span>
+            <span className="text-muted-foreground">{formatPercent(pct)}</span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
@@ -552,12 +552,12 @@ function DistCard({
               {visible.map((d) => {
                 const name = distLabel(d)
                 const count = d.count ?? 0
-                const pct = Math.round((count / total) * 100)
+                const pct = (count / total) * 100
                 return (
                   <li key={name}>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">{name}</span>
-                      <span className="font-medium">{count} 张 · {pct}%</span>
+                      <span className="font-medium">{formatInt(count)} 张 · {formatPercent(pct)}</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-chart-1" style={{ width: `${pct}%` }} />
@@ -572,7 +572,7 @@ function DistCard({
                 onClick={() => setExpanded((v) => !v)}
                 className="mt-2 w-full text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                {expanded ? '收起' : `展开全部（共 ${data.length} 项）`}
+                {expanded ? '收起' : `展开全部（共 ${formatInt(data.length)} 项）`}
               </button>
             )}
           </>
@@ -863,12 +863,12 @@ export function CardsPage() {
             phoneStats ? (
               <>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                  <MiniStat icon={Smartphone} label="手机卡" value={`${phoneStats.total} 张`} />
-                  <MiniStat icon={BadgeCheck} label="正常在网" value={`${phoneStats.active}`} />
+                  <MiniStat icon={Smartphone} label="手机卡" value={`${formatInt(phoneStats.total)} 张`} />
+                  <MiniStat icon={BadgeCheck} label="正常在网" value={`${formatInt(phoneStats.active)} 张`} />
                   <MiniStat label="月租合计" value={fmt(phoneStats.monthly_fee_total)} />
-                  <MiniStat label="本月扣账" value={`${phoneStats.month_deduct_count}笔/${fmt(phoneStats.month_deduct)}`} />
+                  <MiniStat label="本月扣账" value={`${formatInt(phoneStats.month_deduct_count)} 笔 / ${fmt(phoneStats.month_deduct)}`} />
                   <MiniStat label="余额合计" value={fmt(phoneStats.balance_total)} />
-                  <MiniStat label="本月未扣账" value={`${phoneStats.unpaid_this_month}张`} />
+                  <MiniStat label="本月未扣账" value={`${formatInt(phoneStats.unpaid_this_month)} 张`} />
                 </div>
                 <div className="grid gap-4 lg:grid-cols-3">
                   <DistCard title="运营商分布" data={phoneStats.by_operator} />
@@ -992,8 +992,8 @@ export function CardsPage() {
             bankStats ? (
               <>
                 <StatRow>
-                  <MiniStat icon={Landmark} label="银行卡总数" value={`${bankStats.total} 张`} />
-                  <MiniStat icon={BadgeCheck} label="正常使用" value={`${bankStats.active} 张`} />
+                  <MiniStat icon={Landmark} label="银行卡总数" value={`${formatInt(bankStats.total)} 张`} />
+                  <MiniStat icon={BadgeCheck} label="正常使用" value={`${formatInt(bankStats.active)} 张`} />
                   <MiniStat icon={CreditCard} label="余额合计" value={fmt(bankStats.balance_total)} />
                   <MiniStat icon={Banknote} label="信用卡额度" value={fmt(bankStats.credit_total)} />
                 </StatRow>
@@ -1030,9 +1030,9 @@ export function CardsPage() {
           extra={
             billStats ? (
               <StatRow cols={3}>
-                <MiniStat icon={ListChecks} label="本月扣账笔数" value={`${billStats.total} 笔`} />
+                <MiniStat icon={ListChecks} label="本月扣账笔数" value={`${formatInt(billStats.total)} 笔`} />
                 <MiniStat icon={CreditCard} label="本月扣账总额" value={fmt(billStats.month_total)} />
-                <MiniStat icon={Banknote} label="历史月份数" value={`${billStats.by_month.length} 个月`} />
+                <MiniStat icon={Banknote} label="历史月份数" value={`${formatInt(billStats.by_month.length)} 个月`} />
               </StatRow>
             ) : null
           }

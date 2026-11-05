@@ -30,6 +30,7 @@ import {
   type FieldDef,
 } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
+import { DASH, formatCny, formatInt, formatPercent } from '@/lib/format'
 
 type ItemRecord = {
   id: number
@@ -119,8 +120,7 @@ function dailyCost(r: ItemRecord): number | null {
   return null
 }
 
-const fmt = (n?: number | null) =>
-  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = formatCny
 
 const columns: ColumnDef<ItemRecord>[] = [
   {
@@ -170,7 +170,7 @@ const columns: ColumnDef<ItemRecord>[] = [
     label: '日均成本',
     render: (r) => {
       const c = dailyCost(r)
-      return c != null ? `¥${c.toFixed(2)}/天` : '—'
+      return c != null ? `${formatCny(c)}/天` : DASH
     },
   },
   { key: 'expire_date', label: '过期时间', render: (r) => r.expire_date ?? '—' },
@@ -453,12 +453,12 @@ function DistCard({
           {data.map((d) => {
             const name = String(d[Object.keys(d).find((k) => k !== 'count') ?? ''] ?? '—')
             const count = d.count ?? 0
-            const pct = Math.round((count / total) * 100)
+            const pct = (count / total) * 100
             return (
               <li key={name}>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{name}</span>
-                  <span className="font-medium">{count} 件 · {pct}%</span>
+                  <span className="font-medium">{formatInt(count)} 件 · {formatPercent(pct)}</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />

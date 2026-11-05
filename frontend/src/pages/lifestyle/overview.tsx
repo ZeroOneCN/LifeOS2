@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { formatCny, formatInt, reportTitle } from '@/lib/format'
 
 type ExpiringItem = { id: number; item_name: string; category: string; expire_date?: string; days_left: number }
 type LatestReport = { id: number; title: string; period_label?: string; summary?: string }
@@ -36,8 +37,7 @@ type OverviewData = {
   latest_report: LatestReport | null
 }
 
-const fmt = (n?: number | null) =>
-  `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = formatCny
 
 function StatCard({
   icon: Icon,
@@ -142,15 +142,15 @@ export function LifestyleOverviewPage() {
         <StatCard
           icon={Smartphone}
           label="手机卡"
-          value={`${data.phone_total} 张`}
-          hint={`正常 ${data.phone_active} 张 · 月租 ${fmt(data.phone_monthly_fee)}`}
+          value={`${formatInt(data.phone_total)} 张`}
+          hint={`正常 ${formatInt(data.phone_active)} 张 · 月租 ${fmt(data.phone_monthly_fee)}`}
           to="/lifestyle/cards"
         />
         <StatCard
           icon={CreditCard}
           label="银行卡"
-          value={`${data.bank_total} 张`}
-          hint={`正常 ${data.bank_active} 张 · 本月扣账 ${fmt(data.month_deduct)}`}
+          value={`${formatInt(data.bank_total)} 张`}
+          hint={`正常 ${formatInt(data.bank_active)} 张 · 本月扣账 ${fmt(data.month_deduct)}`}
           to="/lifestyle/cards"
         />
       </section>
@@ -198,7 +198,7 @@ export function LifestyleOverviewPage() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">本月未扣账手机卡</span>
-              <span className="font-medium">{data.phone_unpaid} 张</span>
+              <span className="font-medium">{formatInt(data.phone_unpaid)} 张</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border px-3 py-2">
               <span className="text-muted-foreground">本月累计扣账</span>
@@ -221,7 +221,7 @@ export function LifestyleOverviewPage() {
           <CardContent>
             {data.latest_report ? (
               <div className="space-y-1">
-                <div className="text-sm font-medium">{data.latest_report.title}</div>
+                <div className="text-sm font-medium">{reportTitle(data.latest_report.title)}</div>
                 <div className="text-xs text-muted-foreground">{data.latest_report.period_label ?? ''}</div>
                 {data.latest_report.summary && (
                   <p className="text-sm text-muted-foreground">{data.latest_report.summary}</p>
