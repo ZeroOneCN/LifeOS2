@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Footprints, MoonStar, Pill, Timer } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Tip } from '@/components/ui/tip'
 import {
@@ -188,12 +189,10 @@ export function HealthOverviewPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">健康总览</h1>
-        <p className="text-sm text-muted-foreground">
-          汇总最近的健康数据，快速了解当前状态。点击板块可跳转到对应页面。
-        </p>
-      </section>
+      <PageHeader
+        title="健康总览"
+        description="汇总最近的健康数据，快速了解当前状态。点击板块可跳转到对应页面。"
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

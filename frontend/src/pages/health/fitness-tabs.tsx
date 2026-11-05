@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Activity, Dumbbell, Scale, Utensils } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { FitnessDashboardPage } from './fitness-dashboard'
 import { DietPage } from './diet'
@@ -24,12 +25,10 @@ export function FitnessTabsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">健身运动</h1>
-        <p className="text-sm text-muted-foreground">
-          数据看板、饮食记录、运动记录与体重记录集中管理。
-        </p>
-      </section>
+      <PageHeader
+        title="健身运动"
+        description="数据看板、饮食记录、运动记录与体重记录集中管理。"
+      />
       <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((t) => {
           const Icon = t.icon

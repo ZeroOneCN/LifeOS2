@@ -1,5 +1,6 @@
 import { Construction } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Card, CardContent } from '@/components/ui/card'
 
 type PlaceholderPageProps = {
@@ -9,13 +10,8 @@ type PlaceholderPageProps = {
 
 export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
   return (
-    <div className="flex flex-col gap-6">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          {title}
-        </h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </section>
+    <div className="flex flex-col gap-4">
+      <PageHeader title={title} description={description} />
 
       <Card>
         <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">

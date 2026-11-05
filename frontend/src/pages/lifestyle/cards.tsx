@@ -2,6 +2,7 @@
 import { BadgeCheck, Banknote, Coins, CreditCard, Landmark, ListChecks, Settings2, Smartphone, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -792,14 +793,10 @@ export function CardsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">卡片管理</h1>
-          <p className="text-sm text-muted-foreground">
-            管理手机号卡与银行卡，维护运营商平台设置，自动记录扣账账单并分析。
-          </p>
-        </div>
-      </section>
+      <PageHeader
+        title="卡片管理"
+        description="管理手机号卡与银行卡，维护运营商平台设置，自动记录扣账账单并分析。"
+      />
 
       <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TAB_META.map((t) => (

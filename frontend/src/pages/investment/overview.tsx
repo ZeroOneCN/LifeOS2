@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import { CalendarClock, Download, FileText, Gift, Percent, TrendingUp } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
@@ -190,12 +191,10 @@ export function InvestmentOverviewPage() {
   const a = data.analysis
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">投资总览</h1>
-        <p className="text-sm text-muted-foreground">
-          汇总外汇交易、资金动态与投资报告，快速掌握整体账户表现。
-        </p>
-      </section>
+      <PageHeader
+        title="投资总览"
+        description="汇总外汇交易、资金动态与投资报告，快速掌握整体账户表现。"
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} / 出金 ${fmtVal(s.total_withdraw)}`} />

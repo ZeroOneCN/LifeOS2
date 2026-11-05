@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bookmark, HandCoins, Landmark, Wallet } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
@@ -59,15 +60,17 @@ export function DebtsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">债务管理</h1>
-          <p className="text-sm text-muted-foreground">
-            管理民间借贷与网贷同步，并维护投资记账与汇率换算。
-          </p>
-        </div>
-        {currency && <Badge variant="outline" className="text-base">显示：{currency.name ?? currency.currency} {currency.symbol ?? ''}</Badge>}
-      </section>
+      <PageHeader
+        title="债务管理"
+        description="管理民间借贷与网贷同步，并维护投资记账与汇率换算。"
+        actions={
+          currency && (
+            <Badge variant="outline" className="text-base">
+              显示：{currency.name ?? currency.currency} {currency.symbol ?? ''}
+            </Badge>
+          )
+        }
+      />
 
       <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {tabs.map((t) => (

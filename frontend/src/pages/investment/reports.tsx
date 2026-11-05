@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import {
@@ -189,15 +190,15 @@ export function InvestmentReportsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">投资报告</h1>
-          <p className="text-sm text-muted-foreground">自动汇总外汇交易与资金动态，支持近 7/30/90 天或自定义区间生成报告并导出 PDF。</p>
-        </div>
-        <Button onClick={() => setGenOpen(true)}>
-          <Sparkles className="size-4" /> 生成报告
-        </Button>
-      </div>
+      <PageHeader
+        title="投资报告"
+        description="自动汇总外汇交易与资金动态，支持近 7/30/90 天或自定义区间生成报告并导出 PDF。"
+        actions={
+          <Button onClick={() => setGenOpen(true)}>
+            <Sparkles className="size-4" /> 生成报告
+          </Button>
+        }
+      />
 
       {preview && (
         <Card className="border-decor-indigo/30">

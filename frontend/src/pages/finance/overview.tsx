@@ -13,6 +13,7 @@ import {
   Wallet,
 } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -143,12 +144,10 @@ export function FinanceOverviewPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">财务总览</h1>
-        <p className="text-sm text-muted-foreground">
-          汇总本月收支、负债与投资快照，快速掌握整体资金状况。
-        </p>
-      </section>
+      <PageHeader
+        title="财务总览"
+        description="汇总本月收支、负债与投资快照，快速掌握整体资金状况。"
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Wallet} label="本月支出" value={fmt(data.month_expense)} hint="购/旅/水电/订阅/租/贷" valueCls="text-warning" />

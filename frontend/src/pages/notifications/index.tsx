@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Bell, Cable, Inbox, MailCheck, Send, SlidersHorizontal } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { NotificationList } from './list'
 import { ChannelsPanel } from './channels'
@@ -23,12 +24,10 @@ export function NotificationsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">通知中心</h1>
-        <p className="text-sm text-muted-foreground">
-          统一通知提醒：汇总各模块到期数据，经配置渠道下发到邮件/钉钉/飞书/企微/Telegram/Webhook。
-        </p>
-      </section>
+      <PageHeader
+        title="通知中心"
+        description="统一通知提醒：汇总各模块到期数据，经配置渠道下发到邮件/钉钉/飞书/企微/Telegram/Webhook。"
+      />
 
       <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
         {TABS.map((t) => (

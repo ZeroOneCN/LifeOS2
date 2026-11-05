@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { KeyRound, Loader2, Quote, RotateCcw, Save, ShieldCheck, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -202,12 +203,10 @@ export function UserCenterPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">账户设置</h1>
-        <p className="text-sm text-muted-foreground">
-          管理个人资料、登录账号与密码，修改后点击对应卡片的保存按钮生效。
-        </p>
-      </section>
+      <PageHeader
+        title="账户设置"
+        description="管理个人资料、登录账号与密码，修改后点击对应卡片的保存按钮生效。"
+      />
 
       {loading ? (
         <div className="flex justify-center py-16 text-muted-foreground">

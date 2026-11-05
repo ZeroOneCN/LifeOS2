@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Banknote, Home, Repeat } from 'lucide-react'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 
 import { HousingTab } from './housing-tab'
@@ -29,10 +30,7 @@ export function BillsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="space-y-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">账单管理</h1>
-        <p className="text-sm text-muted-foreground">集中管理住房水电、服务订阅与网贷还款。</p>
-      </section>
+      <PageHeader title="账单管理" description="集中管理住房水电、服务订阅与网贷还款。" />
 
       <div className="flex gap-1 rounded-lg bg-muted p-1">
         {tabs.map((t) => (
