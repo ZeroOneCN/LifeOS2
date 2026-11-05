@@ -72,7 +72,7 @@ function StatCard({
 
 function SectionCard({ title, to, children }: { title: string; to?: string; children: React.ReactNode }) {
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-sm">
           <span>{title}</span>
@@ -131,7 +131,7 @@ export function LifestyleOverviewPage() {
         </p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={Package}
           label="物品追踪"
@@ -152,6 +152,13 @@ export function LifestyleOverviewPage() {
           value={`${formatInt(data.bank_total)} 张`}
           hint={`正常 ${formatInt(data.bank_active)} 张 · 本月扣账 ${fmt(data.month_deduct)}`}
           to="/lifestyle/cards"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="临期物品"
+          value={`${formatInt(data.item_expiring)} 件`}
+          hint={data.item_expired > 0 ? `另有 ${formatInt(data.item_expired)} 件已过期` : '30 天内到期'}
+          to="/lifestyle/items"
         />
       </section>
 
@@ -186,7 +193,7 @@ export function LifestyleOverviewPage() {
         </SectionCard>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid items-start gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
