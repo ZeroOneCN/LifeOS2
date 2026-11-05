@@ -19,6 +19,15 @@ import { CalendarClock, Download, FileText, Gift, Percent, TrendingUp } from 'lu
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import {
+  DASH,
+  formatDecimal,
+  formatInt,
+  formatPercent,
+  formatUsd,
+  formatUsdAxis,
+  formatUsdSigned,
+} from '@/lib/format'
 import { useChartColors } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
@@ -67,15 +76,13 @@ type OverviewData = {
 }
 
 /** 投资域金额统一为美元：负号在货币符号前，如 -$1,234.00 */
-const fmtVal = (n: number) =>
-  `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmtVal = formatUsd
 /** 盈亏带符号，0 不加正号 */
-const fmtPnl = (n: number) =>
-  `${n > 0 ? '+$' : n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmtPnl = formatUsdSigned
 /** 图表坐标轴：整数美元，避免坐标轴被小数挤满 */
-const fmtAxis = (n: number) => `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString()}`
+const fmtAxis = formatUsdAxis
 /** 非金额比率（如盈利因子），不带货币符号 */
-const fmtNum = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2 })
+const fmtNum = (n: number) => formatDecimal(n, 2)
 
 function StatCard({
   icon: Icon,
@@ -193,12 +200,12 @@ export function InvestmentOverviewPage() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} / 出金 ${fmtVal(s.total_withdraw)}`} />
         <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
-        <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
-        <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
+        <StatCard icon={Download} label="交易数" value={`${formatInt(s.trade_count)} 笔`} hint={`持仓 ${formatInt(s.open_count)} · 品种 ${formatInt(s.symbol_count)}`} />
+        <StatCard icon={Percent} label="胜率" value={formatPercent(s.win_rate ?? 0)} hint={`盈亏比 ${formatDecimal(s.profit_loss_ratio ?? 0, 2)}`} />
         <StatCard icon={TrendingUp} label="手续费" value={fmtVal(s.total_commission)} hint={`隔夜费 ${fmtVal(s.total_overnight)}`} />
-        <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint={`交易记录 ${data.total_records} 条`} />
-        <StatCard icon={FileText} label="投资报告" value={`${data.report_count} 份`} hint="历史报告" />
-        <StatCard icon={CalendarClock} label="资金动态" value={`${data.fund_count} 条`} hint="出入金/体验金记录" />
+        <StatCard icon={Gift} label="体验金" value={fmtVal(s.total_experience)} hint={`交易记录 ${formatInt(data.total_records)} 条`} />
+        <StatCard icon={FileText} label="投资报告" value={`${formatInt(data.report_count)} 份`} hint="历史报告" />
+        <StatCard icon={CalendarClock} label="资金动态" value={`${formatInt(data.fund_count)} 条`} hint="出入金/体验金记录" />
       </section>
 
       <Card>
@@ -257,10 +264,10 @@ export function InvestmentOverviewPage() {
       </Card>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
-        <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
-        <StatCard icon={TrendingUp} label="最大回撤" value={fmtVal(a.max_drawdown)} hint={`幅度 ${a.max_drawdown_pct}%`} />
-        <StatCard icon={TrendingUp} label="盈利因子" value={a.profit_factor != null ? fmtNum(a.profit_factor) : '—'} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
+        <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : DASH} />
+        <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : DASH} />
+        <StatCard icon={TrendingUp} label="最大回撤" value={fmtVal(a.max_drawdown)} hint={`幅度 ${formatPercent(a.max_drawdown_pct)}`} />
+        <StatCard icon={TrendingUp} label="盈利因子" value={a.profit_factor != null ? fmtNum(a.profit_factor) : DASH} hint={`连胜 ${formatInt(a.longest_win_streak)} · 连亏 ${formatInt(a.longest_loss_streak)}`} />
       </section>
     </div>
   )

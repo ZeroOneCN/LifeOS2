@@ -62,6 +62,17 @@ import { PaginationBar } from '@/components/ui/pagination-bar'
 import { Tip } from '@/components/ui/tip'
 import { RecordManager, type ColumnDef, type FieldDef } from '@/components/health/record-manager'
 import { api } from '@/lib/api'
+import {
+  DASH,
+  formatDateTime,
+  formatDecimal,
+  formatDuration,
+  formatInt,
+  formatPercent,
+  formatUsd,
+  formatUsdAxis,
+  formatUsdSigned,
+} from '@/lib/format'
 import { useChartColors } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
@@ -157,23 +168,16 @@ type FundStats = {
 // 工具
 // ---------------------------------------------------------------------------
 /** 投资域金额统一为美元：负号在货币符号前，如 -$1,234.00 */
-const fmtVal = (n: number) =>
-  `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmtVal = formatUsd
 /** 盈亏带符号，0 不加正号 */
-const fmtPnl = (n: number) =>
-  `${n > 0 ? '+$' : n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmtPnl = formatUsdSigned
 /** 图表坐标轴：整数美元，避免坐标轴被小数挤满 */
-const fmtAxis = (n: number) => `${n < 0 ? '-$' : '$'}${Math.abs(n).toLocaleString()}`
+const fmtAxis = formatUsdAxis
 /** 颜色只由数值符号决定，0 为中性 */
 const pnlCls = (n: number) =>
   n > 0 ? 'font-semibold text-success' : n < 0 ? 'font-semibold text-danger' : 'font-semibold text-muted-foreground'
-const fmtHolding = (min?: number) => {
-  if (min == null) return '—'
-  if (min < 60) return `${min}分`
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return `${h}时${m}分`
-}
+/** 持仓时长：统一「40 分钟」/「1 小时 5 分钟」口径 */
+const fmtHolding = formatDuration
 
 // ---------------------------------------------------------------------------
 // 交易表单字段（MT5 格式）
@@ -254,10 +258,8 @@ const tradeColumns: ColumnDef<ForexRecord>[] = [
   },
 ]
 
-const fmtDT = (v?: string) => {
-  if (!v) return '—'
-  return v.replace('T', ' ').slice(0, 19)
-}
+/** 交易时间：展示层统一 YYYY-MM-DD HH:mm（不显示秒） */
+const fmtDT = formatDateTime
 
 // ---------------------------------------------------------------------------
 // 收益曲线（红绿基线：绿涨红跌，0 为基线）
@@ -378,7 +380,7 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
             </div>
             <div className="rounded-lg border bg-muted/40 px-2 py-2">
               <div className="text-[11px] text-muted-foreground">月收益率</div>
-              <div className={`text-sm font-semibold ${pnlCls(data.summary.return_rate)}`}>{data.summary.return_rate}%</div>
+              <div className={`text-sm font-semibold ${pnlCls(data.summary.return_rate)}`}>{formatPercent(data.summary.return_rate, 1, 2)}</div>
             </div>
           </div>
         )}
@@ -402,7 +404,7 @@ function TradingCalendar({ refreshKey }: { refreshKey: number }) {
                 {d.count > 0 && (
                   <div className="space-y-0.5 text-right">
                     <div className={`text-xs font-semibold ${pnlCls(d.pnl)}`}>{fmtPnl(d.pnl)}</div>
-                    <div className="text-[10px] text-muted-foreground">{d.count}笔 {d.win > 0 ? `· 胜${d.win}` : ''}{d.position ? '· 持仓' : ''}</div>
+                    <div className="text-[10px] text-muted-foreground">{formatInt(d.count)}笔 {d.win > 0 ? `· 胜${formatInt(d.win)}` : ''}{d.position ? '· 持仓' : ''}</div>
                   </div>
                 )}
               </div>
@@ -650,7 +652,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">保证金比例</div>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-semibold">{result.marginLevel != null ? `${result.marginLevel.toFixed(1)}%` : '—'}</span>
+                    <span className="text-lg font-semibold">{result.marginLevel != null ? formatPercent(result.marginLevel) : DASH}</span>
                     <Badge className={statusBadge.cls}>{statusBadge.text}</Badge>
                   </div>
                 </div>
@@ -686,7 +688,7 @@ function PositionCalculator({ equity }: { equity?: number }) {
                       <TableCell className="text-right">{fmtVal(p.notional)}</TableCell>
                       <TableCell className="text-right text-decor-indigo">{fmtVal(p.margin)}</TableCell>
                       <TableCell className="text-right font-medium">
-                        {p.liqPrice != null && Number.isFinite(p.liqPrice) ? p.liqPrice.toFixed(p.open < 10 ? 4 : 2) : '—'}
+                        {p.liqPrice != null && Number.isFinite(p.liqPrice) ? p.liqPrice.toFixed(p.open < 10 ? 4 : 2) : DASH}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1035,8 +1037,8 @@ export function ForexPage() {
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
                   <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
-                  <StatCard icon={Download} label="交易数" value={`${s.trade_count} 笔`} hint={`持仓 ${s.open_count} · 品种 ${s.symbol_count}`} />
-                  <StatCard icon={Percent} label="胜率" value={`${s.win_rate ?? 0}%`} hint={`盈亏比 ${s.profit_loss_ratio ?? 0}`} />
+                  <StatCard icon={Download} label="交易数" value={`${formatInt(s.trade_count)} 笔`} hint={`持仓 ${formatInt(s.open_count)} · 品种 ${formatInt(s.symbol_count)}`} />
+                  <StatCard icon={Percent} label="胜率" value={formatPercent(s.win_rate ?? 0)} hint={`盈亏比 ${formatDecimal(s.profit_loss_ratio ?? 0, 2)}`} />
                   <StatCard icon={Download} label="手续费" value={fmtVal(s.total_commission)} hint="累计手续费" />
                   <StatCard icon={CalendarDays} label="隔夜费" value={fmtVal(s.total_overnight)} hint="库存/隔夜费合计" />
                   <StatCard icon={ArrowUpFromLine} label="入金" value={fmtVal(s.total_deposit)} hint={`出金 ${fmtVal(s.total_withdraw)}`} />
@@ -1083,8 +1085,8 @@ export function ForexPage() {
 
               {a && (
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatCard icon={TrendingUp} label="单笔最大盈利" value={a.max_single_profit != null ? fmtPnl(a.max_single_profit) : '—'} valueCls={a.max_single_profit != null ? pnlCls(a.max_single_profit) : ''} hint={a.max_single_profit_date || undefined} />
-                  <StatCard icon={TrendingDown} label="单笔最大亏损" value={a.max_single_loss != null ? fmtPnl(a.max_single_loss) : '—'} valueCls={a.max_single_loss != null ? pnlCls(a.max_single_loss) : ''} hint={a.max_single_loss_date || undefined} />
+                  <StatCard icon={TrendingUp} label="单笔最大盈利" value={a.max_single_profit != null ? fmtPnl(a.max_single_profit) : DASH} valueCls={a.max_single_profit != null ? pnlCls(a.max_single_profit) : ''} hint={a.max_single_profit_date || undefined} />
+                  <StatCard icon={TrendingDown} label="单笔最大亏损" value={a.max_single_loss != null ? fmtPnl(a.max_single_loss) : DASH} valueCls={a.max_single_loss != null ? pnlCls(a.max_single_loss) : ''} hint={a.max_single_loss_date || undefined} />
                   <StatCard icon={CalendarRange} label="单天最大盈利" value={a.max_day_profit != null ? fmtPnl(a.max_day_profit) : '—'} valueCls={a.max_day_profit != null ? pnlCls(a.max_day_profit) : ''} hint={a.max_day_profit_date || undefined} />
                   <StatCard icon={CalendarDays} label="单天最大亏损" value={a.max_day_loss != null ? fmtPnl(a.max_day_loss) : '—'} valueCls={a.max_day_loss != null ? pnlCls(a.max_day_loss) : ''} hint={a.max_day_loss_date || undefined} />
                 </section>
@@ -1092,10 +1094,10 @@ export function ForexPage() {
 
               {a && (
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : '—'} />
-                  <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : '—'} />
-                  <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${a.max_drawdown_pct}%`} />
-                  <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${a.longest_win_streak} · 连亏 ${a.longest_loss_streak}`} />
+                  <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : DASH} />
+                  <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : DASH} />
+                  <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${formatPercent(a.max_drawdown_pct)}`} />
+                  <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${formatInt(a.longest_win_streak)} · 连亏 ${formatInt(a.longest_loss_streak)}`} />
                 </section>
               )}
             </>
