@@ -80,7 +80,7 @@ export function MemoTab() {
               <Button onClick={openCreate}><Plus /> 新增备忘</Button>
             </CardHeaderActions>
           </CardHeader>
-          <div className="grid gap-2 p-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-2 p-4 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
             {items.length === 0 ? (
               <p className="col-span-full py-6 text-center text-sm text-muted-foreground">暂无备忘，记录那些有点印象却容易忘的事</p>
             ) : items.map((m) => (

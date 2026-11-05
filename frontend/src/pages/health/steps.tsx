@@ -509,7 +509,7 @@ export function StepsPage() {
             <div className="px-4 pb-4 text-center text-sm text-muted-foreground">当月暂无步数数据</div>
           ) : (
             <>
-              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
                 {daySum?.items.map((d) => {
                   // 卡片较窄，次级信息去掉「距离/消耗」前缀、由 km/kcal 单位自证，title 保留完整说明
                   const dist = d.distance_km != null ? `${formatDecimal(d.distance_km, 2)} km` : DASH
@@ -525,24 +525,22 @@ export function StepsPage() {
                             <span className="min-w-0 truncate text-sm font-medium text-foreground">
                               {d.record_date}
                             </span>
-                            <span className="shrink-0 text-sm text-muted-foreground" title={countText}>
+                            <span className="shrink-0 text-xs text-muted-foreground" title={countText}>
                               {countText}
                             </span>
                           </div>
-                          <div className="flex items-end justify-between gap-2">
-                            <span className="flex shrink-0 items-baseline gap-1">
-                              <span className="text-2xl font-semibold leading-none tabular-nums">
-                                {formatInt(d.steps)}
-                              </span>
-                              <span className="text-sm text-muted-foreground">步</span>
+                          <span className="flex items-baseline gap-1">
+                            <span className="text-2xl font-semibold leading-none tabular-nums">
+                              {formatInt(d.steps)}
                             </span>
-                            <span
-                              className="min-w-0 truncate text-right text-sm text-muted-foreground"
-                              title={metaTitle}
-                            >
-                              {meta}
-                            </span>
-                          </div>
+                            <span className="text-sm text-muted-foreground">步</span>
+                          </span>
+                          <span
+                            className="truncate text-sm text-muted-foreground"
+                            title={metaTitle}
+                          >
+                            {meta}
+                          </span>
                         </div>
                       </CardContent>
                     </Card>
@@ -566,7 +564,7 @@ export function StepsPage() {
         <Card>
           <CardContent className="p-0">
             <div className="px-4 pt-4 pb-2 text-sm font-medium">每月步数汇总（每月 = 每天最大值之和）</div>
-            <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
               {[...months]
                 .sort((a, b) => b.month.localeCompare(a.month))
                 .map((m) => {
@@ -585,20 +583,18 @@ export function StepsPage() {
                               {daysText}
                             </span>
                           </div>
-                          <div className="flex items-end justify-between gap-2">
-                            <span className="flex shrink-0 items-baseline gap-1">
-                              <span className="text-2xl font-semibold leading-none tabular-nums">
-                                {formatInt(m.steps)}
-                              </span>
-                              <span className="text-sm text-muted-foreground">步</span>
+                          <span className="flex items-baseline gap-1">
+                            <span className="text-2xl font-semibold leading-none tabular-nums">
+                              {formatInt(m.steps)}
                             </span>
-                            <span
-                              className="min-w-0 truncate text-right text-sm text-muted-foreground"
-                              title={meta}
-                            >
-                              {meta}
-                            </span>
-                          </div>
+                            <span className="text-sm text-muted-foreground">步</span>
+                          </span>
+                          <span
+                            className="truncate text-sm text-muted-foreground"
+                            title={meta}
+                          >
+                            {meta}
+                          </span>
                         </div>
                       </CardContent>
                     </Card>
