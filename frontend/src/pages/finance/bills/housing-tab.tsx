@@ -50,6 +50,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatInt } from '@/lib/format'
 import { toast } from 'sonner'
 
 import { fmt } from './shared'
@@ -486,7 +487,7 @@ export function HousingTab() {
             const occupiedCount = stats.houses.filter((h) => !h.move_out_date).length
             return (
               <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <StatCard icon={Home} label="在住房数" value={`${occupiedCount} / ${stats.houses.length} 套`} hint={`累计居住 ${totalDays} 天`} className="text-decor-indigo" />
+                <StatCard icon={Home} label="在住房数" value={`${formatInt(occupiedCount)} / ${formatInt(stats.houses.length)} 套`} hint={`累计居住 ${formatInt(totalDays)} 天`} className="text-decor-indigo" />
                 <StatCard icon={Wallet} label="总花费" value={fmt(totalSpent)} hint="已交期次+已缴水电+杂费" className="text-warning" />
                 <StatCard icon={Building} label="组合月租" value={fmt(stats.combined_monthly_rent)} hint="当月折算" className="text-info" />
                 <StatCard icon={Wallet} label="平均单日成本" value={fmt(avgDaily)} hint={avgDaily > 0 ? `折算月租 ${fmt(avgDaily * 30)}` : '尚无数据'} className="text-danger" />
@@ -498,7 +499,7 @@ export function HousingTab() {
               <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium min-w-0 max-w-[55%] truncate">住房清单</CardTitle>
                 <CardHeaderActions className="text-xs text-muted-foreground">
-                  <span>{sortedHouses.length} 套 · 第 {housePage}/{houseTotalPages} 页</span>
+                  <span>{formatInt(sortedHouses.length)} 套 · 第 {formatInt(housePage)}/{formatInt(houseTotalPages)} 页</span>
                   <Tip label="上一页"><Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage <= 1} onClick={() => setHousePage(housePage - 1)}><ChevronLeft className="size-4" /></Button></Tip>
                   <Tip label="下一页"><Button variant="ghost" size="icon" className="h-6 w-6" disabled={housePage >= houseTotalPages} onClick={() => setHousePage(housePage + 1)}><ChevronRight className="size-4" /></Button></Tip>
                 </CardHeaderActions>
@@ -677,7 +678,7 @@ export function HousingTab() {
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">付款期次</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                      <span className="text-xs text-muted-foreground">已交 {formatInt(paidCount)}/{formatInt(terms.length)} 期 · 已交 {fmt(paidSum)}</span>
                       <Button size="sm" onClick={() => { setTermForm({ amount: '', due_date: new Date().toISOString().slice(0, 10), paid: true }); setTermDialog({ housing_id: editingId }) }}>新增期次</Button>
                     </div>
                   </div>
@@ -793,11 +794,11 @@ export function HousingTab() {
               ['保洁费', viewH.clean_fee ? fmt(viewH.clean_fee) : '—'],
               ['服务费', viewH.service_fee ? fmt(viewH.service_fee) : '—'],
               ['洗衣费', viewH.laundry_fee ? fmt(viewH.laundry_fee) : '—'],
-              ['居住月数', `${months} 个月（${days} 天）`],
+              ['居住月数', `${formatInt(months)} 个月（${formatInt(days)} 天）`],
             ]
             const costRows: [string, string][] = [
               ['当月已发生成本', incurredMonth > 0 ? fmt(incurredMonth) : '—'],
-              [`当月居住天数`, daysInMonth > 0 ? `${daysInMonth} 天` : '—'],
+              [`当月居住天数`, daysInMonth > 0 ? `${formatInt(daysInMonth)} 天` : DASH],
               ['整段已发生成本(含杂费)', incurred > 0 ? fmt(incurred) : '—'],
               ['整段平均单日成本', daily > 0 ? fmt(daily) : '—'],
               ['折算月租(单日×30)', daily > 0 ? fmt(daily * 30) : '—'],
@@ -851,7 +852,7 @@ export function HousingTab() {
                       <div className="mb-1.5 flex items-center justify-between">
                         <span className="text-sm font-medium">付款期次</span>
                         {terms.length > 0 && (
-                          <span className="text-xs text-muted-foreground">已交 {paidCount}/{terms.length} 期 · 已交 {fmt(paidSum)}</span>
+                          <span className="text-xs text-muted-foreground">已交 {formatInt(paidCount)}/{formatInt(terms.length)} 期 · 已交 {fmt(paidSum)}</span>
                         )}
                       </div>
                       <div className="space-y-1.5">

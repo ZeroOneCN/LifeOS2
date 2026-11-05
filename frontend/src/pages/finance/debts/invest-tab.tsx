@@ -28,6 +28,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
+import { formatInt, formatUsd } from '@/lib/format'
 
 import { investCategories } from './shared'
 import { StatCard } from './stat-card'
@@ -39,7 +40,7 @@ type InvStats = { count: number; total_pnl: number; profit: number; loss: number
 
 export function InvestTab() {
   // 投资记账统一按美元计算与显示，不做汇率换算
-  const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+  const usd = formatUsd
   const realtimeTick = useRealtime(30_000)
   const [items, setItems] = useState<Investment[]>([])
   const [stats, setStats] = useState<InvStats | null>(null)
@@ -102,7 +103,7 @@ export function InvestTab() {
       {stats && (
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Wallet} label="投资平台数" value={`${stats.count} 个`} />
+            <StatCard icon={Wallet} label="投资平台数" value={`${formatInt(stats.count)} 个`} />
             <StatCard icon={ArrowUpCircle} label="整体盈亏" value={usd(stats.total_pnl)} className={stats.total_pnl >= 0 ? 'text-success' : 'text-danger'} />
             <StatCard icon={ArrowUpCircle} label="盈利合计" value={usd(stats.profit)} className="text-success" />
             <StatCard icon={ArrowDownCircle} label="亏损合计" value={usd(stats.loss)} className="text-danger" />

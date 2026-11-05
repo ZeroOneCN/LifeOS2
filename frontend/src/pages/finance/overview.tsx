@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatCny, formatInt, formatUsdSigned } from '@/lib/format'
 
 type PendingItem = { id: number; bill_type: string; amount: number; remaining?: number; due_date?: string }
 type UpcomingSub = { id: number; title: string; category: string; amount?: number; due_date?: string }
@@ -52,9 +53,7 @@ type FinanceOverviewData = {
   active_plans: ActivePlan[]
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-const usdFmt = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-const usdSignFmt = (n: number) => (n > 0 ? `+${usdFmt(n)}` : n < 0 ? `-${usdFmt(Math.abs(n))}` : usdFmt(n))
+const fmt = formatCny
 
 function StatCard({
   icon: Icon,
@@ -153,13 +152,13 @@ export function FinanceOverviewPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={Wallet} label="本月支出" value={fmt(data.month_expense)} hint="购/旅/水电/订阅/租/贷" valueCls="text-warning" />
-        <StatCard icon={ShoppingCart} label="购物记录" value={`${data.month_purchase_count} 笔`} hint="本月消费笔数" />
-        <StatCard icon={Plane} label="旅行开支" value={`${data.month_travel_count} 笔`} hint="本月旅行费用笔数" />
-        <StatCard icon={Receipt} label="网贷未还" value={fmt(data.unpaid_bills)} hint={`本月 ${data.month_bill_count} 笔账单`} />
+        <StatCard icon={ShoppingCart} label="购物记录" value={`${formatInt(data.month_purchase_count)} 笔`} hint="本月消费笔数" />
+        <StatCard icon={Plane} label="旅行开支" value={`${formatInt(data.month_travel_count)} 笔`} hint="本月旅行费用笔数" />
+        <StatCard icon={Receipt} label="网贷未还" value={fmt(data.unpaid_bills)} hint={`本月 ${formatInt(data.month_bill_count)} 笔账单`} />
         <StatCard icon={HandCoins} label="累计待还" value={fmt(data.outstanding_loans + data.outstanding_debt)} hint={`网贷 ${fmt(data.outstanding_loans)} + 民间 ${fmt(data.outstanding_debt)}`} />
         <StatCard icon={Home} label="组合房租" value={fmt(data.categories.find((c) => c.label === '住房月租')?.amount ?? 0)} hint="当月折算" />
         <StatCard icon={Banknote} label="借贷往来" value={fmt(data.lend_total)} hint={`借出 ${fmt(data.lend_total)} / 借入 ${fmt(data.borrow_total)}`} />
-        <StatCard icon={TrendingUp} label="投资盈亏" value={usdSignFmt(data.invest_pnl)} hint={`共 ${data.invest_count} 项持仓`} />
+        <StatCard icon={TrendingUp} label="投资盈亏" value={formatUsdSigned(data.invest_pnl)} hint={`共 ${formatInt(data.invest_count)} 项持仓`} />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -269,7 +268,7 @@ export function FinanceOverviewPage() {
               {data.active_plans.map((p) => {
                 const pct =
                   p.target_amount && p.saved_amount
-                    ? Math.min(100, Math.round((p.saved_amount / p.target_amount) * 100))
+                    ? Math.min(100, (p.saved_amount / p.target_amount) * 100)
                     : 0
                 return (
                   <div key={p.id} className="rounded-lg border px-3 py-2">
@@ -279,8 +278,8 @@ export function FinanceOverviewPage() {
                         <Badge className="ml-2 bg-info-muted text-info-muted-foreground">{p.plan_type}</Badge>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {p.saved_amount != null ? fmt(p.saved_amount) : '—'} /{' '}
-                        {p.target_amount != null ? fmt(p.target_amount) : '—'}
+                        {p.saved_amount != null ? fmt(p.saved_amount) : DASH} /{' '}
+                        {p.target_amount != null ? fmt(p.target_amount) : DASH}
                       </span>
                     </div>
                     {p.target_amount && p.saved_amount ? (

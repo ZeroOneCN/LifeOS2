@@ -53,6 +53,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import { Hint, Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
+import { formatInt, formatPercent } from '@/lib/format'
 
 import {
   channelMeta,
@@ -309,7 +310,7 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
             <Card className="border-danger/40 bg-danger-muted">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-danger-muted-foreground">
-                  <AlertTriangle className="size-4" /> 已逾期 {stats?.overdue ?? 0} 笔待处理
+                  <AlertTriangle className="size-4" /> 已逾期 {formatInt(stats?.overdue ?? 0)} 笔待处理
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm">
@@ -337,7 +338,7 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
               {loanSync.platforms.map((p) => (
                 <Badge key={p.platform_id} variant="outline" className="bg-white/80 dark:bg-white/5">
                   {p.name}：<span className="font-medium text-danger">{fmtMoney(p.remaining)}</span>
-                  <span className="text-muted-foreground">（{p.bill_count} 笔）</span>
+                  <span className="text-muted-foreground">（{formatInt(p.bill_count)} 笔）</span>
                 </Badge>
               ))}
               <Badge className="bg-decor-indigo/15 text-decor-indigo">合计 {fmtMoney(loanSync.total_remaining)}</Badge>
@@ -388,7 +389,7 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                   {showInterest && (
                     <TableCell className="text-right">
                       <div className="font-medium">{intr > 0 ? fmtMoney(intr) : '—'}</div>
-                      {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{d.interest_rate}%/年</div>}
+                      {d.interest_rate != null && d.interest_rate > 0 && <div className="text-xs text-muted-foreground">{formatPercent(d.interest_rate, 1, 2)}/年</div>}
                     </TableCell>
                   )}
                   {showDue && <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>}

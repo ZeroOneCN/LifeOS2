@@ -35,6 +35,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatInt } from '@/lib/format'
 import { toast } from 'sonner'
 
 import { fmt } from './shared'
@@ -47,9 +48,9 @@ const cycleMeta: Record<string, string> = { month: '月付', quarter: '季付', 
 /** 开通时长：start → end（缺省算至今），返回如 1年3个月 / 28天 */
 function durationLabel(start?: string, end?: string): string {
   const s = start ? new Date(start) : null
-  if (!s || isNaN(s.getTime())) return '—'
+  if (!s || isNaN(s.getTime())) return DASH
   const e = end ? new Date(end) : new Date()
-  if (isNaN(e.getTime()) || e < s) return '—'
+  if (isNaN(e.getTime()) || e < s) return DASH
   const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth())
   const days = Math.floor((e.getTime() - s.getTime()) / 86400000) % 30
   if (months >= 12) return `${Math.floor(months / 12)}年${months % 12 ? `${months % 12}个月` : ''}`
@@ -196,10 +197,10 @@ export function SubscriptionTab() {
       {stats && (
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Repeat} label="每月订阅支出" value={fmt(stats.total_active)} hint={`${stats.active_count} 项生效中`} className="text-decor-indigo" />
-            <StatCard icon={Wallet} label="总订阅数" value={`${stats.total_count} 项`} hint={`${stats.active_count} 项生效`} />
-            <StatCard icon={Layers} label="订阅分类" value={`${stats.by_category.length} 类`} hint={stats.by_category[0] ? `最多 ${stats.by_category[0].category}` : '暂无分类'} />
-            <StatCard icon={Repeat} label="即将续费" value={`${stats.upcoming.length} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-warning" />
+            <StatCard icon={Repeat} label="每月订阅支出" value={fmt(stats.total_active)} hint={`${formatInt(stats.active_count)} 项生效中`} className="text-decor-indigo" />
+            <StatCard icon={Wallet} label="总订阅数" value={`${formatInt(stats.total_count)} 项`} hint={`${formatInt(stats.active_count)} 项生效`} />
+            <StatCard icon={Layers} label="订阅分类" value={`${formatInt(stats.by_category.length)} 类`} hint={stats.by_category[0] ? `最多 ${stats.by_category[0].category}` : '暂无分类'} />
+            <StatCard icon={Repeat} label="即将续费" value={`${formatInt(stats.upcoming.length)} 项`} hint={stats.upcoming[0] ? `最近 ${stats.upcoming[0].next_renewal}` : '近期无续费'} className="text-warning" />
           </section>
           {stats.by_category.length > 0 && (
             <Card>

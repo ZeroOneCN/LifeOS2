@@ -55,6 +55,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Hint, Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { formatInt, formatPercent } from '@/lib/format'
 import { toast } from 'sonner'
 
 import { fmt, remainingOf, round2 } from './shared'
@@ -525,10 +526,10 @@ export function LoanTab() {
           <StatCard icon={Wallet} label="累计欠款" value={fmt(billStats?.total ?? 0)} hint={`已还 ${fmt(billStats?.paid ?? 0)}`} className="text-warning" />
           <StatCard icon={Wallet} label="利息总额" value={fmt(billStats?.total_interest ?? 0)} hint="全部账单利息合计" className="text-success" />
           <StatCard icon={Banknote} label="优惠合计" value={fmt(repStats?.total_discount ?? 0)} hint="还款优惠/抵扣" className="text-decor-indigo" />
-          <StatCard icon={Layers} label="借款平台" value={`${platformStats.platform_count} 个`} hint={`还款 ${repStats?.count ?? 0} 笔`} />
-          <StatCard icon={Banknote} label="待还账单" value={`${(billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0)} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-decor-indigo" />
-          <StatCard icon={FileText} label="本月账单数" value={`${thisMonthBills.length} 笔`} hint={`${thisMonth} 账单`} />
-          <StatCard icon={CheckCircle2} label="已结清" value={`${billStats?.status.cleared ?? 0} 笔`} hint="全部已结清账单" className="text-success" />
+          <StatCard icon={Layers} label="借款平台" value={`${formatInt(platformStats.platform_count)} 个`} hint={`还款 ${formatInt(repStats?.count ?? 0)} 笔`} />
+          <StatCard icon={Banknote} label="待还账单" value={`${formatInt((billStats?.status.pending ?? 0) + (billStats?.status.partial ?? 0))} 笔`} hint={`${billStats?.by_month[0]?.month ?? ''} 到期数据`} className="text-decor-indigo" />
+          <StatCard icon={FileText} label="本月账单数" value={`${formatInt(thisMonthBills.length)} 笔`} hint={`${thisMonth} 账单`} />
+          <StatCard icon={CheckCircle2} label="已结清" value={`${formatInt(billStats?.status.cleared ?? 0)} 笔`} hint="全部已结清账单" className="text-success" />
         </section>
       ) : (
         // 统计卡与平台卡同时依赖平台统计接口：先按最终行数预留高度，避免数据返回后整页下移
@@ -583,7 +584,7 @@ export function LoanTab() {
                 </div>
                 <div className="flex items-baseline justify-between gap-1">
                   <span className="text-muted-foreground">账单</span>
-                  <span className="font-medium tabular-nums">{p.bill_count} 笔</span>
+                  <span className="font-medium tabular-nums">{formatInt(p.bill_count)} 笔</span>
                 </div>
               </div>
               {/* 平台规则：容时 / 违约金，独立浅底块与基础信息分层 */}
@@ -596,7 +597,7 @@ export function LoanTab() {
                 </div>
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-muted-foreground">违约金</span>
-                  <span className="font-medium">{p.penalty_rate ? `${p.penalty_rate}%/天` : '不计收'}</span>
+                  <span className="font-medium">{p.penalty_rate ? `${formatPercent(p.penalty_rate, 1, 2)}/天` : '不计收'}</span>
                 </div>
               </div>
               {/* 欠款：主数字放大加粗，标签弱化 */}
@@ -1070,7 +1071,7 @@ export function LoanTab() {
                     return (
                       <p className="mt-0.5 text-sm font-semibold text-danger">
                         预计违约金 <span className="text-base font-extrabold">{fmt(pe.amount)}</span>
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">（日费率 {pe.rate}% × {pe.days} 天，仅供参考）</span>
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">（日费率 {formatPercent(pe.rate, 1, 2)} × {pe.days} 天，仅供参考）</span>
                       </p>
                     )
                   })()}

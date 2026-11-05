@@ -10,6 +10,7 @@ import {
   type ColumnDef,
   type FieldDef,
 } from '@/components/health/record-manager'
+import { DASH, formatCny, formatPercent } from '@/lib/format'
 
 type PlanRecord = {
   id: number
@@ -64,7 +65,7 @@ const statusMeta: Record<string, { label: string; className: string }> = {
   abandoned: { label: '已放弃', className: 'bg-muted text-muted-foreground' },
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = formatCny
 
 const columns: ColumnDef<PlanRecord>[] = [
   { key: 'plan_date', label: '日期' },
@@ -73,20 +74,20 @@ const columns: ColumnDef<PlanRecord>[] = [
   {
     key: 'target_amount',
     label: '目标金额',
-    render: (r) => (r.target_amount != null ? fmt(r.target_amount) : '—'),
+    render: (r) => (r.target_amount != null ? fmt(r.target_amount) : DASH),
   },
   {
     key: 'progress',
     label: '进度',
     render: (r) => {
-      if (r.target_amount == null || r.saved_amount == null || r.target_amount === 0) return '—'
-      const pct = Math.min(100, Math.round((r.saved_amount / r.target_amount) * 100))
+      if (r.target_amount == null || r.saved_amount == null || r.target_amount === 0) return DASH
+      const pct = Math.min(100, (r.saved_amount / r.target_amount) * 100)
       return (
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-decor-indigo" style={{ width: `${pct}%` }} />
           </div>
-          <span className="text-xs text-muted-foreground">{pct}%</span>
+          <span className="text-xs text-muted-foreground">{formatPercent(pct)}</span>
         </div>
       )
     },

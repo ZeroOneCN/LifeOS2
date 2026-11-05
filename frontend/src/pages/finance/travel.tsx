@@ -51,7 +51,7 @@ import { Tip } from '@/components/ui/tip'
 import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import { DASH, formatCny, formatDateTime, formatDuration, formatInt, formatRange } from '@/lib/format'
 
 const PAGE_SIZE = 10
 
@@ -144,18 +144,17 @@ function ReportContent({ content }: { content?: ContentSection[] }) {
   )
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+const fmt = formatCny
 
+/** 行程时长：按起止时刻换算为分钟，统一走 formatDuration（「X 小时 Y 分钟」）。 */
 function duration(begin?: string, end?: string): string {
-  if (!begin || !end) return '—'
+  if (!begin || !end) return DASH
   const b = begin.split(':').map(Number)
   const e = end.split(':').map(Number)
   const bm = b[0] * 60 + b[1]
   const em = e[0] * 60 + e[1]
   const diff = em >= bm ? em - bm : em + 1440 - bm
-  const h = Math.floor(diff / 60)
-  const m = diff % 60
-  return m === 0 ? `${h} 小时` : `${h} 小时 ${m} 分`
+  return formatDuration(diff)
 }
 
 type DetailForm = {
@@ -522,7 +521,7 @@ export function TravelPage() {
             <StatCard icon={Wallet} label="实付合计" value={fmt(stats.total_actual)} />
             <StatCard icon={Wallet} label="原价合计" value={fmt(stats.total_original)} />
             <StatCard icon={Wallet} label="优惠金额" value={fmt(stats.total_discount)} />
-            <StatCard icon={Plane} label="明细笔数" value={`${stats.count} 笔`} />
+            <StatCard icon={Plane} label="明细笔数" value={`${formatInt(stats.count)} 笔`} />
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
@@ -822,7 +821,7 @@ export function TravelPage() {
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => viewReport(r)}>
                       <div className="truncate font-medium">{r.title}</div>
                       <div className="text-xs text-muted-foreground">
-                        {r.period_start && r.period_end ? `${r.period_start} ~ ${r.period_end}` : ''}
+                        {r.period_start && r.period_end ? formatRange(r.period_start, r.period_end) : ''}
                         {r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}
                       </div>
                     </button>

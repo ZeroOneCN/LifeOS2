@@ -4,6 +4,7 @@ import { Bookmark, HandCoins, Landmark, Wallet } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
+import { formatCny, formatMoney } from '@/lib/format'
 
 import { DebtTab } from './debt-tab'
 import { InvestTab } from './invest-tab'
@@ -42,13 +43,11 @@ export function DebtsPage() {
     }).catch(() => {})
   }, [])
 
+  /** 按展示币种换算后格式化为金额；无汇率或本位币时回退人民币格式。 */
   const fmtMoney: Fmt = (cny: number) => {
     const r = currency
-    if (!r || !r.rate_to_cny) return `¥${cny.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-    const v = cny / r.rate_to_cny
-    const s = r.symbol ?? ''
-    const sign = v < 0 ? '-' : ''
-    return `${sign}${s}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    if (!r || !r.rate_to_cny) return formatCny(cny)
+    return formatMoney(cny / r.rate_to_cny, r.symbol ?? '')
   }
 
   const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [

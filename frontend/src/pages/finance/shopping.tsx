@@ -49,6 +49,7 @@ import { Tip } from '@/components/ui/tip'
 import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { DASH, formatCny, formatInt } from '@/lib/format'
 import { toast } from 'sonner'
 
 const PAGE_SIZE = 10
@@ -88,7 +89,7 @@ type Stats = {
   by_category: { category_id: number; category: string; amount: number }[]
 }
 
-const fmt = (n: number) => `¥${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmt = formatCny
 
 type RecordForm = {
   record_date: string
@@ -476,10 +477,10 @@ export function ShoppingPage() {
       {stats && (
         <>
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={Wallet} label="消费总额" value={fmt(stats.total)} hint={`${stats.count} 笔记录`} />
-            <StatCard icon={Wallet} label="平均单笔" value={stats.count > 0 ? fmt(stats.total / stats.count) : '¥0.00'} hint="总消费 / 笔数" />
-            <StatCard icon={Wallet} label="涉及平台" value={`${stats.by_platform.length} 个`} hint={stats.by_platform[0] ? `最多 ${stats.by_platform[0].platform}` : '暂无消费平台'} />
-            <StatCard icon={Wallet} label="涉及账本" value={`${stats.by_ledger.length} 个`} hint={stats.by_ledger[0] ? `最多 ${stats.by_ledger[0].ledger}` : '暂无账本'} />
+            <StatCard icon={Wallet} label="消费总额" value={fmt(stats.total)} hint={`${formatInt(stats.count)} 笔记录`} />
+            <StatCard icon={Wallet} label="平均单笔" value={stats.count > 0 ? fmt(stats.total / stats.count) : formatCny(0)} hint="总消费 / 笔数" />
+            <StatCard icon={Wallet} label="涉及平台" value={`${formatInt(stats.by_platform.length)} 个`} hint={stats.by_platform[0] ? `最多 ${stats.by_platform[0].platform}` : '暂无消费平台'} />
+            <StatCard icon={Wallet} label="涉及账本" value={`${formatInt(stats.by_ledger.length)} 个`} hint={stats.by_ledger[0] ? `最多 ${stats.by_ledger[0].ledger}` : '暂无账本'} />
           </section>
           <section className="grid gap-4 lg:grid-cols-2">
             <LineChartCard title="月度消费趋势" data={stats.monthly_trend} xKey="month" series={[{ key: 'amount', name: '消费', color: 'chart-4' }]} />
@@ -575,7 +576,7 @@ export function ShoppingPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="block max-w-[120px] truncate" title={row.spec ?? ''}>{row.spec ?? '—'}</span>
+                      <span className="block max-w-[120px] truncate" title={row.spec ?? ''}>{row.spec ?? DASH}</span>
                     </TableCell>
                     <TableCell>
                       {cat ? (
@@ -585,10 +586,10 @@ export function ShoppingPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">{fmt(row.total_price)}</TableCell>
-                    <TableCell className="text-right">{row.unit_price != null ? fmt(row.unit_price) : '—'}</TableCell>
+                    <TableCell className="text-right">{row.unit_price != null ? fmt(row.unit_price) : DASH}</TableCell>
                     <TableCell>
                       <span className="block w-32 truncate text-muted-foreground" title={row.order_no ?? ''}>
-                        {row.order_no ?? '—'}
+                        {row.order_no ?? DASH}
                       </span>
                     </TableCell>
                     <TableCell className={`text-right ${stickyRightClass}`}>
