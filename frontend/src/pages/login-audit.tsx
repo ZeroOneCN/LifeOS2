@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Ban,
   CheckCircle2,
+  Globe,
   Loader2,
   RefreshCw,
   Shield,
@@ -207,6 +208,9 @@ export function LoginAuditPage() {
 
   const byResult = stats?.by_result ?? []
   const byIp = stats?.by_ip ?? []
+  const successAll = byResult.find((r) => r.result === 'success')?.count ?? 0
+  const failAll = byResult.find((r) => r.result === 'fail')?.count ?? 0
+  const lockedAll = byResult.find((r) => r.result === 'locked')?.count ?? 0
   const trend = stats?.trend ?? []
   const bruteIps = stats?.brute_force_ips ?? []
   const todayCount = stats?.today ?? 0
@@ -236,16 +240,42 @@ export function LoginAuditPage() {
         }
       />
 
-      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-info" />
-        <StatCard icon={ShieldAlert} label="今日失败" value={String(failToday)} className="text-warning" />
-        <StatCard icon={Ban} label="今日锁定" value={String(lockedToday)} className="text-danger" />
+        <StatCard
+          icon={ShieldAlert}
+          label="今日失败"
+          value={String(failToday)}
+          hint={failAll ? `累计失败 ${failAll} 次` : undefined}
+          className="text-warning"
+        />
+        <StatCard
+          icon={Ban}
+          label="今日锁定"
+          value={String(lockedToday)}
+          hint={lockedAll ? `累计锁定 ${lockedAll} 次` : undefined}
+          className="text-danger"
+        />
         <StatCard
           icon={AlertTriangle}
-          label="暴力破解嫌疑 IP"
+          label="暴力破解 IP"
           value={String(bruteIps.length)}
           hint={stats ? `窗口 ${stats.brute_force_window_minutes} 分钟 / 阈值 ${stats.brute_force_threshold} 次` : undefined}
           className="text-danger"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="登录成功"
+          value={String(successAll)}
+          hint="全部历史"
+          className="text-success"
+        />
+        <StatCard
+          icon={Globe}
+          label="来源 IP 分布"
+          value={String(byIp.length)}
+          hint={byIp[0] ? `Top ${byIp[0].ip} · ${byIp[0].count} 次` : '暂无来源记录'}
+          className="text-info"
         />
       </section>
 
@@ -271,55 +301,6 @@ export function LoginAuditPage() {
             ))}
           </CardContent>
         </Card>
-      )}
-
-      {(byResult.length > 0 || byIp.length > 0) && (
-        <section className="grid items-start gap-4 lg:grid-cols-2">
-          {byResult.length > 0 && (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
-              {byResult.map((r) => {
-                const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-muted text-muted-foreground', icon: Shield }
-                const Icon = meta.icon
-                return (
-                  <Card key={r.result}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
-                        <Icon className="size-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-xl font-semibold leading-tight">{r.count}</div>
-                        <div className="truncate text-xs text-muted-foreground">{meta.name}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          )}
-
-          {byIp.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">来源 IP 分布（Top10）</CardTitle>
-                <CardDescription>全部历史登录尝试最频繁的来源 IP</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2 sm:grid-cols-2">
-                {byIp.map((b) => (
-                  <div key={b.ip} className="flex items-center gap-2 text-sm">
-                    <Badge variant="outline" className="font-mono">{b.ip}</Badge>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-info"
-                        style={{ width: `${Math.min(100, (b.count / (byIp[0]?.count || 1)) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="w-12 text-right text-xs text-muted-foreground">{b.count}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-        </section>
       )}
 
       {trend.length > 0 && (
