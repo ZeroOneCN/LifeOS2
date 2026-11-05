@@ -61,8 +61,9 @@ const buttonVariants = cva(
 )
 
 /**
- * 通用按钮：全站所有按钮都经由此组件渲染，因此在此统一挂载悬停气泡提示。
- * 提示文案优先级：显式 `tip` > `aria-label` > `title` > 按钮可见文本。
+ * 通用按钮：统一挂载悬停气泡提示，但只针对「需要提示才能理解」的按钮。
+ * 提示文案优先级：显式 `tip` > `aria-label` > `title` > 图标按钮自身的文字（含 `sr-only`）。
+ * 文字按钮不再自动挂提示，避免确认弹窗等场景的提示气泡遮住说明文字。
  * `title` 被用作提示来源后不再透传到 DOM，避免浏览器原生提示与样式气泡重复出现。
  * 以下情况不挂载提示：`asChild`（子元素不确定）、禁用态（无指针事件）、无可用文案。
  * @param tip 显式指定的悬停提示文案
@@ -90,12 +91,17 @@ function Button({
 
   // 显式文案（图标按钮通常用 aria-label / title 提供）
   const explicitTip = tip ?? (props["aria-label"] as string | undefined) ?? title
-  // 兜底文案：按钮自身的可见文字（文字按钮），超过 40 字不展示
-  const textTip = explicitTip
+  // 图标按钮才兜底读取自身文字（通常是 sr-only 供读屏用的动作名），文字按钮不再自动挂提示
+  const isIconOnly = typeof size === "string" && size.startsWith("icon")
+  const textTip = explicitTip || !isIconOnly
     ? undefined
     : extractText(children).replace(/\s+/g, " ").trim()
   const finalTip =
     explicitTip || (textTip && textTip.length <= 40 ? textTip : undefined)
+  // 图标按钮没有可见文字，给读屏补一个与提示一致的可访问名称
+  const ariaLabel =
+    (props["aria-label"] as string | undefined) ??
+    (isIconOnly && finalTip ? finalTip : undefined)
 
   const content = (
     <Comp
@@ -105,6 +111,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled}
       {...props}
+      aria-label={ariaLabel}
     >
       {children}
     </Comp>
