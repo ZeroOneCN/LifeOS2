@@ -508,21 +508,25 @@ export function StepsPage() {
             <div className="px-4 pb-4 text-center text-sm text-muted-foreground">当月暂无步数数据</div>
           ) : (
             <>
-              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
                 {daySum?.items.map((d) => {
-                  const meta = `距离 ${d.distance_km != null ? `${d.distance_km} km` : '—'} · 消耗 ${
+                  // 卡片较窄，次级信息去掉「距离/消耗」前缀、由 km/kcal 单位自证，title 保留完整说明
+                  const meta = `${d.distance_km != null ? `${d.distance_km} km` : '—'} · ${
+                    d.calories != null ? `${d.calories} kcal` : '—'
+                  }`
+                  const metaTitle = `距离 ${d.distance_km != null ? `${d.distance_km} km` : '—'} · 消耗 ${
                     d.calories != null ? `${d.calories} kcal` : '—'
                   }`
                   const countText = `录入 ${d.count ?? 0} 条时间段`
                   return (
                     <Card key={d.record_date} className="border-dashed">
-                      <CardContent className="py-3">
+                      <CardContent className="px-4 py-3">
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between gap-2">
                             <span className="min-w-0 truncate text-sm font-medium text-foreground">
                               {d.record_date}
                             </span>
-                            <span className="shrink-0 text-xs text-muted-foreground" title={countText}>
+                            <span className="shrink-0 text-sm text-muted-foreground" title={countText}>
                               {countText}
                             </span>
                           </div>
@@ -531,11 +535,11 @@ export function StepsPage() {
                               <span className="text-2xl font-semibold leading-none tabular-nums">
                                 {d.steps.toLocaleString()}
                               </span>
-                              <span className="text-xs text-muted-foreground">步</span>
+                              <span className="text-sm text-muted-foreground">步</span>
                             </span>
                             <span
-                              className="min-w-0 truncate text-right text-xs text-muted-foreground"
-                              title={meta}
+                              className="min-w-0 truncate text-right text-sm text-muted-foreground"
+                              title={metaTitle}
                             >
                               {meta}
                             </span>
@@ -568,16 +572,17 @@ export function StepsPage() {
                 .sort((a, b) => b.month.localeCompare(a.month))
                 .map((m) => {
                   const daysText = `活动 ${m.days} 天`
-                  const meta = `距离 ${m.distance_km} km`
+                  // 与每日卡片一致：去掉「距离」前缀，由 km 单位自证，title 保留完整说明
+                  const meta = `${m.distance_km} km`
                   return (
                     <Card key={m.month} className="border-dashed">
-                      <CardContent className="py-3">
+                      <CardContent className="px-4 py-3">
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center justify-between gap-2">
                             <span className="min-w-0 truncate text-sm font-medium text-foreground">
                               {m.month}
                             </span>
-                            <span className="shrink-0 text-xs text-muted-foreground" title={daysText}>
+                            <span className="shrink-0 text-sm text-muted-foreground" title={daysText}>
                               {daysText}
                             </span>
                           </div>
@@ -586,10 +591,10 @@ export function StepsPage() {
                               <span className="text-2xl font-semibold leading-none tabular-nums">
                                 {m.steps.toLocaleString()}
                               </span>
-                              <span className="text-xs text-muted-foreground">步</span>
+                              <span className="text-sm text-muted-foreground">步</span>
                             </span>
                             <span
-                              className="min-w-0 truncate text-right text-xs text-muted-foreground"
+                              className="min-w-0 truncate text-right text-sm text-muted-foreground"
                               title={meta}
                             >
                               {meta}
