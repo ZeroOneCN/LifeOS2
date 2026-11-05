@@ -103,9 +103,9 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground min-w-0 max-w-[55%] truncate">{label}</CardTitle>
-        <CardHeaderActions>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-2">
+        <CardTitle className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <CardHeaderActions className="max-sm:hidden">
           <Icon className={`size-4 ${className ?? 'text-muted-foreground'}`} />
         </CardHeaderActions>
       </CardHeader>
@@ -239,7 +239,7 @@ export function LoginAuditPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-info" />
         <StatCard icon={ShieldAlert} label="今日失败" value={String(failToday)} className="text-warning" />
         <StatCard icon={Ban} label="今日锁定" value={String(lockedToday)} className="text-danger" />
@@ -276,49 +276,53 @@ export function LoginAuditPage() {
         </Card>
       )}
 
-      {byResult.length > 0 && (
-        <section className="grid grid-cols-3 gap-4">
-          {byResult.map((r) => {
-            const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-muted text-muted-foreground', icon: Shield }
-            const Icon = meta.icon
-            return (
-              <Card key={r.result}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
-                    <Icon className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-xl font-semibold leading-tight">{r.count}</div>
-                    <div className="truncate text-xs text-muted-foreground">{meta.name}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </section>
-      )}
+      {(byResult.length > 0 || byIp.length > 0) && (
+        <section className="grid items-start gap-4 lg:grid-cols-2">
+          {byResult.length > 0 && (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
+              {byResult.map((r) => {
+                const meta = RESULT_META[r.result] ?? { name: r.result, className: 'bg-muted text-muted-foreground', icon: Shield }
+                const Icon = meta.icon
+                return (
+                  <Card key={r.result}>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
+                        <Icon className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xl font-semibold leading-tight">{r.count}</div>
+                        <div className="truncate text-xs text-muted-foreground">{meta.name}</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
 
-      {byIp.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">来源 IP 分布（Top10）</CardTitle>
-            <CardDescription>全部历史登录尝试最频繁的来源 IP</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2">
-            {byIp.map((b) => (
-              <div key={b.ip} className="flex items-center gap-2 text-sm">
-                <Badge variant="outline" className="font-mono">{b.ip}</Badge>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-info"
-                    style={{ width: `${Math.min(100, (b.count / (byIp[0]?.count || 1)) * 100)}%` }}
-                  />
-                </div>
-                <span className="w-12 text-right text-xs text-muted-foreground">{b.count}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+          {byIp.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">来源 IP 分布（Top10）</CardTitle>
+                <CardDescription>全部历史登录尝试最频繁的来源 IP</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2">
+                {byIp.map((b) => (
+                  <div key={b.ip} className="flex items-center gap-2 text-sm">
+                    <Badge variant="outline" className="font-mono">{b.ip}</Badge>
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-info"
+                        style={{ width: `${Math.min(100, (b.count / (byIp[0]?.count || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="w-12 text-right text-xs text-muted-foreground">{b.count}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </section>
       )}
 
       {trend.length > 0 && (
@@ -400,37 +404,41 @@ export function LoginAuditPage() {
                 const Icon = meta.icon
                 return (
                   <li key={row.id} className="rounded-lg border px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className={`flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
+                    <div className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 gap-y-1">
+                      <span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
                         <Icon className="size-3.5" />
                       </span>
-                      <span className="text-sm font-medium">{meta.name}</span>
-                      <Badge variant="outline" className="font-mono">{row.account}</Badge>
-                      {row.failure_reason && (
-                        <span className="text-xs text-muted-foreground">
-                          {FAILURE_REASONS[row.failure_reason] ?? row.failure_reason}
-                        </span>
-                      )}
-                      {row.lock_triggered && (
-                        <Badge variant="outline" className="text-xs font-normal text-danger">
-                          触发锁定
-                        </Badge>
-                      )}
-                      <span className="ml-auto text-xs text-muted-foreground whitespace-nowrap">
-                        {formatTime(row.created_at)}
-                      </span>
-                      {row.ip_address && (
-                        <Badge variant="outline" className="text-xs font-normal font-mono">
-                          IP: {row.ip_address}
-                        </Badge>
-                      )}
-                      {row.user_agent && (
-                        <Tip label={row.user_agent}>
-                          <span className="text-xs text-muted-foreground">
-                            UA: {row.user_agent}
-                          </span>
-                        </Tip>
-                      )}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="text-sm font-medium">{meta.name}</span>
+                          <Badge variant="outline" className="font-mono">{row.account}</Badge>
+                          {row.failure_reason && (
+                            <span className="text-xs text-muted-foreground">
+                              {FAILURE_REASONS[row.failure_reason] ?? row.failure_reason}
+                            </span>
+                          )}
+                          {row.lock_triggered && (
+                            <Badge variant="outline" className="text-xs font-normal text-danger">
+                              触发锁定
+                            </Badge>
+                          )}
+                        </div>
+                        {row.user_agent && (
+                          <Tip label={row.user_agent}>
+                            <span className="mt-1 block max-w-[40%] truncate text-xs text-muted-foreground" title={row.user_agent}>
+                              UA: {row.user_agent}
+                            </span>
+                          </Tip>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+                        <span className="whitespace-nowrap tabular-nums">{formatTime(row.created_at)}</span>
+                        {row.ip_address && (
+                          <Badge variant="outline" className="text-xs font-normal font-mono">
+                            IP: {row.ip_address}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </li>
                 )
