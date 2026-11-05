@@ -125,7 +125,7 @@ function SectionCard({
   children: ReactNode
 }) {
   return (
-    <Card className="h-full">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-sm">
           <span>{title}</span>
@@ -234,7 +234,7 @@ export function HealthOverviewPage() {
         />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid items-start gap-4 lg:grid-cols-2">
         <SectionCard title="最近体征" to="/health/vitals-sleep">
           {v ? (
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
@@ -302,7 +302,7 @@ export function HealthOverviewPage() {
         </SectionCard>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid items-start gap-4 lg:grid-cols-2">
         <SectionCard title="最近体检指标" to="/health/checkup">
           {data.recent_checkup.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">

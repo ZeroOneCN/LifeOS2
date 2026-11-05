@@ -117,7 +117,7 @@ export function FitnessDashboardPage({
       </div>
 
       {latest && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="py-4">
               <div className="text-sm text-muted-foreground">当前体重</div>
@@ -144,6 +144,15 @@ export function FitnessDashboardPage({
               <div className="mt-1 text-2xl font-semibold">
                 {latest.body_fat_percent != null ? formatPercent(latest.body_fat_percent) : DASH}
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <div className="text-sm text-muted-foreground">身高</div>
+              <div className="mt-1 text-2xl font-semibold">
+                {typeof latest.height_cm === 'number' ? `${formatHealth1(latest.height_cm)} cm` : DASH}
+              </div>
+              <div className="text-xs text-muted-foreground">用于 BMI 计算</div>
             </CardContent>
           </Card>
         </div>

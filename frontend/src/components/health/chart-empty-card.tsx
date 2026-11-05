@@ -31,7 +31,7 @@ export function ChartEmptyCard({
       <CardContent className="flex flex-1 items-center justify-between gap-3 px-4 pb-3 pt-0">
         <div className="flex min-w-0 items-center gap-2">
           <Inbox className="size-5 shrink-0 text-muted-foreground" />
-          <p className="truncate text-sm text-muted-foreground" title={message}>{message}</p>
+          <p className="line-clamp-2 text-sm text-muted-foreground" title={message}>{message}</p>
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </CardContent>
