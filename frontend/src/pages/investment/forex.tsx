@@ -217,14 +217,14 @@ const tradeColumns: ColumnDef<ForexRecord>[] = [
   },
   { key: 'open_price', label: '开仓价格' },
   { key: 'lot_size', label: '手数' },
-  { key: 'commission', label: '手续费' },
+  { key: 'commission', label: '手续费', render: (r) => fmtVal(r.commission) },
   { key: 'close_price', label: '平仓价格', render: (r) => (r.close_price ?? '—') },
   {
     key: 'pnl',
     label: '盈亏金额',
     render: (r) => (r.pnl != null ? <span className={pnlCls(r.pnl)}>{fmtPnl(r.pnl)}</span> : '—'),
   },
-  { key: 'overnight_fee', label: '隔夜费' },
+  { key: 'overnight_fee', label: '隔夜费', render: (r) => fmtVal(r.overnight_fee) },
   { key: 'open_time', label: '开仓时间', render: (r) => fmtDT(r.open_time) },
   { key: 'close_time', label: '平仓时间', render: (r) => fmtDT(r.close_time) },
   {
@@ -810,7 +810,7 @@ function FundsSection() {
                   <div>
                     <div className="text-sm font-medium">
                       {fundTypes.find((t) => t.value === r.record_type)?.label}
-                      <span className={`ml-2 font-semibold ${r.amount < 0 ? 'text-danger' : 'text-success'}`}>{fmtVal(r.amount)}</span>
+                      <span className={`ml-2 font-semibold ${r.amount > 0 ? 'text-success' : r.amount < 0 ? 'text-danger' : 'text-muted-foreground'}`}>{fmtVal(r.amount)}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">{r.record_date}{r.note ? ` · ${r.note}` : ''}</div>
                   </div>
