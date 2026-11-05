@@ -225,14 +225,33 @@ const tradeColumns: ColumnDef<ForexRecord>[] = [
     render: (r) => (r.pnl != null ? <span className={pnlCls(r.pnl)}>{fmtPnl(r.pnl)}</span> : '—'),
   },
   { key: 'overnight_fee', label: '隔夜费', render: (r) => fmtVal(r.overnight_fee) },
-  { key: 'open_time', label: '开仓时间', render: (r) => fmtDT(r.open_time) },
-  { key: 'close_time', label: '平仓时间', render: (r) => fmtDT(r.close_time) },
+  {
+    key: 'times',
+    label: '开/平仓时间',
+    render: (r) => (
+      <div className="space-y-0.5 text-xs leading-tight">
+        <div title={r.open_time ?? ''}>{fmtDT(r.open_time)}</div>
+        <div className="text-muted-foreground" title={r.close_time ?? ''}>平 {fmtDT(r.close_time)}</div>
+      </div>
+    ),
+  },
   {
     key: 'holding',
     label: '持仓时间',
     render: (r) => <span className="text-muted-foreground">{fmtHolding(r.holding)}</span>,
   },
-  { key: 'note', label: '备注' },
+  {
+    key: 'note',
+    label: '备注',
+    render: (r) =>
+      r.note ? (
+        <span className="block max-w-[160px] truncate text-muted-foreground" title={r.note}>
+          {r.note}
+        </span>
+      ) : (
+        '—'
+      ),
+  },
 ]
 
 const fmtDT = (v?: string) => {

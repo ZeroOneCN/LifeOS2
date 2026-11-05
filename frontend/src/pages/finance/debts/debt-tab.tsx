@@ -46,6 +46,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  stickyLeftClass,
+  stickyRightClass,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
@@ -355,8 +357,8 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>日期</TableHead><TableHead>名称</TableHead><TableHead>对方</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
-                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead>{showInterest && <TableHead className="text-right">利息</TableHead>}{showDue && <TableHead>到期</TableHead>}<TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className="w-28 text-right">操作</TableHead>
+                <TableHead className={`w-24 ${stickyLeftClass}`}>日期</TableHead><TableHead>名称</TableHead><TableHead>对方</TableHead><TableHead>方向</TableHead><TableHead>途径</TableHead>
+                <TableHead className="text-right">额度</TableHead><TableHead className="text-right">已还</TableHead><TableHead className="text-right">剩余</TableHead>{showInterest && <TableHead className="text-right">利息</TableHead>}{showDue && <TableHead>到期</TableHead>}<TableHead>备注</TableHead><TableHead>状态</TableHead><TableHead className={`w-28 text-right ${stickyRightClass}`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
@@ -371,9 +373,13 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                 const intr = d.interest_total ?? 0
                 return (
                 <TableRow key={d.id}>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">{d.debt_date}</TableCell>
-                  <TableCell className="font-medium">{d.name}</TableCell>
-                  <TableCell>{d.counterparty ?? '—'}</TableCell>
+                  <TableCell className={`whitespace-nowrap text-muted-foreground ${stickyLeftClass}`}>{d.debt_date}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="block max-w-[140px] truncate" title={d.name}>{d.name}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="block max-w-[120px] truncate" title={d.counterparty ?? ''}>{d.counterparty ?? '—'}</span>
+                  </TableCell>
                   <TableCell><Badge className={directionMeta[d.direction]?.className}>{directionMeta[d.direction]?.label}</Badge></TableCell>
                   <TableCell>{d.channel ? <Badge variant="outline" className={channelMeta[d.channel]?.className}>{d.channel}</Badge> : '—'}</TableCell>
                   <TableCell className="text-right">{fmtMoney(d.amount)}</TableCell>
@@ -386,9 +392,11 @@ export function DebtTab({ fmtMoney }: { fmtMoney: Fmt }) {
                     </TableCell>
                   )}
                   {showDue && <TableCell className="text-muted-foreground">{d.due_date ?? '—'}</TableCell>}
-                  <Tip label={d.note ?? ''}><TableCell className="max-w-[160px] truncate text-muted-foreground">{d.note ?? '—'}</TableCell></Tip>
+                  <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                    {d.note ? <span className="block max-w-[160px] truncate" title={d.note}>{d.note}</span> : '—'}
+                  </TableCell>
                   <TableCell><Badge className={statusMeta[d.status]?.className}>{statusMeta[d.status]?.label}</Badge></TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className={`text-right ${stickyRightClass}`}>
                     <div className="flex justify-end gap-1">
                       <Tip label="还款明细"><Button variant="ghost" size="icon" onClick={() => openDetail(d)}><ListTree /></Button></Tip>
                       {d.status === 'active' && remaining(d) > 0 && (

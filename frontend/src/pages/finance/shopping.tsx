@@ -41,6 +41,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  stickyLeftClass,
+  stickyRightClass,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tip'
@@ -542,7 +544,7 @@ export function ShoppingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>日期</TableHead>
+                <TableHead className={stickyLeftClass}>日期</TableHead>
                 <TableHead>平台</TableHead>
                 <TableHead>商品名称</TableHead>
                 <TableHead>规格</TableHead>
@@ -550,7 +552,7 @@ export function ShoppingPage() {
                 <TableHead className="text-right">总价</TableHead>
                 <TableHead className="text-right">单价</TableHead>
                 <TableHead>订单号</TableHead>
-                <TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead className={`w-24 text-right ${stickyRightClass}`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className={`transition-opacity duration-200 ${loading && records.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
@@ -565,10 +567,16 @@ export function ShoppingPage() {
                   const cat = categories.find((c) => c.id === row.category_id)
                   return (
                   <TableRow key={row.id}>
-                    <TableCell>{row.record_date}</TableCell>
+                    <TableCell className={stickyLeftClass}>{row.record_date}</TableCell>
                     <TableCell>{platformName(row.platform_id)}</TableCell>
-                    <TableCell>{row.product_name}</TableCell>
-                    <TableCell>{row.spec ?? '—'}</TableCell>
+                    <TableCell>
+                      <span className="block max-w-[220px] truncate" title={row.product_name}>
+                        {row.product_name}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="block max-w-[120px] truncate" title={row.spec ?? ''}>{row.spec ?? '—'}</span>
+                    </TableCell>
                     <TableCell>
                       {cat ? (
                         <Badge variant={cat.is_fallback ? 'secondary' : 'outline'}>{cat.name}</Badge>
@@ -578,8 +586,12 @@ export function ShoppingPage() {
                     </TableCell>
                     <TableCell className="text-right font-medium">{fmt(row.total_price)}</TableCell>
                     <TableCell className="text-right">{row.unit_price != null ? fmt(row.unit_price) : '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.order_no ?? '—'}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
+                      <span className="block w-32 truncate text-muted-foreground" title={row.order_no ?? ''}>
+                        {row.order_no ?? '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className={`text-right ${stickyRightClass}`}>
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}><Pencil /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => removeRecord(row)}><Trash2 /></Button>

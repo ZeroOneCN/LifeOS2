@@ -123,9 +123,25 @@ const fmt = (n?: number | null) =>
   `¥${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
 
 const columns: ColumnDef<ItemRecord>[] = [
-  { key: 'item_name', label: '物品' },
+  {
+    key: 'item_name',
+    label: '物品',
+    render: (r) => (
+      <span className="block max-w-[360px] truncate" title={r.item_name}>
+        {r.item_name}
+      </span>
+    ),
+  },
   { key: 'category', label: '分类' },
-  { key: 'location', label: '位置', render: (r) => r.location ?? '—' },
+  {
+    key: 'location',
+    label: '位置',
+    render: (r) => (
+      <span className="block max-w-[120px] truncate" title={r.location ?? ''}>
+        {r.location || '—'}
+      </span>
+    ),
+  },
   {
     key: 'status',
     label: '状态',

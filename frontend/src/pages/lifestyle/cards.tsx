@@ -261,8 +261,16 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
       </div>
     ),
   },
-  { key: 'operator', label: '运营商' },
-  { key: 'region', label: '归属地', render: (r) => r.region ?? '—' },
+  {
+    key: 'operator_region',
+    label: '运营商/归属地',
+    render: (r) => (
+      <div className="space-y-0.5 text-xs leading-tight">
+        <div>{r.operator}</div>
+        <div className="text-muted-foreground" title={r.region ?? ''}>{r.region || '—'}</div>
+      </div>
+    ),
+  },
   {
     key: 'balance',
     label: '余额',
@@ -277,39 +285,65 @@ const phoneColumns: ColumnDef<PhoneCard>[] = [
   },
   { key: 'monthly_fee', label: '月租', render: (r) => (r.monthly_fee != null ? fmt(r.monthly_fee) : '—') },
   {
-    key: 'charge_mode',
-    label: '扣费方式',
+    key: 'charge',
+    label: '扣费',
     render: (r) => (
-      <Badge
-        className={
-          r.charge_mode === 'daily'
-            ? 'bg-info-muted text-info-muted-foreground'
-            : 'bg-muted text-muted-foreground'
-        }
-      >
-        {r.charge_mode === 'daily' ? '按天' : '整月'}
-        {!r.auto_charge && ' · 手动'}
-      </Badge>
+      <div className="space-y-0.5 text-xs leading-tight">
+        <Badge
+          className={
+            r.charge_mode === 'daily'
+              ? 'bg-info-muted text-info-muted-foreground'
+              : 'bg-muted text-muted-foreground'
+          }
+        >
+          {r.charge_mode === 'daily' ? '按天' : '整月'}
+          {!r.auto_charge && ' · 手动'}
+        </Badge>
+        <div className="text-muted-foreground">{r.bill_day ? `每月 ${r.bill_day} 日` : '账单日 —'}</div>
+      </div>
     ),
   },
-  { key: 'bill_day', label: '账单日', render: (r) => (r.bill_day ? `${r.bill_day} 日` : '—') },
-  { key: 'data_plan', label: '流量套餐', render: (r) => r.data_plan ?? '—' },
   {
-    key: 'call_sms',
-    label: '通话短信',
+    key: 'plans',
+    label: '套餐',
     render: (r) => {
+      const data = r.data_plan || '—'
       const cp = r.call_plan
       const sp = r.sms_plan
-      if (cp && sp) return `${cp} / ${sp}`
-      return cp || sp || '—'
+      const callSms = cp && sp ? `${cp} / ${sp}` : cp || sp || '—'
+      return (
+        <div className="space-y-0.5 text-xs leading-tight">
+          <div title={r.data_plan ?? ''}>{data}</div>
+          <div className="text-muted-foreground">{callSms}</div>
+        </div>
+      )
     },
   },
   {
     key: 'open_date',
     label: '开卡时间',
-    render: (r) => (r.open_date ? `${r.open_date}（${openDuration(r.open_date)}）` : '—'),
+    render: (r) =>
+      r.open_date ? (
+        <div className="space-y-0.5 text-xs leading-tight">
+          <div>{r.open_date}</div>
+          <div className="text-muted-foreground">{openDuration(r.open_date)}</div>
+        </div>
+      ) : (
+        '—'
+      ),
   },
-  { key: 'note', label: '备注', render: (r) => r.note ?? '—' },
+  {
+    key: 'note',
+    label: '备注',
+    render: (r) =>
+      r.note ? (
+        <span className="block max-w-[160px] truncate text-muted-foreground" title={r.note}>
+          {r.note}
+        </span>
+      ) : (
+        '—'
+      ),
+  },
   {
     key: 'month_progress',
     label: '本月进度',
