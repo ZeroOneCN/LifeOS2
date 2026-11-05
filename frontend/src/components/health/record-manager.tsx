@@ -32,6 +32,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  stickyLeftClass,
+  stickyRightClass,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { PaginationBar } from '@/components/ui/pagination-bar'
@@ -393,7 +395,7 @@ export function RecordManager<T extends { id: number }>({
             <p className="text-sm text-muted-foreground">{description}</p>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {monthMode ? (
             <div className="flex items-center gap-1 rounded-lg border p-1">
               <Tip label="上一月"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth(shiftMonth(month, -1))}><ChevronLeft /></Button></Tip>
@@ -425,13 +427,13 @@ export function RecordManager<T extends { id: number }>({
             </Select>
           ))}
           {searchable && (
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-9 w-56 pl-8"
+                className="h-9 w-full pl-8 sm:max-w-56"
               />
               {keyword && (
                 <Tip label="清除搜索">
@@ -449,11 +451,11 @@ export function RecordManager<T extends { id: number }>({
           )}
           {headerExtra}
           <Tip label="导出当前筛选数据为 CSV">
-            <Button variant="outline" onClick={exportCsv}>
+            <Button variant="outline" className="shrink-0" onClick={exportCsv}>
               <Download /> 导出
             </Button>
           </Tip>
-          <Button onClick={openCreate}>
+          <Button className="shrink-0" onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
         </div>
@@ -486,7 +488,7 @@ export function RecordManager<T extends { id: number }>({
             <TableHeader>
               <TableRow>
                 {enableBatch && (
-                  <TableHead className="w-10">
+                  <TableHead className={`w-10 ${stickyLeftClass}`}>
                     <Checkbox
                       checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
                       onCheckedChange={toggleAll}
@@ -494,12 +496,15 @@ export function RecordManager<T extends { id: number }>({
                     />
                   </TableHead>
                 )}
-                {visibleColumns.map((col) => (
-                  <TableHead key={col.key} className={col.className}>
+                {visibleColumns.map((col, i) => (
+                  <TableHead
+                    key={col.key}
+                    className={`${col.className ?? ''} ${!enableBatch && i === 0 ? stickyLeftClass : ''}`}
+                  >
                     {col.label}
                   </TableHead>
                 ))}
-                <TableHead className="w-24 text-right">操作</TableHead>
+                <TableHead className={`w-24 text-right ${stickyRightClass}`}>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody
@@ -511,16 +516,19 @@ export function RecordManager<T extends { id: number }>({
                     {Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>
                         {enableBatch && (
-                          <TableCell className="w-10">
+                          <TableCell className={`w-10 ${stickyLeftClass}`}>
                             <Skeleton className="size-4" />
                           </TableCell>
                         )}
-                        {visibleColumns.map((col) => (
-                          <TableCell key={col.key}>
+                        {visibleColumns.map((col, i) => (
+                          <TableCell
+                            key={col.key}
+                            className={!enableBatch && i === 0 ? stickyLeftClass : undefined}
+                          >
                             <Skeleton className="h-4 w-[80%]" />
                           </TableCell>
                         ))}
-                        <TableCell className="w-24">
+                        <TableCell className={`w-24 ${stickyRightClass}`}>
                           <Skeleton className="h-8 w-20" />
                         </TableCell>
                       </TableRow>
@@ -540,7 +548,7 @@ export function RecordManager<T extends { id: number }>({
                 items.map((row) => (
                   <TableRow key={row.id} className={selectedIds.has(row.id) ? 'bg-muted/30' : ''}>
                     {enableBatch && (
-                      <TableCell className="w-10">
+                      <TableCell className={`w-10 ${stickyLeftClass}`}>
                         <Checkbox
                           checked={selectedIds.has(row.id)}
                           onCheckedChange={() => toggleOne(row.id)}
@@ -548,12 +556,15 @@ export function RecordManager<T extends { id: number }>({
                         />
                       </TableCell>
                     )}
-                    {visibleColumns.map((col) => (
-                      <TableCell key={col.key} className={col.className}>
+                    {visibleColumns.map((col, i) => (
+                      <TableCell
+                        key={col.key}
+                        className={`${col.className ?? ''} ${!enableBatch && i === 0 ? stickyLeftClass : ''}`}
+                      >
                         {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right">
+                    <TableCell className={`text-right ${stickyRightClass}`}>
                       <div className="flex justify-end gap-1">
                         {rowActions?.(row)}
                         <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
