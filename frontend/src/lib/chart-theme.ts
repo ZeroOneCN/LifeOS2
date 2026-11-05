@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 
 /** 图表色板令牌：chart-N 为顺序色板，其余为语义别名与中性辅助色 */
 export type ChartColorToken =
@@ -143,4 +143,60 @@ export function resolveChartColor(token: string | undefined, palette: ChartPalet
   if (!token) return palette['chart-1']
   const resolved = palette[token as ChartColorToken]
   return typeof resolved === 'string' ? resolved : token
+}
+
+/**
+ * X 轴刻度标签紧凑化：日期/时段压缩为短格式，其余标签原样返回。
+ * 仅改变坐标轴显示，不影响 Tooltip 与点击取数。
+ * - `2026-08-14` → `08-14`
+ * - `2026-08` → `25-08`
+ * - `08:00-09:00` → `08–09`
+ * - `23:59（全天最终）` → `全天`
+ * @param value 原始标签值
+ * @returns 紧凑后的标签文本
+ */
+export function compactTickLabel(value: unknown): string {
+  const s = String(value ?? '')
+  if (!s) return s
+  const slot = /^(\d{2}):\d{2}-(\d{2}):(\d{2})$/.exec(s)
+  if (slot) {
+    // 末段 23:00-23:59 收尾到 24 点，避免出现「23–23」这种无意义标签
+    const endHour = slot[2] === '23' && slot[3] === '59' ? '24' : slot[2]
+    return `${slot[1]}–${endHour}`
+  }
+  if (s.startsWith('23:59')) return '全天'
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (day) return `${day[2]}-${day[3]}`
+  const month = /^(\d{4})-(\d{2})$/.exec(s)
+  if (month) return `${month[1].slice(2)}-${month[2]}`
+  return s
+}
+
+/**
+ * X 轴刻度自适应：按容器可用宽度与数据点数量计算刻度间隔，
+ * 数据点 ≤ 可容纳数量时全量显示；标签较密时缩小字号，避免文字互相压盖。
+ * 用法：把返回的 ref 挂在图表容器的外层 div 上。
+ * @param count 数据点数量
+ * @param minTickPx 单个标签预计占用的最小宽度（含间距），紧凑标签可传更小值
+ * @returns 容器 ref、刻度间隔（交给 XAxis 的 interval）与建议字号
+ */
+export function useXAxisTicks(count: number, minTickPx = 40) {
+  // 图表往往在数据加载后才挂载，用回调 ref 保证元素出现时重新测量宽度
+  const [element, setElement] = useState<HTMLDivElement | null>(null)
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    if (!element) return
+    const update = () => setWidth(element.clientWidth)
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element])
+
+  // 宽度未知时按 12 个标签兜底，保证首帧不会把标签全部抽掉
+  const maxTicks = width > 0 ? Math.max(1, Math.floor(width / minTickPx)) : 12
+  const interval = count > maxTicks && count > 1 ? Math.ceil(count / maxTicks) - 1 : 0
+  return { ref: setElement, interval, fontSize: count > 12 ? 9 : 12 }
 }

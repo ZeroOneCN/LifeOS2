@@ -75,7 +75,7 @@ import {
   formatUsdAxis,
   formatUsdSigned,
 } from '@/lib/format'
-import { useChartColors } from '@/lib/chart-theme'
+import { compactTickLabel, useChartColors, useXAxisTicks } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
 const tooltipStyle = {
@@ -268,11 +268,13 @@ const fmtDT = formatDateTime
 // ---------------------------------------------------------------------------
 function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
   const palette = useChartColors()
+  const { ref, interval, fontSize } = useXAxisTicks(data?.length ?? 0)
   if (!data || data.length === 0)
     return <p className="py-10 text-center text-sm text-muted-foreground">暂无足够数据绘制收益曲线</p>
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+    <div ref={ref}>
+      <ResponsiveContainer width="100%" height={280}>
+        <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="gEquityPos" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={palette.success} stopOpacity={0.35} />
@@ -284,16 +286,23 @@ function EquityChart({ data }: { data: ForexStats['equity_trend'] }) {
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-        <XAxis dataKey="date" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
-        <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
-        <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
-        <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: palette['chart-axis'] }} />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gEquityPos)" />
-        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gEquityNeg)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
-      </AreaChart>
-    </ResponsiveContainer>
+          <XAxis
+            dataKey="date"
+            interval={interval}
+            tickFormatter={compactTickLabel}
+            tick={{ fontSize, fill: palette['chart-axis'] }}
+            stroke={palette['chart-axis']}
+          />
+          <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
+          <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
+          <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" label={{ value: '0', position: 'insideTopLeft', fontSize: 11, fill: palette['chart-axis'] }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gEquityPos)" />
+          <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gEquityNeg)" />
+          <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -727,6 +736,11 @@ function FundsSection() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const totalPages = Math.max(1, Math.ceil(total / 10))
+  const {
+    ref: fundRef,
+    interval: fundInterval,
+    fontSize: fundFontSize,
+  } = useXAxisTicks(stats?.by_date.length ?? 0, 34)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条资金记录吗？' })
 
   const load = async () => {
@@ -852,18 +866,26 @@ function FundsSection() {
         )}
 
         {itemsSorted.length > 0 && stats && stats.by_date.length > 0 && (
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={stats.by_date}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
-              <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
-              <Tooltip formatter={(value) => fmtVal(Number(value))} contentStyle={tooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="deposit" name="入金" fill={palette.success} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="withdraw" name="出金" fill={palette.danger} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="experience" name="体验金" fill={palette.warning} radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div ref={fundRef}>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={stats.by_date}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+                <XAxis
+                  dataKey="date"
+                  interval={fundInterval}
+                  tickFormatter={compactTickLabel}
+                  tick={{ fontSize: fundFontSize, fill: palette['chart-axis'] }}
+                  stroke={palette['chart-axis']}
+                />
+                <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
+                <Tooltip formatter={(value) => fmtVal(Number(value))} contentStyle={tooltipStyle} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="deposit" name="入金" fill={palette.success} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="withdraw" name="出金" fill={palette.danger} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="experience" name="体验金" fill={palette.warning} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
 
@@ -984,6 +1006,11 @@ export function ForexPage() {
   const [stats, setStats] = useState<ForexStats | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [tab, setTab] = useState<'trades' | 'funds' | 'position'>('trades')
+  const {
+    ref: symbolRef,
+    interval: symbolInterval,
+    fontSize: symbolFontSize,
+  } = useXAxisTicks(stats?.by_symbol.length ?? 0)
 
   useEffect(() => {
     api
@@ -1067,10 +1094,17 @@ export function ForexPage() {
                     <CardTitle className="text-sm font-medium">交易品种盈亏</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={260}>
-                      <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+                    <div ref={symbolRef}>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <BarChart data={stats.by_symbol} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-                        <XAxis dataKey="symbol" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+                        <XAxis
+                          dataKey="symbol"
+                          interval={symbolInterval}
+                          tickFormatter={compactTickLabel}
+                          tick={{ fontSize: symbolFontSize, fill: palette['chart-axis'] }}
+                          stroke={palette['chart-axis']}
+                        />
                         <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
                         <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                         <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -1080,7 +1114,8 @@ export function ForexPage() {
                           ))}
                         </Bar>
                       </BarChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    </div>
                   </CardContent>
                 </Card>
               )}

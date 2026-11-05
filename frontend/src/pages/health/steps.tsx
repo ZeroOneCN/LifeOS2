@@ -480,6 +480,7 @@ export function StepsPage() {
           series={[{ key: 'steps', name: '步数', color: 'chart-5' }]}
           height={260}
           intTick
+          xMinTickPx={28}
           onBarClick={(payload) => {
             const p = periodOrder.find((x) => periodLabel(x) === payload?.label)
             if (p) setActivePeriod((prev) => (prev === p ? null : p))

@@ -29,7 +29,7 @@ import {
   formatUsdAxis,
   formatUsdSigned,
 } from '@/lib/format'
-import { useChartColors } from '@/lib/chart-theme'
+import { compactTickLabel, useChartColors, useXAxisTicks } from '@/lib/chart-theme'
 
 /** Recharts Tooltip 深色适配：内联样式优先于 CSS，用主题变量保证深色下悬浮文字可读 */
 const tooltipStyle = {
@@ -126,11 +126,13 @@ function StatCard({
 
 function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
   const palette = useChartColors()
+  const { ref, interval, fontSize } = useXAxisTicks(data?.length ?? 0)
   if (!data || data.length === 0)
     return <p className="py-10 text-center text-sm text-muted-foreground">暂无足够数据</p>
   return (
-    <ResponsiveContainer width="100%" height={280}>
-      <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+    <div ref={ref}>
+      <ResponsiveContainer width="100%" height={280}>
+        <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="gPosO" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={palette.success} stopOpacity={0.35} />
@@ -142,16 +144,23 @@ function EquityChart({ data }: { data: OverviewData['equity_trend'] }) {
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-        <XAxis dataKey="date" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
-        <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
-        <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
-        <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" />
-        <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gPosO)" />
-        <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gNegO)" />
-        <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
-      </AreaChart>
-    </ResponsiveContainer>
+          <XAxis
+            dataKey="date"
+            interval={interval}
+            tickFormatter={compactTickLabel}
+            tick={{ fontSize, fill: palette['chart-axis'] }}
+            stroke={palette['chart-axis']}
+          />
+          <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
+          <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
+          <ReferenceLine y={0} stroke={palette['chart-axis']} strokeDasharray="4 4" />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Area type="monotone" dataKey="pos" name="盈利区" stackId="e" stroke={palette.success} fill="url(#gPosO)" />
+          <Area type="monotone" dataKey="neg" name="亏损区" stackId="e" stroke={palette.danger} fill="url(#gNegO)" />
+          <Line type="monotone" dataKey="pnl" name="累计净收益" stroke={palette['chart-axis']} strokeWidth={1.5} dot={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -160,6 +169,17 @@ export function InvestmentOverviewPage() {
   const palette = useChartColors()
   const [data, setData] = useState<OverviewData | null>(null)
   const [error, setError] = useState(false)
+  // 两个柱状图的横轴密度各自按容器宽度计算（数据未加载时按 0 兜底）
+  const {
+    ref: pnlRef,
+    interval: pnlInterval,
+    fontSize: pnlFontSize,
+  } = useXAxisTicks(data?.daily_pnl.length ?? 0, 34)
+  const {
+    ref: symbolRef,
+    interval: symbolInterval,
+    fontSize: symbolFontSize,
+  } = useXAxisTicks(data?.by_symbol.length ?? 0)
   useEffect(() => {
     api
       .query<OverviewData>('/investment/overview')
@@ -223,10 +243,17 @@ export function InvestmentOverviewPage() {
             <CardTitle className="text-sm font-medium">交易品种盈亏（Top）</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.by_symbol.slice(0, 12)} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+            <div ref={symbolRef}>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={data.by_symbol.slice(0, 12)} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-                <XAxis dataKey="symbol" tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+                <XAxis
+                  dataKey="symbol"
+                  interval={symbolInterval}
+                  tickFormatter={compactTickLabel}
+                  tick={{ fontSize: symbolFontSize, fill: palette['chart-axis'] }}
+                  stroke={palette['chart-axis']}
+                />
                 <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
                 <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -236,7 +263,8 @@ export function InvestmentOverviewPage() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -246,10 +274,17 @@ export function InvestmentOverviewPage() {
           <CardTitle className="text-sm font-medium">近 12 个月净盈亏</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.daily_pnl} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
+          <div ref={pnlRef}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={data.daily_pnl} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} />
+              <XAxis
+                dataKey="date"
+                interval={pnlInterval}
+                tickFormatter={compactTickLabel}
+                tick={{ fontSize: pnlFontSize, fill: palette['chart-axis'] }}
+                stroke={palette['chart-axis']}
+              />
               <YAxis tick={{ fontSize: 11, fill: palette['chart-axis'] }} stroke={palette['chart-axis']} tickFormatter={fmtAxis} />
               <Tooltip formatter={(value) => fmtPnl(Number(value))} contentStyle={tooltipStyle} />
               <Bar dataKey="amount" name="净盈亏" radius={[2, 2, 0, 0]}>
@@ -257,8 +292,9 @@ export function InvestmentOverviewPage() {
                   <Cell key={i} fill={d.amount >= 0 ? palette.success : palette.danger} />
                 ))}
               </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 

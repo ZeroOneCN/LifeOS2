@@ -18,7 +18,13 @@ import {
 } from 'recharts'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { resolveChartColor, useChartColors, type ChartColorToken } from '@/lib/chart-theme'
+import {
+  compactTickLabel,
+  resolveChartColor,
+  useChartColors,
+  useXAxisTicks,
+  type ChartColorToken,
+} from '@/lib/chart-theme'
 import { formatDecimal, formatInt, formatPercent } from '@/lib/format'
 
 import { ChartEmptyCard } from './chart-empty-card'
@@ -63,6 +69,8 @@ export type LineChartCardProps = {
   emptyMessage?: string
   /** 空数据时的记录入口按钮 */
   emptyAction?: ReactNode
+  /** X 轴单个标签预计占用的最小宽度（紧凑标签可传更小值） */
+  xMinTickPx?: number
 }
 
 export function LineChartCard({
@@ -75,8 +83,10 @@ export function LineChartCard({
   yDomain,
   emptyMessage,
   emptyAction,
+  xMinTickPx = 40,
 }: LineChartCardProps) {
   const palette = useChartColors()
+  const { ref, interval, fontSize } = useXAxisTicks(data.length, xMinTickPx)
   if (data.length === 0) {
     return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
   }
@@ -86,16 +96,19 @@ export function LineChartCard({
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-            <XAxis
-              dataKey={xKey}
-              minTickGap={24}
-              stroke={palette['chart-axis']}
-              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
-            />
+        <div ref={ref}>
+          <ResponsiveContainer width="100%" height={height}>
+            <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+              <XAxis
+                dataKey={xKey}
+                interval={interval}
+                tickFormatter={compactTickLabel}
+                stroke={palette['chart-axis']}
+                tick={{ fontSize, fill: palette['chart-axis'] }}
+              />
             <YAxis
+              width={44}
               domain={yDomain}
               allowDecimals={!intTick}
               stroke={palette['chart-axis']}
@@ -115,8 +128,9 @@ export function LineChartCard({
                 dot={false}
               />
             ))}
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )
@@ -139,6 +153,8 @@ export type BarChartCardProps = {
   emptyMessage?: string
   /** 空数据时的记录入口按钮 */
   emptyAction?: ReactNode
+  /** X 轴单个标签预计占用的最小宽度（紧凑标签可传更小值） */
+  xMinTickPx?: number
 }
 
 export function BarChartCard({
@@ -152,8 +168,10 @@ export function BarChartCard({
   selectedKey,
   emptyMessage,
   emptyAction,
+  xMinTickPx = 40,
 }: BarChartCardProps) {
   const palette = useChartColors()
+  const { ref, interval, fontSize } = useXAxisTicks(data.length, xMinTickPx)
   if (data.length === 0) {
     return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
   }
@@ -163,15 +181,19 @@ export function BarChartCard({
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
-            <XAxis
-              dataKey={xKey}
-              stroke={palette['chart-axis']}
-              tick={{ fontSize: 12, fill: palette['chart-axis'] }}
-            />
+        <div ref={ref}>
+          <ResponsiveContainer width="100%" height={height}>
+            <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={palette['chart-grid']} />
+              <XAxis
+                dataKey={xKey}
+                interval={interval}
+                tickFormatter={compactTickLabel}
+                stroke={palette['chart-axis']}
+                tick={{ fontSize, fill: palette['chart-axis'] }}
+              />
             <YAxis
+              width={44}
               allowDecimals={!intTick}
               stroke={palette['chart-axis']}
               tick={{ fontSize: 12, fill: palette['chart-axis'] }}
@@ -208,8 +230,9 @@ export function BarChartCard({
                   ))}
               </Bar>
             ))}
-          </BarChart>
-        </ResponsiveContainer>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </CardContent>
     </Card>
   )
