@@ -508,22 +508,43 @@ export function StepsPage() {
             <div className="px-4 pb-4 text-center text-sm text-muted-foreground">当月暂无步数数据</div>
           ) : (
             <>
-              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
-                {daySum?.items.map((d) => (
-                  <Card key={d.record_date} className="border-dashed">
-                    <CardContent className="py-3">
-                      <div className="text-sm font-medium text-foreground">{d.record_date}</div>
-                      <div className="mt-1 text-2xl font-semibold">{d.steps.toLocaleString()}</div>
-                      <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
-                        <span>距离 {d.distance_km != null ? `${d.distance_km} km` : '—'}</span>
-                        <span>消耗 {d.calories != null ? `${d.calories} kcal` : '—'}</span>
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        录入 {d.count ?? 0} 条时间段
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-3">
+                {daySum?.items.map((d) => {
+                  const meta = `距离 ${d.distance_km != null ? `${d.distance_km} km` : '—'} · 消耗 ${
+                    d.calories != null ? `${d.calories} kcal` : '—'
+                  }`
+                  const countText = `录入 ${d.count ?? 0} 条时间段`
+                  return (
+                    <Card key={d.record_date} className="border-dashed">
+                      <CardContent className="py-3">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                              {d.record_date}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground" title={countText}>
+                              {countText}
+                            </span>
+                          </div>
+                          <div className="flex items-end justify-between gap-2">
+                            <span className="flex shrink-0 items-baseline gap-1">
+                              <span className="text-2xl font-semibold leading-none tabular-nums">
+                                {d.steps.toLocaleString()}
+                              </span>
+                              <span className="text-xs text-muted-foreground">步</span>
+                            </span>
+                            <span
+                              className="min-w-0 truncate text-right text-xs text-muted-foreground"
+                              title={meta}
+                            >
+                              {meta}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
               <div className="px-4 pb-4">
                 <PaginationBar
@@ -545,18 +566,40 @@ export function StepsPage() {
             <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2 xl:grid-cols-4">
               {[...months]
                 .sort((a, b) => b.month.localeCompare(a.month))
-                .map((m) => (
-                  <Card key={m.month} className="border-dashed">
-                    <CardContent className="py-3">
-                      <div className="text-sm font-medium text-foreground">{m.month}</div>
-                      <div className="mt-1 text-2xl font-semibold">{m.steps.toLocaleString()}</div>
-                      <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
-                        <span>距离 {m.distance_km} km</span>
-                        <span>活动 {m.days} 天</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                .map((m) => {
+                  const daysText = `活动 ${m.days} 天`
+                  const meta = `距离 ${m.distance_km} km`
+                  return (
+                    <Card key={m.month} className="border-dashed">
+                      <CardContent className="py-3">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                              {m.month}
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground" title={daysText}>
+                              {daysText}
+                            </span>
+                          </div>
+                          <div className="flex items-end justify-between gap-2">
+                            <span className="flex shrink-0 items-baseline gap-1">
+                              <span className="text-2xl font-semibold leading-none tabular-nums">
+                                {m.steps.toLocaleString()}
+                              </span>
+                              <span className="text-xs text-muted-foreground">步</span>
+                            </span>
+                            <span
+                              className="min-w-0 truncate text-right text-xs text-muted-foreground"
+                              title={meta}
+                            >
+                              {meta}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
             </div>
           </CardContent>
         </Card>
