@@ -1,5 +1,8 @@
 ﻿import { useState } from 'react'
+import { Plus } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { BarChartCard } from '@/components/health/charts'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, useStats, type StatsDays } from '@/components/health/chart-utils'
 import {
@@ -111,6 +114,7 @@ export function PlanningPage() {
       fields={fields}
       columns={columns}
       onMutate={() => setRefresh((v) => v + 1)}
+      createButtonId="planning-create-record"
       extra={
         <>
           <div className="flex justify-end">
@@ -123,10 +127,24 @@ export function PlanningPage() {
             />
           </div>
           <BarChartCard
-            title={`各类型已存金额（已存合计 ${stats ? fmt(stats.saved_total) : ''}）`}
+            title={
+              byType.length > 0
+                ? `各类型已存金额（已存合计 ${stats ? fmt(stats.saved_total) : ''}）`
+                : '各类型已存金额'
+            }
             data={byType}
             xKey="plan_type"
             series={[{ key: 'amount', name: '已存金额', color: 'success' }]}
+            emptyMessage="这段时间还没有规划记录，添加后即可看到各类型已存金额"
+            emptyAction={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => document.getElementById('planning-create-record')?.click()}
+              >
+                <Plus className="size-4" /> 新增规划
+              </Button>
+            }
           />
         </>
       }

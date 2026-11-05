@@ -1,4 +1,4 @@
-import { type CSSProperties } from 'react'
+import { type CSSProperties, type ReactNode } from 'react'
 import {
   Bar,
   BarChart,
@@ -19,6 +19,8 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { resolveChartColor, useChartColors, type ChartColorToken } from '@/lib/chart-theme'
+
+import { ChartEmptyCard } from './chart-empty-card'
 
 /** 图表系列配置；color 使用主题色板令牌，由图表组件按当前深浅色解析为具体颜色 */
 export type Series = { key: string; name: string; color?: ChartColorToken }
@@ -45,6 +47,12 @@ export type LineChartCardProps = {
   height?: number
   /** Y 轴使用整数刻度（步数等离散较大数值时避免小数刻度） */
   intTick?: boolean
+  /** 非零基线有意义的折线（体重/BMI/体脂）传 auto，避免 0 起点把曲线压扁 */
+  yDomain?: [number | 'auto', number | 'auto']
+  /** 空数据时的说明文案 */
+  emptyMessage?: string
+  /** 空数据时的记录入口按钮 */
+  emptyAction?: ReactNode
 }
 
 export function LineChartCard({
@@ -54,8 +62,14 @@ export function LineChartCard({
   series,
   height = 240,
   intTick = false,
+  yDomain,
+  emptyMessage,
+  emptyAction,
 }: LineChartCardProps) {
   const palette = useChartColors()
+  if (data.length === 0) {
+    return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
+  }
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -104,6 +118,10 @@ export type BarChartCardProps = {
   onBarClick?: (payload: Record<string, unknown>) => void
   /** 选中条目的 key 值（用于高亮该柱） */
   selectedKey?: string
+  /** 空数据时的说明文案 */
+  emptyMessage?: string
+  /** 空数据时的记录入口按钮 */
+  emptyAction?: ReactNode
 }
 
 export function BarChartCard({
@@ -115,8 +133,13 @@ export function BarChartCard({
   intTick = false,
   onBarClick,
   selectedKey,
+  emptyMessage,
+  emptyAction,
 }: BarChartCardProps) {
   const palette = useChartColors()
+  if (data.length === 0) {
+    return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
+  }
   return (
     <Card>
       <CardHeader className="pb-2">

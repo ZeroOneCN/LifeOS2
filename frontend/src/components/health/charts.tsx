@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
+import { ChartEmptyCard } from './chart-empty-card'
 import type {
   BarChartCardProps,
   LineChartCardProps,
@@ -45,19 +46,39 @@ function ChartSkeleton({ title, height }: { title: string; height: number }) {
 }
 
 /** 折线图卡片（recharts 按需加载） */
-export function LineChartCard({ title, height = 240, ...rest }: LineChartCardProps) {
+export function LineChartCard({
+  title,
+  height = 240,
+  data,
+  emptyMessage,
+  emptyAction,
+  ...rest
+}: LineChartCardProps) {
+  if (data.length === 0) {
+    return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
+  }
   return (
     <Suspense fallback={<ChartSkeleton title={title} height={height} />}>
-      <LazyLineChartCard title={title} height={height} {...rest} />
+      <LazyLineChartCard title={title} height={height} data={data} {...rest} />
     </Suspense>
   )
 }
 
 /** 柱状图卡片（recharts 按需加载） */
-export function BarChartCard({ title, height = 240, ...rest }: BarChartCardProps) {
+export function BarChartCard({
+  title,
+  height = 240,
+  data,
+  emptyMessage,
+  emptyAction,
+  ...rest
+}: BarChartCardProps) {
+  if (data.length === 0) {
+    return <ChartEmptyCard title={title} message={emptyMessage} action={emptyAction} />
+  }
   return (
     <Suspense fallback={<ChartSkeleton title={title} height={height} />}>
-      <LazyBarChartCard title={title} height={height} {...rest} />
+      <LazyBarChartCard title={title} height={height} data={data} {...rest} />
     </Suspense>
   )
 }

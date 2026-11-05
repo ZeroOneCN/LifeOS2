@@ -266,12 +266,16 @@ export function DietPage() {
             data={stats?.trend ?? []}
             xKey="record_date"
             series={[{ key: 'calories', name: '摄入(千卡)', color: 'chart-3' }]}
+            emptyMessage="所选区间还没有饮食记录，添加后即可看到热量趋势"
+            emptyAction={<Button size="sm" variant="outline" onClick={openCreate}><Plus className="size-4" /> 新增饮食记录</Button>}
           />
           <BarChartCard
             title="三餐热量分布"
             data={(stats?.by_meal ?? []).map((m) => ({ ...m, label: MEAL_LABEL[m.meal_type] ?? m.meal_type }))}
             xKey="label"
             series={[{ key: 'calories', name: '热量(kcal)', color: 'chart-5' }]}
+            emptyMessage="还没有三餐记录，添加饮食后即可看到分布"
+            emptyAction={<Button size="sm" variant="outline" onClick={openCreate}><Plus className="size-4" /> 新增饮食记录</Button>}
           />
         </div>
 

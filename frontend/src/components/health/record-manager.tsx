@@ -79,6 +79,8 @@ type RecordManagerProps<T extends { id: number }> = {
   extra?: ReactNode
   /** 头部右侧、新增按钮旁的自定义内容（如同步入口） */
   headerExtra?: ReactNode
+  /** 新增按钮的 id，供页面内的空态图表等外部入口触发同一新增弹窗 */
+  createButtonId?: string
   /** 每行操作列中间的自定义行内操作（渲染在编辑之前） */
   rowActions?: (row: T) => ReactNode
   /** 变化时重新拉取列表（用于外部操作后刷新） */
@@ -144,6 +146,7 @@ export function RecordManager<T extends { id: number }>({
   columns,
   extra,
   headerExtra,
+  createButtonId,
   rowActions,
   refreshKey,
   hideHeader,
@@ -455,7 +458,7 @@ export function RecordManager<T extends { id: number }>({
               <Download /> 导出
             </Button>
           </Tip>
-          <Button className="shrink-0" onClick={openCreate}>
+          <Button id={createButtonId} className="shrink-0" onClick={openCreate}>
             <Plus /> 新增记录
           </Button>
         </div>

@@ -271,6 +271,8 @@ export function BodyPage() {
             data={stats?.trend ?? []}
             xKey="record_date"
             series={[{ key: 'weight_kg', name: '体重(kg)', color: 'chart-1' }]}
+            emptyMessage="所选区间还没有体重记录，添加后即可看到变化趋势"
+            emptyAction={<Button size="sm" variant="outline" onClick={openCreate}><Plus className="size-4" /> 新增体重记录</Button>}
           />
           <LineChartCard
             title="BMI 与体脂率趋势"
@@ -280,6 +282,8 @@ export function BodyPage() {
               { key: 'bmi', name: 'BMI', color: 'chart-2' },
               { key: 'body_fat_percent', name: '体脂率(%)', color: 'chart-7' },
             ]}
+            emptyMessage="所选区间还没有 BMI / 体脂率记录"
+            emptyAction={<Button size="sm" variant="outline" onClick={openCreate}><Plus className="size-4" /> 新增体重记录</Button>}
           />
         </div>
 

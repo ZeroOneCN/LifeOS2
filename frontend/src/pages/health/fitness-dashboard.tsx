@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { StatsPeriodPicker, getDefaultStatsDays, setGlobalStatsDays, type StatsDays } from '@/components/health/chart-utils'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -24,7 +27,12 @@ type DashboardData = {
   } | null
 }
 
-export function FitnessDashboardPage() {
+export function FitnessDashboardPage({
+  onGoTo,
+}: {
+  /** 进入对应记录 Tab，供空态图表的记录入口使用 */
+  onGoTo?: (tab: 'diet' | 'exercise' | 'body') => void
+} = {}) {
   const realtimeTick = useRealtime(30_000)
   const [days, setDays] = useState<StatsDays>(getDefaultStatsDays())
   const [data, setData] = useState<DashboardData | null>(null)
@@ -35,9 +43,29 @@ export function FitnessDashboardPage() {
   }, [days, realtimeTick])
 
   if (!data) {
+    // 与加载完成后的结构保持一致，避免数据到达时整页高度突变
     return (
       <div className="flex flex-col gap-4">
-        <div className="text-sm text-muted-foreground">数据看板加载中...</div>
+        <div className="grid gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="py-4">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="mt-2 h-7 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="py-4">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="mt-3 h-[240px] w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     )
   }
@@ -129,12 +157,16 @@ export function FitnessDashboardPage() {
             { key: 'intake', name: '摄入(kcal)', color: 'chart-3' },
             { key: 'expenditure', name: '消耗(kcal)', color: 'chart-2' },
           ]}
+          emptyMessage="所选区间没有摄入与消耗记录"
+          emptyAction={<Button size="sm" variant="outline" onClick={() => onGoTo?.('diet')}><Plus className="size-4" /> 去记录饮食</Button>}
         />
         <LineChartCard
           title="运动消耗趋势"
           data={data.expenditure_trend}
           xKey="record_date"
           series={[{ key: 'calories', name: '消耗(kcal)', color: 'chart-2' }]}
+          emptyMessage="所选区间还没有运动记录"
+          emptyAction={<Button size="sm" variant="outline" onClick={() => onGoTo?.('exercise')}><Plus className="size-4" /> 去记录运动</Button>}
         />
       </div>
 
@@ -154,18 +186,18 @@ export function FitnessDashboardPage() {
         ))}
       </div>
 
-      {data.body_trend.length > 0 && (
-        <LineChartCard
-          title="身材趋势（体重 / 体脂率）"
-          data={data.body_trend}
-          xKey="record_date"
-          height={280}
-          series={[
-            { key: 'weight_kg', name: '体重(kg)', color: 'chart-1' },
-            { key: 'body_fat_percent', name: '体脂率(%)', color: 'chart-7' },
-          ]}
-        />
-      )}
+      <LineChartCard
+        title="身材趋势（体重 / 体脂率）"
+        data={data.body_trend}
+        xKey="record_date"
+        height={280}
+        series={[
+          { key: 'weight_kg', name: '体重(kg)', color: 'chart-1' },
+          { key: 'body_fat_percent', name: '体脂率(%)', color: 'chart-7' },
+        ]}
+        emptyMessage="所选区间还没有体重记录"
+        emptyAction={<Button size="sm" variant="outline" onClick={() => onGoTo?.('body')}><Plus className="size-4" /> 去记录体重</Button>}
+      />
     </div>
   )
 }

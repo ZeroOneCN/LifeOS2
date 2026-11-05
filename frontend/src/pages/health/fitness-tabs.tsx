@@ -47,7 +47,7 @@ export function FitnessTabsPage() {
         })}
       </div>
 
-      {tab === 'dashboard' && <FitnessDashboardPage />}
+      {tab === 'dashboard' && <FitnessDashboardPage onGoTo={setTab} />}
       {tab === 'diet' && <DietPage />}
       {tab === 'exercise' && <FitnessPage />}
       {tab === 'body' && <BodyPage />}
