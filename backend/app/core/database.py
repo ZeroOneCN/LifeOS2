@@ -15,7 +15,11 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Base(DeclarativeBase):
-    """所有 ORM 模型的声明式基类。"""
+    """所有 ORM 模型的声明式基类。
+
+    约定：新增表必须同步在 ``app.services.backup_service.TABLE_LABELS`` 登记中文名，
+    否则备份页面会显示「未配置中文名」，且 ``tests/test_table_labels.py`` 会失败。
+    """
 
 
 def get_db():

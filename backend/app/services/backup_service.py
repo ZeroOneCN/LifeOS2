@@ -88,7 +88,7 @@ def _backup_filename(kind: str, suffix: str = ".json") -> str:
 
 # 数据表中文名映射（唯一数据源）：
 # 所有新增的数据表必须在此补充中文映射，否则备份页面会将未映射的表标记为「未配置中文名」，
-# 未映射的表会在 /backup/tables 返回 mapped=false，前端据此提示「未配置中文名」。
+# 且 tests/test_table_labels.py 会直接失败（遍历 Base.metadata 逐条校验并反查死键）。
 TABLE_LABELS: dict[str, str] = {
     "health_vitals_sleep": "睡眠体征",
     "health_fitness": "健身运动",
