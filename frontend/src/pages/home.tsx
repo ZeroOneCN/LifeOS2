@@ -447,6 +447,7 @@ export function HomePage() {
   const displayName = profile?.nickname || profile?.username || profile?.account || '主人'
 
   const outstanding = (fin?.outstanding_loans ?? 0) + (fin?.outstanding_debt ?? 0)
+  const pendingBillCount = (fin?.pending_bills.length ?? 0) + (fin?.pending_utils.length ?? 0)
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
@@ -477,27 +478,30 @@ export function HomePage() {
         {/* 待处理信息流：按紧急度（逾期 → 临近 → 普通）自上而下 */}
         <PendingFlowCard items={flowItems} />
 
-        {/* 关键指标：按中心分组，每组单行排布，避免卡片混排产生孤行 */}
+        {/* 关键指标：按中心分组；6 卡配 3 列、3 卡配 3 列，整行填满不留空洞 */}
         <section className="flex flex-col gap-6">
-          <StatGroup icon={Wallet} title="财务与投资" cols="grid gap-4 grid-cols-2 sm:grid-cols-3 min-[1680px]:grid-cols-5">
+          <StatGroup icon={Wallet} title="财务与投资" cols="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard icon={Wallet} label="本月支出" value={fmt(fin?.month_expense ?? 0)} hint="含购/旅/水电/订阅/租/贷" money />
             <StatCard icon={HandCoins} label="累计待还" value={fmt(outstanding)} hint={`网贷 ${fmt(fin?.outstanding_loans ?? 0)} + 民间 ${fmt(fin?.outstanding_debt ?? 0)}`} />
             <StatCard icon={TrendingUp} label="投资净收益" value={formatUsdSigned(inv?.summary.net_profit ?? 0)} hint={`账户净值 ${formatUsd(inv?.summary.account_value ?? 0)}`} pnl />
             <StatCard icon={CircleDollarSign} label="投资胜率" value={formatPercent(inv?.summary.win_rate ?? 0)} hint={`共 ${formatInt(inv?.summary.trade_count ?? 0)} 笔交易`} />
             <StatCard icon={CreditCard} label="本月扣款" value={fmt(life?.month_deduct ?? 0)} hint="生活卡片类月度支出" />
+            <StatCard icon={Receipt} label="待缴账单" value={`${formatInt(pendingBillCount)} 项`} hint={`网贷 ${formatInt(fin?.pending_bills.length ?? 0)} 项 · 水电 ${formatInt(fin?.pending_utils.length ?? 0)} 项`} />
           </StatGroup>
 
-          <StatGroup icon={HeartPulse} title="健康" cols="grid gap-4 grid-cols-2 sm:grid-cols-3 min-[1680px]:grid-cols-5">
+          <StatGroup icon={HeartPulse} title="健康" cols="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard icon={Footprints} label="近期步数" value={`${formatInt(health?.step_total ?? 0)} 步`} hint="近 30 天累计" />
             <StatCard icon={Timer} label="近期运动" value={`${formatInt(health?.exercise_count ?? 0)} 次`} hint="近 30 天记录" />
             <StatCard icon={Utensils} label="膳食摄入" value={`${formatInt(health?.intake_total ?? 0)} kcal`} hint="近 30 天饮食总摄入" />
             <StatCard icon={Flame} label="运动消耗" value={`${formatInt(health?.expenditure_total ?? 0)} kcal`} hint="近 30 天运动总消耗" />
-            <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${formatDecimal(health.latest_body.weight_kg, 1)} kg` : DASH} hint={health?.latest_body?.bmi ? `BMI ${formatHealth1(health.latest_body.bmi)}` : '暂无记录'} />
+            <StatCard icon={Scale} label="当前体重" value={health?.latest_body?.weight_kg ? `${formatDecimal(health.latest_body.weight_kg, 1)} kg` : DASH} hint="最近一次记录" />
+            <StatCard icon={Scale} label="BMI" value={health?.latest_body?.bmi ? formatHealth1(health.latest_body.bmi) : DASH} hint={health?.latest_body?.height_cm ? `身高 ${formatDecimal(health.latest_body.height_cm, 1)} cm` : '暂无记录'} />
           </StatGroup>
 
-          <StatGroup icon={Package} title="生活" cols="grid gap-4 grid-cols-2 sm:grid-cols-3">
+          <StatGroup icon={Package} title="生活" cols="grid gap-4 grid-cols-1 sm:grid-cols-3">
             <StatCard icon={Package} label="临期物品" value={`${formatInt(life?.item_expiring ?? 0)} 项`} hint={life?.item_expired ? `另有 ${formatInt(life.item_expired)} 项已过期` : '30 天内到期'} />
             <StatCard icon={Coins} label="物品总价值" value={fmt(life?.item_value ?? 0)} hint={`卡片 ${formatInt(life?.phone_total ?? 0)} 张 · 银行卡 ${formatInt(life?.bank_total ?? 0)} 张`} />
+            <StatCard icon={CreditCard} label="卡片数量" value={`${formatInt((life?.phone_total ?? 0) + (life?.bank_total ?? 0))} 张`} hint="手机卡与银行卡合计" />
           </StatGroup>
         </section>
       </div>
