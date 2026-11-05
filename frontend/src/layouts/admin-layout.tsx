@@ -26,7 +26,7 @@ export function AdminLayout() {
   const section = findSection(route?.section)
   const sectionTitle = section?.title
   const showSection = section ? !section.system : false
-  const pageTitle = route?.title ?? '页面'
+  const pageTitle = route?.title ?? '404 / 页面不存在'
 
   // 按当前页面自动更新网页标签标题（品牌名取自系统设置）
   useEffect(() => {
