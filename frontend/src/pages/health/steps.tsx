@@ -511,7 +511,7 @@ export function StepsPage() {
             <div className="px-4 pb-4 text-center text-sm text-muted-foreground">当月暂无步数数据</div>
           ) : (
             <>
-              <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
+              <div className="grid gap-3 px-4 pb-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 {daySum?.items.map((d) => {
                   // 卡片较窄，次级信息去掉「距离/消耗」前缀、由 km/kcal 单位自证，title 保留完整说明
                   const dist = d.distance_km != null ? `${formatDecimal(d.distance_km, 2)} km` : DASH
@@ -566,8 +566,8 @@ export function StepsPage() {
         <Card>
           <CardContent className="p-0">
             <div className="px-4 pt-4 pb-2 text-sm font-medium">每月步数汇总（每月 = 每天最大值之和）</div>
-            {/* 月度 9 张卡：1440 下 3×3 满格，避免 5/4 列留白 */}
-            <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
+            {/* 固定四列：尾行不足的卡保持同列宽，不拉伸，避免同页卡宽跳变 */}
+            <div className="grid gap-3 px-4 pb-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {[...months]
                 .sort((a, b) => b.month.localeCompare(a.month))
                 .map((m) => {
