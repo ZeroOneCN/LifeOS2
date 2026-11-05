@@ -436,7 +436,7 @@ export function ActivityLogsPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">操作记录</CardTitle>
-          <CardDescription>共 {items.length} 条，按时间倒序排列</CardDescription>
+          <CardDescription>共 {total.toLocaleString()} 条，按时间倒序排列</CardDescription>
         </CardHeader>
         <CardContent className={`transition-opacity duration-200 ${loading && items.length > 0 ? 'pointer-events-none opacity-60' : ''}`}>
           {items.length === 0 ? (
