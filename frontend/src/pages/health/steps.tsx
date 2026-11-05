@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Loader2, Pencil, Plus, Settings, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -35,7 +36,7 @@ import {
 import { BarChartCard, LineChartCard } from '@/components/health/charts'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { PaginationBar } from '@/components/ui/pagination-bar'
-import { Hint } from '@/components/ui/tip'
+import { Hint, Tip } from '@/components/ui/tip'
 import { api } from '@/lib/api'
 import { DASH, formatDecimal, formatInt } from '@/lib/format'
 
@@ -418,20 +419,20 @@ export function StepsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">步数统计</h1>
-          <p className="text-sm text-muted-foreground">按时间段录入每日步数，自动按步幅计算距离，支持按月查看汇总与时间段对比。</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setSettingDialogOpen(true)}>
-            <Settings /> 步幅({stride}cm)
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus /> 新增步数
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title="步数统计"
+        description="按时间段录入每日步数，自动按步幅计算距离，支持按月查看汇总与时间段对比。"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setSettingDialogOpen(true)}>
+              <Settings /> 步幅({stride}cm)
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus /> 新增步数
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
@@ -564,7 +565,8 @@ export function StepsPage() {
         <Card>
           <CardContent className="p-0">
             <div className="px-4 pt-4 pb-2 text-sm font-medium">每月步数汇总（每月 = 每天最大值之和）</div>
-            <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(210px,1fr))]">
+            {/* 月度 9 张卡：1440 下 3×3 满格，避免 5/4 列留白 */}
+            <div className="grid gap-3 px-4 pb-4 grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
               {[...months]
                 .sort((a, b) => b.month.localeCompare(a.month))
                 .map((m) => {
@@ -644,12 +646,12 @@ export function StepsPage() {
                     <TableCell>{row.calories != null ? `${formatInt(row.calories)} kcal` : DASH}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                        <Tip label="编辑"><Button variant="ghost" size="icon" aria-label="编辑" onClick={() => openEdit(row)}>
                           <Pencil />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => remove(row)}>
+                        </Button></Tip>
+                        <Tip label="删除"><Button variant="ghost" size="icon" aria-label="删除" className="text-destructive" onClick={() => remove(row)}>
                           <Trash2 />
-                        </Button>
+                        </Button></Tip>
                       </div>
                     </TableCell>
                   </TableRow>

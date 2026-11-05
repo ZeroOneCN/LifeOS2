@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { Clock, FileDown, FileUp, HardDrive, RefreshCw, ScrollText } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 
 import { ExportTab } from './export-tab'
@@ -68,15 +70,11 @@ export function BackupPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">数据备份</h1>
-          <p className="text-muted-foreground text-sm">
-            导出、导入和管理您的数据备份
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="数据备份"
+        description="导出、导入和管理您的数据备份"
+        actions={
           <Button
             variant="outline"
             size="sm"
@@ -90,78 +88,75 @@ export function BackupPage() {
             <RefreshCw className={`mr-1 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             刷新
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Tab 导航 */}
-      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
-        {TABS.map((t) => {
-          const Icon = t.icon
-          return (
-            <Button
-              key={t.key}
-              variant={tab === t.key ? 'default' : 'ghost'}
-              className="min-w-max flex-1 whitespace-nowrap"
-              onClick={() => setTab(t.key)}
-            >
-              <Icon className="size-4" /> {t.label}
-            </Button>
-          )
-        })}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="gap-4">
+        {/* 375 下允许换行，保证 5 个 Tab 全部可见可点，不再被横向滚动藏住 */}
+        <TabsList className="h-auto flex-wrap">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            return (
+              <TabsTrigger key={t.key} value={t.key} className="min-w-[5.5rem] py-1.5">
+                <Icon className="size-4" /> {t.label}
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
 
-      {tab === 'export' && (
-        <ExportTab
-          tables={tables}
-          loadingTables={loadingTables}
-          selectedTables={selectedTables}
-          setSelectedTables={setSelectedTables}
-          exportFormat={exportFormat}
-          setExportFormat={setExportFormat}
-          compress={compress}
-          setCompress={setCompress}
-          collapsedModules={collapsedModules}
-          setCollapsedModules={setCollapsedModules}
-        />
-      )}
-      {tab === 'import' && (
-        <ImportTab
-          tables={tables}
-          reloadTables={loadTables}
-          importFile={importFile}
-          setImportFile={setImportFile}
-          importResult={importResult}
-          setImportResult={setImportResult}
-        />
-      )}
-      {tab === 'schedule' && (
-        <ScheduleTab
-          selectedTables={selectedTables}
-          schedules={polling.schedules}
-          loadingSchedules={polling.loadingSchedules}
-          reloadSchedules={polling.loadSchedules}
-        />
-      )}
-      {tab === 'logs' && (
-        <LogsTab
-          logPage={logPage}
-          setLogPage={setLogPage}
-          logs={polling.logs}
-          logTotal={polling.logTotal}
-          loadingLogs={polling.loadingLogs}
-          resetLogs={polling.resetLogs}
-        />
-      )}
-      {tab === 'manage' && (
-        <ManageTab
-          backupPage={backupPage}
-          setBackupPage={setBackupPage}
-          backups={polling.backups}
-          backupTotal={polling.backupTotal}
-          loadingBackups={polling.loadingBackups}
-          reloadBackups={polling.loadBackups}
-        />
-      )}
+        <TabsContent value="export">
+          <ExportTab
+            tables={tables}
+            loadingTables={loadingTables}
+            selectedTables={selectedTables}
+            setSelectedTables={setSelectedTables}
+            exportFormat={exportFormat}
+            setExportFormat={setExportFormat}
+            compress={compress}
+            setCompress={setCompress}
+            collapsedModules={collapsedModules}
+            setCollapsedModules={setCollapsedModules}
+          />
+        </TabsContent>
+        <TabsContent value="import">
+          <ImportTab
+            tables={tables}
+            reloadTables={loadTables}
+            importFile={importFile}
+            setImportFile={setImportFile}
+            importResult={importResult}
+            setImportResult={setImportResult}
+          />
+        </TabsContent>
+        <TabsContent value="schedule">
+          <ScheduleTab
+            selectedTables={selectedTables}
+            schedules={polling.schedules}
+            loadingSchedules={polling.loadingSchedules}
+            reloadSchedules={polling.loadSchedules}
+          />
+        </TabsContent>
+        <TabsContent value="logs">
+          <LogsTab
+            logPage={logPage}
+            setLogPage={setLogPage}
+            logs={polling.logs}
+            logTotal={polling.logTotal}
+            loadingLogs={polling.loadingLogs}
+            resetLogs={polling.resetLogs}
+          />
+        </TabsContent>
+        <TabsContent value="manage">
+          <ManageTab
+            backupPage={backupPage}
+            setBackupPage={setBackupPage}
+            backups={polling.backups}
+            backupTotal={polling.backupTotal}
+            loadingBackups={polling.loadingBackups}
+            reloadBackups={polling.loadBackups}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
