@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { Loader2, LogOut, Monitor, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useConfirm } from '@/components/ui/confirm-dialog'
+import { RECORD_ROW_CLASS, RecordList } from '@/components/ui/record-list'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { DASH, formatDateTime } from '@/lib/format'
@@ -19,8 +21,6 @@ type UserSession = {
   expires_at: string
   is_current: boolean
 }
-
-/** 格式化 ISO 时间为本地可读字符串（统一走公共 formatDateTime）。 */
 
 /** 会话管理页面：查看在线设备并支持强制下线。 */
 export function SessionsPage() {
@@ -95,68 +95,64 @@ export function SessionsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">会话管理</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={load} disabled={loading}>
-            <RefreshCw className={loading ? 'animate-spin' : ''} /> 刷新
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={revokeOthers}
-            disabled={revokingOthers || sessions === null || sessions.length <= 1}
-          >
-            {revokingOthers ? <Loader2 className="animate-spin" /> : <LogOut />} 下线其他设备
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="会话管理"
+        actions={
+          <>
+            <Button variant="outline" onClick={load} disabled={loading}>
+              <RefreshCw className={loading ? 'animate-spin' : ''} /> 刷新
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={revokeOthers}
+              disabled={revokingOthers || sessions === null || sessions.length <= 1}
+            >
+              {revokingOthers ? <Loader2 className="animate-spin" /> : <LogOut />} 下线其他设备
+            </Button>
+          </>
+        }
+      />
 
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-24" />
+            <Skeleton key={i} className="h-14" />
           ))}
         </div>
       ) : sessions && sessions.length > 0 ? (
-        <div className="space-y-3">
+        <RecordList as="div">
           {sessions.map((s) => (
-            <Card key={s.id}>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="rounded-lg bg-muted p-3">
-                  <Monitor className="size-6 text-muted-foreground" />
+            <div key={s.id} className={`${RECORD_ROW_CLASS} flex items-center gap-4`}>
+              <div className="shrink-0 rounded-lg bg-muted p-2.5">
+                <Monitor className="size-5 text-muted-foreground" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">{s.device || '未知设备'}</span>
+                  {s.is_current && <Badge variant="secondary">当前设备</Badge>}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{s.device || '未知设备'}</span>
-                    {s.is_current && <Badge variant="secondary">当前设备</Badge>}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    IP：{s.ip_address || DASH} · 最近活跃：{formatDateTime(s.last_used_at)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    登录于 {formatDateTime(s.created_at)} · 过期于 {formatDateTime(s.expires_at)}
-                  </div>
+                <div className="text-xs text-muted-foreground">
+                  IP：{s.ip_address || DASH} · 最近活跃：{formatDateTime(s.last_used_at)} ·
+                  登录于 {formatDateTime(s.created_at)} · 过期于 {formatDateTime(s.expires_at)}
                 </div>
-                {!s.is_current && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => revoke(s.id)}
-                    disabled={revokingId === s.id}
-                  >
-                    {revokingId === s.id ? (
-                      <Loader2 className="animate-spin" />
-                    ) : (
-                      <LogOut />
-                    )}
-                    下线
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+              {!s.is_current && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => revoke(s.id)}
+                  disabled={revokingId === s.id}
+                >
+                  {revokingId === s.id ? <Loader2 className="animate-spin" /> : <LogOut />}
+                  下线
+                </Button>
+              )}
+            </div>
           ))}
-        </div>
+        </RecordList>
       ) : (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">暂无活跃会话</CardContent>

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { RECORD_ROW_CLASS, RecordList } from '@/components/ui/record-list'
 import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -214,27 +216,25 @@ export function LoginAuditPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">安全审计</h1>
-          <p className="text-sm text-muted-foreground">
-            记录所有登录尝试的账号、IP、时间与结果，自动检测暴力破解行为。
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={refreshing ? 'animate-spin' : ''} /> 刷新
-          </Button>
-          <Button
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={clearAll}
-            disabled={clearing}
-          >
-            {clearing ? <Loader2 className="animate-spin" /> : <Trash2 />} 清除记录
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title="安全审计"
+        description="记录所有登录尝试的账号、IP、时间与结果，自动检测暴力破解行为。"
+        actions={
+          <>
+            <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={refreshing ? 'animate-spin' : ''} /> 刷新
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={clearAll}
+              disabled={clearing}
+            >
+              {clearing ? <Loader2 className="animate-spin" /> : <Trash2 />} 清除记录
+            </Button>
+          </>
+        }
+      />
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard icon={ShieldCheck} label="今日登录" value={String(todayCount)} className="text-info" />
@@ -395,12 +395,12 @@ export function LoginAuditPage() {
               </p>
             )
           ) : (
-            <ol className="space-y-3">
+            <RecordList>
               {items.map((row) => {
                 const meta = RESULT_META[row.result] ?? { name: row.result, className: 'bg-muted text-muted-foreground', icon: Shield }
                 const Icon = meta.icon
                 return (
-                  <li key={row.id} className="rounded-lg border px-4 py-3">
+                  <li key={row.id} className={RECORD_ROW_CLASS}>
                     <div className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 gap-y-1">
                       <span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}>
                         <Icon className="size-3.5" />
@@ -440,7 +440,7 @@ export function LoginAuditPage() {
                   </li>
                 )
               })}
-            </ol>
+            </RecordList>
           )}
         </CardContent>
         {totalPages > 1 && (

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PaginationBar } from '@/components/ui/pagination-bar'
+import { RECORD_ROW_CLASS, RecordList } from '@/components/ui/record-list'
 import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -299,31 +301,31 @@ export function ActivityLogsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">活动日志</h1>
-          <p className="text-sm text-muted-foreground">
-            {IS_DEMO
-              ? '自动记录各模块的新增、编辑与删除操作。'
-              : '自动记录各模块的新增、编辑、删除操作，以及报告生成、提醒扫描、话费结算、定时备份等自动化任务。'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={refreshing ? 'animate-spin' : ''} />
-            {refreshing ? '刷新中' : '刷新'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleClear}
-            disabled={clearing || loading}
-            className="text-destructive hover:text-destructive"
-          >
-            {clearing ? <Loader2 className="animate-spin" /> : <Eraser />}
-            {clearing ? '清空中' : '清空日志'}
-          </Button>
-        </div>
-      </section>
+      <PageHeader
+        title="活动日志"
+        description={
+          IS_DEMO
+            ? '自动记录各模块的新增、编辑与删除操作。'
+            : '自动记录各模块的新增、编辑、删除操作，以及报告生成、提醒扫描、话费结算、定时备份等自动化任务。'
+        }
+        actions={
+          <>
+            <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? '刷新中' : '刷新'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleClear}
+              disabled={clearing || loading}
+              className="text-destructive hover:text-destructive"
+            >
+              {clearing ? <Loader2 className="animate-spin" /> : <Eraser />}
+              {clearing ? '清空中' : '清空日志'}
+            </Button>
+          </>
+        }
+      />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -445,7 +447,7 @@ export function ActivityLogsPage() {
               </p>
             )
           ) : (
-            <ol className="space-y-3">
+            <RecordList>
               {items.map((row) => {
                 const meta = ACTION_META[row.action] ?? {
                   name: row.action,
@@ -454,7 +456,7 @@ export function ActivityLogsPage() {
                 }
                 const Icon = meta.icon
                 return (
-                  <li key={row.id} className="rounded-lg border px-4 py-3">
+                  <li key={row.id} className={RECORD_ROW_CLASS}>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span
                         className={`flex size-6 shrink-0 items-center justify-center rounded-full ${meta.className}`}
@@ -492,7 +494,7 @@ export function ActivityLogsPage() {
                   </li>
                 )
               })}
-            </ol>
+            </RecordList>
           )}
         </CardContent>
         {totalPages > 1 && (
