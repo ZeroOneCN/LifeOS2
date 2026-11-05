@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardHeaderActions, CardTitle } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatCny, formatInt, reportTitle } from '@/lib/format'
+import { formatCny, formatInt, reportSummary, reportTitle } from '@/lib/format'
 
 type ExpiringItem = { id: number; item_name: string; category: string; expire_date?: string; days_left: number }
 type LatestReport = { id: number; title: string; period_label?: string; summary?: string }
@@ -230,7 +230,7 @@ export function LifestyleOverviewPage() {
                 <div className="text-sm font-medium">{reportTitle(data.latest_report.title)}</div>
                 <div className="text-xs text-muted-foreground">{data.latest_report.period_label ?? ''}</div>
                 {data.latest_report.summary && (
-                  <p className="text-sm text-muted-foreground">{data.latest_report.summary}</p>
+                  <p className="text-sm text-muted-foreground">{reportSummary(data.latest_report.summary)}</p>
                 )}
                 <Link
                   to="/lifestyle/reports"

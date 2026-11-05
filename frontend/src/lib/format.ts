@@ -223,3 +223,24 @@ export function reportTitle(title?: string | null): string {
     )
     .trim()
 }
+
+/**
+ * 报告摘要去重：后端摘要常以「统计区间 YYYY-MM-DD ~ YYYY-MM-DD，」开头，
+ * 而报告卡片副标题已经展示同一区间。这里剥离摘要开头的区间前缀，
+ * 保证同一日期只出现一次（副标题保留区间，摘要保留内容）。
+ * @param summary 原始报告摘要
+ * @returns 去掉重复区间前缀后的摘要
+ */
+export function reportSummary(summary?: string | null): string {
+  if (!summary) return ''
+  return summary
+    .replace(
+      /^统计区间\s*\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}\s*[，,、]?\s*/,
+      '',
+    )
+    .replace(
+      /^\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}\s*[，,、]?\s*/,
+      '',
+    )
+    .trim()
+}

@@ -52,7 +52,7 @@ import { Tip } from '@/components/ui/tip'
 import { LineChartCard } from '@/components/health/charts'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { DASH, formatCny, formatDateTime, formatDuration, formatInt, formatRange } from '@/lib/format'
+import { DASH, formatCny, formatDateTime, formatDuration, formatInt, formatRange, reportTitle } from '@/lib/format'
 
 const PAGE_SIZE = 10
 
@@ -820,7 +820,7 @@ export function TravelPage() {
                 {reportHistory.map((r) => (
                   <div key={r.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
                     <button type="button" className="min-w-0 flex-1 text-left" onClick={() => viewReport(r)}>
-                      <div className="truncate font-medium">{r.title}</div>
+                      <div className="truncate font-medium" title={reportTitle(r.title)}>{reportTitle(r.title)}</div>
                       <div className="text-xs text-muted-foreground">
                         {r.period_start && r.period_end ? formatRange(r.period_start, r.period_end) : ''}
                         {r.created_at ? ` · ${formatDateTime(r.created_at)}` : ''}

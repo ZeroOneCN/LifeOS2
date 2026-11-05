@@ -31,9 +31,16 @@ import {
 } from '@/components/reports/period-picker'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatDateTime, formatInt, reportTitle } from '@/lib/format'
+import { formatDateTime, formatInt, formatRange, reportSummary, reportTitle } from '@/lib/format'
 
-type ReportItem = { id: number; title: string; period_label?: string; created_at?: string }
+type ReportItem = {
+  id: number
+  title: string
+  period_label?: string
+  period_start?: string
+  period_end?: string
+  created_at?: string
+}
 type ReportDetail = ReportItem & { summary?: string; content?: unknown }
 type ContentSection =
   | { type: 'h2'; text: string }
@@ -208,7 +215,12 @@ export function InvestmentReportsPage() {
                 <ChevronDown className={`size-4 shrink-0 text-decor-indigo transition-transform ${previewCollapsed ? '-rotate-90' : ''}`} />
                 <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{reportTitle(preview.title)}</CardTitle>
               </div>
-              {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
+              {formatRange(preview.period_start, preview.period_end, preview.period_label) && (
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {formatRange(preview.period_start, preview.period_end, preview.period_label)}
+                </span>
+              )}
+              {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{reportSummary(preview.summary)}</p>}
             </button>
             <CardHeaderActions>
               <Button size="sm" variant="ghost" onClick={() => setPreviewCollapsed((v) => !v)}>

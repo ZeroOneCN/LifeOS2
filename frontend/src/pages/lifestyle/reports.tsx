@@ -31,7 +31,7 @@ import {
 } from '@/components/reports/period-picker'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { formatDateTime, formatInt, formatRange, reportTitle } from '@/lib/format'
+import { formatDateTime, formatInt, formatRange, reportSummary, reportTitle } from '@/lib/format'
 
 type ReportItem = {
   id: number
@@ -245,7 +245,7 @@ export function LifestyleReportsPage() {
                   {formatRange(preview.period_start, preview.period_end, preview.period_label)}
                 </span>
               )}
-              {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>}
+              {preview.summary && <p className="mt-1 text-sm text-muted-foreground">{reportSummary(preview.summary)}</p>}
             </button>
             <CardHeaderActions>
               <Tip label={previewCollapsed ? '展开' : '收起'}>

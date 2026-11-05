@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
-import { DASH, formatDecimal, formatDuration, formatInt, formatPercent } from '@/lib/format'
+import { DASH, formatDecimal, formatDuration, formatInt, formatPercent, reportTitle } from '@/lib/format'
 
 type Vitals = {
   id: number
@@ -334,7 +334,7 @@ export function HealthOverviewPage() {
         <SectionCard title="最新健康报告" to="/health/reports">
           {data.latest_report ? (
             <div className="space-y-1">
-              <div className="text-sm font-medium">{data.latest_report.title}</div>
+              <div className="text-sm font-medium">{reportTitle(data.latest_report.title)}</div>
               <div className="text-xs text-muted-foreground">
                 {data.latest_report.report_date}
               </div>

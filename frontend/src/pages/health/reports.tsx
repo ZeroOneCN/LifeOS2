@@ -33,6 +33,7 @@ import {
 } from '@/components/reports/period-picker'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api } from '@/lib/api'
+import { reportTitle } from '@/lib/format'
 
 type ReportRecord = {
   id: number
@@ -236,8 +237,9 @@ export function ReportsPage() {
                 <ChevronDown
                   className={`size-4 shrink-0 text-success transition-transform ${previewCollapsed ? '-rotate-90' : ''}`}
                 />
-                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{preview.title}</CardTitle>
+                <CardTitle className="text-base min-w-0 max-w-[55%] truncate">{reportTitle(preview.title)}</CardTitle>
               </div>
+              <span className="mt-1 block text-xs text-muted-foreground">{preview.report_date}</span>
               {preview.summary && (
                 <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>
               )}
@@ -310,7 +312,7 @@ export function ReportsPage() {
                   >
                     <div className="flex items-center gap-2">
                       <FileText className="size-4 shrink-0 text-success" />
-                      <span className="truncate text-sm font-medium">{r.title}</span>
+                      <span className="truncate text-sm font-medium">{reportTitle(r.title)}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-muted-foreground">{r.report_date}</div>
                     {r.summary && (

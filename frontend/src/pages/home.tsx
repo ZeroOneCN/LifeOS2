@@ -40,6 +40,7 @@ import {
   formatPercent,
   formatUsd,
   formatUsdSigned,
+  reportSummary,
   reportTitle,
 } from '@/lib/format'
 
@@ -533,7 +534,9 @@ export function HomePage() {
                 </Link>
               </div>
               {life.latest_report.summary && (
-                <p className="mt-2 text-sm text-muted-foreground">{life.latest_report.summary}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {reportSummary(life.latest_report.summary)}
+                </p>
               )}
             </CardContent>
           </Card>

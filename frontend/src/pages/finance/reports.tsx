@@ -36,6 +36,7 @@ import {
   formatDateTime,
   formatInt,
   formatRange,
+  reportSummary,
   reportTitle,
 } from '@/lib/format'
 
@@ -252,7 +253,7 @@ export function FinanceReportsPage() {
                 </span>
               )}
               {preview.summary && (
-                <p className="mt-1 text-sm text-muted-foreground">{preview.summary}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{reportSummary(preview.summary)}</p>
               )}
             </button>
             <CardHeaderActions>
