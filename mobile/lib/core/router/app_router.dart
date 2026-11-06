@@ -14,6 +14,7 @@ import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_fitness_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
@@ -27,7 +28,6 @@ import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
 import '../../features/life/lifestyle_items_page.dart';
 import '../../features/notifications/notification_center_page.dart';
-import '../../features/placeholder/feature_placeholder_page.dart';
 import '../../features/reports/report_detail_page.dart';
 import '../../features/reports/report_list_page.dart';
 import '../../features/settings/about_page.dart';
@@ -118,8 +118,7 @@ GoRouter createAppRouter() {
                   ),
                   GoRoute(
                     path: 'checkup',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '体检指标'),
+                    builder: (_, _) => const HealthCheckupPage(),
                   ),
                   GoRoute(
                     path: 'reports',

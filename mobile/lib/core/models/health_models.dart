@@ -1,4 +1,4 @@
-/// 健康域业务模型：步数统计、用药跟踪、睡眠体征与健身运动。
+/// 健康域业务模型：步数统计、用药跟踪、睡眠体征、健身运动与体检指标。
 library;
 
 double _toDouble(Object? value) {
@@ -560,6 +560,124 @@ class FitnessStats {
           .map((Map item) =>
               FitnessTypeSummary.fromJson(item.cast<String, dynamic>()))
           .toList(growable: false),
+    );
+  }
+}
+
+/// 单个体检指标的趋势点（统计接口 `items[].trend`）。
+class CheckupTrendPoint {
+  const CheckupTrendPoint({required this.date, this.value, this.result});
+
+  final String date;
+  final double? value;
+  final String? result;
+
+  factory CheckupTrendPoint.fromJson(Map<String, dynamic> json) {
+    return CheckupTrendPoint(
+      date: json['check_date'] as String? ?? '',
+      value: _toDoubleOrNull(json['value']),
+      result: json['result'] as String?,
+    );
+  }
+}
+
+/// 体检指标聚合（`GET /health/checkup/stats` 的 `items[]`）。
+///
+/// `latestValue` / `latestResult` 可能为 null（未采集或未判定），展示时用「—」。
+class CheckupItem {
+  const CheckupItem({
+    required this.itemName,
+    this.unit,
+    this.referenceRange,
+    this.refLow,
+    this.refHigh,
+    this.latestValue,
+    this.latestDate,
+    this.latestResult,
+    required this.count,
+    required this.trend,
+  });
+
+  final String itemName;
+  final String? unit;
+  final String? referenceRange;
+  final double? refLow;
+  final double? refHigh;
+  final double? latestValue;
+  final String? latestDate;
+  final String? latestResult;
+  final int count;
+  final List<CheckupTrendPoint> trend;
+
+  /// 是否超出参考范围（偏高/偏低）。
+  bool get abnormal => latestResult == 'high' || latestResult == 'low';
+
+  factory CheckupItem.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic> latest =
+        (json['latest'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{};
+    return CheckupItem(
+      itemName: json['item_name'] as String? ?? '',
+      unit: json['unit'] as String?,
+      referenceRange: json['reference_range'] as String?,
+      refLow: _toDoubleOrNull(json['ref_low']),
+      refHigh: _toDoubleOrNull(json['ref_high']),
+      latestValue: _toDoubleOrNull(latest['value']),
+      latestDate: latest['check_date'] as String?,
+      latestResult: latest['result'] as String?,
+      count: _toInt(json['count']),
+      trend: ((json['trend'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) =>
+              CheckupTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .toList(growable: false),
+    );
+  }
+}
+
+/// 体检统计（`GET /health/checkup/stats?days=0`）。
+class CheckupStats {
+  const CheckupStats({
+    required this.items,
+    required this.totalCount,
+    required this.abnormalCount,
+    required this.normalCount,
+    required this.highCount,
+    required this.lowCount,
+    required this.statusLabel,
+  });
+
+  final List<CheckupItem> items;
+  final int totalCount;
+  final int abnormalCount;
+  final int normalCount;
+  final int highCount;
+  final int lowCount;
+
+  /// 后端给出的中文状态文案（normal/high/low → 正常/偏高/偏低）。
+  final Map<String, String> statusLabel;
+
+  factory CheckupStats.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic> counts =
+        (json['status_counts'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{};
+    final Map<String, dynamic> labels =
+        (json['status_label'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{};
+    return CheckupStats(
+      items: ((json['items'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => CheckupItem.fromJson(item.cast<String, dynamic>()))
+          .toList(growable: false),
+      totalCount: _toInt(json['total_count']),
+      abnormalCount: _toInt(json['abnormal_count']),
+      normalCount: _toInt(counts['normal']),
+      highCount: _toInt(counts['high']),
+      lowCount: _toInt(counts['low']),
+      statusLabel: <String, String>{
+        for (final MapEntry<String, dynamic> entry in labels.entries)
+          if (entry.value is String) entry.key: entry.value as String,
+      },
     );
   }
 }
