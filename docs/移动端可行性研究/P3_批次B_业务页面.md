@@ -63,7 +63,32 @@
 
 ---
 
-## B3 购物记录 / 旅行开支 / 财务规划（待做）
+## B3 购物记录 / 旅行开支 / 财务规划（已完成）
+
+### 页面与接口
+| 页面 | 路由 | 接口 |
+|---|---|---|
+| 购物记录 | `/finance/shopping` | `GET /finance/shopping/records?page=&page_size=20`、`GET /finance/shopping/records/stats?days=3650`、`GET /finance/shopping/platforms?page_size=100`、`GET /finance/shopping/categories` |
+| 旅行开支 | `/finance/travel` | `GET /finance/travel/ledgers?page_size=100`、`GET /finance/travel/details?page=&page_size=20[&ledger_id=]`、`GET /finance/travel/details/stats?days=3650[&ledger_id=]` |
+| 财务规划 | `/finance/planning` | `GET /finance/planning?page=&page_size=20`、`GET /finance/planning/stats?days=0` |
+
+### 验收（真机 fe990217，375dp + 1.3x）
+| 项 | 结果 |
+|---|---|
+| 购物记录 | 总额 ¥8,492.08 / 426 笔 / 平均单笔 ¥19.93 / 4 个平台；按平台 拼多多 ¥5,708.79、京东 ¥1,905.68、淘宝 ¥846.61、唯品会 ¥31.00；分页「加载更多」由 20 条追加到 40 条（`screenshots/p3_b3_shopping.png`） |
+| 旅行开支 | 实付 ¥2,566.86 / 原价 ¥2,805.89 / 优惠 ¥239.03 / 50 笔；按分类 交通 ¥2,347.45、餐饮 ¥140.63、住宿 ¥50.00、购物 ¥28.78（金额为 0 的分类不展示）；行程下拉含 2 个账本，切换后按 `ledger_id` 重新取数（`screenshots/p3_b3_travel.png`） |
+| 财务规划 | 目标 ¥200,000.00 / 已存 ¥0.00 / 完成率 0.0%；规划 1 条（购车计划，进行中）；`days=30` 会漏掉 2026-09-10 的历史规划，故统计用 `days=0` 全量（`screenshots/p3_b3_planning.png`） |
+| 四态 | 有数据、加载、空态（EmptyState）、失败 + 重试均接；断网进入显示「连接失败，已保留登录状态」+ 重试，恢复网络点击后回到数据态（`screenshots/p3_b3_shopping_offline.png`） |
+| 375 + 1.3x | 三列汇总、聚合金额、规划进度条与「已存/目标」均单行不换行；列表元信息改为 `Wrap` 换行显示，避免省略号截断 |
+| 返回 | 三页 AppBar 与系统返回均正常，返回后财务 Tab 栈位置保留 |
+
+### 实现说明
+- 三页只做只读列表，不新增明细页：购物与旅行后端没有单条 GET，规划明细在移动端也没有更多可展示字段；写操作留给批次 C。
+- 旅行与规划的聚合卡过滤金额为 0 的项，避免窄屏出现成排「¥0.00」。
+- 新增公共 `AmountBreakdownList` 与 `ListLoadMoreFooter`（`finance_status_widgets.dart`），三页复用，未新造卡片规范。
+- 商品/项目标题保留 2 行省略（超长电商标题无法在 375 宽完整展示），日期、平台/分类、时长的元信息不截断。
+
+---
 
 ## B4 物品追踪 / 卡片管理（待做）
 
