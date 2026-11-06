@@ -6,13 +6,15 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/report_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 报告列表页：财务报告 / 投资报告共用，按 [ReportSource] 区分数据源。
+/// 报告列表页：财务 / 投资 / 健康 / 生活报告共用，按 [ReportSource] 区分数据源。
 ///
-/// 接口：`GET {source.apiPath}`，返回报告数组（不分页）。
+/// 接口：`GET {source.apiPath}`。财务/投资/生活返回报告数组，
+/// 健康返回分页对象 `{items,total}`（按 20 份一页加载更多）。
 /// 行内标题只放报告名，统计区间放在副标题，且只出现一次。
 class ReportListPage extends StatefulWidget {
   const ReportListPage({super.key, required this.source});
@@ -24,9 +26,15 @@ class ReportListPage extends StatefulWidget {
 }
 
 class _ReportListPageState extends State<ReportListPage> {
+  static const int _pageSize = 20;
+
   final List<ReportSummaryItem> _items = <ReportSummaryItem>[];
   LoadStatus _status = LoadStatus.loading;
   String? _message;
+  int _page = 1;
+  int _total = 0;
+  bool _loadingMore = false;
+  bool _hasMore = false;
 
   @override
   void initState() {
@@ -38,7 +46,7 @@ class _ReportListPageState extends State<ReportListPage> {
     });
   }
 
-  /// 拉取报告列表；空数组进入空态，网络异常按离线/未登录分流。
+  /// 拉取第一页报告；空数组进入空态，网络异常按离线/未登录分流。
   Future<void> _refresh() async {
     final AppScope scope = AppScope.of(context);
     if (!scope.auth.isLoggedIn) {
@@ -55,22 +63,7 @@ class _ReportListPageState extends State<ReportListPage> {
       _message = null;
     });
     try {
-      final List<dynamic>? data =
-          (await scope.apiClient.get<List<dynamic>>(widget.source.apiPath))
-              .data;
-      if (data == null) {
-        throw const ApiException(
-          kind: ApiErrorKind.badResponse,
-          message: '报告接口返回数据为空',
-        );
-      }
-      final List<ReportSummaryItem> items = data
-          .whereType<Map>()
-          .map(
-            (Map item) =>
-                ReportSummaryItem.fromJson(item.cast<String, dynamic>()),
-          )
-          .toList();
+      final List<ReportSummaryItem> items = await _fetchPage(1);
       if (!mounted) {
         return;
       }
@@ -78,6 +71,11 @@ class _ReportListPageState extends State<ReportListPage> {
         _items
           ..clear()
           ..addAll(items);
+        _page = 1;
+        if (!widget.source.listPaginated) {
+          _total = items.length;
+        }
+        _hasMore = widget.source.listPaginated && _items.length < _total;
         _status = LoadStatus.ready;
       });
     } on ApiException catch (error) {
@@ -89,6 +87,86 @@ class _ReportListPageState extends State<ReportListPage> {
         _message = error.message;
       });
     }
+  }
+
+  /// 加载下一页：追加并保留已加载数据；失败只提示，不清空列表。
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) {
+      return;
+    }
+    setState(() => _loadingMore = true);
+    try {
+      final List<ReportSummaryItem> items = await _fetchPage(_page + 1);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _page += 1;
+        _items.addAll(items);
+        _hasMore = _items.length < _total;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载更多失败：${error.message}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingMore = false);
+      }
+    }
+  }
+
+  /// 请求指定页：分页接口取 `items/total`，数组接口一次性返回全部。
+  Future<List<ReportSummaryItem>> _fetchPage(int page) async {
+    final AppScope scope = AppScope.of(context);
+    final List<ReportSummaryItem> items;
+    if (widget.source.listPaginated) {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>(
+        widget.source.apiPath,
+        queryParameters: <String, dynamic>{
+          'page': page,
+          'page_size': _pageSize,
+        },
+      ))
+          .data;
+      if (json == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '报告接口返回数据为空',
+        );
+      }
+      final List<dynamic> rows = json['items'] as List<dynamic>? ?? <dynamic>[];
+      _total = (json['total'] as num?)?.toInt() ?? rows.length;
+      items = rows
+          .whereType<Map>()
+          .map(
+            (Map item) =>
+                ReportSummaryItem.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList();
+    } else {
+      final List<dynamic>? data =
+          (await scope.apiClient.get<List<dynamic>>(widget.source.apiPath))
+              .data;
+      if (data == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '报告接口返回数据为空',
+        );
+      }
+      items = data
+          .whereType<Map>()
+          .map(
+            (Map item) =>
+                ReportSummaryItem.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList();
+    }
+    return items;
   }
 
   /// 错误分流：未登录 / 已保留登录态的连接失败 / 普通失败。
@@ -126,7 +204,7 @@ class _ReportListPageState extends State<ReportListPage> {
               if (_status == LoadStatus.ready)
                 SectionCard(
                   title: '历史报告',
-                  trailing: Text('共 ${_items.length} 份', style: trailingStyle),
+                  trailing: Text('共 $_total 份', style: trailingStyle),
                   child: _items.isEmpty
                       ? EmptyState(
                           icon: Icons.description_outlined,
@@ -138,6 +216,12 @@ class _ReportListPageState extends State<ReportListPage> {
                           children: <Widget>[
                             for (final ReportSummaryItem item in _items)
                               _ReportRow(source: widget.source, item: item),
+                            if (widget.source.listPaginated)
+                              ListLoadMoreFooter(
+                                loading: _loadingMore,
+                                hasMore: _hasMore,
+                                onPressed: _loadMore,
+                              ),
                           ],
                         ),
                 ),
@@ -191,7 +275,8 @@ class _ReportRow extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 2,
                     children: <Widget>[
-                      Text(item.rangeText, style: metaStyle),
+                      if (item.rangeText.isNotEmpty)
+                        Text(item.rangeText, style: metaStyle),
                       if (item.createdText.isNotEmpty)
                         Text(item.createdText, style: metaStyle),
                     ],

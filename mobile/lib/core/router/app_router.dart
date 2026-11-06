@@ -115,7 +115,18 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'reports',
                     builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '健康报告'),
+                        const ReportListPage(source: ReportSource.health),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) => ReportDetailPage(
+                          source: ReportSource.health,
+                          reportId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -212,7 +223,18 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'reports',
                     builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '生活报告'),
+                        const ReportListPage(source: ReportSource.lifestyle),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) => ReportDetailPage(
+                          source: ReportSource.lifestyle,
+                          reportId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

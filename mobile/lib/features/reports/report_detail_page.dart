@@ -212,7 +212,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         flush();
         sectionTitle = block.text;
       } else if (block.isTable) {
-        body.add(_ReportTable(header: block.header, rows: block.rows));
+        body.add(
+          _ReportTable(
+            header: block.header,
+            rows: block.rows,
+            caption: block.caption,
+          ),
+        );
+      } else if (block.isKv) {
+        body.add(
+          _ReportTable(
+            header: const <String>[],
+            rows: block.rows,
+            caption: block.caption,
+          ),
+        );
       } else if ((block.text ?? '').isNotEmpty) {
         body.add(
           Text(block.text!, style: Theme.of(context).textTheme.bodyMedium),
@@ -226,35 +240,60 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
 /// 报告表格渲染：两列走「标签 / 数值」行，多列按首列分组成字段网格。
 class _ReportTable extends StatelessWidget {
-  const _ReportTable({required this.header, required this.rows});
+  const _ReportTable({
+    required this.header,
+    required this.rows,
+    this.caption = '',
+  });
 
   final List<String> header;
   final List<List<String>> rows;
+
+  /// 表格小标题（后端 `name`）/ 键值对分组标签（后端 `label`）。
+  final String caption;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
+    final Widget table;
     if (rows.isEmpty) {
-      return Text(
+      table = Text(
         '暂无数据',
         style: theme.textTheme.bodySmall?.copyWith(color: muted),
       );
-    }
-    if (header.length <= 2) {
-      return Column(
+    } else if (header.length <= 2) {
+      table = Column(
         children: <Widget>[
           for (final List<String> row in rows)
             _KvRow(header: header, row: row),
         ],
       );
+    } else {
+      table = Column(
+        children: <Widget>[
+          for (int index = 0; index < rows.length; index++) ...<Widget>[
+            if (index > 0) const Divider(),
+            _GroupedRow(header: header, row: rows[index]),
+          ],
+        ],
+      );
+    }
+    if (caption.isEmpty) {
+      return table;
     }
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 6,
       children: <Widget>[
-        for (int index = 0; index < rows.length; index++) ...<Widget>[
-          if (index > 0) const Divider(),
-          _GroupedRow(header: header, row: rows[index]),
-        ],
+        Text(
+          caption,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: muted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        table,
       ],
     );
   }
