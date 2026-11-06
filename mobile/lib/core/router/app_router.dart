@@ -8,7 +8,10 @@ import '../../features/finance/finance_debt_detail_page.dart';
 import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_medication_detail_page.dart';
+import '../../features/health/health_medication_page.dart';
 import '../../features/health/health_page.dart';
+import '../../features/health/health_steps_page.dart';
 import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/placeholder/feature_placeholder_page.dart';
@@ -67,13 +70,22 @@ GoRouter createAppRouter() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'steps',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '步数统计'),
+                    builder: (_, _) => const HealthStepsPage(),
                   ),
                   GoRoute(
                     path: 'medication',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '用药跟踪'),
+                    builder: (_, _) => const HealthMedicationPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            HealthMedicationDetailPage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'vitals-sleep',
