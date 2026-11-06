@@ -3,6 +3,50 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/data/overview_controller.dart';
 
+/// 业务列表页的状态占位：加载中 / 失败 / 连接失败 / 未登录。
+///
+/// [LoadStatus.ready] / [LoadStatus.idle] 时不占位（由调用方渲染列表或空态）。
+class ListStatusView extends StatelessWidget {
+  const ListStatusView({
+    super.key,
+    required this.status,
+    this.message,
+    required this.onRetry,
+  });
+
+  final LoadStatus status;
+  final String? message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == LoadStatus.idle || status == LoadStatus.ready) {
+      return const SizedBox.shrink();
+    }
+    if (status == LoadStatus.loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 48),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final bool unauthenticated = status == LoadStatus.unauthenticated;
+    final bool connectionFailed = status == LoadStatus.connectionFailed;
+    return OverviewStatusBanner(
+      status: unauthenticated
+          ? LoadStatus.unauthenticated
+          : (connectionFailed ? LoadStatus.connectionFailed : LoadStatus.failed),
+      message: message,
+      onRetry: onRetry,
+    );
+  }
+}
+
 /// 总览状态条：把「加载中 / 请求失败 / 未登录 / 连接失败」显性化，放在每个 Tab 根页顶部。
 ///
 /// - [LoadStatus.ready] / [LoadStatus.idle] 时不占位；

@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_page.dart';
+import '../../features/finance/finance_bill_detail_page.dart';
+import '../../features/finance/finance_bills_page.dart';
+import '../../features/finance/finance_debt_detail_page.dart';
+import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_page.dart';
@@ -104,13 +108,33 @@ GoRouter createAppRouter() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'bills',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '账单管理'),
+                    builder: (_, _) => const FinanceBillsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceBillDetailPage(
+                          billId: int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          platformName:
+                              state.uri.queryParameters['platform'] ?? '',
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'debts',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '债务管理'),
+                    builder: (_, _) => const FinanceDebtsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceDebtDetailPage(
+                          debtId: int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'shopping',
