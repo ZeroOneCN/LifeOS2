@@ -130,7 +130,7 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
     setState(() => _saving = true);
     final double amount =
         double.parse(_amount.text.replaceAll(',', '').trim());
-    await scope.outbox.enqueueExpense(<String, dynamic>{
+    final entry = await scope.outbox.enqueueExpense(<String, dynamic>{
       'record_date': _dateText,
       'product_name': _description.text.trim(),
       'total_price': amount,
@@ -141,6 +141,14 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
       return;
     }
     setState(() => _saving = false);
+    if (entry == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('待同步已达上限（200 条），请先联网同步后再记一笔'),
+        ),
+      );
+      return;
+    }
     context.pop(true);
     messenger.showSnackBar(
       SnackBar(

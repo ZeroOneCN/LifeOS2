@@ -5,6 +5,8 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/queue/outbox_controller.dart';
+import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -39,6 +41,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
   bool _hasMore = true;
   bool _loadingMore = false;
 
+  OutboxController? _outbox;
+  DateTime? _seenSyncAt;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +53,41 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         _refresh();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final OutboxController outbox = AppScope.of(context).outbox;
+    if (_outbox == outbox) {
+      return;
+    }
+    _outbox?.removeListener(_onOutboxChanged);
+    _outbox = outbox;
+    _seenSyncAt = outbox.lastSyncAt;
+    outbox.addListener(_onOutboxChanged);
+  }
+
+  @override
+  void dispose() {
+    _outbox?.removeListener(_onOutboxChanged);
+    super.dispose();
+  }
+
+  /// 队列变化：刷新待同步标记；同步成功后重新拉取服务端真实数据。
+  void _onOutboxChanged() {
+    if (!mounted) {
+      return;
+    }
+    final DateTime? syncAt = _outbox?.lastSyncAt;
+    final bool syncAdvanced = syncAt != null && syncAt != _seenSyncAt;
+    if (syncAdvanced) {
+      _seenSyncAt = syncAt;
+    }
+    setState(() {});
+    if (syncAdvanced) {
+      _refresh();
+    }
   }
 
   /// 首屏/重试：并行拉统计、库存与第一页记录，任一失败整体失败。
@@ -347,8 +387,13 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                             for (final MedicationRecord record in _items)
                               _RecordRow(
                                 record: record,
+                                pending: _outbox?.pendingPayloadFor(
+                                  outboxOpMedicationCheckin,
+                                  record.id,
+                                ),
                                 onTap: () => context.push(
                                   '/health/medication/${record.id}',
+                                  extra: record,
                                 ),
                               ),
                           ],
@@ -446,17 +491,38 @@ class _StockRow extends StatelessWidget {
   }
 }
 
-/// 用药记录行：日期/药名 + 早中晚用量 + 完成状态。
+/// 用药记录行：日期/药名 + 早中晚用量 + 完成状态 + 待同步标记。
+///
+/// [pending] 为本地待同步的打卡请求体：有值时按它覆盖已服状态，
+/// 让列表在断网时也能立即反映用户的打卡，不必等服务器。
 class _RecordRow extends StatelessWidget {
-  const _RecordRow({required this.record, required this.onTap});
+  const _RecordRow({
+    required this.record,
+    required this.onTap,
+    this.pending,
+  });
 
   final MedicationRecord record;
   final VoidCallback onTap;
+  final Map<String, dynamic>? pending;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
+    final Map<String, dynamic>? local = pending;
+    final bool takenBreakfast =
+        (local?['taken_breakfast'] as bool?) ?? record.takenBreakfast;
+    final bool takenLunch =
+        (local?['taken_lunch'] as bool?) ?? record.takenLunch;
+    final bool takenDinner =
+        (local?['taken_dinner'] as bool?) ?? record.takenDinner;
+    final int takenDoses =
+        (takenBreakfast ? record.doseBreakfast : 0) +
+        (takenLunch ? record.doseLunch : 0) +
+        (takenDinner ? record.doseDinner : 0);
+    final bool complete =
+        record.totalDoses > 0 && takenDoses >= record.totalDoses;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -482,11 +548,14 @@ class _RecordRow extends StatelessWidget {
                         ),
                       ),
                       StatusChip(
-                        label: record.isComplete ? '已完成' : '未完成',
-                        tone: record.isComplete
-                            ? StatusTone.success
-                            : StatusTone.warning,
+                        label: complete ? '已完成' : '未完成',
+                        tone: complete ? StatusTone.success : StatusTone.warning,
                       ),
+                      if (local != null)
+                        const StatusChip(
+                          label: '待同步',
+                          tone: StatusTone.info,
+                        ),
                     ],
                   ),
                   Text(
@@ -499,7 +568,7 @@ class _RecordRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${record.takenDoses}/${record.totalDoses}',
+              '$takenDoses/${record.totalDoses}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontFeatures: const <FontFeature>[
                   FontFeature.tabularFigures(),

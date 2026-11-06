@@ -141,6 +141,27 @@ class MedicationRecord {
 
   bool get isComplete => totalDoses > 0 && takenDoses >= totalDoses;
 
+  /// 仅用于离线打卡的本地乐观更新：改写某餐次的已服状态。
+  MedicationRecord copyWith({
+    bool? takenBreakfast,
+    bool? takenLunch,
+    bool? takenDinner,
+  }) {
+    return MedicationRecord(
+      id: id,
+      recordDate: recordDate,
+      medicineName: medicineName,
+      doseBreakfast: doseBreakfast,
+      doseLunch: doseLunch,
+      doseDinner: doseDinner,
+      takenBreakfast: takenBreakfast ?? this.takenBreakfast,
+      takenLunch: takenLunch ?? this.takenLunch,
+      takenDinner: takenDinner ?? this.takenDinner,
+      frequency: frequency,
+      note: note,
+    );
+  }
+
   factory MedicationRecord.fromJson(Map<String, dynamic> json) {
     return MedicationRecord(
       id: _toInt(json['id']),

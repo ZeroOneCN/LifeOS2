@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
-import '../../core/network/api_exception.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
@@ -12,8 +11,9 @@ import '../../shared/widgets/section_card.dart';
 /// 交易日期、品种、订单类型、手数、开仓价、平仓价、开/平仓时间、
 /// 手续费、隔夜费、盈亏金额、备注。
 ///
-/// 写操作先做在线提交；失败时**保留表单内容**并在页内给出「重试」，
-/// 不丢数据。离线排队留给批次 C。
+/// 写操作先落本地队列（`investment.forex.create`），断网也能保存；
+/// 在线时立即推送，列表用「待同步」角标标示本地临时记录，推送成功后
+/// 队列条目消失、服务端真实记录由列表刷新补上，不会同时出现两条。
 class ForexCreatePage extends StatefulWidget {
   const ForexCreatePage({super.key});
 
@@ -148,7 +148,9 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
     };
   }
 
-  /// 提交：成功后返回列表（`true` 触发刷新）；失败保留表单并可重试。
+  /// 保存：先入本地队列（断网也不丢），在线时由队列立即推送。
+  ///
+  /// 成功后返回列表（`true` 触发刷新）；队列已达上限时保留表单并提示先同步。
   Future<void> _submit() async {
     if (_submitting) {
       return;
@@ -162,24 +164,18 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
       _submitting = true;
       _submitError = null;
     });
-    try {
-      await AppScope.of(context).apiClient.post<Map<String, dynamic>>(
-            '/investment/forex',
-            data: payload,
-          );
-      if (!mounted) {
-        return;
-      }
-      context.pop(true);
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _submitting = false;
-        _submitError = error.message;
-      });
+    final entry = await AppScope.of(context).outbox.enqueueForexCreate(payload);
+    if (!mounted) {
+      return;
     }
+    setState(() => _submitting = false);
+    if (entry == null) {
+      setState(() {
+        _submitError = '待同步已达上限（200 条），请先联网同步后再保存';
+      });
+      return;
+    }
+    context.pop(true);
   }
 
   @override
@@ -196,6 +192,15 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: <Widget>[
+                ListenableBuilder(
+                  listenable: AppScope.of(context).outbox,
+                  builder: (BuildContext context, Widget? _) {
+                    if (AppScope.of(context).outbox.isOnline) {
+                      return const SizedBox.shrink();
+                    }
+                    return _offlineBanner(theme);
+                  },
+                ),
                 if (_submitError != null) _submitErrorBanner(theme),
                 SectionCard(
                   title: '基础信息',
@@ -408,7 +413,7 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
                               const Text('提交中…'),
                             ],
                           )
-                        : Text(_submitError == null ? '保存交易' : '重新提交'),
+                        : const Text('保存交易'),
                   ),
                 ),
               ],
@@ -427,7 +432,36 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
     return _num(value) == null ? '请输入有效数字' : null;
   }
 
-  /// 提交失败提示：失败不清空表单，提供「重试」。
+  /// 断网提示：保存后进入本地队列，不产生 HTTP 等待。
+  Widget _offlineBanner(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        spacing: 8,
+        children: <Widget>[
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          Expanded(
+            child: Text(
+              '当前无网络：保存后进入本地队列，联网后自动同步',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 保存失败提示：失败不清空表单，修正后可再次保存。
   Widget _submitErrorBanner(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
@@ -449,13 +483,13 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
               spacing: 2,
               children: <Widget>[
                 Text(
-                  '提交失败：$_submitError',
+                  '保存失败：$_submitError',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onErrorContainer,
                   ),
                 ),
                 Text(
-                  '表单内容已保留，点击「重试」重新提交',
+                  '表单内容已保留，请稍后重试',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onErrorContainer
                         .withValues(alpha: 0.8),

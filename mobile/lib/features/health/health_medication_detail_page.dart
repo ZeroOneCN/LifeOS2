@@ -4,6 +4,8 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/queue/outbox_controller.dart';
+import '../../core/queue/outbox_entry.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
@@ -11,11 +13,19 @@ import '../finance/finance_status_widgets.dart';
 
 /// 用药记录明细：单日记录的三餐用量与完成情况。
 ///
-/// 数据：`GET /health/medication/{id}`。
+/// 数据：`GET /health/medication/{id}`；[initial] 是列表页带过来的快照，
+/// 断网进入时先用它渲染，打卡仍可走本地队列，联网后刷新为服务端真实值。
 class HealthMedicationDetailPage extends StatefulWidget {
-  const HealthMedicationDetailPage({super.key, required this.recordId});
+  const HealthMedicationDetailPage({
+    super.key,
+    required this.recordId,
+    this.initial,
+  });
 
   final int recordId;
+
+  /// 列表页已经加载过的同一条记录（离线时作为展示兜底）。
+  final MedicationRecord? initial;
 
   @override
   State<HealthMedicationDetailPage> createState() =>
@@ -27,16 +37,106 @@ class _HealthMedicationDetailPageState
   MedicationRecord? _record;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
+  OutboxController? _outbox;
+  DateTime? _seenSyncAt;
 
   @override
   void initState() {
     super.initState();
+    _record = widget.initial;
+    _status = widget.initial == null ? LoadStatus.loading : LoadStatus.ready;
     // 首帧后再取 AppScope：initState 内不允许依赖 InheritedWidget。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _refresh();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final OutboxController outbox = AppScope.of(context).outbox;
+    if (_outbox == outbox) {
+      return;
+    }
+    _outbox?.removeListener(_onOutboxChanged);
+    _outbox = outbox;
+    _seenSyncAt = outbox.lastSyncAt;
+    outbox.addListener(_onOutboxChanged);
+  }
+
+  @override
+  void dispose() {
+    _outbox?.removeListener(_onOutboxChanged);
+    super.dispose();
+  }
+
+  /// 队列变化：刷新「待同步」标记；同步成功后再拉一次服务端真实值。
+  void _onOutboxChanged() {
+    if (!mounted) {
+      return;
+    }
+    final DateTime? syncAt = _outbox?.lastSyncAt;
+    final bool syncAdvanced = syncAt != null && syncAt != _seenSyncAt;
+    if (syncAdvanced) {
+      _seenSyncAt = syncAt;
+    }
+    setState(() {});
+    if (syncAdvanced) {
+      _refresh();
+    }
+  }
+
+  /// 离线打卡：本地立即标记已服并写入队列；联网后自动 PUT 回服务端。
+  ///
+  /// 打卡是对既有记录的更新（`PUT /health/medication/{id}`），
+  /// 同一请求体重复执行结果一致，因此重试天然幂等，不做查重。
+  Future<void> _checkIn(int slot) async {
+    final MedicationRecord? record = _record;
+    final OutboxController? outbox = _outbox;
+    if (record == null || outbox == null) {
+      return;
+    }
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'id': record.id,
+      'record_date': record.recordDate,
+      'medicine_name': record.medicineName,
+      'dose_breakfast': record.doseBreakfast,
+      'dose_lunch': record.doseLunch,
+      'dose_dinner': record.doseDinner,
+      'taken_breakfast': slot == 0 ? true : record.takenBreakfast,
+      'taken_lunch': slot == 1 ? true : record.takenLunch,
+      'taken_dinner': slot == 2 ? true : record.takenDinner,
+      if (record.frequency != null) 'frequency': record.frequency,
+      if (record.note != null) 'note': record.note,
+    };
+    final OutboxEntry? entry = await outbox.enqueueMedicationCheckin(payload);
+    if (!mounted) {
+      return;
+    }
+    if (entry == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('待同步已达上限（200 条），请先联网同步后再打卡'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _record = record.copyWith(
+        takenBreakfast: slot == 0 ? true : null,
+        takenLunch: slot == 1 ? true : null,
+        takenDinner: slot == 2 ? true : null,
+      );
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          outbox.isOnline ? '已打卡，正在同步到服务器' : '已打卡（待同步），联网后自动同步',
+        ),
+      ),
+    );
   }
 
   /// 拉取单条用药记录；401/网络失败按状态分流。
@@ -107,7 +207,7 @@ class _HealthMedicationDetailPageState
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && record != null) ...<Widget>[
+              if (record != null) ...<Widget>[
                 SectionCard(
                   title: '用药信息',
                   child: Column(
@@ -131,6 +231,15 @@ class _HealthMedicationDetailPageState
                                 ? StatusTone.success
                                 : StatusTone.warning,
                           ),
+                          if (_outbox?.hasPendingTarget(
+                                outboxOpMedicationCheckin,
+                                record.id,
+                              ) ??
+                              false)
+                            const StatusChip(
+                              label: '待同步',
+                              tone: StatusTone.info,
+                            ),
                         ],
                       ),
                       _DetailRow(label: '日期', value: record.recordDate),
@@ -154,16 +263,19 @@ class _HealthMedicationDetailPageState
                         label: '早餐',
                         dose: record.doseBreakfast,
                         taken: record.takenBreakfast,
+                        onCheckIn: () => _checkIn(0),
                       ),
                       _MealRow(
                         label: '午餐',
                         dose: record.doseLunch,
                         taken: record.takenLunch,
+                        onCheckIn: () => _checkIn(1),
                       ),
                       _MealRow(
                         label: '晚餐',
                         dose: record.doseDinner,
                         taken: record.takenDinner,
+                        onCheckIn: () => _checkIn(2),
                       ),
                     ],
                   ),
@@ -209,17 +321,19 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-/// 单餐行：餐次 + 粒数 + 已服/未服。
+/// 单餐行：餐次 + 粒数 + 已服/未服；未服时可直接打卡（离线走队列）。
 class _MealRow extends StatelessWidget {
   const _MealRow({
     required this.label,
     required this.dose,
     required this.taken,
+    required this.onCheckIn,
   });
 
   final String label;
   final int dose;
   final bool taken;
+  final VoidCallback onCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -236,12 +350,20 @@ class _MealRow extends StatelessWidget {
             ),
           ),
         ),
-        StatusChip(
-          label: dose == 0 ? '—' : (taken ? '已服' : '未服'),
-          tone: dose == 0
-              ? StatusTone.info
-              : (taken ? StatusTone.success : StatusTone.warning),
-        ),
+        if (dose == 0)
+          const StatusChip(label: '—', tone: StatusTone.info)
+        else if (taken)
+          const StatusChip(label: '已服', tone: StatusTone.success)
+        else
+          FilledButton.tonal(
+            onPressed: onCheckIn,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('打卡'),
+          ),
       ],
     );
   }

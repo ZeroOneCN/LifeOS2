@@ -8,6 +8,7 @@ import '../../core/app_scope.dart';
 import '../../core/models/app_user.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/profile/profile_service.dart';
+import '../../core/queue/outbox_controller.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -92,7 +93,8 @@ class SettingsPage extends StatelessWidget {
                 children: <Widget>[
                   _InfoRow(
                     label: '待同步',
-                    value: '${scope.outbox.pendingCount} 条',
+                    value:
+                        '${scope.outbox.pendingCount} / ${OutboxController.maxEntries} 条',
                   ),
                   const Divider(height: 16),
                   _InfoRow(
@@ -125,7 +127,10 @@ class SettingsPage extends StatelessWidget {
                           child: Text(
                             scope.outbox.isSyncing
                                 ? '正在同步…'
-                                : (scope.outbox.lastError ?? '有积压，点击右侧立即推送'),
+                                : (scope.outbox.needsManualRetry
+                                    ? '自动重试已停止，请手动重试'
+                                    : (scope.outbox.lastError ??
+                                        '有积压，点击右侧立即推送')),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: scope.outbox.lastError == null
                                   ? theme.colorScheme.onSurfaceVariant

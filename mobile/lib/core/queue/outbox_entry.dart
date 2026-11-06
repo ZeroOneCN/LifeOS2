@@ -7,6 +7,12 @@ library;
 /// 操作类型：财务记一笔支出（`POST /finance/shopping/records`）。
 const String outboxOpCreateExpense = 'finance.shopping.create';
 
+/// 操作类型：用药打卡（`PUT /health/medication/{id}`，按记录 id 幂等更新三餐状态）。
+const String outboxOpMedicationCheckin = 'health.medication.checkin';
+
+/// 操作类型：新增外汇交易（`POST /investment/forex`）。
+const String outboxOpForexCreate = 'investment.forex.create';
+
 /// 队列中的一条待同步操作。
 ///
 /// 字段对应需求：本地 id、操作类型、请求体、创建时间、重试次数、最后错误。

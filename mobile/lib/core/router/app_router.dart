@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models/report_models.dart';
+import '../../core/models/health_models.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_detail_page.dart';
 import '../../features/finance/finance_bills_page.dart';
@@ -94,6 +95,10 @@ GoRouter createAppRouter() {
                           recordId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
                                   0,
+                          // 列表页带过来的快照：断网时也能进入并打卡。
+                          initial: state.extra is MedicationRecord
+                              ? state.extra as MedicationRecord
+                              : null,
                         ),
                       ),
                     ],

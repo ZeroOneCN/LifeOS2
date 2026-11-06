@@ -150,9 +150,14 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
     );
   }
 
-  /// 待同步卡片：队列 + 失败原因 + 手动重试。
+  /// 待同步卡片：只展示财务支出条目 + 失败原因 + 自动重试状态。
   Widget _pendingCard(ThemeData theme, OutboxController outbox) {
-    final List<OutboxEntry> entries = outbox.entries;
+    final List<OutboxEntry> entries =
+        outbox.pendingOf(outboxOpCreateExpense);
+    final OutboxEntry? head = entries.isEmpty ? null : entries.first;
+    final bool headIsExpense =
+        outbox.entries.isNotEmpty &&
+        outbox.entries.first.opType == outboxOpCreateExpense;
     return SectionCard(
       title: '待同步',
       trailing: Text(
@@ -167,11 +172,24 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
         children: <Widget>[
           if (!outbox.isOnline)
             _hint(theme, Icons.cloud_off_outlined, '当前无网络，恢复后自动同步'),
-          if (outbox.lastError != null)
+          if (head?.lastError != null)
             _hint(
               theme,
               Icons.error_outline,
-              '上次推送失败：${outbox.lastError}',
+              '上次推送失败：${head!.lastError}',
+              color: theme.colorScheme.error,
+            ),
+          if (headIsExpense && outbox.nextRetryAt != null)
+            _hint(
+              theme,
+              Icons.schedule_outlined,
+              '下次自动重试：${_hm(outbox.nextRetryAt!)}',
+            ),
+          if (headIsExpense && outbox.needsManualRetry)
+            _hint(
+              theme,
+              Icons.error_outline,
+              '自动重试已达上限，请手动重试',
               color: theme.colorScheme.error,
             ),
           if (entries.isEmpty)
@@ -270,6 +288,13 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
       ],
     );
   }
+}
+
+/// `HH:mm`：展示自动重试时间。
+String _hm(DateTime time) {
+  final DateTime local = time.toLocal();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(local.hour)}:${two(local.minute)}';
 }
 
 /// 队列条目行：金额右对齐、等宽；状态标记「待同步」/「同步失败」。
