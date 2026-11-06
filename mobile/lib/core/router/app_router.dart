@@ -17,6 +17,8 @@ import '../../features/health/health_page.dart';
 import '../../features/health/health_steps_page.dart';
 import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
+import '../../features/life/lifestyle_cards_page.dart';
+import '../../features/life/lifestyle_items_page.dart';
 import '../../features/placeholder/feature_placeholder_page.dart';
 import '../../features/settings/server_config_page.dart';
 import '../../features/settings/settings_page.dart';
@@ -185,13 +187,11 @@ GoRouter createAppRouter() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'items',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '物品追踪'),
+                    builder: (_, _) => const LifestyleItemsPage(),
                   ),
                   GoRoute(
                     path: 'cards',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '卡片管理'),
+                    builder: (_, _) => const LifestyleCardsPage(),
                   ),
                   GoRoute(
                     path: 'reports',
