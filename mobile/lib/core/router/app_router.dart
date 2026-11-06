@@ -15,6 +15,8 @@ import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
 import '../../features/health/health_page.dart';
 import '../../features/health/health_steps_page.dart';
+import '../../features/invest/forex_create_page.dart';
+import '../../features/invest/forex_page.dart';
 import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
@@ -211,8 +213,13 @@ GoRouter createAppRouter() {
                 routes: <RouteBase>[
                   GoRoute(
                     path: 'forex',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '外汇交易'),
+                    builder: (_, _) => const ForexPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const ForexCreatePage(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'reports',

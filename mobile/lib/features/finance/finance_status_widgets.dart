@@ -4,6 +4,10 @@ import '../../core/models/finance_models.dart';
 import '../../core/utils/formatters.dart';
 import '../../theme/app_theme.dart';
 
+/// 列表页「加载更多 / 已全部加载」页脚（实现已抽到 shared，这里保留导出，
+/// 财务页无需改 import）。
+export '../../shared/widgets/list_load_more_footer.dart';
+
 /// 状态色调：统一映射到主题里的语义色，避免各页面自己写颜色。
 enum StatusTone { info, success, warning, danger }
 
@@ -208,46 +212,3 @@ class AmountBreakdownList extends StatelessWidget {
   }
 }
 
-/// 列表页「加载更多 / 已全部加载」页脚。
-class ListLoadMoreFooter extends StatelessWidget {
-  const ListLoadMoreFooter({
-    super.key,
-    required this.loading,
-    required this.hasMore,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final bool hasMore;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (!hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          '已加载全部',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
-  }
-}
