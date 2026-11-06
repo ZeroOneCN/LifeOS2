@@ -10,6 +10,7 @@ class PreferencesService {
   final SharedPreferences _prefs;
 
   static const String _baseUrlKey = 'server.base_url';
+  static const String _tabHintKey = 'ui.tab_long_press_hint_shown';
 
   /// 创建实例；必须在 `runApp` 之前 await 完成。
   static Future<PreferencesService> create() async {
@@ -23,5 +24,12 @@ class PreferencesService {
   /// 持久化服务器地址（由设置页校验、规范化后调用）。
   Future<void> setBaseUrl(String value) async {
     await _prefs.setString(_baseUrlKey, value);
+  }
+
+  /// 底部 Tab「长按看名称」的一次性提示是否已展示过。
+  bool get tabHintShown => _prefs.getBool(_tabHintKey) ?? false;
+
+  Future<void> markTabHintShown() async {
+    await _prefs.setBool(_tabHintKey, true);
   }
 }
