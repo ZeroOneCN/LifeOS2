@@ -206,6 +206,55 @@ export const api = {
     broadcastDataChanged()
     return res.json() as Promise<T>
   },
+  /**
+   * 带进度回调的文件上传（头像等小文件场景）。
+   * fetch 无法获取上传进度，这里使用 XHR；成功后同样广播数据变更事件。
+   *
+   * @param path 相对 API 前缀的资源路径
+   * @param formData 表单数据（含文件）
+   * @param onProgress 进度回调，参数为 0-100 的整数百分比
+   * @returns 服务端返回的 JSON
+   */
+  uploadWithProgress: <T>(
+    path: string,
+    formData: FormData,
+    onProgress?: (percent: number) => void,
+  ) =>
+    new Promise<T>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${BASE}${path}`)
+      const token = localStorage.getItem('lifeos_token')
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) {
+          // 服务端落盘与响应还有一小段时间，进度先停在 99%
+          onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)))
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = xhr.responseText ? (JSON.parse(xhr.responseText) as T) : (undefined as T)
+            broadcastDataChanged()
+            resolve(data)
+          } catch {
+            reject(new Error('上传响应解析失败'))
+          }
+          return
+        }
+        let msg = `上传失败（${xhr.status}）`
+        try {
+          const body = JSON.parse(xhr.responseText)
+          if (typeof body?.detail === 'string') msg = body.detail
+        } catch {
+          /* 非 JSON 响应保留默认提示 */
+        }
+        if (xhr.status === 401) handleUnauthorized(path)
+        reject(new Error(msg))
+      }
+      xhr.onerror = () => reject(new Error('网络异常，头像上传失败'))
+      xhr.send(formData)
+    }),
   stats: <T>(path: string, days: number | 'all' = 30) =>
     request<T>(`${path}/stats?days=${days === 'all' ? 0 : days}`),
   /** 按日期范围拉取统计数据（用于周期对比）。 */

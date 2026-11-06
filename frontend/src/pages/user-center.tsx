@@ -1,5 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { KeyRound, Loader2, Quote, RotateCcw, Save, ShieldCheck, UserRound } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import {
+  KeyRound,
+  Link2,
+  Loader2,
+  Quote,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Upload,
+  UserRound,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/page-header'
@@ -55,6 +66,10 @@ const GENDER_NAMES: Record<string, string> = {
   other: '其他',
 }
 
+/** 头像上传限制：与后端校验保持一致（2 MB，PNG/JPG/JPEG/WEBP）。 */
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+const ALLOWED_AVATAR_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp']
+
 /**
  * 将接口返回的个人资料转换为表单字段。
  * 键顺序固定，便于用 JSON 序列化做脏检查。
@@ -64,7 +79,6 @@ const GENDER_NAMES: Record<string, string> = {
 function toForm(profile: Profile | null): Record<string, string> {
   return {
     nickname: profile?.nickname ?? '',
-    avatar: profile?.avatar ?? '',
     gender: profile?.gender ?? '',
     birthday: profile?.birthday ?? '',
     phone: profile?.phone ?? '',
@@ -90,6 +104,14 @@ export function UserCenterPage() {
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
   const [savingPwd, setSavingPwd] = useState(false)
+
+  /** 头像编辑：文件选择、上传进度、外链输入与保存状态。 */
+  const avatarFileRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarPercent, setAvatarPercent] = useState(0)
+  const [avatarUrlOpen, setAvatarUrlOpen] = useState(false)
+  const [avatarUrlDraft, setAvatarUrlDraft] = useState('')
+  const [savingAvatar, setSavingAvatar] = useState(false)
 
   /** 拉取个人资料并同步表单（保存成功后也复用此逻辑）。 */
   const loadProfile = useCallback(async () => {
@@ -140,7 +162,6 @@ export function UserCenterPage() {
     try {
       await api.put('/user/profile', {
         nickname: form.nickname || null,
-        avatar: form.avatar || null,
         gender: form.gender || null,
         birthday: form.birthday || null,
         phone: form.phone || null,
@@ -160,6 +181,101 @@ export function UserCenterPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  /** 头像更新后就地刷新预览与全局登录用户，不影响正在编辑的其他资料字段。 */
+  const applyAvatar = useCallback(
+    async (avatar: string | null) => {
+      setProfile((prev) => (prev ? { ...prev, avatar } : prev))
+      await refreshAuth()
+    },
+    [refreshAuth],
+  )
+
+  /** 选择本地图片并上传：先做格式与大小预校验，再展示真实上传进度。 */
+  const pickAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    // 清空 value，保证连续选择同一张图片也能触发 change
+    event.target.value = ''
+    if (!file) return
+
+    const suffix = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    if (!ALLOWED_AVATAR_EXTENSIONS.includes(suffix)) {
+      toast.error('仅支持 PNG / JPG / WEBP 格式的图片')
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error('图片大小不能超过 2 MB')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    setUploadingAvatar(true)
+    setAvatarPercent(0)
+    try {
+      const res = await api.uploadWithProgress<{ avatar: string }>(
+        '/user/avatar',
+        formData,
+        setAvatarPercent,
+      )
+      setAvatarPercent(100)
+      await applyAvatar(res.avatar)
+      toast.success('头像已更新')
+    } catch (e) {
+      toast.error('头像上传失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  /** 使用图片地址设置头像：仅接受 http/https 外链，成功后关闭输入区。 */
+  const applyAvatarUrl = async () => {
+    const url = avatarUrlDraft.trim()
+    if (!/^https?:\/\//i.test(url)) {
+      toast.error('请输入 http:// 或 https:// 开头的图片地址')
+      return
+    }
+    setSavingAvatar(true)
+    try {
+      const res = await api.put<{ avatar: string | null }>('/user/avatar', { avatar_url: url })
+      await applyAvatar(res.avatar)
+      setAvatarUrlOpen(false)
+      setAvatarUrlDraft('')
+      toast.success('头像已更新')
+    } catch (e) {
+      toast.error('设置头像失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
+
+  /** 移除当前头像（仅清空地址并清理本站旧文件，不影响其他资料）。 */
+  const clearAvatar = async () => {
+    setSavingAvatar(true)
+    try {
+      const res = await api.put<{ avatar: string | null }>('/user/avatar', { avatar_url: null })
+      await applyAvatar(res.avatar)
+      toast.success('头像已移除')
+    } catch (e) {
+      toast.error('移除头像失败', {
+        description: e instanceof Error ? e.message : '请稍后重试',
+      })
+    } finally {
+      setSavingAvatar(false)
+    }
+  }
+
+  /** 展开/收起图片地址输入区；展开时若当前是外链则回填，方便修改。 */
+  const toggleAvatarUrl = () => {
+    if (!avatarUrlOpen && profile?.avatar && /^https?:\/\//i.test(profile.avatar)) {
+      setAvatarUrlDraft(profile.avatar)
+    }
+    setAvatarUrlOpen((open) => !open)
   }
 
   /** 保存登录密码：校验必填、长度与两次输入一致性。 */
@@ -197,7 +313,7 @@ export function UserCenterPage() {
   }
 
   const nickname = form.nickname?.trim() || '未命名用户'
-  const avatarSrc = form.avatar?.trim()
+  const avatarSrc = profile?.avatar?.trim()
   const avatarChar = nickname.charAt(0)
   const hasPassword = Boolean(settings?.has_password)
 
@@ -216,41 +332,144 @@ export function UserCenterPage() {
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="flex flex-col gap-4">
             <Card>
-              <CardContent className="flex items-center gap-4 py-4">
-                {avatarSrc ? (
-                  <img
-                    src={avatarSrc}
-                    alt="头像"
-                    className="size-16 shrink-0 rounded-full object-cover ring-2 ring-border"
-                  />
-                ) : (
-                  <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary ring-2 ring-border">
-                    {avatarChar}
+              <CardContent className="space-y-3 py-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  {avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt="头像"
+                      className="size-16 shrink-0 rounded-full object-cover ring-2 ring-border"
+                    />
+                  ) : (
+                    <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-2xl font-semibold text-primary ring-2 ring-border">
+                      {avatarChar}
+                    </div>
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-lg font-semibold" title={nickname}>
+                        {nickname}
+                      </h2>
+                      {form.gender ? (
+                        <Badge variant="secondary">
+                          {GENDER_NAMES[form.gender] ?? form.gender}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+                      <Quote className="size-3.5 shrink-0" />
+                      <span className="truncate" title={form.signature || '尚未填写个性签名'}>
+                        {form.signature || '尚未填写个性签名'}
+                      </span>
+                    </p>
+                    <p
+                      className="truncate text-sm text-muted-foreground"
+                      title={form.bio || '尚未填写个人简介'}
+                    >
+                      {form.bio || '尚未填写个人简介'}
+                    </p>
                   </div>
-                )}
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                </div>
+
+                <div className="space-y-2 border-t border-border pt-3">
+                  <input
+                    ref={avatarFileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                    aria-label="选择头像图片"
+                    onChange={pickAvatar}
+                  />
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate text-lg font-semibold" title={nickname}>
-                      {nickname}
-                    </h2>
-                    {form.gender ? (
-                      <Badge variant="secondary">
-                        {GENDER_NAMES[form.gender] ?? form.gender}
-                      </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => avatarFileRef.current?.click()}
+                      disabled={uploadingAvatar}
+                    >
+                      {uploadingAvatar ? (
+                        <Loader2 className="animate-spin" />
+                      ) : (
+                        <Upload />
+                      )}
+                      {uploadingAvatar ? `上传中 ${avatarPercent}%` : '上传图片'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleAvatarUrl}
+                      disabled={uploadingAvatar}
+                      aria-expanded={avatarUrlOpen}
+                    >
+                      <Link2 />
+                      使用图片地址
+                    </Button>
+                    {avatarSrc ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void clearAvatar()}
+                        disabled={uploadingAvatar || savingAvatar}
+                      >
+                        <RotateCcw />
+                        移除头像
+                      </Button>
                     ) : null}
                   </div>
-                  <p className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-                    <Quote className="size-3.5 shrink-0" />
-                    <span className="truncate" title={form.signature || '尚未填写个性签名'}>
-                      {form.signature || '尚未填写个性签名'}
-                    </span>
+                  <p className="text-xs text-muted-foreground">
+                    支持 PNG / JPG / WEBP，单张不超过 2 MB
                   </p>
-                  <p
-                    className="truncate text-sm text-muted-foreground"
-                    title={form.bio || '尚未填写个人简介'}
-                  >
-                    {form.bio || '尚未填写个人简介'}
-                  </p>
+                  {uploadingAvatar ? (
+                    <div
+                      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                      role="progressbar"
+                      aria-label="头像上传进度"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={avatarPercent}
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-[width] duration-200"
+                        style={{ width: `${avatarPercent}%` }}
+                      />
+                    </div>
+                  ) : null}
+                  {avatarUrlOpen ? (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        className="min-w-0 flex-1"
+                        value={avatarUrlDraft}
+                        onChange={(e) => setAvatarUrlDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void applyAvatarUrl()
+                          }
+                        }}
+                        placeholder="https://example.com/avatar.png"
+                        aria-label="头像图片地址"
+                        disabled={savingAvatar}
+                      />
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => void applyAvatarUrl()}
+                          disabled={savingAvatar || !avatarUrlDraft.trim()}
+                        >
+                          {savingAvatar ? <Loader2 className="animate-spin" /> : null}
+                          确定
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setAvatarUrlOpen(false)}
+                          disabled={savingAvatar}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -335,18 +554,6 @@ export function UserCenterPage() {
                     value={form.job_title ?? ''}
                     onChange={(e) => setForm((f) => ({ ...f, job_title: e.target.value }))}
                     placeholder="职业 / 职位"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2 xl:col-span-2">
-                  <Label htmlFor="avatar">
-                    头像地址
-                    <Hint text="头像图片直链，留空时显示昵称首字" />
-                  </Label>
-                  <Input
-                    id="avatar"
-                    value={form.avatar ?? ''}
-                    onChange={(e) => setForm((f) => ({ ...f, avatar: e.target.value }))}
-                    placeholder="https://example.com/avatar.png"
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2 xl:col-span-3">
