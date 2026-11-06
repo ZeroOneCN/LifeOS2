@@ -25,7 +25,7 @@ class InvestPage extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return ListenableBuilder(
-      listenable: scope.overview,
+      listenable: scope.overview.investmentNotifier,
       builder: (BuildContext context, _) {
         final OverviewState<InvestmentOverview> state =
             scope.overview.investment;
@@ -38,7 +38,7 @@ class InvestPage extends StatelessWidget {
             OverviewStatusBanner(
               status: state.status,
               message: state.message,
-              onRetry: scope.overview.refreshInvestment,
+              onRetry: scope.overview.retry,
             ),
             SectionCard(
               title: '持仓概览',

@@ -21,7 +21,7 @@ class HealthPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppScope scope = AppScope.of(context);
     return ListenableBuilder(
-      listenable: scope.overview,
+      listenable: scope.overview.healthNotifier,
       builder: (BuildContext context, _) {
         final OverviewState<HealthOverview> state = scope.overview.health;
         final HealthOverview? data = state.data;
@@ -34,7 +34,7 @@ class HealthPage extends StatelessWidget {
             OverviewStatusBanner(
               status: state.status,
               message: state.message,
-              onRetry: scope.overview.refreshHealth,
+              onRetry: scope.overview.retry,
             ),
             SectionCard(
               title: '常用',

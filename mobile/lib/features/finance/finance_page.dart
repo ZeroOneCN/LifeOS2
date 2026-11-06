@@ -26,7 +26,7 @@ class FinancePage extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
 
     return ListenableBuilder(
-      listenable: scope.overview,
+      listenable: scope.overview.financeNotifier,
       builder: (BuildContext context, _) {
         final OverviewState<FinanceOverview> state = scope.overview.finance;
         final FinanceOverview? data = state.data;
@@ -46,7 +46,7 @@ class FinancePage extends StatelessWidget {
             OverviewStatusBanner(
               status: state.status,
               message: state.message,
-              onRetry: scope.overview.refreshFinance,
+              onRetry: scope.overview.retry,
             ),
             SectionCard(
               title: '常用',

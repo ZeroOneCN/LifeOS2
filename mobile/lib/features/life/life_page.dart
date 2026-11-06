@@ -21,7 +21,7 @@ class LifePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppScope scope = AppScope.of(context);
     return ListenableBuilder(
-      listenable: scope.overview,
+      listenable: scope.overview.lifestyleNotifier,
       builder: (BuildContext context, _) {
         final OverviewState<LifestyleOverview> state =
             scope.overview.lifestyle;
@@ -35,7 +35,7 @@ class LifePage extends StatelessWidget {
             OverviewStatusBanner(
               status: state.status,
               message: state.message,
-              onRetry: scope.overview.refreshLifestyle,
+              onRetry: scope.overview.retry,
             ),
             SectionCard(
               title: '常用',

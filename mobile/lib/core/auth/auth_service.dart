@@ -21,15 +21,36 @@ class AuthService extends ChangeNotifier {
   AppUser? get user => _user;
   bool get isLoggedIn => _user != null;
 
+  /// 本地是否存有令牌（冷启动读盘后置真）。
+  ///
+  /// 与 [isLoggedIn] 区分：有令牌但 `/auth/me` 因网络不可达而失败时，
+  /// 用户仍处于「已保留登录状态」，不应该被踢回登录页。
+  bool _hasLocalSession = false;
+  bool get hasLocalSession => _hasLocalSession;
+
+  /// 冷启动恢复时是否因网络/服务不可达而失败（区别于 401 失效）。
+  bool _connectionFailed = false;
+  bool get connectionFailed => _connectionFailed;
+
+  /// 连接失败的具体原因，供状态条展示。
+  String? _restoreError;
+  String? get restoreError => _restoreError;
+
   /// 冷启动恢复：有令牌则拉取 `/auth/me`。
   ///
   /// access 过期时由拦截器自动刷新并重放（`/auth/me` 不跳过刷新），
   /// 刷新失败会清空令牌并回调 [handleSessionExpired]。
+  ///
+  /// 失败分流：
+  /// - 401（会话真失效）→ 清空令牌，回到「未登录」；
+  /// - 网络/超时/5xx → 保留令牌，标记 [connectionFailed]，供 UI 显示重试。
   Future<void> restore() async {
     final String? access = await _tokenStore.readAccessToken();
     if (access == null || access.isEmpty) {
+      _hasLocalSession = false;
       return;
     }
+    _hasLocalSession = true;
     try {
       final Map<String, dynamic>? data = (await _api.get<Map<String, dynamic>>(
         '/auth/me',
@@ -37,10 +58,21 @@ class AuthService extends ChangeNotifier {
           .data;
       if (data != null) {
         _user = AppUser.fromJson(data);
+        _connectionFailed = false;
+        _restoreError = null;
         notifyListeners();
       }
-    } on ApiException {
+    } on ApiException catch (error) {
       _user = null;
+      if (error.isUnauthorized) {
+        await _tokenStore.clear();
+        _hasLocalSession = false;
+        _connectionFailed = false;
+        _restoreError = null;
+      } else {
+        _connectionFailed = true;
+        _restoreError = error.message;
+      }
       notifyListeners();
     }
   }
@@ -70,6 +102,9 @@ class AuthService extends ChangeNotifier {
       );
     }
     await _tokenStore.saveTokens(accessToken: access, refreshToken: refresh);
+    _hasLocalSession = true;
+    _connectionFailed = false;
+    _restoreError = null;
     final Map<String, dynamic>? userJson =
         (data['user'] as Map?)?.cast<String, dynamic>();
     _user = userJson == null ? null : AppUser.fromJson(userJson);
@@ -91,11 +126,44 @@ class AuthService extends ChangeNotifier {
     }
     await _tokenStore.clear();
     _user = null;
+    _hasLocalSession = false;
+    _connectionFailed = false;
+    _restoreError = null;
+    notifyListeners();
+  }
+
+  /// 用 `/user/profile` 刷新账号资料（头像等），成功后通知所有订阅者。
+  ///
+  /// 兼容两种响应：`{...用户字段}` 或 `{ "user": {...} }`。
+  ///
+  /// 该接口只返回资料字段（不含 `account` / `is_admin`），因此要与当前
+  /// [user] 合并而不是整体替换，否则登录状态行会显示成「已登录（）」；
+  /// `avatar: null`（移除头像）要能真正覆盖旧值，所以这里用展开覆盖语义。
+  Future<void> refreshProfile() async {
+    final Map<String, dynamic>? data =
+        (await _api.get<Map<String, dynamic>>('/user/profile')).data;
+    if (data == null) {
+      return;
+    }
+    final Map<String, dynamic> json =
+        (data['user'] as Map?)?.cast<String, dynamic>() ?? data;
+    final AppUser? current = _user;
+    _user = AppUser.fromJson(<String, dynamic>{
+      if (current != null) ...<String, dynamic>{
+        'account': current.account,
+        'is_admin': current.isAdmin,
+        'username': current.username,
+      },
+      ...json,
+    });
     notifyListeners();
   }
 
   /// 由 `ApiClient` 在刷新失败时回调：令牌已被拦截器清空，这里只更新 UI 状态。
   void handleSessionExpired() {
+    _hasLocalSession = false;
+    _connectionFailed = false;
+    _restoreError = null;
     if (_user == null) {
       return;
     }
