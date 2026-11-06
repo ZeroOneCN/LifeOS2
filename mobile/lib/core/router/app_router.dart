@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_detail_page.dart';
 import '../../features/finance/finance_bills_page.dart';
@@ -22,6 +23,8 @@ import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
 import '../../features/life/lifestyle_items_page.dart';
 import '../../features/placeholder/feature_placeholder_page.dart';
+import '../../features/reports/report_detail_page.dart';
+import '../../features/reports/report_list_page.dart';
 import '../../features/settings/server_config_page.dart';
 import '../../features/settings/settings_page.dart';
 import '../../features/shell/app_shell.dart';
@@ -170,7 +173,18 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'reports',
                     builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '财务报告'),
+                        const ReportListPage(source: ReportSource.finance),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) => ReportDetailPage(
+                          source: ReportSource.finance,
+                          reportId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'transactions',
@@ -224,7 +238,18 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'reports',
                     builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '投资报告'),
+                        const ReportListPage(source: ReportSource.investment),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) => ReportDetailPage(
+                          source: ReportSource.investment,
+                          reportId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
