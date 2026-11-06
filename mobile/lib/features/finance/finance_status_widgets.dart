@@ -149,3 +149,105 @@ class BillRow extends StatelessWidget {
     );
   }
 }
+
+/// 「名称 + 金额」聚合明细行组（按平台 / 分类 / 规划类型）。
+///
+/// 金额使用等宽数字且不换行；名称单行省略，适配 375 宽 + 1.3x 字体。
+class AmountBreakdownList extends StatelessWidget {
+  const AmountBreakdownList({
+    super.key,
+    required this.entries,
+    this.maxItems = 6,
+  });
+
+  final List<NameAmount> entries;
+  final int maxItems;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final List<NameAmount> shown = entries.take(maxItems).toList();
+    final int rest = entries.length - shown.length;
+    return Column(
+      spacing: 8,
+      children: <Widget>[
+        for (final NameAmount entry in shown)
+          Row(
+            spacing: 12,
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  entry.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ),
+              Text(
+                formatMoney(entry.amount),
+                maxLines: 1,
+                softWrap: false,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        if (rest > 0)
+          Text(
+            '其余 $rest 项已省略',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: muted.withValues(alpha: 0.8),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// 列表页「加载更多 / 已全部加载」页脚。
+class ListLoadMoreFooter extends StatelessWidget {
+  const ListLoadMoreFooter({
+    super.key,
+    required this.loading,
+    required this.hasMore,
+    required this.onPressed,
+  });
+
+  final bool loading;
+  final bool hasMore;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (!hasMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          '已加载全部',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
+  }
+}

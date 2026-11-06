@@ -7,6 +7,9 @@ import '../../features/finance/finance_bills_page.dart';
 import '../../features/finance/finance_debt_detail_page.dart';
 import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_page.dart';
+import '../../features/finance/finance_planning_page.dart';
+import '../../features/finance/finance_shopping_page.dart';
+import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
@@ -150,18 +153,15 @@ GoRouter createAppRouter() {
                   ),
                   GoRoute(
                     path: 'shopping',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '购物记录'),
+                    builder: (_, _) => const FinanceShoppingPage(),
                   ),
                   GoRoute(
                     path: 'travel',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '旅行开支'),
+                    builder: (_, _) => const FinanceTravelPage(),
                   ),
                   GoRoute(
                     path: 'planning',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '财务规划'),
+                    builder: (_, _) => const FinancePlanningPage(),
                   ),
                   GoRoute(
                     path: 'reports',
