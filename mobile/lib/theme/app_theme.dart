@@ -195,8 +195,10 @@ abstract final class AppTheme {
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.16 : 0.08),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        // 深色模式下 primary 接近白色，靠颜色深浅区分选中太弱，
+        // 因此叠加更明显的选中胶囊 + 图标放大 + 未选态降透明度。
+        indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.22 : 0.10),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle?>((states) {
           final bool selected = states.contains(WidgetState.selected);
           return AppTypography.labelMedium.copyWith(
@@ -207,8 +209,10 @@ abstract final class AppTheme {
         iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>((states) {
           final bool selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            size: 24,
-            color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
+            size: selected ? 28 : 24,
+            color: selected
+                ? scheme.primary
+                : scheme.onSurfaceVariant.withValues(alpha: isDark ? 0.72 : 0.9),
           );
         }),
       ),
@@ -234,7 +238,9 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          // 注意：不能用 Size.fromHeight（minWidth=infinity），
+          // 否则 FilledButton 放进 Row 时会强制无限宽度并触发布局断言。
+          minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
