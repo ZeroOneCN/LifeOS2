@@ -595,3 +595,64 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/features/health/health_sleep_page.dart` | 新增睡眠体征页（概览 + 分阶段 + 分页记录 + 四态） |
 | `lib/features/health/health_fitness_page.dart` | 新增健身运动页（区间汇总 + 按类型 + 日期倒序列表 + 四态） |
 | `lib/core/router/app_router.dart` | `/health/vitals-sleep`、`/health/fitness` 由占位换实页（体检指标仍占位） |
+
+---
+
+## 十四、C6：体检指标页（健康域最后一个占位页）（2026-11-07 07:40–07:55）
+
+> 范围：只改 `mobile/`，只读；未开写操作，未新增接口。完成后健康域不再有占位页。
+
+### 14.1 后端能力核对
+
+`GET /health/checkup/stats?days=0` 已存在，返回：
+
+- `items[]`：`item_name` / `unit` / `reference_range` / `ref_low` / `ref_high` / `latest{value, check_date, result}` / `count` / `trend[]`；
+- `total_count` / `abnormal_count` / `status_counts{normal,high,low}` / `status_label{normal→正常, high→偏高, low→偏低}`。
+
+没有单独的「指标趋势」路由，趋势随统计接口返回（每项最近 30 次）；模板接口只有 1 条模板，无法按模板 `category` 分组，因此按后端 `result` 分组。
+
+### 14.2 页面结构
+
+- 概览：指标总数 18 / 异常指标 6（警示色）/ 检查记录 48；下方一行「偏高 5 · 偏低 1 · 正常 12」。
+- 分组：异常指标（6，默认展开）、未判定指标（有才显示）、正常指标（12，默认收起，右上角「展开/收起」）。
+- 指标行：指标名 + 状态；「最新 值 单位」+「参考范围」；点击整行展开历史（手风琴，同屏只展开一项）。
+- 历史：日期（新→旧）+ 值 + 该点状态；≥2 个值画单条折线（`CustomPainter`，无第三方依赖），同屏最多一张。
+- 配色：仅 `high` 用 danger、`low` 用 warning；`normal` / 未判定用中性文字，无彩色底色。
+- 空值：`latestValue` 为 null 显示「—」；`reference_range` 缺失时用 `ref_low/high` 拼，均无显示「—」；未判定状态显示「—」。
+- 只读提示：`ReadOnlyNotice`「当前版本仅支持查看，记录请在网页端添加。」。
+
+### 14.3 真机实测（基线：18 项 / 48 条；异常 6 = 偏高 5 + 偏低 1）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 健康 Tab → 体检指标 | 概览 18 / 6 / 48，与接口一致；「偏高 5 · 偏低 1 · 正常 12」 |
+| 2 | 异常指标配色 | eGFR 119.72、尿酸 536、总蛋白 88.3、球蛋白 40.9、碱性磷酸酶 132 为红色「偏高」；白蛋白/球蛋白 1.16 为橙色「偏低」；正常项无彩色 |
+| 3 | 展开 eGFR | 历史 3 条：2026-02-01 110.1 → 06-01 111.23 → 10-10 119.72；折线向右上，仅最后一点为警示色 |
+| 4 | 展开正常指标 | 12 项全部为中性「正常」文字，值/参考范围完整 |
+| 5 | 375 宽 + 1.3x | 首屏不溢出；历史行日期被单位挤成两行 → 修复后日期单行、值/状态完整（见 14.5） |
+| 6 | 断网进入 | 「连接失败 + 重试」；恢复网络点重试数据回来 |
+| 7 | 系统返回 | 回到健康中心 |
+
+截图：`p3_c6_checkup_overview.png`、`p3_c6_checkup_expanded.png`、`p3_c6_checkup_normal.png`、
+`p3_c6_checkup_375_font13.png`、`p3_c6_checkup_375_font13_expanded.png`、`p3_c6_checkup_offline.png`。
+
+### 14.4 空值处理
+
+- 所有数值走 `double?`，null 统一显示「—」，不参与四则运算、不兜底为 0。
+- 实测异常项与正常项均有值；未判定分组在当前账号为 0 项，代码路径保留。
+- 空态（账号无体检数据）分支已实现，但当前真实账号有 18 项，未用真实数据触发；如需验证需构造空账号，本轮未动真实库。
+
+### 14.5 遇到的问题
+
+- **1.3x 历史日期折行**：日期 `2026-10-10` 与长单位（`mL/(min*1.`）挤在一行，日期被压成两行。修复：历史行只显示日期 + 值 + 状态（单位已在主行展示），日期单行省略。
+- **eGFR 单位疑似数据缺失**：真实库 `unit` 仅 `mL/(min*1.`（长度 10），应为完整单位被截断。按原样展示，未修改数据；需要时由用户在网页端/后端修正。
+- **无法按模板分类分组**：模板接口仅 1 条，改按状态分组（异常 / 未判定 / 正常）。
+
+### 14.6 涉及文件（C6）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/core/models/health_models.dart` | 新增 `CheckupTrendPoint` / `CheckupItem` / `CheckupStats` |
+| `lib/features/health/health_checkup_page.dart` | 新增体检指标页（概览 + 分组折叠 + 手风琴历史 + 单条折线） |
+| `lib/core/router/app_router.dart` | `/health/checkup` 由占位换实页；移除无引用的占位页 import |
+| `lib/features/placeholder/feature_placeholder_page.dart` | 删除（已无引用，健康域占位页全部落地） |
