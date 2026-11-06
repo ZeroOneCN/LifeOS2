@@ -37,3 +37,30 @@ String formatPercent(num? value) {
   }
   return '${value.toStringAsFixed(1)}%';
 }
+
+/// 时长：分钟 → `7 小时 9 分`；null 返回 `—`（未采集，不按 0 展示）。
+String formatDuration(int? minutes) {
+  if (minutes == null || minutes < 0) {
+    return '—';
+  }
+  final int hours = minutes ~/ 60;
+  final int rest = minutes % 60;
+  if (hours == 0) {
+    return '$rest 分';
+  }
+  if (rest == 0) {
+    return '$hours 小时';
+  }
+  return '$hours 小时 $rest 分';
+}
+
+/// 一位小数数值（千分位）：如 `4,881.2`；null 返回 `—`。
+String formatOneDecimal(num? value) {
+  if (value == null) {
+    return '—';
+  }
+  final String fixed = value.abs().toStringAsFixed(1);
+  final int dot = fixed.indexOf('.');
+  final String sign = value < 0 ? '-' : '';
+  return '$sign${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
+}

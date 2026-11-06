@@ -14,9 +14,11 @@ import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_fitness_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
 import '../../features/health/health_page.dart';
+import '../../features/health/health_sleep_page.dart';
 import '../../features/health/health_steps_page.dart';
 import '../../features/invest/forex_create_page.dart';
 import '../../features/invest/forex_page.dart';
@@ -108,13 +110,11 @@ GoRouter createAppRouter() {
                   ),
                   GoRoute(
                     path: 'vitals-sleep',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '睡眠体征'),
+                    builder: (_, _) => const HealthSleepPage(),
                   ),
                   GoRoute(
                     path: 'fitness',
-                    builder: (_, _) =>
-                        const FeaturePlaceholderPage(title: '健身运动'),
+                    builder: (_, _) => const HealthFitnessPage(),
                   ),
                   GoRoute(
                     path: 'checkup',
