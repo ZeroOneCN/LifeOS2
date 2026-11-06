@@ -190,3 +190,100 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/core/router/app_router.dart` | `/finance/expense/new` |
 | `lib/features/settings/settings_page.dart` | 离线队列卡（条数 / 上次同步 / 立即同步） |
 | `pubspec.yaml` / `pubspec.lock` | 新增 `connectivity_plus 7.3.2` |
+
+---
+
+## 十、C2：用药打卡与外汇录入接入（2026-11-07 05:2x–05:5x）
+
+> 范围：只改 `mobile/`；把离线队列接到「用药打卡」「外汇录入」，并加自动退避与条数上限。
+> 边界：不做离线编辑/删除，冲突策略仍是「只在创建（或 PUT 幂等更新）类操作上排队」。
+
+### 10.1 结论
+
+| 项 | 状态 | 说明 |
+|---|---|---|
+| 用药打卡离线 | 完成 | 断网打卡本地立即生效并标「待同步」，联网自动推送（PUT 幂等） |
+| 外汇录入离线 | 完成 | 保存即入队；列表顶部「待同步」临时卡；推送成功后临时卡消失、真实记录补上，不重复 |
+| 自动退避 | 实现完成，未做完整真机时序验证 | 1s / 5s / 30s / 2min，第 5 次失败后停止自动重试，转手动 |
+| 队列上限 | 实现完成，未实测 200 条 | `maxEntries = 200`，超限拒绝入队并提示先同步；设置页显示 `n / 200 条` |
+
+### 10.2 实现要点
+
+- 队列操作类型新增 `health.medication.checkin`、`investment.forex.create`。
+- **用药打卡**：详情页此前只有只读展示，本轮新增「打卡」按钮；打卡 = `PUT /health/medication/{id}` 全量提交（`id` 已存在，PUT 天然幂等，无需查重）。
+  - 离线时先用 `copyWith` 乐观更新并立即写队列，Snackbar「已打卡（待同步），联网后自动同步」；标题行出现「待同步」chip。
+  - 列表行按队列 payload 覆盖 `taken_*` 计算「今日 x/3」，并显示「待同步」。
+  - 列表进入详情时通过 `extra` 带记录快照（`initial`），**断网也能进入详情并打卡**（此前断网进入详情只有连接失败页）。
+- **外汇录入**：`enqueueForexCreate(payload)`；列表从队列派生「待同步 N 笔」临时卡，放在 `ListStatusView` 之前，离线/加载失败时也能看到临时记录；
+  `lastSyncAt` 前进触发刷新 → 队列条目消失、服务端真实记录补上，不会同时出现两条。
+- **退避**：`retryDelays = 1s / 5s / 30s / 2min`；失败后 `retryCount+1` 并定时重试，第 5 次失败后不再自动重试；
+  UI 显示「下次自动重试：HH:mm」或「自动重试已达上限，请手动重试」；连通性恢复会取消等待中的定时器并立即尝试。
+- **上限**：`maxEntries = 200` 全局生效，`enqueue` 超限返回 null，三个入口（支出 / 用药 / 外汇）都提示「待同步已达上限（200 条），请先联网同步」。
+
+### 10.3 重复风险评估（后端仍无幂等键）
+
+- **用药打卡**：按 `id` PUT，重复执行结果一致，**不需要查重**；真实风险是「最后写入覆盖」——离线 payload 是打卡当时的本地快照，重试时可能覆盖其他端在同期更新的其他餐次。
+  若将来记录被服务端删除，404 会一直留在队列直到重试耗尽转手动；建议查重/幂等键：`药物 id + record_date + 时段`（本轮因 PUT 幂等未加）。
+- **外汇录入**：沿用 C1 补偿查重，`retryCount > 0` 时先查 `trade_date + symbol + order_type + open_price + lot_size + close_price + pnl + commission + overnight_fee + note`。
+  - 同日同品种同方向同价同量同盈亏的两笔真实交易，第二笔重试时会被误判「已写入」而**漏写**；
+  - 查重窗口受列表 `page_size=100` 限制，当日超过 100 条时可能查不到而重复；
+  - 首次推送「已写入但响应超时」后重试有查重兜住。
+
+### 10.4 真机实测（2026-11-07）
+
+设备：Android 真机（`com.lifeos.mobile` debug APK），后端 `192.168.8.103:9515`（真实 MySQL）。
+基线：用药总数 **472**、外汇交易总数 **4277**。
+
+**用药打卡链路**
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 在线打开用药列表（测试记录 `C2MED`，`record_date=2026-11-07`，id=483），断网后进入详情 | 列表快照兜底生效：连接失败横幅 + 三餐用量仍可操作 |
+| 2 | 点早餐「打卡」 | 详情「未完成」+「待同步」，早餐显示「已服」；Snackbar「已打卡（待同步），联网后自动同步」 |
+| 3 | 返回列表 | `C2MED` 行显示「待同步」+ 今日 `1/3`、早餐 `1/1` |
+| 4 | 杀进程冷启动（仍断网） | 设置页「待同步 **1 / 200 条**」，队列跨冷启动存活 |
+| 5 | 恢复网络 | 自动推送成功，设置页 `0 / 200`，上次同步 05:39 |
+| 6 | 服务端对账 | id=483 `taken_breakfast=true`、`updated_at=2026-11-07 05:39:01`；总数仍 **473**（PUT 更新，无新增、无重复），列表 `1/3` 且无「待同步」角标 |
+
+**外汇录入链路**
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 在线进入外汇页（总数 4277），断网进入「新增交易」，填 `C2FX` / 做多 / 0.10 手 / 开 1.0850 / 平 1.0900 / 手续费 5 / 隔夜费 2 / 盈亏 50 | — |
+| 2 | 保存 | 返回列表顶部出现「待同步 **1 笔**」卡（`C2FX` 做多 2026-11-07 · 0.10 手 · 开 1.0850 · 平 1.0900 · **¥57.00**）+ Snackbar「交易已存本地，联网后自动同步」 |
+| 3 | 杀进程冷启动离线 → 投资 → 外汇 | 连接失败横幅下**仍显示待同步卡**，本地临时记录可见 |
+| 4 | 恢复网络 | 自动推送成功，待同步卡消失；在线刷新后「交易记录 共 **4278** 笔」，首行 `C2FX` ¥57.00，**无「待同步」重复行** |
+| 5 | 服务端对账 | `GET /investment/forex` total=**4278**，`C2FX` 仅 1 条（id=10315） |
+
+截图（`docs/移动端可行性研究/screenshots/`）：
+
+- `p3_c2_med_detail_offline.png`：断网打卡后的详情（已服 + 待同步）
+- `p3_c2_med_list_offline.png`：断网返回列表后的「待同步」与 `1/3`
+- `p3_c2_settings_coldstart.png`：冷启动后设置页 `1 / 200 条`
+- `p3_c2_forex_pending_offline.png`：离线保存后的待同步卡（¥57.00）
+- `p3_c2_forex_pushed.png`：推送成功后交易记录首行 `C2FX`，总数 4278
+
+### 10.5 遗留测试数据（本轮未清理）
+
+按要求本轮**不操作真实库**，以下测试数据保留待安排删除：
+
+| 表 | 记录 | 基线 → 当前 |
+|---|---|---|
+| 用药记录 `health/medication` | id=**483**，`medicine_name=C2MED`，`record_date=2026-11-07`，`taken_breakfast=true` | 472 → **473** |
+| 外汇交易 `investment/forex` | id=**10315**，`symbol=C2FX`，`trade_date=2026-11-07`，`pnl=50` / `commission=5` / `overnight_fee=2` | 4277 → **4278** |
+
+### 10.6 涉及文件（C2）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/core/queue/outbox_entry.dart` | 新增 `health.medication.checkin` / `investment.forex.create` 常量 |
+| `lib/core/queue/outbox_controller.dart` | 退避定时器、200 条上限、三类操作推送、外汇查重、`pendingOf` / `pendingPayloadFor` |
+| `lib/core/models/health_models.dart` | `MedicationRecord.copyWith` |
+| `lib/features/health/health_medication_detail_page.dart` | 「打卡」按钮、乐观更新、待同步 chip、离线快照兜底 |
+| `lib/features/health/health_medication_page.dart` | 待同步状态覆盖、进入详情带快照 |
+| `lib/features/invest/forex_create_page.dart` | 改为入队保存、离线横幅、上限提示 |
+| `lib/features/invest/forex_page.dart` | 待同步交易卡、退避提示、同步后刷新 |
+| `lib/features/finance/finance_transactions_page.dart` | 退避提示与「下次自动重试」 |
+| `lib/features/finance/finance_expense_create_page.dart` | 上限提示 |
+| `lib/features/settings/settings_page.dart` | `n / 200 条`、自动重试停止提示 |
+| `lib/core/router/app_router.dart` | 用药详情路由支持 `extra` 快照 |
