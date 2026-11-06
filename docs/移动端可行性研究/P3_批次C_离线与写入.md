@@ -318,3 +318,90 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/features/finance/finance_expense_create_page.dart` | 上限提示 |
 | `lib/features/settings/settings_page.dart` | `n / 200 条`、自动重试停止提示 |
 | `lib/core/router/app_router.dart` | 用药详情路由支持 `extra` 快照 |
+
+---
+
+## 十一、C3 补口：通知中心页 + 手机号卡只读区（2026-11-07 06:1x–06:4x）
+
+> 范围：只改 `mobile/`。两块互不相干的补口：
+> 1）顶栏铃铛从「假未读 3」换成真实通知中心；
+> 2）卡片管理页补齐入口写着 29 张、实际只显示 20 张银行卡的差额（9 张手机号卡，只读）。
+
+### 11.1 后端能力核对（未新增接口）
+
+| 能力 | 接口 | 结论 |
+|---|---|---|
+| 通知列表 | `GET /notifications?page=&page_size=` | 存在（page_size ≤ 100，默认 notify_date desc） |
+| 未读/总数概览 | `GET /notifications/stats?days=` | 存在（total / unread / today / by_category / trend，days ≤ 365） |
+| 单条标记已读 | `PUT /notifications/{id}` | 存在；schema 为全量 `NotificationCreate`（title / category / notify_date 必填） |
+| 全部标记已读 | `POST /notifications/read-all` | 存在 |
+| 手机号卡列表 | `GET /lifestyle/phone-cards?page=&page_size=` | 存在（`PhoneCardRead` 含运营商/套餐/账期/余额，另有 month_charged 等派生字段） |
+
+没有造接口；手机号卡的充值 / 扣费 / 校准本轮一律不做。
+
+### 11.2 通知中心
+
+- 入口：`RootPageScaffold` 固定铃铛 → `/notifications`；角标取 `stats?days=365` 的 `unread`。
+- 列表项：未读圆点 + 加粗标题、`category` chip、`来源 xxx`、`notify_date`；收起时正文摘要 2 行，点击展开完整正文（保留换行）并显示备注。
+- 标题 `maxLines: 1` + `Tooltip(message: title)`；展开后正文不截断。
+- 未读项点击即标记已读（`PUT /notifications/{id}`，回写列表快照的全量字段）；行内 spinner 防重复点击。
+- 「全部标记已读」：先弹确认框（「将把 N 条未读通知标记为已读」）再 `POST /notifications/read-all`。
+- 分页：首屏 20 条 + 底部「加载更多」，`hasMore` 由 `items.length < total` 决定。
+- 四态：加载 / 空（`EmptyState`）/ 失败（保留登录态显示「连接失败 + 重试」）/ 有数据。
+
+**取舍：标记已读不接离线队列。** 已读状态滞后不致命，失败只需提示重试；接入队列会占用 200 条额度、并让「未读数」在离线时与服务端不一致，收益极低。
+
+### 11.3 手机号卡只读区
+
+- 与银行卡同页：银行卡区标题由「全部卡片」改为「银行卡」（`共 20 张`），手机号卡独立 `SectionCard`（`共 9 张 · 只读`）。
+- 顶部固定提示：`只读：充值 / 扣费 / 校准请在网页端操作`；空态同样用这句话，避免被误认为加载失败。
+- 每行：脱敏号码（`•••• 6417`，只留后四位）、运营商、套餐、账期（`每月 X 日` + `月租 ¥N`）、余额、非 active 状态（已冻结/已过期/已停用）。
+- 手机号卡请求单独 `catchError`：失败只让该区块降级为空态，不阻塞银行卡分页。
+- 套餐文案修正：后端未配置的通话/短信项存 `"0"`，直接拼接会出现 `0 · 30 · 0`；现跳过数值为 0 的项（`200MB/月` 这类带单位的仍保留）。
+
+### 11.4 真机实测（基线：通知 86 条 / 未读 86；银行卡 20 + 手机号卡 9 = 29）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 冷启动财务中心 | 铃铛红色角标 **86**；读屏标签「通知（86 条未读）」 |
+| 2 | 点铃铛 | 通知中心：`共 86 条`、`未读 86 条`、首屏 20 条 |
+| 3 | 点首条（id=92，`finance_loan_due:574`） | 展开完整正文（含换行）；未读 **86 → 85**；行内圆点消失、标题取消加粗 |
+| 4 | 服务端对账 | `GET /notifications/92` → `read=True`；`stats` unread=**85** |
+| 5 | 滚到底点「加载更多」 | 追加第 2 页（新出现 `【网贷还款】白条 2026-10-23 应还`） |
+| 6 | 点「全部标记已读」 | 弹窗「将把 **85** 条未读通知标记为已读，是否继续？」；点「取消」后未读仍 85（未执行批量写） |
+| 7 | 断网点未读项（id=91） | SnackBar「标记已读失败：无法连接服务器，请检查地址、端口与局域网，请重试」；未读保持 85，id=91 仍 `read=False`（未进队列） |
+| 8 | 断网进入通知中心 | 「连接失败，已保留登录状态」+「重试」；恢复网络点重试 → `共 86 条 / 未读 85` |
+| 9 | 375 宽（1125×2670）与 1.3x 字体 | 不溢出；标题省略号截断（`Tooltip` 提供全文），元信息自动换行 |
+| 10 | 卡片管理 | 银行卡 `共 20 张`；手机号卡 `共 9 张 · 只读`，9 行全展示（`•••• 6417` 中国移动 / 每月 4 日 · 月租 ¥8.00 / 余额 ¥23.30 等） |
+| 11 | 375 + 1.3x（卡片管理） | 不溢出，手机号卡行两行内换行正常 |
+
+截图（`docs/移动端可行性研究/screenshots/`）：`p3_c3_bell_badge.png`、`p3_c3_notification_list.png`、
+`p3_c3_notification_expanded_read.png`、`p3_c3_read_all_dialog.png`、`p3_c3_mark_read_offline_failed.png`、
+`p3_c3_notification_failed_retry.png`、`p3_c3_notifications_375.png`、`p3_c3_notifications_font13.png`、
+`p3_c3_phone_cards_section.png`、`p3_c3_phone_cards_list.png`、`p3_c3_phone_cards_375.png`、`p3_c3_phone_cards_font13.png`。
+
+### 11.5 真实库测试数据（**未清理，等用户决定**）
+
+| 记录 | 变更 | 说明 |
+|---|---|---|
+| 通知 id=**92**（`finance_loan_due:574`） | `read` 由 `False` → `True` | 单条标记已读实测产生；其余 85 条未读未改动 |
+
+批量「全部标记已读」只验证了确认框并取消，**没有**对真实库执行；`mark_read_offline_failed` 的失败请求也未落库（id=91 仍未读）。
+
+### 11.6 遇到的问题
+
+- **铃铛冷启动读不到未读数**：首帧 `postFrameCallback` 早于 `AuthService.restore()` 完成，`isLoggedIn` 仍为 false 直接 return，角标一直是 0。改为订阅 `AuthService`，恢复成功后补拉；登出清 0。
+- **读屏把按钮播报成「86」**：`Badge` 的数字语义覆盖了 tooltip。给角标包 `ExcludeSemantics`，标签恢复「通知（85 条未读）」。
+- 单条已读必须回写全量字段（后端 PUT 走 `NotificationCreate`），因此用列表快照；若其他端同时改了同一条正文，会被列表快照覆盖（低频，可接受）。
+- 手机号卡一次性 `page_size=100`，当前 9 张够用；超过 100 张需要补分页。
+
+### 11.7 涉及文件（C3）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/core/models/notification_models.dart` | 新增 `AppNotification`（summary / copyWith / fromJson） |
+| `lib/features/notifications/notification_center_page.dart` | 新增通知中心（分页、四态、展开、单条已读、全部已读确认） |
+| `lib/shared/widgets/notification_bell.dart` | 假未读 3 → 真实 `stats` 未读数；订阅登录态；返回后刷新；角标语义修正 |
+| `lib/core/router/app_router.dart` | `/notifications` 由占位页改为 `NotificationCenterPage` |
+| `lib/core/models/lifestyle_models.dart` | 新增 `PhoneCard`（脱敏号码 / 套餐 / 状态） |
+| `lib/features/life/lifestyle_cards_page.dart` | 银行卡区标题改「银行卡」；新增手机号卡只读区与 `_PhoneCardRow`；手机号卡失败降级 |
