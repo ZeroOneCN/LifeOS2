@@ -517,3 +517,81 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/features/settings/about_page.dart` | 新增关于页（package_info_plus + 后端地址） |
 | `lib/core/router/app_router.dart` | `/settings/account`、`/settings/about` 由占位换实页 |
 | `pubspec.yaml` / `pubspec.lock` | 新增 `package_info_plus` |
+
+---
+
+## 十三、C5：健康域两个占位页（睡眠体征 / 健身运动）（2026-11-07 07:2x–07:4x）
+
+> 范围：只改 `mobile/`；只做健康域两个占位页，**体检指标不开**。两页均为只读，不写入真实数据。
+
+### 13.1 后端能力核对（未新增接口）
+
+| 页面 | 接口 | 结论 |
+|---|---|---|
+| 睡眠体征 | `GET /health/vitals-sleep?page=&page_size=` | 存在；返回 `bedtime` / `wake_time` / `sleep_duration_min` / `deep_sleep_min` / `light_sleep_min` / `wake_count` / `sleep_quality` / `note` |
+| 睡眠体征 | `GET /health/vitals-sleep/stats?days=0` | 存在；`avg` 含平均时长/深睡/质量，另有 `record_count` 与 `trend` |
+| 健身运动 | `GET /health/fitness?page=&page_size=&start=` | 存在；默认按 `record_date` 倒序 |
+| 健身运动 | `GET /health/fitness/stats?days=` | 存在；`total_count` / `total_minutes` / `total_calories` / `by_type` / `trend` |
+
+**字段事实**：`HealthVitalsSleep` 没有 REM 字段（只有深睡/浅睡/醒来次数），因此睡眠页不展示 REM；
+`HealthFitness.distance_km` 可为空，`calories` 在 MET 推算不到时也可为空。两页均只读，不做新增/编辑。
+
+### 13.2 睡眠体征（`/health/vitals-sleep`）
+
+- 概览：平均时长（接口均值 429.6 分钟，页面取整为「7 小时 10 分」）、平均质量（`2.2 / 10`）、记录条数 `24`。
+- 分阶段：深睡 / 浅睡均值；接口当前全为 null → 展示「暂无分阶段数据」空态，并写明未采集字段显示「—」。
+- 记录行：日期 + 时长（右侧等宽数字）+ 质量、入睡/起床时间、深睡/浅睡/醒来次数（用 `Wrap` 整项换行，避免 1.3x 时「—」单独掉行）。
+- **未采集不显示 0**：`sleep_duration_min` / `deep_sleep_min` / `light_sleep_min` / `wake_count` / `sleep_quality` 为 null 时一律「—」；
+  实测 2026-10-26 至 10-30 共 5 条空记录，列表 5 行全部为「—」，未出现 0 分钟 / 0 次 / 0 分。
+- 分页：20 条/页 + 「加载更多」；24 条实测点一次追加 4 条，底部变「已加载全部」。
+- 只读提示：页内固定 `ReadOnlyNotice`「当前版本仅支持查看，记录请在网页端添加。」，不放新增按钮。
+
+### 13.3 健身运动（`/health/fitness`）
+
+- 区间：7 天 / 30 天 / 全部（接口 `days` 原生能力，默认「全部」）；**列表与统计同区间**（`days>0` 时列表同时带 `start`），避免汇总显示 0 条而下方仍列出全部记录。
+- 区间汇总：总时长（922 分钟 → 15 小时 22 分）、总消耗（4,881.2 kcal）、记录条数 10。
+- 按类型汇总：仅「有氧运动」10 次 / 15 小时 22 分 / 4,881.2 kcal；区间无记录时该卡片不渲染，不硬造。
+- 记录列表：按 `record_date` 倒序并插入日期分组标题；行内类型、时长、消耗（`840 kcal`），有 `distance_km` 才追加距离，备注原样展示。
+- 未采集不显示 0：`calories` 为 null 时显示「— kcal」。
+- 分页与四态同上；只读提示同上。
+
+### 13.4 真机实测（基线：睡眠 24 条；健身 10 条 / 922 分钟 / 4,881.2 kcal）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 健康 Tab → 睡眠体征 | 平均时长 7 小时 10 分 / 平均质量 2.2 / 10 / 记录 24 条；分阶段空态 |
+| 2 | 睡眠列表首屏 | 10-30…10-26 共 5 条全空记录全部「—」；07-19 起显示 9 小时 50 分、入睡 18:52、起床 04:42、质量 2/10 |
+| 3 | 点「加载更多」 | 追加 4 条（07-04…07-01），底部「已加载全部」；5 小时 49 分 / 7 小时 11 分 / 6 小时 / 8 小时 55 分与接口一致 |
+| 4 | 系统返回 | 回到健康中心 |
+| 5 | 健身运动（全部） | 15 小时 22 分 / 4,881.2 / 10 条；按类型「有氧运动」10 次；列表按日期倒序 |
+| 6 | 切「近 7 天」 | 汇总 0 分 / 0 / 0，列表同为空态（该区间无记录），无重复空态 |
+| 7 | 375 宽 + 1.3x | 两页不溢出；睡眠分阶段字段按整项换行，健身汇总三列与分段按钮正常 |
+| 8 | 断网进入两页 | 「连接失败，已保留登录状态 + 重试」；恢复网络点重试，数据恢复 |
+| 9 | 可返回 | 两页系统返回均正常 |
+
+截图：`p3_c5_sleep_overview.png`、`p3_c5_sleep_list.png`、`p3_c5_sleep_375_font13.png`、
+`p3_c5_sleep_offline.png`、`p3_c5_fitness_overview.png`、`p3_c5_fitness_7d_empty.png`、
+`p3_c5_fitness_375_font13.png`、`p3_c5_fitness_offline.png`。
+
+### 13.5 真实数据改动
+
+**无。** 本轮两页只发 `GET` 请求，未新增/修改/删除任何记录；真机自动化全程未点击任何输入框（本轮没有表单）。
+显示设置（1125×2670 / font_scale 1.3）与 Wi-Fi 开关仅用于验收，已恢复默认（`wm size reset` + `font_scale 1.0`，Wi-Fi 已开启）。
+
+### 13.6 遇到的问题
+
+- **分阶段字段换行难看**：1.3x 下「深睡 — · 浅睡 — · 醒来 —」整段折行，最后的「—」单独掉到下一行。改为 `Wrap` 三个独立项，按项换行。
+- **区间与列表范围不一致**：初版只让统计随区间变化，列表仍为全部，会出现「近 7 天 0 条」但下面列出 4 月记录。改为 `days>0` 时列表同时传 `start=今天-(days-1)`。
+- **空态重复**：区间无记录时「按类型汇总」与「运动记录」各一个空态。无记录时不渲染按类型卡片，只保留列表空态。
+- 其余复用既有规范（`ListStatusView` / `EmptyState` / `SectionCard` / `ListLoadMoreFooter` / `DetailPageScaffold`），未新造组件。
+
+### 13.7 涉及文件（C5）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/core/models/health_models.dart` | 新增 `SleepRecord` / `SleepTrendPoint` / `SleepStats` / `FitnessRecord` / `FitnessTypeSummary` / `FitnessStats`；空值解析保持 null |
+| `lib/core/utils/formatters.dart` | 新增 `formatDuration`（分钟 → 小时/分，null → 「—」）与 `formatOneDecimal` |
+| `lib/shared/widgets/read_only_notice.dart` | 新增只读说明条（两页复用） |
+| `lib/features/health/health_sleep_page.dart` | 新增睡眠体征页（概览 + 分阶段 + 分页记录 + 四态） |
+| `lib/features/health/health_fitness_page.dart` | 新增健身运动页（区间汇总 + 按类型 + 日期倒序列表 + 四态） |
+| `lib/core/router/app_router.dart` | `/health/vitals-sleep`、`/health/fitness` 由占位换实页（体检指标仍占位） |
