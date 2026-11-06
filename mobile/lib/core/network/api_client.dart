@@ -39,6 +39,30 @@ class ApiClient {
 
   String get baseUrl => _dio.options.baseUrl;
 
+  /// 服务端 Origin（含协议/主机/端口，去掉 `/api/v1` 路径）。
+  ///
+  /// 后端返回的上传头像形如 `/api/v1/uploads/avatars/xxx.png`，
+  /// 移动端需要拼上 Origin 才能加载。
+  String get origin => Uri.parse(baseUrl).origin;
+
+  /// 把头像字段解析成可加载的绝对地址：
+  /// - `null` / 空串 → null（走占位头像）；
+  /// - 以 `/` 开头 → 拼 [origin]；
+  /// - 以 `http` 开头 → 原样使用。
+  String? resolveAvatar(String? avatar) {
+    final String? value = avatar?.trim();
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    if (value.startsWith('/')) {
+      return '$origin$value';
+    }
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    return null;
+  }
+
   /// 修改服务器地址：去尾斜杠、同步两个 Dio、通知 UI。
   void updateBaseUrl(String value) {
     final String normalized = _normalize(value);
@@ -90,6 +114,17 @@ class ApiClient {
         queryParameters: queryParameters,
         options: options,
       ),
+    );
+  }
+
+  /// multipart 上传（头像），支持发送进度回调。
+  Future<Response<T>> postMultipart<T>(
+    String path, {
+    required FormData data,
+    ProgressCallback? onSendProgress,
+  }) {
+    return _guard(
+      () => _dio.post<T>(path, data: data, onSendProgress: onSendProgress),
     );
   }
 

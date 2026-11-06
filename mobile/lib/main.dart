@@ -8,6 +8,7 @@ import 'core/app_scope.dart';
 import 'core/auth/auth_service.dart';
 import 'core/data/overview_controller.dart';
 import 'core/network/api_client.dart';
+import 'core/profile/profile_service.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/preferences_service.dart';
 import 'core/storage/token_store.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
   );
   authService = AuthService(apiClient, tokenStore);
   final OverviewController overview = OverviewController(apiClient, authService);
+  final ProfileService profile = ProfileService(apiClient, authService);
 
   runApp(
     AppScope(
@@ -40,6 +42,7 @@ Future<void> main() async {
       apiClient: apiClient,
       auth: authService,
       overview: overview,
+      profile: profile,
       child: LifeOsApp(router: createAppRouter()),
     ),
   );

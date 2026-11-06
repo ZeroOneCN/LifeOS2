@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'auth/auth_service.dart';
 import 'data/overview_controller.dart';
 import 'network/api_client.dart';
+import 'profile/profile_service.dart';
 import 'storage/preferences_service.dart';
 import 'storage/token_store.dart';
 
@@ -16,6 +17,7 @@ class AppScope extends InheritedWidget {
     required this.apiClient,
     required this.auth,
     required this.overview,
+    required this.profile,
     required super.child,
   });
 
@@ -29,6 +31,9 @@ class AppScope extends InheritedWidget {
   /// 四域总览数据：随登录态自动刷新，页面用 ListenableBuilder 订阅。
   final OverviewController overview;
 
+  /// 头像上传 / 外链设置（契约见 ProfileService）。
+  final ProfileService profile;
+
   static AppScope of(BuildContext context) {
     final AppScope? scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope 未挂载：请确认 main.dart 用 AppScope 包裹 LifeOsApp');
@@ -41,7 +46,8 @@ class AppScope extends InheritedWidget {
         tokenStore != oldWidget.tokenStore ||
         apiClient != oldWidget.apiClient ||
         auth != oldWidget.auth ||
-        overview != oldWidget.overview;
+        overview != oldWidget.overview ||
+        profile != oldWidget.profile;
   }
 }
 

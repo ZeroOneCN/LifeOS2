@@ -1,13 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/models/app_user.dart';
+import '../../core/network/api_exception.dart';
+import '../../core/profile/profile_service.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/user_avatar.dart';
 
-/// 设置根页：账户卡 + 状态行（服务器地址 / 账户设置）+ 外观 + 关于。
+/// 设置根页：账户卡（含头像）+ 服务器地址 + 状态行 + 账户设置 + 外观 + 关于。
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -20,10 +26,11 @@ class SettingsPage extends StatelessWidget {
       listenable: Listenable.merge(<Listenable>[scope.auth, scope.overview]),
       builder: (BuildContext context, _) {
         final AppUser? user = scope.auth.user;
+        final bool offline = scope.auth.connectionFailed;
         return RootPageScaffold(
           title: '设置',
           children: <Widget>[
-            _AccountCard(user: user),
+            _AccountCard(user: user, offline: offline),
             ValueListenableBuilder<String>(
               valueListenable: scope.apiClient.baseUrlListenable,
               builder: (BuildContext context, String baseUrl, _) {
@@ -41,7 +48,9 @@ class SettingsPage extends StatelessWidget {
                 children: <Widget>[
                   _InfoRow(
                     label: '登录状态',
-                    value: user == null ? '未登录' : '已登录（${user.account}）',
+                    value: user != null
+                        ? '已登录（${user.account}）'
+                        : (offline ? '连接失败（已保留登录状态）' : '未登录'),
                   ),
                   const Divider(height: 16),
                   _InfoRow(
@@ -51,6 +60,25 @@ class SettingsPage extends StatelessWidget {
                         ? '已加载'
                         : '待加载',
                   ),
+                  if (offline) ...<Widget>[
+                    const Divider(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '无法连接服务器，点击右侧重试',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: scope.overview.retry,
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -90,7 +118,7 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
             Text(
-              'P2：服务器地址与登录已接入；五个 Tab 只接总览层数据，'
+              'P2：服务器地址、登录与头像已接入；五个 Tab 只接总览层数据，'
               '业务列表页仍为占位。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -103,22 +131,24 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-/// 账户卡：已登录显示昵称/账号/管理员标记 + 退出；未登录引导去登录页。
+/// 账户卡：头像 + 昵称/账号 + 退出（或登录/重试）。
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.user});
+  const _AccountCard({required this.user, required this.offline});
 
   final AppUser? user;
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final AppScope scope = AppScope.of(context);
     final AppUser? current = user;
-    final String title =
-        current == null ? '未登录' : current.displayName;
-    final String subtitle = current == null
-        ? '登录后可同步五个 Tab 的真实数据'
-        : '账号 ${current.account}';
+    final String title = current != null
+        ? current.displayName
+        : (offline ? '连接失败' : '未登录');
+    final String subtitle = current != null
+        ? '账号 ${current.account}'
+        : (offline ? '已保留登录状态，网络恢复后可重试' : '登录后可同步五个 Tab 的真实数据');
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -131,16 +161,19 @@ class _AccountCard extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: <Widget>[
-              CircleAvatar(
-                backgroundColor: theme.colorScheme.surfaceContainerHigh,
+              GestureDetector(
+                onTap: current == null
+                    ? null
+                    : () => showAvatarSheet(context, scope),
                 child: current == null
-                    ? Icon(
-                        Icons.person_outline,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      )
-                    : Text(
-                        String.fromCharCode(current.displayName.runes.first),
-                        style: theme.textTheme.titleMedium,
+                    ? UserAvatar(user: current, radius: 26)
+                    : Tooltip(
+                        message: '更换头像',
+                        child: UserAvatar(
+                          user: current,
+                          radius: 26,
+                          showEditBadge: true,
+                        ),
                       ),
               ),
               Expanded(
@@ -187,15 +220,20 @@ class _AccountCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (current == null)
-                FilledButton.tonal(
-                  onPressed: () => context.push('/login'),
-                  child: const Text('登录'),
-                )
-              else
+              if (current != null)
                 TextButton(
                   onPressed: () => _logout(context, scope),
                   child: const Text('退出'),
+                )
+              else if (offline)
+                TextButton(
+                  onPressed: scope.overview.retry,
+                  child: const Text('重试'),
+                )
+              else
+                FilledButton.tonal(
+                  onPressed: () => context.push('/login'),
+                  child: const Text('登录'),
                 ),
             ],
           ),
@@ -212,6 +250,301 @@ class _AccountCard extends StatelessWidget {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已退出登录')),
+    );
+  }
+}
+
+/// 头像操作面板：相册上传 / 填写地址 / 移除。
+Future<void> showAvatarSheet(BuildContext context, AppScope scope) {
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (BuildContext sheetContext) => _AvatarSheet(scope: scope),
+  );
+}
+
+class _AvatarSheet extends StatefulWidget {
+  const _AvatarSheet({required this.scope});
+
+  final AppScope scope;
+
+  @override
+  State<_AvatarSheet> createState() => _AvatarSheetState();
+}
+
+class _AvatarSheetState extends State<_AvatarSheet> {
+  final ImagePicker _picker = ImagePicker();
+
+  bool _busy = false;
+  double _progress = 0;
+
+  /// 相册选图 → 客户端校验 → 压缩后上传（带进度）。
+  ///
+  /// 压缩策略：交给 image_picker 的原生解码做「长边 1024 + JPEG 质量 85」缩放，
+  /// 不引入额外图像库、也不在 Dart 主 isolate 上解码大图；
+  /// 缩放后仍超过 2 MB 则直接提示重选（正常手机照片可落在 100–600 KB）。
+  Future<void> _pickAndUpload() async {
+    final XFile? picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    final File file = File(picked.path);
+    final String? error = AvatarRules.validateFile(file);
+    if (error != null) {
+      _snack(error);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _progress = 0;
+    });
+    try {
+      await widget.scope.profile.uploadAvatar(
+        file,
+        onProgress: (int sent, int total) {
+          if (!mounted || total <= 0) {
+            return;
+          }
+          setState(() => _progress = sent / total);
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+      _snack('头像已更新');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      _snack('上传失败：${_hint(error)}');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      _snack('上传失败：$error');
+    }
+  }
+
+  /// 填地址（或清空）→ 校验 → PUT `/user/avatar`。
+  Future<void> _editUrl() async {
+    final String? value = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => const _AvatarUrlDialog(),
+    );
+    if (value == null || !mounted) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.scope.profile.setAvatarUrl(value);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+      _snack('头像已更新');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      _snack('设置失败：${_hint(error)}');
+    }
+  }
+
+  /// 移除头像：`avatar_url: null`。
+  Future<void> _remove() async {
+    setState(() => _busy = true);
+    try {
+      await widget.scope.profile.setAvatarUrl(null);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+      _snack('头像已移除');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _busy = false);
+      _snack('移除失败：${_hint(error)}');
+    }
+  }
+
+  /// 404 时提示后端版本，其余沿用服务端文案。
+  String _hint(ApiException error) {
+    if (error.kind == ApiErrorKind.notFound) {
+      return '当前后端不支持头像接口（404），请确认后端已更新';
+    }
+    return error.message;
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final String? avatar = widget.scope.auth.user?.avatar;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text('更换头像', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (_busy) ...<Widget>[
+              LinearProgressIndicator(
+                value: _progress > 0 && _progress < 1 ? _progress : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _progress > 0 && _progress < 1
+                    ? '上传中 ${(_progress * 100).toStringAsFixed(0)}%'
+                    : '正在处理…',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            _Option(
+              icon: Icons.photo_library_outlined,
+              title: '从相册选择',
+              subtitle: 'png / jpg / jpeg / webp，≤ 2 MB',
+              onTap: _busy ? null : _pickAndUpload,
+            ),
+            _Option(
+              icon: Icons.link_outlined,
+              title: '填写图片地址',
+              subtitle: '仅 http / https，≤ 255 字符',
+              onTap: _busy ? null : _editUrl,
+            ),
+            if (avatar != null && avatar.isNotEmpty)
+              _Option(
+                icon: Icons.delete_outline,
+                title: '移除头像',
+                danger: true,
+                onTap: _busy ? null : _remove,
+              ),
+            const SizedBox(height: 4),
+            Text(
+              '客户端会先按长边 1024、JPEG 质量 85 压缩再上传；'
+              '不做裁剪（后端不处理裁剪）。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 输入外链头像地址的对话框。
+///
+/// 控制器由对话框自身持有：`showDialog` 返回的 Future 在退场动画结束前就已
+/// 完成，若在调用方立刻 `dispose()` 控制器，退场期间 TextField 仍会重建并
+/// 访问已销毁的控制器（`TextEditingController was used after being disposed`）。
+class _AvatarUrlDialog extends StatefulWidget {
+  const _AvatarUrlDialog();
+
+  @override
+  State<_AvatarUrlDialog> createState() => _AvatarUrlDialogState();
+}
+
+class _AvatarUrlDialogState extends State<_AvatarUrlDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final String text = _controller.text.trim();
+    final String? error = AvatarRules.validateUrl(text);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('填写图片地址'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: TextInputType.url,
+        maxLength: 255,
+        decoration: const InputDecoration(
+          hintText: 'https://example.com/avatar.png',
+          counterText: '',
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+}
+
+class _Option extends StatelessWidget {
+  const _Option({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.danger = false,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool danger;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color color =
+        danger ? theme.colorScheme.error : theme.colorScheme.onSurface;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      enabled: onTap != null,
+      leading: Icon(icon, color: danger ? theme.colorScheme.error : null),
+      title: Text(title, style: theme.textTheme.bodyLarge?.copyWith(color: color)),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 }
@@ -249,4 +582,3 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
-

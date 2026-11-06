@@ -38,6 +38,8 @@ dependencies:
   dio: ^5.11.1
   flutter_secure_storage: ^11.2.0
   shared_preferences: ^2.5.6
+  # 头像选图：使用系统相册（Android 13+ 走系统 Photo Picker，无需运行时存储权限）
+  image_picker: ^1.2.4
 
 dev_dependencies:
   flutter_test:
