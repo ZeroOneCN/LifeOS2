@@ -23,7 +23,11 @@ class SettingsPage extends StatelessWidget {
     final AppScope scope = AppScope.of(context);
 
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[scope.auth, scope.overview]),
+      listenable: Listenable.merge(<Listenable>[
+        scope.auth,
+        scope.overview,
+        scope.outbox,
+      ]),
       builder: (BuildContext context, _) {
         final AppUser? user = scope.auth.user;
         final bool offline = scope.auth.connectionFailed;
@@ -75,6 +79,64 @@ class SettingsPage extends StatelessWidget {
                         TextButton(
                           onPressed: scope.overview.retry,
                           child: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            SectionCard(
+              title: '离线队列',
+              child: Column(
+                children: <Widget>[
+                  _InfoRow(
+                    label: '待同步',
+                    value: '${scope.outbox.pendingCount} 条',
+                  ),
+                  const Divider(height: 16),
+                  _InfoRow(
+                    label: '上次同步',
+                    value: _formatSyncTime(scope.outbox.lastSyncAt),
+                  ),
+                  if (!scope.outbox.isOnline) ...<Widget>[
+                    const Divider(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            '当前无网络，恢复后按入队顺序自动推送',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: null,
+                          child: const Text('立即同步'),
+                        ),
+                      ],
+                    ),
+                  ] else if (scope.outbox.pendingCount > 0) ...<Widget>[
+                    const Divider(height: 16),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            scope.outbox.isSyncing
+                                ? '正在同步…'
+                                : (scope.outbox.lastError ?? '有积压，点击右侧立即推送'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scope.outbox.lastError == null
+                                  ? theme.colorScheme.onSurfaceVariant
+                                  : theme.colorScheme.error,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed:
+                              scope.outbox.isSyncing ? null : scope.outbox.retryNow,
+                          child: const Text('立即同步'),
                         ),
                       ],
                     ),
@@ -547,6 +609,16 @@ class _Option extends StatelessWidget {
       onTap: onTap,
     );
   }
+}
+
+/// 上次同步时间的展示文本：本地时区 `MM-dd HH:mm`，从未同步显示占位。
+String _formatSyncTime(DateTime? time) {
+  if (time == null) {
+    return '尚未同步';
+  }
+  final DateTime local = time.toLocal();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
 }
 
 class _InfoRow extends StatelessWidget {

@@ -9,6 +9,7 @@ import 'core/auth/auth_service.dart';
 import 'core/data/overview_controller.dart';
 import 'core/network/api_client.dart';
 import 'core/profile/profile_service.dart';
+import 'core/queue/outbox_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/preferences_service.dart';
 import 'core/storage/token_store.dart';
@@ -34,6 +35,13 @@ Future<void> main() async {
   authService = AuthService(apiClient, tokenStore);
   final OverviewController overview = OverviewController(apiClient, authService);
   final ProfileService profile = ProfileService(apiClient, authService);
+  final OutboxController outbox = OutboxController(
+    preferences,
+    apiClient,
+    authService,
+  );
+  // 离线队列必须在 runApp 前加载：保证首屏待同步条数准确、冷启动队列不丢。
+  await outbox.init();
 
   runApp(
     AppScope(
@@ -43,6 +51,7 @@ Future<void> main() async {
       auth: authService,
       overview: overview,
       profile: profile,
+      outbox: outbox,
       child: LifeOsApp(router: createAppRouter()),
     ),
   );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 /// 全局「记一笔」FAB：按方案只挂在财务域（财务根页 + 流水页）。
 class AddRecordFab extends StatelessWidget {
@@ -14,9 +15,10 @@ class AddRecordFab extends StatelessWidget {
   }
 }
 
-/// 四选一占位面板（支出 / 账单 / 用药 / 体重）。
-/// 业务表单尚未落地，点选后仅提示后续批次接入。
+/// 四选一面板（支出 / 账单 / 用药 / 体重）。
+/// 支出已接入离线队列表单，其余三类仍为后续批次占位。
 Future<void> showAddRecordSheet(BuildContext context) {
+  final NavigatorState navigator = Navigator.of(context);
   final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
   return showModalBottomSheet<void>(
     context: context,
@@ -39,8 +41,8 @@ Future<void> showAddRecordSheet(BuildContext context) {
               icon: Icons.payments_outlined,
               title: '支出',
               onTap: () {
-                Navigator.of(sheetContext).pop();
-                _notify(messenger, '支出表单将在后续批次接入');
+                navigator.pop();
+                context.push('/finance/expense/new');
               },
             ),
             _RecordOption(

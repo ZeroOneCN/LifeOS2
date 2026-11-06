@@ -7,6 +7,7 @@ import '../../features/finance/finance_bill_detail_page.dart';
 import '../../features/finance/finance_bills_page.dart';
 import '../../features/finance/finance_debt_detail_page.dart';
 import '../../features/finance/finance_debts_page.dart';
+import '../../features/finance/finance_expense_create_page.dart';
 import '../../features/finance/finance_page.dart';
 import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
@@ -200,6 +201,10 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'transactions',
                     builder: (_, _) => const FinanceTransactionsPage(),
+                  ),
+                  GoRoute(
+                    path: 'expense/new',
+                    builder: (_, _) => const FinanceExpenseCreatePage(),
                   ),
                 ],
               ),

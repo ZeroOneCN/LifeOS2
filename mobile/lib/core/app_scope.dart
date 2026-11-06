@@ -4,11 +4,12 @@ import 'auth/auth_service.dart';
 import 'data/overview_controller.dart';
 import 'network/api_client.dart';
 import 'profile/profile_service.dart';
+import 'queue/outbox_controller.dart';
 import 'storage/preferences_service.dart';
 import 'storage/token_store.dart';
 
 /// 轻量依赖注入：P2 仍不引入 Provider / Riverpod，
-/// 用一个 InheritedWidget 把「偏好 + 令牌 + ApiClient + 登录态 + 总览」传给整棵树。
+/// 用一个 InheritedWidget 把「偏好 + 令牌 + ApiClient + 登录态 + 总览 + 离线队列」传给整棵树。
 class AppScope extends InheritedWidget {
   const AppScope({
     super.key,
@@ -18,6 +19,7 @@ class AppScope extends InheritedWidget {
     required this.auth,
     required this.overview,
     required this.profile,
+    required this.outbox,
     required super.child,
   });
 
@@ -34,6 +36,9 @@ class AppScope extends InheritedWidget {
   /// 头像上传 / 外链设置（契约见 ProfileService）。
   final ProfileService profile;
 
+  /// 离线队列：本地落盘 + 连通性监听 + FIFO 同步。
+  final OutboxController outbox;
+
   static AppScope of(BuildContext context) {
     final AppScope? scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
     assert(scope != null, 'AppScope 未挂载：请确认 main.dart 用 AppScope 包裹 LifeOsApp');
@@ -47,7 +52,8 @@ class AppScope extends InheritedWidget {
         apiClient != oldWidget.apiClient ||
         auth != oldWidget.auth ||
         overview != oldWidget.overview ||
-        profile != oldWidget.profile;
+        profile != oldWidget.profile ||
+        outbox != oldWidget.outbox;
   }
 }
 
