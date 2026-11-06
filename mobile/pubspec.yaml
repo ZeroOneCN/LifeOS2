@@ -41,6 +41,7 @@ dependencies:
   # 头像选图：使用系统相册（Android 13+ 走系统 Photo Picker，无需运行时存储权限）
   image_picker: ^1.2.4
   connectivity_plus: ^7.3.2
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:

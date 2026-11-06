@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show ThemeMode, ValueNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
@@ -11,11 +12,31 @@ class PreferencesService {
 
   static const String _baseUrlKey = 'server.base_url';
   static const String _tabHintKey = 'ui.tab_long_press_hint_shown';
+  static const String _themeModeKey = 'ui.theme_mode';
+
+  /// 全局主题模式：`MaterialApp` 监听它，设置页切换后立即生效并在冷启动恢复。
+  final ValueNotifier<ThemeMode> themeMode = ValueNotifier<ThemeMode>(
+    ThemeMode.system,
+  );
 
   /// 创建实例；必须在 `runApp` 之前 await 完成。
   static Future<PreferencesService> create() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    return PreferencesService._(prefs);
+    final PreferencesService service = PreferencesService._(prefs);
+    service.themeMode.value = _parseThemeMode(prefs.getString(_themeModeKey));
+    return service;
+  }
+
+  /// 持久化的主题值 → `ThemeMode`；未知值一律回退跟随系统。
+  static ThemeMode _parseThemeMode(String? raw) {
+    switch (raw) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
   }
 
   /// 读取任意字符串键：离线队列等结构化数据以 JSON 字符串存储。
@@ -47,5 +68,11 @@ class PreferencesService {
 
   Future<void> markTabHintShown() async {
     await _prefs.setBool(_tabHintKey, true);
+  }
+
+  /// 切换深浅色：先更新内存（界面立刻生效），再落盘供下次冷启动读取。
+  Future<void> setThemeMode(ThemeMode mode) async {
+    themeMode.value = mode;
+    await _prefs.setString(_themeModeKey, mode.name);
   }
 }

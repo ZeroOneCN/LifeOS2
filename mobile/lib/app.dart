@@ -5,20 +5,31 @@ import 'core/config/app_config.dart';
 import 'theme/app_theme.dart';
 
 class LifeOsApp extends StatelessWidget {
-  const LifeOsApp({super.key, required this.router});
+  const LifeOsApp({
+    super.key,
+    required this.router,
+    required this.themeMode,
+  });
 
   final GoRouter router;
 
+  /// 由 `PreferencesService` 持有：设置页切换后立即重建，冷启动读回上次选择。
+  final ValueNotifier<ThemeMode> themeMode;
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      // 深浅色跟随系统；设置页只读展示，暂不提供手动切换
-      themeMode: ThemeMode.system,
-      routerConfig: router,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeMode,
+      builder: (BuildContext context, ThemeMode mode, Widget? _) {
+        return MaterialApp.router(
+          title: AppConfig.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: mode,
+          routerConfig: router,
+        );
+      },
     );
   }
 }

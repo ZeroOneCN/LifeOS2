@@ -52,7 +52,10 @@ Future<void> main() async {
       overview: overview,
       profile: profile,
       outbox: outbox,
-      child: LifeOsApp(router: createAppRouter()),
+      child: LifeOsApp(
+        router: createAppRouter(),
+        themeMode: preferences.themeMode,
+      ),
     ),
   );
 

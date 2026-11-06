@@ -159,34 +159,58 @@ class SettingsPage extends StatelessWidget {
             ),
             SectionCard(
               title: '外观',
-              child: Column(
-                children: <Widget>[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.brightness_auto_outlined),
-                    title: const Text('主题模式'),
-                    subtitle: const Text('跟随系统深浅色'),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: theme.colorScheme.onSurfaceVariant,
+              child: ValueListenableBuilder<ThemeMode>(
+                valueListenable: scope.preferences.themeMode,
+                builder: (BuildContext context, ThemeMode mode, _) {
+                  void select(ThemeMode? value) {
+                    if (value != null) {
+                      scope.preferences.setThemeMode(value);
+                    }
+                  }
+
+                  return RadioGroup<ThemeMode>(
+                    groupValue: mode,
+                    onChanged: select,
+                    child: Column(
+                      children: <Widget>[
+                        const RadioListTile<ThemeMode>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: ThemeMode.light,
+                          title: Text('浅色'),
+                        ),
+                        const RadioListTile<ThemeMode>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: ThemeMode.dark,
+                          title: Text('深色'),
+                        ),
+                        const RadioListTile<ThemeMode>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: ThemeMode.system,
+                          title: Text('跟随系统'),
+                        ),
+                        Text(
+                          '选择会立即生效，并在下次冷启动时保留。',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
-            const SectionCard(
+            EntryTile(
+              icon: Icons.info_outline,
               title: '关于',
-              child: Column(
-                children: <Widget>[
-                  _InfoRow(label: '应用', value: 'LifeOS'),
-                  _InfoRow(label: '版本', value: '1.0.0（P2）'),
-                  _InfoRow(label: '包名', value: 'com.lifeos.mobile'),
-                ],
-              ),
+              subtitle: '应用名、版本与后端地址',
+              onTap: () => context.push('/settings/about'),
             ),
             Text(
-              'P2：服务器地址、登录与头像已接入；五个 Tab 只接总览层数据，'
-              '业务列表页仍为占位。',
+              '头像在账户卡上直接更换；昵称、邮箱与密码在「账户设置」中修改。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
