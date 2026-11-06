@@ -1,0 +1,227 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/auth/login_page.dart';
+import '../../features/finance/finance_page.dart';
+import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_page.dart';
+import '../../features/invest/invest_page.dart';
+import '../../features/life/life_page.dart';
+import '../../features/placeholder/feature_placeholder_page.dart';
+import '../../features/settings/server_config_page.dart';
+import '../../features/settings/settings_page.dart';
+import '../../features/shell/app_shell.dart';
+
+/// 路由表：`StatefulShellRoute.indexedStack` + 5 个独立分支。
+///
+/// 选择理由见 docs/移动端可行性研究/P1_工程骨架.md：
+/// 1. 分支内保留各自 Navigator 栈与滚动位置；
+/// 2. 每个 Tab 的二级页返回只影响本分支；
+/// 3. 顶栏、导航栏由 shell 统一，不侵入页面。
+///
+/// 各域二级路由与网页端 `frontend/src/config/routes.ts` 一一对应；
+/// 业务列表页在 P2 先落占位页，保证每个入口都能到达并可返回。
+GoRouter createAppRouter() {
+  final GlobalKey<NavigatorState> rootKey = GlobalKey<NavigatorState>(
+    debugLabel: 'root',
+  );
+  final GlobalKey<NavigatorState> healthKey = GlobalKey<NavigatorState>(
+    debugLabel: 'health',
+  );
+  final GlobalKey<NavigatorState> financeKey = GlobalKey<NavigatorState>(
+    debugLabel: 'finance',
+  );
+  final GlobalKey<NavigatorState> lifeKey = GlobalKey<NavigatorState>(
+    debugLabel: 'life',
+  );
+  final GlobalKey<NavigatorState> investKey = GlobalKey<NavigatorState>(
+    debugLabel: 'invest',
+  );
+  final GlobalKey<NavigatorState> settingsKey = GlobalKey<NavigatorState>(
+    debugLabel: 'settings',
+  );
+
+  return GoRouter(
+    navigatorKey: rootKey,
+    initialLocation: '/finance',
+    routes: <RouteBase>[
+      StatefulShellRoute.indexedStack(
+        builder: (
+          BuildContext context,
+          GoRouterState state,
+          StatefulNavigationShell navigationShell,
+        ) {
+          return AppShell(navigationShell: navigationShell);
+        },
+        branches: <StatefulShellBranch>[
+          StatefulShellBranch(
+            navigatorKey: healthKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/health',
+                builder: (_, _) => const HealthPage(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'steps',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '步数统计'),
+                  ),
+                  GoRoute(
+                    path: 'medication',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '用药跟踪'),
+                  ),
+                  GoRoute(
+                    path: 'vitals-sleep',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '睡眠体征'),
+                  ),
+                  GoRoute(
+                    path: 'fitness',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '健身运动'),
+                  ),
+                  GoRoute(
+                    path: 'checkup',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '体检指标'),
+                  ),
+                  GoRoute(
+                    path: 'reports',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '健康报告'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: financeKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/finance',
+                builder: (_, _) => const FinancePage(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'bills',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '账单管理'),
+                  ),
+                  GoRoute(
+                    path: 'debts',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '债务管理'),
+                  ),
+                  GoRoute(
+                    path: 'shopping',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '购物记录'),
+                  ),
+                  GoRoute(
+                    path: 'travel',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '旅行开支'),
+                  ),
+                  GoRoute(
+                    path: 'planning',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '财务规划'),
+                  ),
+                  GoRoute(
+                    path: 'reports',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '财务报告'),
+                  ),
+                  GoRoute(
+                    path: 'transactions',
+                    builder: (_, _) => const FinanceTransactionsPage(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: lifeKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/life',
+                builder: (_, _) => const LifePage(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'items',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '物品追踪'),
+                  ),
+                  GoRoute(
+                    path: 'cards',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '卡片管理'),
+                  ),
+                  GoRoute(
+                    path: 'reports',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '生活报告'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: investKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/invest',
+                builder: (_, _) => const InvestPage(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'forex',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '外汇交易'),
+                  ),
+                  GoRoute(
+                    path: 'reports',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '投资报告'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: settingsKey,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/settings',
+                builder: (_, _) => const SettingsPage(),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'server',
+                    builder: (_, _) => const ServerConfigPage(),
+                  ),
+                  GoRoute(
+                    path: 'account',
+                    builder: (_, _) =>
+                        const FeaturePlaceholderPage(title: '账户设置'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      // 通知中心与登录页是全局目的地，不归属任何 Tab；
+      // 从根页铃铛 / 状态条进入，返回时回到进入前的 Tab（shell 栈未受影响）。
+      GoRoute(
+        path: '/notifications',
+        builder: (_, _) => const FeaturePlaceholderPage(
+          title: '通知中心',
+          description: '通知列表与已读状态将在后续批次接入。',
+        ),
+      ),
+      GoRoute(
+        path: '/login',
+        builder: (_, _) => const LoginPage(),
+      ),
+    ],
+  );
+}
