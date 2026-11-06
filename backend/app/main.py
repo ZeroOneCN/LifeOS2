@@ -4,6 +4,7 @@ import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
 
 from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
@@ -35,6 +36,7 @@ from app.services.backup_scheduler import (
     start_scheduler as start_backup_scheduler,
     stop_scheduler as stop_backup_scheduler,
 )
+from app.services.avatar_storage import avatar_upload_dir, ensure_avatar_dir
 from app.services.report_scheduler import (
     start_scheduler as start_report_scheduler,
     stop_scheduler as stop_report_scheduler,
@@ -123,6 +125,7 @@ async def lifespan(app: FastAPI):
     数据库结构由 Alembic 迁移负责（启动前请先执行 ``python -m alembic upgrade head``），
     应用启动阶段不再建表、不再补建索引。
     """
+    ensure_avatar_dir()
     db = SessionLocal()
     try:
         ensure_seed(db)
@@ -185,6 +188,14 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(login_audit.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
+
+# 头像静态资源：挂在 API 前缀下，保证生产 Nginx 只反代 /api/ 时网站与手机都能直接访问。
+# 使用 check_dir=False，目录在启动/首次上传时按需创建。
+app.mount(
+    f"{settings.API_V1_PREFIX}/uploads/avatars",
+    StaticFiles(directory=str(avatar_upload_dir()), check_dir=False),
+    name="avatars",
+)
 
 
 @app.get("/")

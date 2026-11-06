@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# 用户上传文件（头像等，不入库）
+uploads/

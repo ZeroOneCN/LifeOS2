@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     SCALE_HEIGHT_CM: int = 173
     SCALE_AGE: int = 25
     SCALE_SEX: str = "male"
+    # 头像上传目录（相对 backend 根目录或绝对路径），落盘文件不入库
+    AVATAR_UPLOAD_DIR: str = "uploads/avatars"
+    # 头像图片大小上限（字节），默认 2 MB
+    AVATAR_MAX_BYTES: int = 2 * 1024 * 1024
 
     model_config = SettingsConfigDict(
         env_file=".env",
