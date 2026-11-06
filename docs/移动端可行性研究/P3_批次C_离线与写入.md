@@ -405,3 +405,115 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/core/router/app_router.dart` | `/notifications` 由占位页改为 `NotificationCenterPage` |
 | `lib/core/models/lifestyle_models.dart` | 新增 `PhoneCard`（脱敏号码 / 套餐 / 状态） |
 | `lib/features/life/lifestyle_cards_page.dart` | 银行卡区标题改「银行卡」；新增手机号卡只读区与 `_PhoneCardRow`；手机号卡失败降级 |
+---
+
+## 十二、C4：设置子页补齐 + 入口完整性核查（2026-11-07 06:5x–07:1x）
+
+### 12.0 第 0 步：还原上一轮的通知已读状态
+
+`PUT /notifications/92` 回写 `read=false`（全量字段 title/content/category/source/notify_date/note），
+`GET /notifications/92` → `read=False`，`GET /notifications/stats?days=365` → `unread=86`，与上轮基线一致。
+
+### 12.1 账户设置（`/settings/account`）
+
+后端能力核对：`GET /user/profile`、`PUT /user/profile`（nickname/email/phone/signature 等）、
+`GET /user/settings`（account、has_password）、`PUT /user/settings`（current_password + new_password）均存在，未造接口。
+
+- 基本资料：昵称（必填、≤20）、邮箱（轻量正则）、手机号、个性签名（≤60）；保存 `PUT /user/profile` 后调用
+  `AuthService.refreshProfile()`，设置页账户卡昵称立即刷新（实测 成春炫 → LifeOSQA → 返回设置页显示 LifeOSQA）。
+- 登录密码：已有密码时显示「当前密码」；新密码 ≥ 6 位且两次一致；`PUT /user/settings` 成功清空输入并提示。
+- 写操作直接打接口、不进离线队列：资料/密码即时生效，失败提示重试即可。
+- 375 与 1.3x：表单不溢出（截图 `p3_c4_account_*`）。
+- 实测密码错误路径：当前密码填 `wrongpass`、新密码 `abcdef` → 后端返回「当前密码错误」，界面提示
+  「修改失败：当前密码错误」，**未改任何密码**（后端先校验再落库）。
+
+### 12.2 外观（浅色 / 深色 / 跟随系统）
+
+- `PreferencesService` 新增 `ui.theme_mode` 键与 `ValueNotifier<ThemeMode>`；`LifeOsApp` 用 `ValueListenableBuilder`
+  监听它，切换立即重建全部页面。
+- 只提供 `ThemeMode` 三态（light/dark/system），不做「跟随系统 + 记住上次手动选择」这类 Flutter 做不到的组合。
+- 实测：切深色立即生效 → 冷启动（force-stop 后重启）仍为深色 → 切回跟随系统恢复浅色（系统当前为浅色）。
+- 冷启动恢复读取发生在 `runApp` 之前，无闪白/闪黑。
+- 截图：`p3_c4_settings_theme_dark.png`、`p3_c4_settings_theme_persist.png`、`p3_c4_settings_375_font13.png`。
+
+### 12.3 关于（`/settings/about`）
+
+- 应用名、版本号、包名来自 `package_info_plus`（即构建时的 `pubspec.yaml` 版本，实测 `1.0.0+1`），不写死；
+  新增依赖 `package_info_plus`。
+- 后端地址读取 `ApiClient.baseUrlListenable`，切换服务器地址后无需重启即更新；长 URL 与包名独占一行，375 + 1.3x 不折断。
+- **不放「检查更新」按钮**：后端没有版本/更新检查接口，页面上明确写出原因，不放假按钮。
+- 截图：`p3_c4_about.png`、`p3_c4_about_375_font13.png`。
+
+### 12.4 入口完整性核查（以 `frontend/src/config/routes.ts` 为唯一真源）
+
+| 网页端路由 | 移动端入口位置 | 状态 |
+|---|---|---|
+| `/home` | 无独立页；5 个 Tab 首屏 | 有意隐藏（既定：取消系统首页，内容拆入 Tab） |
+| `/notifications` | 各 Tab 根页顶栏铃铛 → 通知中心 | 可达 |
+| `/activity-logs` | 无 | 有意隐藏（管理员运维页，手机端不做） |
+| `/login-audit` | 无 | 有意隐藏（同上） |
+| `/sessions` | 无 | 有意隐藏（既定并入「设置→登录设备」，P3 未排期） |
+| `/backup` | 无 | 有意隐藏（管理员导出类，破坏性强） |
+| `/system-settings` | 无 | 有意隐藏（手机端仅只读，改配置回桌面） |
+| `/health/overview` | 健康 Tab 根页 | 可达 |
+| `/health/vitals-sleep` | 健康页「睡眠体征」 | 可达（占位页） |
+| `/health/fitness` | 健康页「健身运动」 | 可达（占位页） |
+| `/health/steps` | 健康页「步数统计」 | 可达 |
+| `/health/checkup` | 健康页「体检指标」 | 可达（占位页） |
+| `/health/medication` | 健康页「用药跟踪」（含详情） | 可达 |
+| `/health/reports` | 健康页「健康报告」（含详情） | 可达 |
+| `/finance/overview` | 财务 Tab 根页 | 可达 |
+| `/finance/shopping` | 财务页「购物记录」 | 可达 |
+| `/finance/travel` | 财务页「旅行开支」 | 可达 |
+| `/finance/bills` | 财务页「账单管理」（含详情） | 可达 |
+| `/finance/planning` | 财务页「财务规划」 | 可达 |
+| `/finance/debts` | 财务页「债务管理」（含详情） | 可达 |
+| `/finance/reports` | 财务页「财务报告」（含详情） | 可达 |
+| `/lifestyle/overview` | 生活 Tab 根页 | 可达 |
+| `/lifestyle/items` | 生活页「物品追踪」 | 可达 |
+| `/lifestyle/cards` | 生活页「卡片管理」 | 可达 |
+| `/lifestyle/reports` | 生活页「生活报告」（含详情） | 可达 |
+| `/investment/overview` | 投资 Tab 根页 | 可达 |
+| `/investment/forex` | 投资页「外汇交易」（含录入） | 可达 |
+| `/investment/reports` | 投资页「投资报告」（含详情） | 可达 |
+| `/user-center` | 设置 Tab「账户设置」 | 可达 |
+| `/user-center/settings` | 同账户设置（网页端重定向等价） | 可达 |
+
+**结论：漏了 0 条。** 9 条未映射项中，`/home` 与 5 个管理员/系统页为既定隐藏，2 个健康页（睡眠/健身/体检）为可达占位。
+移动端另有网页端路由表没有的入口（财务流水 `/finance/transactions`、支出录入 `/finance/expense/new`、
+服务器地址 `/settings/server`、通知中心独立页 `/notifications`），属移动端增量，不在本轮核对范围。
+
+### 12.5 真机实测与真实数据改动（均已还原，见 12.6）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 设置页外观 | 三选一单选正常，深色即时生效 |
+| 2 | 冷启动 | 深色保持（`ui.theme_mode` 持久化） |
+| 3 | 账户设置 | 读到昵称/邮箱/手机/签名、账号 admin、has_password=true |
+| 4 | 改昵称 → 保存 → 返回 | 提示「资料已保存」，设置页账户卡即时刷新 |
+| 5 | 密码错误路径 | 「修改失败：当前密码错误」，密码未变 |
+| 6 | 关于 | 版本 `1.0.0+1`、包名 `com.lifeos.mobile`、后端地址独占一行；无「检查更新」按钮 |
+| 7 | 375 + 1.3x | 三个子页均不溢出 |
+
+### 12.6 真实数据改动与还原（**最终均已还原**）
+
+| 数据 | 改动 | 还原方式 | 还原后 |
+|---|---|---|---|
+| 通知 id=92 | 上轮 `read=true` | `PUT /notifications/92` read=false | unread=86 |
+| 用户昵称 | 成春炫 → LifeOSQA（App 保存实测） | `PUT /user/profile` nickname=成春炫 | 成春炫（App 冷启动已确认） |
+| 用户手机号 | 18316426417 → LifeOSQA（点击坐标误入手机号框） | `PUT /user/profile` phone=18316426417 | 18316426417 |
+| 登录密码 | 未改（错误当前密码被后端拒绝） | — | 原密码不变 |
+| 本地主题 | system → light → dark → system | 设置页点「跟随系统」 | 跟随系统 |
+| 显示设置 | wm size 1125×2670 / font_scale 1.3 | `wm size reset` + `font_scale 1.0` | 默认 |
+
+### 12.7 涉及文件（C4）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/core/storage/preferences_service.dart` | `ui.theme_mode` 持久化 + `ValueNotifier<ThemeMode>` |
+| `lib/app.dart` / `lib/main.dart` | `MaterialApp.router` 接入主题 notifier |
+| `lib/features/settings/settings_page.dart` | 外观三选一 RadioGroup；关于入口替换旧静态卡片 |
+| `lib/features/settings/account_settings_page.dart` | 新增账户设置（资料表单 + 改密） |
+| `lib/features/settings/about_page.dart` | 新增关于页（package_info_plus + 后端地址） |
+| `lib/core/router/app_router.dart` | `/settings/account`、`/settings/about` 由占位换实页 |
+| `pubspec.yaml` / `pubspec.lock` | 新增 `package_info_plus` |
