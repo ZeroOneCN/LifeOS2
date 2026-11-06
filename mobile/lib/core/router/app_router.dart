@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/models/report_models.dart';
 import '../../core/models/health_models.dart';
+import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_detail_page.dart';
 import '../../features/finance/finance_bills_page.dart';
@@ -24,6 +24,7 @@ import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
 import '../../features/life/lifestyle_items_page.dart';
+import '../../features/notifications/notification_center_page.dart';
 import '../../features/placeholder/feature_placeholder_page.dart';
 import '../../features/reports/report_detail_page.dart';
 import '../../features/reports/report_list_page.dart';
@@ -313,10 +314,7 @@ GoRouter createAppRouter() {
       // 从根页铃铛 / 状态条进入，返回时回到进入前的 Tab（shell 栈未受影响）。
       GoRoute(
         path: '/notifications',
-        builder: (_, _) => const FeaturePlaceholderPage(
-          title: '通知中心',
-          description: '通知列表与已读状态将在后续批次接入。',
-        ),
+        builder: (_, _) => const NotificationCenterPage(),
       ),
       GoRoute(
         path: '/login',

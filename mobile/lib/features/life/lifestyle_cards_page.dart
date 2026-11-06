@@ -10,11 +10,14 @@ import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 卡片管理：汇总（数量 / 余额 / 信用额度）+ 银行卡分页列表（卡号脱敏）。
+/// 卡片管理：汇总（数量 / 余额 / 信用额度）+ 银行卡分页列表 + 手机号卡只读区。
 ///
-/// 数据（与网页端 `pages/lifestyle/cards.tsx` 银行卡部分一致）：
+/// 数据（与网页端 `pages/lifestyle/cards.tsx` 一致）：
 /// - `GET /lifestyle/bank-cards?page=&page_size=20`
 /// - `GET /lifestyle/bank-cards/stats?days=30`
+/// - `GET /lifestyle/phone-cards?page=&page_size=100`（只读，一次性加载）
+///
+/// 手机号卡充值 / 扣费 / 校准都是写操作，本轮不做，界面明确提示去网页端操作。
 class LifestyleCardsPage extends StatefulWidget {
   const LifestyleCardsPage({super.key});
 
@@ -24,8 +27,10 @@ class LifestyleCardsPage extends StatefulWidget {
 
 class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   final List<BankCard> _cards = <BankCard>[];
+  final List<PhoneCard> _phones = <PhoneCard>[];
 
   BankStats? _stats;
+  int _phoneTotal = 0;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
@@ -69,13 +74,21 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
           .get<Map<String, dynamic>>('/lifestyle/bank-cards',
               queryParameters: <String, dynamic>{'page': 1, 'page_size': 20})
           .then((value) => value.data);
+      // 手机号卡是只读附属区块：失败时隐藏区块，不阻塞银行卡分页。
+      final Future<Map<String, dynamic>?> phoneFuture = scope.apiClient
+          .get<Map<String, dynamic>>('/lifestyle/phone-cards',
+              queryParameters: <String, dynamic>{'page': 1, 'page_size': 100})
+          .then((value) => value.data)
+          .catchError((Object _) => null);
       final List<Object?> responses = await Future.wait<Object?>(
-        <Future<Object?>>[statsFuture, listFuture],
+        <Future<Object?>>[statsFuture, listFuture, phoneFuture],
       );
       final Map<String, dynamic>? statsJson =
           responses[0] as Map<String, dynamic>?;
       final Map<String, dynamic>? listJson =
           responses[1] as Map<String, dynamic>?;
+      final Map<String, dynamic>? phoneJson =
+          responses[2] as Map<String, dynamic>?;
       if (statsJson == null || listJson == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -83,6 +96,11 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         );
       }
       final List<BankCard> cards = _parseCards(listJson);
+      final List<PhoneCard> phones = ((phoneJson?['items'] as List?) ??
+              const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => PhoneCard.fromJson(item.cast<String, dynamic>()))
+          .toList();
       if (!mounted) {
         return;
       }
@@ -91,6 +109,11 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _cards
           ..clear()
           ..addAll(cards);
+        _phones
+          ..clear()
+          ..addAll(phones);
+        _phoneTotal =
+            (phoneJson?['total'] as num?)?.toInt() ?? phones.length;
         _page = 1;
         _total = (listJson['total'] as num?)?.toInt() ?? cards.length;
         _hasMore = _cards.length < _total;
@@ -250,7 +273,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                   ),
                 ),
                 SectionCard(
-                  title: '全部卡片',
+                  title: '银行卡',
                   trailing: Text(
                     '共 $_total 张',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -278,6 +301,37 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                     hasMore: _hasMore,
                     onPressed: _loadMore,
                   ),
+                SectionCard(
+                  title: '手机号卡',
+                  trailing: Text(
+                    '共 $_phoneTotal 张 · 只读',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      Text(
+                        '只读：充值 / 扣费 / 校准请在网页端操作',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (_phones.isEmpty)
+                        const EmptyState(
+                          icon: Icons.sim_card_outlined,
+                          title: '暂无手机号卡',
+                          description: '充值 / 扣费 / 校准请在网页端操作',
+                          compact: true,
+                        )
+                      else
+                        for (final PhoneCard phone in _phones)
+                          _PhoneCardRow(card: phone),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
@@ -364,6 +418,100 @@ class _CardRow extends StatelessWidget {
                 maxLines: 1,
                 style: metaStyle,
               ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 单张手机号卡（只读）：脱敏号码 + 运营商 / 套餐 / 账期 + 余额。
+class _PhoneCardRow extends StatelessWidget {
+  const _PhoneCardRow({required this.card});
+
+  final PhoneCard card;
+
+  /// 账期文案：账单日 + 月租；都未设置时显示「账期未设置」。
+  String get _billingText {
+    final List<String> parts = <String>[
+      if (card.billDay != null) '每月 ${card.billDay} 日',
+      if (card.monthlyFee != null) '月租 ${formatMoney(card.monthlyFee)}',
+    ];
+    return parts.isEmpty ? '账期未设置' : parts.join(' · ');
+  }
+
+  /// 手机号卡状态中文：active / frozen / expired / disabled。
+  String get _statusText {
+    switch (card.status) {
+      case 'frozen':
+        return '已冻结';
+      case 'expired':
+        return '已过期';
+      case 'disabled':
+        return '已停用';
+      default:
+        return '正常';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final TextStyle? metaStyle =
+        theme.textTheme.bodySmall?.copyWith(color: muted);
+    final List<Widget> meta = <Widget>[
+      Text(card.operator, style: metaStyle),
+      Text(card.planText, style: metaStyle),
+      Text(_billingText, style: metaStyle),
+      if (card.status != 'active') Text(_statusText, style: metaStyle),
+      if (card.note != null && card.note!.trim().isNotEmpty)
+        Text(card.note!, style: metaStyle),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
+              children: <Widget>[
+                Text(
+                  card.maskedNumber,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                Wrap(spacing: 8, runSpacing: 2, children: meta),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 2,
+            children: <Widget>[
+              Text(
+                card.balance == null ? '—' : formatMoney(card.balance),
+                maxLines: 1,
+                softWrap: false,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+              Text('余额', maxLines: 1, style: metaStyle),
             ],
           ),
         ],

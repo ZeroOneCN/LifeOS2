@@ -307,3 +307,82 @@ class BankStats {
     );
   }
 }
+
+/// 单张手机号卡（`GET /lifestyle/phone-cards` 列表项，只读）。
+///
+/// 号码只保留后四位展示（复用 [maskCardNumber]），界面不得出现完整号码。
+class PhoneCard {
+  const PhoneCard({
+    required this.id,
+    required this.phoneNumber,
+    required this.operator,
+    this.region,
+    this.balance,
+    this.monthlyFee,
+    this.billDay,
+    this.dataPlan,
+    this.callPlan,
+    this.smsPlan,
+    required this.status,
+    this.note,
+  });
+
+  final int id;
+  final String phoneNumber;
+  final String operator;
+  final String? region;
+  final double? balance;
+  final double? monthlyFee;
+  final int? billDay;
+  final String? dataPlan;
+  final String? callPlan;
+  final String? smsPlan;
+  final String status;
+  final String? note;
+
+  /// 脱敏号码（只留后四位），与银行卡保持一致的展示口径。
+  String get maskedNumber => maskCardNumber(phoneNumber);
+
+  /// 套餐文案：流量 / 通话 / 短信三项中有值的拼在一起；全空返回「未设置套餐」。
+  ///
+  /// 后端未配置的通话/短信项存的是 `"0"`，直接拼接会出现 `0 · 30 · 0`
+  /// 这类噪音，因此跳过数值为 0 的项（带单位的 `200MB/月` 仍保留）。
+  String get planText {
+    bool meaningful(String? raw) {
+      final String value = (raw ?? '').trim();
+      if (value.isEmpty) {
+        return false;
+      }
+      final double? number = double.tryParse(value);
+      return number == null || number > 0;
+    }
+
+    final List<String> parts = <String>[
+      if (meaningful(dataPlan)) dataPlan!.trim(),
+      if (meaningful(callPlan)) callPlan!.trim(),
+      if (meaningful(smsPlan)) smsPlan!.trim(),
+    ];
+    return parts.isEmpty ? '未设置套餐' : parts.join(' · ');
+  }
+
+  factory PhoneCard.fromJson(Map<String, dynamic> json) {
+    return PhoneCard(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      phoneNumber: json['phone_number'] as String? ?? '',
+      operator: json['operator'] as String? ?? '',
+      region: json['region'] as String?,
+      balance: json['balance'] == null
+          ? null
+          : (json['balance'] as num).toDouble(),
+      monthlyFee: json['monthly_fee'] == null
+          ? null
+          : (json['monthly_fee'] as num).toDouble(),
+      billDay: (json['bill_day'] as num?)?.toInt(),
+      dataPlan: json['data_plan'] as String?,
+      callPlan: json['call_plan'] as String?,
+      smsPlan: json['sms_plan'] as String?,
+      status: json['status'] as String? ?? 'active',
+      note: json['note'] as String?,
+    );
+  }
+}
