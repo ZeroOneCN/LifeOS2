@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 
-/// 普通偏好存储（非敏感）：服务器地址、Tab 提示、离线队列等。
+/// 普通偏好存储（非敏感）：服务器地址、主题、离线队列等。
 /// 敏感令牌不落这里，见 `TokenStore`（flutter_secure_storage）。
 class PreferencesService {
   PreferencesService._(this._prefs);
@@ -11,7 +11,6 @@ class PreferencesService {
   final SharedPreferences _prefs;
 
   static const String _baseUrlKey = 'server.base_url';
-  static const String _tabHintKey = 'ui.tab_long_press_hint_shown';
   static const String _themeModeKey = 'ui.theme_mode';
 
   /// 全局主题模式：`MaterialApp` 监听它，设置页切换后立即生效并在冷启动恢复。
@@ -61,13 +60,6 @@ class PreferencesService {
   /// 持久化服务器地址（由设置页校验、规范化后调用）。
   Future<void> setBaseUrl(String value) async {
     await _prefs.setString(_baseUrlKey, value);
-  }
-
-  /// 底部 Tab「长按看名称」的一次性提示是否已展示过。
-  bool get tabHintShown => _prefs.getBool(_tabHintKey) ?? false;
-
-  Future<void> markTabHintShown() async {
-    await _prefs.setBool(_tabHintKey, true);
   }
 
   /// 切换深浅色：先更新内存（界面立刻生效），再落盘供下次冷启动读取。
