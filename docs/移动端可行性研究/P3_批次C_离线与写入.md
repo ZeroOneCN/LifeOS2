@@ -656,3 +656,101 @@ JSON 键名：`local_id` / `op_type` / `payload` / `created_at` / `retry_count` 
 | `lib/features/health/health_checkup_page.dart` | 新增体检指标页（概览 + 分组折叠 + 手风琴历史 + 单条折线） |
 | `lib/core/router/app_router.dart` | `/health/checkup` 由占位换实页；移除无引用的占位页 import |
 | `lib/features/placeholder/feature_placeholder_page.dart` | 删除（已无引用，健康域占位页全部落地） |
+---
+
+## 十五、C7：数据备份导出（仅下载）与登录设备管理（2026-11-07 08:00–08:35）
+
+> 范围：只改 `mobile/`，未动 `frontend/` 与 `backend/`；未新增/修改任何后端接口。
+
+### 15.1 后端能力核对
+
+- `POST /backup/export`，请求体 `{tables, format, compress}`：
+  - `tables=null` 表示全部表；移动端固定整库导出，不提供按表勾选；
+  - `format` 支持 `json|sql`；`compress` 仅对 JSON 生效（压缩后为 `.json.zip`）；
+  - 管理员限定（非管理员 403）；**返回文件流**（`Content-Disposition: attachment; filename=...`），不是服务端路径。
+- `GET /backup/exports` 可列出服务器已有备份文件，但按既定方案移动端只做「导出下载」，未接入文件列表、预览、删除、导入与站点参数。
+- 实测体积：全库 JSON 5.9 MB、ZIP 378.5 KB、SQL 2.3 MB；局域网内均在数秒内完成，未占用大量带宽或磁盘。
+- 导出**不会在服务器生成新备份文件**（JSON/SQL 直接以流返回），只在 `backup_logs` 留一条「手动导出」记录；`GET /backup/exports` 文件列表未变化（47 个文件原样）。
+
+### 15.2 页面结构
+
+- 设置页新增两个入口：
+  - 「登录设备」：副标题「查看活跃会话，下线其他设备」；
+  - 「数据备份」：管理员显示「导出整库备份并通过系统分享保存」，非管理员显示「仅管理员可导出，当前账号无权限」。
+- `/settings/backup`（数据备份）：
+  - 未登录：`ListStatusView` 统一提示；
+  - 非管理员：明确「无导出权限」卡片，说明仅管理员可用，**不提供导出按钮**；
+  - 管理员：导出范围说明（不做按表勾选/定时/清理/恢复导入）、格式分段选择 JSON / SQL / ZIP、
+    「导出并保存」按钮、导出进度（百分比 + 已接收/总大小，未知时显示「正在导出」）、
+    失败原因卡片、上次导出卡片（文件名 / 大小 / 时间 / 「再次分享」）。
+  - 下载到应用缓存目录 `cache/lifeos_backups`，写完后调系统分享面板（`share_plus 13.3.1`）；
+    每次导出先清理旧文件，仅保留最近一份，避免缓存无限增长。
+- `/settings/devices`（登录设备）：
+  - `GET /auth/sessions` 列表：设备可读名 + 原始标识、最近活跃、登录时间、IP、会话 id、是否当前设备；
+  - 当前设备用 access token 的 `sid` 判定，显示「当前设备」标签且**不显示下线按钮**；
+  - 其他设备提供红色「下线」，二次确认（弹窗显示完整设备标识，说明会被登出）；
+  - `DELETE /auth/sessions/{id}` 成功后刷新列表；404 视为已下线；失败给出可读原因；
+  - 顶部「刷新」；页脚说明当前设备请走设置页「退出」，并说明后端会话时间口径可能不一致。
+
+### 15.3 真机实测（管理员 admin）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 设置 → 登录设备 | 活跃会话 27 条（含历史 curl / PowerShell / Chrome / Dart 会话）；当前手机会话 #42 标「当前设备」且无下线按钮 |
+| 2 | 创建测试会话 #59 后刷新 | 列表 28 条；「TraeTest-Device (safe-to-revoke)」在首行 |
+| 3 | 点该会话「下线」 | 红色「下线」→ 确认弹窗；确认后列表 27 条，测试会话消失 |
+| 4 | 服务端核对 | 会话总数 27；#59/#60 为 0；手机会话 #42（`Dart/3.13`，IP 192.168.8.100）仍在，未影响登录态 |
+| 5 | 设置 → 数据备份 | 管理员可见导出设置与「导出并保存」 |
+| 6 | JSON 导出 | 文件 `full_20261107_081154.json` 5.9 MB；系统分享面板正常打开，可选择保存/发送 |
+| 7 | ZIP 导出 | 文件 `full_20261107_081256.json.zip` 378.5 KB（5.9MB → 378.5KB，确认 compress 生效）；缓存仅保留最新一份 |
+| 8 | SQL 导出 | 文件 `sql_20261107_081333.sql` 2.3 MB；分享面板正常 |
+| 9 | 375 宽 + 1.3x | 备份页与设备页均不溢出；会话时间改为 `MM-dd HH:mm` 后单行显示；当前设备标签正常 |
+| 10 | 断网刷新设备列表 | 「连接失败 + 重试」，恢复 Wi-Fi 后点重试数据回来 |
+| 11 | 断网导出 | 显示「请求超时：请检查 Wi-Fi 与服务器是否可达…」（初版误写为「导出超时」，已修正） |
+| 12 | 系统返回 | 设置 → 设备/备份 均可正常返回 |
+
+截图：`p3_c7_devices.png`、`p3_c7_device_confirm.png`、`p3_c7_devices_375_font13.png`、
+`p3_c7_devices_current_375.png`、`p3_c7_devices_offline.png`、`p3_c7_backup_idle.png`、
+`p3_c7_backup_progress.png`、`p3_c7_backup_share.png`、`p3_c7_backup_sql.png`、
+`p3_c7_backup_375_font13.png`、`p3_c7_backup_offline.png`。
+
+### 15.4 文件落地位置与权限提示
+
+- 下载先写入应用缓存：`/data/user/0/com.lifeos.mobile/cache/lifeos_backups/`（`getTemporaryDirectory`），
+  随后立即打开系统分享面板，由用户选择保存到「文件」或发送给自己；**不静默写入隐藏目录**。
+- 页面明确说明「文件临时保存在应用缓存目录（系统文件管理器中不可见），请通过系统分享保存到本地；
+  重新导出会覆盖上一份临时文件」，并保留「再次分享」。
+- 非管理员：入口副标题即提示「仅管理员可导出」，进入后展示「无导出权限」卡片，不发起请求、不放按钮。
+- 导出日志：本轮测试新增 3 条「手动导出」日志（#81 JSON、#82 ZIP、#83 SQL），
+  服务器 `backups/` 未新增文件，既有 47 个备份文件未改动。
+
+### 15.5 遇到的问题
+
+- **下载进度**：`ApiClient.post` 原本不透传 `onReceiveProgress`；新增可选参数后可用百分比与已接收大小；
+  服务端生成阶段没有字节到达，显示不确定进度「正在导出」。
+- **超时文案误导**：断网时 Dio 抛 `timeout` 而非 `network`，初版提示「导出超时：数据量较大…」与实际原因不符；
+  改为同时提示检查 Wi-Fi/服务器可达性。
+- **确认弹窗设备名被截断**：列表标题把 >32 字符的标识截断，弹窗沿用后无法完整识别；
+  弹窗改为显示完整设备标识（长 UA 自动换行）。
+- **会话时间口径不一致（后端问题，未改后端）**：`created_at` 由 MySQL `NOW()` 写入（本地时区），
+  `last_used_at` 刷新时用 UTC，历史记录可能相差 8 小时。移动端按原样展示并在页脚说明。
+- **会话数量较多**：当前账号 27 条（含大量历史 curl/PowerShell 会话），列表较长但可滚动；未提供批量清理。
+- **非管理员路径未真机验证**：当前线上账号是管理员，无第二个非管理员账号；该分支仅代码走查（未构造账号、未动真实数据）。
+
+### 15.6 真实数据改动与恢复
+
+- 备份导出为管理员主动操作：仅新增 3 条导出日志，未写服务器备份文件，未改任何业务数据。
+- 下线测试只用临时会话 `#59`、`#60`：`#59` 通过 App 下线（真实 DELETE），`#60` 用于确认弹窗截图后从数据库清理；
+  两者均已不存在，手机会话 `#42` 与既有 26 条会话未受影响，登录态正常。
+- 显示设置（1125×2670 / font_scale 1.3）与 Wi-Fi 开关仅用于验收，已恢复默认（`wm size reset` + `font_scale 1.0`，Wi-Fi 已开启）。
+
+### 15.7 涉及文件（C7）
+
+| 文件 | 变更 |
+|---|---|
+| `lib/features/settings/backup_export_page.dart` | 新增数据备份页（管理员校验 + 三种格式 + 文件流下载 + 进度 + 分享） |
+| `lib/features/settings/device_sessions_page.dart` | 新增登录设备页（会话列表 + 当前设备标记 + 单台下线 + 四态） |
+| `lib/features/settings/settings_page.dart` | 新增「登录设备」「数据备份」两个入口与权限副标题 |
+| `lib/core/network/api_client.dart` | `post` 增加可选 `onReceiveProgress`（供大文件下载显示进度） |
+| `lib/core/router/app_router.dart` | 新增 `/settings/devices`、`/settings/backup` |
+| `pubspec.yaml` / `pubspec.lock` | 新增 `share_plus 13.3.1`、`path_provider 2.1.6` |
