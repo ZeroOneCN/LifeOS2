@@ -181,7 +181,7 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                     child: const EmptyState(
                       icon: Icons.monitor_heart_outlined,
                       title: '暂无体检指标',
-                      description: '后端暂无体检记录，可在网页端添加',
+                      description: '还没有体检指标记录',
                       compact: true,
                     ),
                   )

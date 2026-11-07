@@ -46,6 +46,10 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
   int? _markingId;
   bool _markingAll = false;
 
+  /// 只看未读：后端列表接口不支持 `read` 过滤，这里对已加载页做本地筛选，
+  /// 分页与「全部标记已读」保持原语义。
+  bool _onlyUnread = false;
+
   @override
   void initState() {
     super.initState();
@@ -326,6 +330,9 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     final TextStyle? muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    final List<AppNotification> visible = _onlyUnread
+        ? _items.where((AppNotification item) => !item.read).toList()
+        : _items;
 
     return DetailPageScaffold(
       title: '通知中心',
@@ -341,14 +348,39 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                 onRetry: _refresh,
               ),
               if (_status == LoadStatus.ready) ...<Widget>[
+                // 分页之外补一个轻量筛选：只看未读（对已加载页生效）。
+                Row(
+                  spacing: 8,
+                  children: <Widget>[
+                    FilterChip(
+                      label: const Text('全部'),
+                      selected: !_onlyUnread,
+                      onSelected: (_) => setState(() => _onlyUnread = false),
+                    ),
+                    FilterChip(
+                      label: Text('未读 $_unread'),
+                      selected: _onlyUnread,
+                      onSelected: (_) => setState(() => _onlyUnread = true),
+                    ),
+                  ],
+                ),
                 SectionCard(
                   title: '全部通知',
-                  trailing: Text('共 $_total 条', style: muted),
-                  child: _items.isEmpty
-                      ? const EmptyState(
+                  trailing: Text(
+                    _onlyUnread
+                        ? '未读 ${visible.length} / 共 $_total 条'
+                        : '共 $_total 条',
+                    style: muted,
+                  ),
+                  child: visible.isEmpty
+                      ? EmptyState(
                           icon: Icons.notifications_none,
-                          title: '暂无通知',
-                          description: '系统与业务提醒会出现在这里',
+                          title: _onlyUnread ? '没有未读通知' : '暂无通知',
+                          description: _onlyUnread
+                              ? (_items.isEmpty
+                                  ? '系统与业务提醒会出现在这里'
+                                  : '已加载的通知都已读，可切回「全部」')
+                              : '系统与业务提醒会出现在这里',
                           compact: true,
                         )
                       : Column(
@@ -381,7 +413,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
                                 ),
                               ],
                             ),
-                            for (final AppNotification item in _items) ...<Widget>[
+                            for (final AppNotification item in visible) ...<Widget>[
                               const Divider(height: 1),
                               _NotificationTile(
                                 item: item,
@@ -428,7 +460,12 @@ class _NotificationTile extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
-    final String content = _groupAmounts(item.content ?? '');
+    // 标题里已经带了日期（如「花呗2 2026-11-08 应还」），正文/摘要再写一遍
+    // 「应还日期 2026-11-08」就是重复；同一日期只保留在正文与来源行里。
+    final String body = _formatText(item.content ?? '');
+    final String summary = _formatText(item.summary);
+    final String title = _dedupeTitleDate(item.title, '$body$summary');
+    final String content = _stripTitleDates(body, title);
 
     return InkWell(
       onTap: onTap,
@@ -459,7 +496,7 @@ class _NotificationTile extends StatelessWidget {
                   child: Tooltip(
                     message: item.title,
                     child: Text(
-                      item.title,
+                      title,
                       // 标题里带「平台 + 期次 + 日期」，1 行必被截断，给到 2 行。
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -515,12 +552,12 @@ class _NotificationTile extends StatelessWidget {
                 Text(content, style: theme.textTheme.bodySmall),
               if (item.note != null && item.note!.trim().isNotEmpty)
                 Text(
-                  '备注：${_groupAmounts(item.note!)}',
+                  '备注：${_formatText(item.note!)}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
-            ] else if (item.summary.isNotEmpty)
+            ] else if (summary.isNotEmpty)
               Text(
-                _groupAmounts(item.summary),
+                summary,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(color: muted),
@@ -530,6 +567,72 @@ class _NotificationTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 标题里的日期若在正文/摘要里也出现，就从标题里去掉：同一日期只说一次。
+///
+/// 只做「重复消除」，不做改写——正文与摘要里的日期原样保留，
+/// 长按标题（Tooltip）仍显示后端原文。
+String _dedupeTitleDate(String title, String body) {
+  String output = title;
+  for (final RegExpMatch match
+      in RegExp(r'\d{4}-\d{2}-\d{2}').allMatches(title)) {
+    final String date = match[0]!;
+    if (body.contains(date)) {
+      output = output.replaceAll(date, '');
+    }
+  }
+  return output
+      .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+      .replaceAll(RegExp(r'^[\s·，,；;]+'), '')
+      .trim();
+}
+
+/// 去掉正文里与标题重复的日期，并清理因此留下的空白与孤立标点。
+String _stripTitleDates(String text, String title) {
+  if (text.isEmpty) {
+    return text;
+  }
+  String output = text;
+  for (final RegExpMatch match
+      in RegExp(r'\d{4}-\d{2}-\d{2}').allMatches(title)) {
+    final String date = match[0]!;
+    output = output.replaceAll('应还日期 $date', '');
+    output = output.replaceAll(date, '');
+  }
+  return output
+      .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+      .replaceAll(RegExp(r'^[\s·，,；;]+'), '')
+      .trim();
+}
+
+/// 通知正文的展示归一：去字段名冒号 + 金额补千分位。
+String _formatText(String text) => _groupAmounts(_normalizeFieldLabels(text));
+
+/// 把后端模板里的「应还日：2026-11-08」这类字段名拼接改成自然语句。
+///
+/// 常见字段顺便补全称呼（应还日 → 应还日期），其余「两到六个汉字：」统一
+/// 去掉冒号；半角时间「18:52」不受影响。
+String _normalizeFieldLabels(String text) {
+  if (text.isEmpty) {
+    return text;
+  }
+  String output = text;
+  const Map<String, String> display = <String, String>{
+    '应还日：': '应还日期 ',
+    '到期日：': '到期日期 ',
+    '账单日：': '账单日期 ',
+  };
+  display.forEach((String key, String value) {
+    output = output.replaceAll(key, value);
+  });
+  // 「待还 应还日：…」去掉冒号后会读成「待还 应还日期」，两个「还」叠在一起；
+  // 前一个「待还」是状态词、后一个是字段名，去掉状态词更顺。
+  output = output.replaceAll('待还 应还日期', '应还日期');
+  return output.replaceAllMapped(
+    RegExp(r'([\u4e00-\u9fa5]{2,6})：'),
+    (Match match) => '${match[1]} ',
+  );
 }
 
 /// 给正文里的 `¥1424.07` 补千分位（`¥1,424.07`），与账单/报告金额格式一致。

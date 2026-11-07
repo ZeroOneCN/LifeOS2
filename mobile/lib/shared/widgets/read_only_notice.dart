@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// 只读页说明条：明确当前页面仅支持查看，避免出现点了没反应的按钮。
+/// 只读页说明条：说明数据来源，避免出现点了没反应的按钮。
 class ReadOnlyNotice extends StatelessWidget {
   const ReadOnlyNotice({
     super.key,
-    this.text = '当前版本仅支持查看，记录请在网页端添加。',
+    this.text = '以下记录同步自服务端，这里展示统计与明细。',
   });
 
   final String text;

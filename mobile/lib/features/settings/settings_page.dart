@@ -73,11 +73,13 @@ class SettingsPage extends StatelessWidget {
                   ),
                   const Divider(height: 16),
                   _InfoRow(
-                    label: '总览数据',
+                    // 「已加载 / 待加载」是技术状态，用户看不懂；改成能否看到
+                    // 最近数据 + 点按刷新。
+                    label: '首页数据',
                     value: scope.overview.health.hasData ||
                             scope.overview.finance.hasData
-                        ? '已加载'
-                        : '待加载',
+                        ? '已同步最新数据'
+                        : (offline ? '未同步' : '同步中…'),
                   ),
                   if (offline) ...<Widget>[
                     const Divider(height: 16),

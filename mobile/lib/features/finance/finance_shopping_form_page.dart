@@ -357,6 +357,10 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
                             TextFormField(
                               controller: _product,
                               textInputAction: TextInputAction.next,
+                              // 单行输入框里的长商品名会横向滚出视野、看不出被截；
+                              // 允许折到两行，复查时能直接看到全名。
+                              minLines: 1,
+                              maxLines: 2,
                               decoration: const InputDecoration(
                                 labelText: '商品名称',
                               ),

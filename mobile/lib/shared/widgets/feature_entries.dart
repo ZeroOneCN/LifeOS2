@@ -130,6 +130,8 @@ class FeatureTile extends StatelessWidget {
 }
 
 /// 两列网格：同一行的卡片等高，文字放大时自动换行而不截断。
+///
+/// 奇数个入口时，最后一个整行铺满：不留半行空白，也不用空卡片占位。
 class FeatureGrid extends StatelessWidget {
   const FeatureGrid({super.key, required this.children});
 
@@ -144,20 +146,19 @@ class FeatureGrid extends StatelessWidget {
       spacing: 12,
       children: <Widget>[
         for (int i = 0; i < children.length; i += 2)
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
-              children: <Widget>[
-                Expanded(child: children[i]),
-                Expanded(
-                  child: i + 1 < children.length
-                      ? children[i + 1]
-                      : const SizedBox.shrink(),
-                ),
-              ],
+          if (i + 1 >= children.length)
+            children[i]
+          else
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: <Widget>[
+                  Expanded(child: children[i]),
+                  Expanded(child: children[i + 1]),
+                ],
+              ),
             ),
-          ),
       ],
     );
   }

@@ -172,6 +172,14 @@ class _HealthPageState extends State<HealthPage> {
                       }
                     },
                   ),
+                  // 常用满四张：2×2 完整网格，不留半行空白，卡片尺寸与
+                  // 「全部功能」一致。睡眠本就是每日体征，放常用更顺手。
+                  PrimaryFeatureCard(
+                    icon: Icons.bedtime_outlined,
+                    title: '睡眠体征',
+                    summary: _sleepSummary(data),
+                    onTap: () => context.push('/health/vitals-sleep'),
+                  ),
                 ],
               ),
             ),
@@ -179,11 +187,6 @@ class _HealthPageState extends State<HealthPage> {
               title: '全部功能',
               child: FeatureGrid(
                 children: <Widget>[
-                  FeatureTile(
-                    icon: Icons.bedtime_outlined,
-                    title: '睡眠体征',
-                    onTap: () => context.push('/health/vitals-sleep'),
-                  ),
                   FeatureTile(
                     icon: Icons.fitness_center_outlined,
                     title: '健身运动',
@@ -262,6 +265,15 @@ class _HealthPageState extends State<HealthPage> {
     final String date = data?.weightDate ?? '';
     final String value = '${weight.toStringAsFixed(1)} kg';
     return date.isEmpty ? value : '最新 $value · ${_shortDate(date)}';
+  }
+
+  /// 睡眠摘要：近 7 天平均睡眠；未采集时写「暂无记录」。
+  String _sleepSummary(HealthOverview? data) {
+    final int? minutes = data?.weekSleepAvgMin;
+    if (minutes == null || minutes <= 0) {
+      return '暂无记录';
+    }
+    return '近 7 天 ${_sleepText(minutes)}';
   }
 
   /// 7 日均步数文案：加载中显示「…」，失败显示「—」（不展示错误口径的数值）。

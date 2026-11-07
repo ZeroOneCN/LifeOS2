@@ -35,6 +35,16 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
   /// 正在下线的会话 id，避免重复点击。
   int? _revokingId;
 
+  /// 设备搜索关键字（匹配设备名 / 系统摘要 / IP / 最近活跃时间）。
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -206,7 +216,19 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    final List<_LoginSession> sessions = _sessions ?? const <_LoginSession>[];
+    final List<_LoginSession> all = _sessions ?? const <_LoginSession>[];
+    final String query = _query.trim().toLowerCase();
+    final List<_LoginSession> sessions = query.isEmpty
+        ? all
+        : all.where((_LoginSession session) {
+            final String haystack = <String>[
+              _deviceLabel(session.device),
+              _deviceDetail(session.device) ?? '',
+              session.ip ?? '',
+              _displayTime(session.lastUsedAt),
+            ].join(' ').toLowerCase();
+            return haystack.contains(query);
+          }).toList();
 
     return DetailPageScaffold(
       title: '登录设备',
@@ -222,8 +244,31 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
                 onRetry: _refresh,
               ),
               if (_status == LoadStatus.ready) ...<Widget>[
+                // 会话多时（实测 29 台）没有搜索只能逐条翻；按设备名 / IP /
+                // 最近活跃时间过滤。
+                TextField(
+                  controller: _search,
+                  onChanged: (String value) => setState(() => _query = value),
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: '搜索设备名、IP 或时间',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: '清空搜索',
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              _search.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                  ),
+                ),
                 SectionCard(
-                  title: '活跃会话（${sessions.length}）',
+                  title: query.isEmpty
+                      ? '活跃会话（${all.length}）'
+                      : '活跃会话（${sessions.length} / ${all.length}）',
                   trailing: TextButton(
                     style: TextButton.styleFrom(
                       minimumSize: const Size(64, 44),
@@ -233,10 +278,12 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
                     child: const Text('刷新'),
                   ),
                   child: sessions.isEmpty
-                      ? const EmptyState(
+                      ? EmptyState(
                           icon: Icons.devices_other,
-                          title: '暂无活跃会话',
-                          description: '当前账号没有可显示的登录会话',
+                          title: query.isEmpty ? '暂无活跃会话' : '没有匹配的设备',
+                          description: query.isEmpty
+                              ? '当前账号没有可显示的登录会话'
+                              : '换个关键字，或点搜索框右侧清空',
                           compact: true,
                         )
                       : Column(

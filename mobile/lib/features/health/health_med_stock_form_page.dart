@@ -313,7 +313,6 @@ class _HealthMedStockFormPageState extends State<HealthMedStockFormPage> {
                               decoration: const InputDecoration(
                                 labelText: '低库存阈值',
                                 suffixText: '粒',
-                                helperText: '留空表示不提醒；余量低于该值时提醒',
                               ),
                               validator: (String? value) {
                                 if ((value ?? '').trim().isEmpty) {
@@ -326,6 +325,14 @@ class _HealthMedStockFormPageState extends State<HealthMedStockFormPage> {
                                 }
                                 return null;
                               },
+                            ),
+                            // helperText 会把输入框撑高，和上方名称输入框不等高；
+                            // 说明文字单独一行，两个输入框保持同一高度。
+                            Text(
+                              '留空表示不提醒；余量低于该值时提醒。',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),

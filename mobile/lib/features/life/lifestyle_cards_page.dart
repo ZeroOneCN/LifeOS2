@@ -9,7 +9,6 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -826,7 +825,7 @@ class _CardRow extends StatelessWidget {
       if (card.status != 'active')
         Text(cardStatusLabel(card.status), style: metaStyle),
       if (card.expireDate != null && card.expireDate!.isNotEmpty)
-        Text('到期 ${card.expireDate}', style: metaStyle),
+        Text('到期 ${formatListDate(card.expireDate)}', style: metaStyle),
       if (card.billingText != null) Text(card.billingText!, style: metaStyle),
     ];
     final String balanceLabel = card.isCredit ? '额度' : '余额';
@@ -864,7 +863,10 @@ class _CardRow extends StatelessWidget {
   }
 }
 
-/// 单张手机号卡：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期 → 三个写操作 → 最近流水。
+/// 手机号卡卡片上的写操作（收在「操作」菜单里）。
+enum _PhoneCardAction { recharge, deduct, adjust }
+
+/// 单张手机号卡：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期 → 一行状态与操作 → 最近流水。
 class _PhoneCardRow extends StatelessWidget {
   const _PhoneCardRow({
     required this.card,
@@ -951,36 +953,6 @@ class _PhoneCardRow extends StatelessWidget {
           ),
           Wrap(spacing: 8, runSpacing: 2, children: meta),
           Row(
-            spacing: 8,
-            children: <Widget>[
-              Expanded(
-                child: AppSecondaryButton(
-                  label: '充值',
-                  compact: true,
-                  onPressed: onRecharge,
-                ),
-              ),
-              Expanded(
-                child: AppSecondaryButton(
-                  label: '扣费',
-                  compact: true,
-                  // 本月已扣满时禁止重复补扣（后端虽幂等，避免误以为还会扣钱）；
-                  // 请求进行中同样禁用，防止连点重复提交。
-                  onPressed: deducting || card.billPaidThisMonth
-                      ? null
-                      : onDeduct,
-                ),
-              ),
-              Expanded(
-                child: AppSecondaryButton(
-                  label: '校准',
-                  compact: true,
-                  onPressed: onAdjust,
-                ),
-              ),
-            ],
-          ),
-          Row(
             children: <Widget>[
               if (card.monthBillText != null)
                 Expanded(
@@ -1003,6 +975,54 @@ class _PhoneCardRow extends StatelessWidget {
                   ledgerExpanded ? '收起流水' : '最近流水',
                   maxLines: 1,
                   softWrap: false,
+                ),
+              ),
+              // 三张操作按钮每卡重复一次太吵；收进「操作」菜单，
+              // 卡片只留一行状态 + 流水入口 + 一个菜单按钮。
+              PopupMenuButton<_PhoneCardAction>(
+                tooltip: '充值 / 扣费 / 校准',
+                padding: EdgeInsets.zero,
+                onSelected: (_PhoneCardAction action) {
+                  switch (action) {
+                    case _PhoneCardAction.recharge:
+                      onRecharge();
+                    case _PhoneCardAction.deduct:
+                      onDeduct();
+                    case _PhoneCardAction.adjust:
+                      onAdjust();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    <PopupMenuEntry<_PhoneCardAction>>[
+                  const PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.recharge,
+                    child: Text('充值'),
+                  ),
+                  PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.deduct,
+                    enabled: !(deducting || card.billPaidThisMonth),
+                    child: Text(
+                      card.billPaidThisMonth
+                          ? '扣费（本月已扣）'
+                          : (deducting ? '扣费中…' : '扣费'),
+                    ),
+                  ),
+                  const PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.adjust,
+                    child: Text('校准'),
+                  ),
+                ],
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 4,
+                    children: <Widget>[
+                      const Icon(Icons.more_horiz, size: 18),
+                      Text('操作', style: theme.textTheme.bodySmall),
+                    ],
+                  ),
                 ),
               ),
             ],
