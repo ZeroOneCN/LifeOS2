@@ -9,10 +9,12 @@ import '../../core/models/app_user.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/profile/profile_service.dart';
 import '../../core/queue/outbox_controller.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/user_avatar.dart';
+import 'avatar_preview_page.dart';
 
 /// 设置根页：账户卡（含头像）+ 服务器地址 + 状态行 + 账户设置 + 外观 + 关于。
 class SettingsPage extends StatelessWidget {
@@ -230,7 +232,7 @@ class SettingsPage extends StatelessWidget {
               onTap: () => context.push('/settings/about'),
             ),
             Text(
-              '头像在账户卡上直接更换；昵称、邮箱与密码在「账户设置」中修改。',
+              '点击头像查看大图（长按保存到相册）；更换或移除头像请在大图页底部操作。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -275,17 +277,13 @@ class _AccountCard extends StatelessWidget {
               GestureDetector(
                 onTap: current == null
                     ? null
-                    : () => showAvatarSheet(context, scope),
-                child: current == null
-                    ? UserAvatar(user: current, radius: 26)
-                    : Tooltip(
-                        message: '更换头像',
-                        child: UserAvatar(
-                          user: current,
-                          radius: 26,
-                          showEditBadge: true,
-                        ),
-                      ),
+                    : () => _openAvatar(context, scope, current),
+                child: Tooltip(
+                  message: current == null
+                      ? '登录后可设置头像'
+                      : '点击查看头像大图',
+                  child: UserAvatar(user: current, radius: 26),
+                ),
               ),
               Expanded(
                 child: Column(
@@ -332,9 +330,11 @@ class _AccountCard extends StatelessWidget {
                 ),
               ),
               if (current != null)
-                TextButton(
+                AppDangerButton(
+                  label: '退出',
+                  icon: Icons.logout,
+                  compact: true,
                   onPressed: () => _confirmLogout(context, scope),
-                  child: const Text('退出'),
                 )
               else if (offline)
                 TextButton(
@@ -351,6 +351,35 @@ class _AccountCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 点击头像：有头像进全屏预览（长按保存），无头像直接打开更换面板。
+  ///
+  /// 大图页底部「更换头像 / 移除头像」都返回 [AvatarPreviewAction.edit]，
+  /// 关闭大图后在这里统一弹出原三条路径面板，不额外占用设置页版面。
+  Future<void> _openAvatar(
+    BuildContext context,
+    AppScope scope,
+    AppUser user,
+  ) async {
+    final String? url = scope.apiClient.resolveAvatar(user.avatar);
+    if (url == null) {
+      await showAvatarSheet(context, scope);
+      return;
+    }
+    // 用根 Navigator 压栈：大图页必须盖住底部导航，才是真正的全屏预览。
+    final AvatarPreviewAction? action = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<AvatarPreviewAction>(
+      MaterialPageRoute<AvatarPreviewAction>(
+        builder: (BuildContext _) => AvatarPreviewPage(url: url),
+      ),
+    );
+    if (action == null || !context.mounted) {
+      return;
+    }
+    await showAvatarSheet(context, scope);
   }
 
   /// 退出登录：先二次确认（说明离线队列的去留），再清本地令牌并回到「未登录」。
@@ -371,13 +400,18 @@ class _AccountCard extends StatelessWidget {
                 : '退出后需要重新输入账号密码才能登录，本机已同步的数据仍保留在服务器。',
           ),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('退出登录'),
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '退出登录',
+                icon: Icons.logout,
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
             ),
           ],
         );
@@ -507,7 +541,6 @@ class _AvatarSheetState extends State<_AvatarSheet> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
-        final ThemeData theme = Theme.of(dialogContext);
         return AlertDialog(
           title: const Text('移除头像？'),
           content: const Text(
@@ -515,16 +548,18 @@ class _AvatarSheetState extends State<_AvatarSheet> {
             '可以随时重新上传，但移除后无法恢复原图。',
           ),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.error,
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
               ),
-              child: const Text('确认移除'),
+              second: AppDangerButton(
+                label: '确认移除',
+                icon: Icons.delete_outline,
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
             ),
           ],
         );

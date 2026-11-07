@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 网络层（P1 只做封装，未接真实接口）；内网 HTTP 需要 cleartext 放行 -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 仅 Android 9 及以下需要：头像长按保存到 Pictures/LifeOS -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
 
     <application
         android:label="LifeOS"
