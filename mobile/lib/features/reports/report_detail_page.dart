@@ -35,6 +35,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
+  /// 每个分组的锚点 key，供「目录」跳转使用；按分组序号复用，避免重建失效。
+  final Map<int, GlobalKey> _sectionKeys = <int, GlobalKey>{};
+
+  /// 目录跳转：滚动到对应分组顶部。
+  Future<void> _jumpToSection(int index) async {
+    final BuildContext? target = _sectionKeys[index]?.currentContext;
+    if (target == null) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      alignment: 0.0,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +127,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final String title = detail == null || detail.displayTitle.isEmpty
         ? widget.source.pageTitle
         : detail.displayTitle;
+    final List<_ReportSection> sections = detail == null
+        ? const <_ReportSection>[]
+        : _collectSections(context, detail.content);
+    final int totalRows =
+        sections.fold<int>(0, (int sum, _ReportSection item) => sum + item.rowCount);
+    final int titledSections =
+        sections.where((_ReportSection item) => item.title != null).length;
+    // 长报告（如财务报告 104 笔购物明细）提供目录，短报告不额外占位。
+    final bool showToc = totalRows >= 20 && titledSections >= 2;
 
     return DetailPageScaffold(
       title: title,
@@ -150,13 +176,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                             ),
                           ],
                         ),
-                      if (detail.createdText.isNotEmpty)
-                        Text(
-                          detail.createdText,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
+                      // 报告是生成时快照：明确「截至生成日」，避免与当前实时数据混淆。
+                      Text(
+                        detail.createdText.isEmpty
+                            ? '本报告为生成时快照，数据截至生成日，不随当前数据变化。'
+                            : '${detail.createdText} · 快照口径：数据截至生成日，不随当前数据变化。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
                         ),
+                      ),
                       if (detail.displaySummary.isNotEmpty)
                         Text.rich(
                           _summarySpan(context, detail.displaySummary),
@@ -165,7 +193,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     ],
                   ),
                 ),
-                ..._buildSections(context, detail.content),
+                if (showToc) _buildToc(context, sections),
+                for (int i = 0; i < sections.length; i++)
+                  _buildSectionCard(sections[i], i),
                 if (detail.content.isEmpty)
                   const SectionCard(
                     child: EmptyState(
@@ -323,28 +353,32 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return TextSpan(style: base, children: spans);
   }
 
-  /// 把 h2 / table 区块收拢成「标题 + 内容」的分组卡片。
-  List<Widget> _buildSections(BuildContext context, List<ReportBlock> blocks) {
-    final List<Widget> result = <Widget>[];
+  /// 把 h2 / table 区块收拢成「标题 + 内容 + 行数」的分组数据。
+  List<_ReportSection> _collectSections(
+    BuildContext context,
+    List<ReportBlock> blocks,
+  ) {
+    final List<_ReportSection> result = <_ReportSection>[];
     String? sectionTitle;
     final List<Widget> body = <Widget>[];
+    int rowCount = 0;
 
     void flush() {
       if (body.isEmpty) {
+        sectionTitle = null;
+        rowCount = 0;
         return;
       }
       result.add(
-        SectionCard(
+        _ReportSection(
           title: sectionTitle,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 8,
-            children: List<Widget>.of(body),
-          ),
+          children: List<Widget>.of(body),
+          rowCount: rowCount,
         ),
       );
       body.clear();
       sectionTitle = null;
+      rowCount = 0;
     }
 
     for (final ReportBlock block in blocks) {
@@ -360,6 +394,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             colorizePositive: _usd,
           ),
         );
+        rowCount += block.rows.length;
       } else if (block.isKv) {
         body.add(
           _ReportTable(
@@ -369,6 +404,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             colorizePositive: _usd,
           ),
         );
+        rowCount += block.rows.length;
       } else if ((block.text ?? '').isNotEmpty) {
         body.add(
           Text(block.text!, style: Theme.of(context).textTheme.bodyMedium),
@@ -378,6 +414,85 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     flush();
     return result;
   }
+
+  /// 单个分组卡片；key 供目录跳转定位。
+  Widget _buildSectionCard(_ReportSection section, int index) {
+    final GlobalKey key =
+        _sectionKeys.putIfAbsent(index, () => GlobalKey());
+    return SectionCard(
+      key: key,
+      title: section.title,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 8,
+        children: section.children,
+      ),
+    );
+  }
+
+  /// 长报告目录：每条分组一行，点击滚动到对应分组。
+  Widget _buildToc(BuildContext context, List<_ReportSection> sections) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final List<Widget> entries = <Widget>[];
+    for (int i = 0; i < sections.length; i++) {
+      final _ReportSection section = sections[i];
+      if (section.title == null) {
+        continue;
+      }
+      entries.add(
+        InkWell(
+          onTap: () => _jumpToSection(i),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              spacing: 8,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    section.title!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                if (section.rowCount > 0)
+                  Text(
+                    '${section.rowCount} 项',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                Icon(Icons.chevron_right, size: 18, color: muted),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return SectionCard(
+      title: '目录',
+      trailing: Text(
+        '点击跳转到分组',
+        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+      ),
+      child: Column(children: entries),
+    );
+  }
+}
+
+/// 报告明细的一个分组（h2 + 若干区块）。
+class _ReportSection {
+  const _ReportSection({
+    required this.title,
+    required this.children,
+    required this.rowCount,
+  });
+
+  final String? title;
+  final List<Widget> children;
+
+  /// 表格 / 键值对行数，用于目录里标注「N 项」。
+  final int rowCount;
 }
 
 /// 报告表格渲染：两列走「标签 / 数值」行，多列按首列分组成字段网格。
