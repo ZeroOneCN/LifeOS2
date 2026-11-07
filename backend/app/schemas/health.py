@@ -245,7 +245,11 @@ class BodyCreate(BaseModel):
 
 
 class BodyRead(BodyCreate, ORMRead):
-    pass
+    # 响应侧放宽请求校验：体重秤历史数据存在 height_cm=0（未带身高），
+    # 复用 BodyCreate 的 gt=0 会让包含该记录的整页响应校验失败（500）
+    height_cm: float | None = Field(None, ge=0)
+    weight_kg: float | None = Field(None, ge=0)
+    bmi: float | None = Field(None, ge=0)
 
 
 class StepsCreate(BaseModel):

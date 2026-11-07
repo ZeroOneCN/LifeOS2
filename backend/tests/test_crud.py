@@ -12,7 +12,8 @@ from sqlalchemy.exc import IntegrityError
 from app.api.crud import _allowed_patch_fields, _commit_or_conflict, crud_router, days_since
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models import FinanceUtility, HealthSteps
+from app.models import FinanceUtility, HealthBody, HealthSteps
+from app.schemas.health import BodyCreate, BodyRead
 
 
 def test_days_since_positive():
@@ -128,3 +129,54 @@ def test_commit_or_conflict_maps_integrity_error(db_session):
     assert getattr(exc.value, "status_code", None) == 409
     assert exc.value.detail == "已存在相同记录"
     assert isinstance(exc.value.__cause__, IntegrityError)
+
+
+def _make_body_client(db) -> TestClient:
+    """构造挂载 health_body CRUD 路由的测试客户端（复用真实 BodyCreate/BodyRead）。
+
+    Args:
+        db: 已绑定测试会话的 Session 实例。
+
+    Returns:
+        覆盖了数据库与当前用户的 TestClient。
+    """
+    app = FastAPI()
+    app.include_router(
+        crud_router(
+            prefix="/body",
+            tag="test-body",
+            model=HealthBody,
+            create_schema=BodyCreate,
+            read_schema=BodyRead,
+            order_by=HealthBody.record_date,
+        )
+    )
+
+    def _override_db():
+        """把路由的数据库依赖指到测试会话。"""
+        yield db
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1)
+    return TestClient(app)
+
+
+def test_body_read_allows_zero_height_history(db_session):
+    """历史 height_cm=0 记录可正常返回，同时请求侧 gt=0 校验保持不变。"""
+    db_session.add(
+        HealthBody(user_id=1, record_date=date(2026, 6, 12), height_cm=0, weight_kg=75)
+    )
+    db_session.flush()
+    client = _make_body_client(db_session)
+
+    listed = client.get("/body?page=1&page_size=28")
+    assert listed.status_code == 200, listed.text
+    item = next(
+        row for row in listed.json()["items"] if row["record_date"] == "2026-06-12"
+    )
+    assert item["height_cm"] == 0
+
+    rejected = client.post(
+        "/body", json={"record_date": "2026-06-13", "height_cm": 0, "weight_kg": 75}
+    )
+    assert rejected.status_code == 422, rejected.text
