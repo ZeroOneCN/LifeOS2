@@ -16,6 +16,7 @@ import '../../features/finance/finance_shopping_form_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_body_ble_page.dart';
 import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_page.dart';
@@ -55,6 +56,13 @@ import '../../features/shell/app_shell.dart';
 ///
 /// 各域二级路由与网页端 `frontend/src/config/routes.ts` 一一对应；
 /// 业务列表页在 P2 先落占位页，保证每个入口都能到达并可返回。
+///
+/// 启动落点口径（唯一）：
+/// 1. 冷启动固定落第一个 Tab「健康中心」（`initialLocation: '/health'`），
+///    不恢复上次停留的 Tab，也不做任何 Tab 持久化读写；
+/// 2. 进程未被杀、从后台返回时由 `StatefulShellRoute` 保留当前分支与页面，
+///    不做任何 `go('/health')` 之类的强制跳转；
+/// 3. 深链 / 通知跳转仍按目标 path 直达，不被上面的默认落点覆盖。
 GoRouter createAppRouter() {
   final GlobalKey<NavigatorState> rootKey = GlobalKey<NavigatorState>(
     debugLabel: 'root',
@@ -77,7 +85,7 @@ GoRouter createAppRouter() {
 
   return GoRouter(
     navigatorKey: rootKey,
-    initialLocation: '/finance',
+    initialLocation: '/health',
     routes: <RouteBase>[
       StatefulShellRoute.indexedStack(
         builder: (
@@ -184,6 +192,10 @@ GoRouter createAppRouter() {
                     builder: (_, _) => const HealthBodyPage(),
                     routes: <RouteBase>[
                       // 静态段必须在 `:id` 之前，否则会被当成记录 id 解析。
+                      GoRoute(
+                        path: 'ble',
+                        builder: (_, _) => const HealthBodyBlePage(),
+                      ),
                       GoRoute(
                         path: 'new',
                         builder: (_, _) => const HealthBodyFormPage(),

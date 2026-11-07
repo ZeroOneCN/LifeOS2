@@ -55,7 +55,8 @@ class _LoginPageState extends State<LoginPage> {
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go('/finance');
+        // 独立登录页登录成功后同样落第一个 Tab，与冷启动口径保持一致。
+        context.go('/health');
       }
     } on ApiException catch (error) {
       if (!mounted) {

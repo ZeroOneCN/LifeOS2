@@ -2,10 +2,13 @@ package com.lifeos.mobile
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -22,6 +25,7 @@ class MainActivity : FlutterActivity() {
     private var pendingBytes: ByteArray? = null
     private var pendingName: String? = null
     private var pendingResult: MethodChannel.Result? = null
+    private var blePermissionResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -39,6 +43,48 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BLE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "requestBlePermissions" -> requestBlePermissions(result)
+                    "openAppSettings" -> {
+                        val intent = Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:$packageName"),
+                        )
+                        startActivity(intent)
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * 申请蓝牙扫描 / 连接权限。
+     *
+     * Android 12+ 使用 BLUETOOTH_SCAN / BLUETOOTH_CONNECT；
+     * Android 11 及以下扫描 BLE 需要定位权限。
+     * 返回 granted / denied / permanently_denied，供界面决定是否引导去设置。
+     */
+    private fun requestBlePermissions(result: MethodChannel.Result) {
+        val required = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+            )
+        } else {
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        val missing = required.filter {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            result.success("granted")
+            return
+        }
+        blePermissionResult = result
+        requestPermissions(missing.toTypedArray(), REQUEST_BLE_PERMISSIONS)
     }
 
     /** 按系统版本选择 MediaStore 或公共 Pictures 目录写入。 */
@@ -102,6 +148,25 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_BLE_PERMISSIONS) {
+            val result = blePermissionResult
+            blePermissionResult = null
+            val allGranted = permissions.indices.all {
+                grantResults.getOrNull(it) == PackageManager.PERMISSION_GRANTED
+            }
+            if (allGranted) {
+                result?.success("granted")
+            } else {
+                // 没有任何权限可再次弹窗时，视为永久拒绝，界面引导去系统设置。
+                val canAskAgain = permissions.any {
+                    shouldShowRequestPermissionRationale(it)
+                }
+                result?.success(
+                    if (canAskAgain) "denied" else "permanently_denied",
+                )
+            }
+            return
+        }
         if (requestCode != REQUEST_WRITE_STORAGE) {
             return
         }
@@ -124,6 +189,8 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val CHANNEL = "com.lifeos.mobile/media"
+        private const val BLE_CHANNEL = "com.lifeos.mobile/ble"
         private const val REQUEST_WRITE_STORAGE = 4101
+        private const val REQUEST_BLE_PERMISSIONS = 4102
     }
 }

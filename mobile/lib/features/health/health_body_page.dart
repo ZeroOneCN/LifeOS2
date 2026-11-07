@@ -5,6 +5,7 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -258,6 +259,17 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
     }
   }
 
+  /// 蓝牙称重：同步成功后刷新列表与健康域总览。
+  Future<void> _openBle() async {
+    final bool? synced = await context.push<bool>('/health/body/ble');
+    if (synced == true && mounted) {
+      await _refresh();
+      if (mounted) {
+        AppScope.of(context).overview.refreshHealth();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DetailPageScaffold(
@@ -344,6 +356,12 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+          // 蓝牙入口：与手动录入并存，失败时可从蓝牙页降级回手动录入。
+          AppSecondaryButton(
+            label: '蓝牙体重秤称重',
+            icon: Icons.bluetooth_searching,
+            onPressed: _status == LoadStatus.loading ? null : _openBle,
+          ),
         ],
       ),
     );
