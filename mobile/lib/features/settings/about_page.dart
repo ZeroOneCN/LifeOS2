@@ -36,9 +36,8 @@ class _AboutPageState extends State<AboutPage> {
     final ThemeData theme = Theme.of(context);
     final AppScope scope = AppScope.of(context);
     final PackageInfo? info = _info;
-    final String version = info == null
-        ? '读取中…'
-        : '${info.version}+${info.buildNumber}';
+    // 版本号只展示语义版本；构建号是开发侧信息，不适合直接给用户看。
+    final String version = info == null ? '读取中…' : info.version;
 
     return DetailPageScaffold(
       title: '关于',

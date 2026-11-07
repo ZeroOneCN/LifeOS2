@@ -337,8 +337,8 @@ class _BackupExportPageState extends State<BackupExportPage> {
                     spacing: 8,
                     children: <Widget>[
                       Text(
-                        '移动端只做整库导出与下载，不支持按表勾选、定时备份、'
-                        '备份清理与恢复导入；这些操作请在网页端「系统 → 数据备份」中完成。',
+                        '移动端可整库导出与下载；按表导出、定时备份、'
+                        '备份清理与恢复导入，请到网页端「系统 → 数据备份」操作。',
                         style: theme.textTheme.bodySmall?.copyWith(color: muted),
                       ),
                       Text(
@@ -676,7 +676,8 @@ class _LogRow extends StatelessWidget {
           Text(
             '${_displayTime(log.createdAt)}'
             '${format.isEmpty ? '' : ' · $format'}'
-            ' · ${log.fileSizeDisplay ?? '—'}',
+            // 后端对 JSON 导出没有记录大小；直接显示「—」会让人误以为采集失败。
+            ' · ${log.fileSizeDisplay ?? '大小未知'}',
             softWrap: true,
             style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),

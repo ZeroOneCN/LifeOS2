@@ -428,7 +428,7 @@ class _NotificationTile extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
-    final String content = item.content ?? '';
+    final String content = _groupAmounts(item.content ?? '');
 
     return InkWell(
       onTap: onTap,
@@ -460,7 +460,8 @@ class _NotificationTile extends StatelessWidget {
                     message: item.title,
                     child: Text(
                       item.title,
-                      maxLines: 1,
+                      // 标题里带「平台 + 期次 + 日期」，1 行必被截断，给到 2 行。
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight:
@@ -514,13 +515,13 @@ class _NotificationTile extends StatelessWidget {
                 Text(content, style: theme.textTheme.bodySmall),
               if (item.note != null && item.note!.trim().isNotEmpty)
                 Text(
-                  '备注：${item.note}',
+                  '备注：${_groupAmounts(item.note!)}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
             ] else if (item.summary.isNotEmpty)
               Text(
-                item.summary,
-                maxLines: 2,
+                _groupAmounts(item.summary),
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
@@ -529,4 +530,25 @@ class _NotificationTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 给正文里的 `¥1424.07` 补千分位（`¥1,424.07`），与账单/报告金额格式一致。
+String _groupAmounts(String text) {
+  if (text.isEmpty) {
+    return text;
+  }
+  return text.replaceAllMapped(
+    RegExp(r'¥\s*(\d{4,})(\.\d+)?'),
+    (Match match) {
+      final String digits = match[1]!;
+      final StringBuffer buffer = StringBuffer();
+      for (int i = 0; i < digits.length; i++) {
+        if (i > 0 && (digits.length - i) % 3 == 0) {
+          buffer.write(',');
+        }
+        buffer.write(digits[i]);
+      }
+      return '¥$buffer${match[2] ?? ''}';
+    },
+  );
 }

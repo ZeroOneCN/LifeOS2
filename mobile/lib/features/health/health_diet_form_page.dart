@@ -443,7 +443,7 @@ class _HealthDietFormPageState extends State<HealthDietFormPage> {
                                   ),
                               decoration: const InputDecoration(
                                 labelText: '热量',
-                                hintText: '留空由后端自动补算',
+                                hintText: '留空自动补算',
                                 suffixText: 'kcal',
                               ),
                               validator: (String? value) =>
@@ -514,10 +514,10 @@ class _HealthDietFormPageState extends State<HealthDietFormPage> {
                       ),
                       Text(
                         _editing
-                            ? '热量与营养素可留空：热量清空后保存，后端会按食物名与克数重新补算；'
+                            ? '热量与营养素可留空：热量清空后保存，会按食物名与克数重新补算；'
                                 '仅营养素留空则保持空值，列表显示「—」。'
-                            : '热量留空时后端会按食物名与克数自动补算（同时补全缺失营养素）；'
-                                '客户端不自行计算，也不把留空写成 0。',
+                            : '热量留空时，会按食物名与克数自动补算（同时补全缺失营养素）；'
+                                '留空表示未填写，不会按 0 计算。',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,

@@ -348,14 +348,14 @@ class _HealthFitnessFormPageState extends State<HealthFitnessFormPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final String calorieHint = _editing
-        ? '编辑模式不自动重算热量，可手动修改；留空由后端按 MET 兜底'
+        ? '编辑时不会自动重算热量，可手动修改；留空将按运动类型与时长估算'
         : _estimating
-        ? '正在按类型与时长推算…'
+        ? '正在按类型与时长估算…'
         : _estimated
-        ? '已按 MET 公式自动推算，可手动修改'
+        ? '已按运动类型与时长自动估算，可手动修改'
         : _estimateMiss
-        ? '该类型无内置参数，请手动填写消耗'
-        : '选择类型并填写时长后自动推算，可手动修改';
+        ? '该类型暂无估算参数，请手动填写消耗'
+        : '选择类型并填写时长后自动估算，可手动修改';
     return DetailPageScaffold(
       title: _editing ? '编辑运动记录' : '新增运动记录',
       bottomBar: _editing
@@ -507,8 +507,8 @@ class _HealthFitnessFormPageState extends State<HealthFitnessFormPage> {
                       ),
                       Text(
                         _editing
-                            ? '保存与删除均在线提交；删除后区间汇总与按类型统计会立即刷新。'
-                            : '保存后列表与区间汇总会立即刷新；热量留空不会写成 0。',
+                            ? '删除后区间汇总与按类型统计会同步更新。'
+                            : '保存后列表与区间汇总会同步更新；热量留空时按运动类型与时长估算。',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,

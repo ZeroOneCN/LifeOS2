@@ -88,21 +88,27 @@ class EntryTile extends StatelessWidget {
     required this.icon,
     required this.title,
     this.subtitle,
+    this.subtitleWidget,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String? subtitle;
+
+  /// 需要特殊排版（如长地址单行缩放）时直接提供副标题组件。
+  final Widget? subtitleWidget;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final Widget? subtitleContent =
+        subtitleWidget ?? (subtitle == null ? null : Text(subtitle!));
     return Card(
       child: ListTile(
         leading: Icon(icon),
         title: Text(title),
-        subtitle: subtitle == null ? null : Text(subtitle!),
+        subtitle: subtitleContent,
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),

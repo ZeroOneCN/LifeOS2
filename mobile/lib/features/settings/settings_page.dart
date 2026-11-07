@@ -44,7 +44,19 @@ class SettingsPage extends StatelessWidget {
                 return EntryTile(
                   icon: Icons.dns_outlined,
                   title: '服务器地址',
-                  subtitle: baseUrl,
+                  // 地址较长，1.3x 下会被断成多行；单行缩放保证完整可见。
+                  subtitleWidget: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        baseUrl,
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
                   onTap: () => context.push('/settings/server'),
                 );
               },

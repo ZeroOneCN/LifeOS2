@@ -225,6 +225,10 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
                 SectionCard(
                   title: '活跃会话（${sessions.length}）',
                   trailing: TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(64, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
                     onPressed: _refresh,
                     child: const Text('刷新'),
                   ),
@@ -251,8 +255,8 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
                         ),
                 ),
                 Text(
-                  '当前设备不可在本页下线；如需退出当前登录，请使用设置页的「退出」。'
-                  '「最近活跃」显示服务端记录的时间，可能因后端时区口径不同而略有偏差。',
+                  '当前设备不能在这里下线，如需退出请到设置页点「退出」。'
+                  '时间以服务器记录为准。',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
@@ -281,10 +285,9 @@ class _SessionRow extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final String label = _deviceLabel(session.device);
-    final String? identifier = (session.device ?? '').trim().isEmpty
-        ? null
-        : session.device!.trim();
-    final bool showIdentifier = identifier != null && identifier != label;
+    // 原始 UA 很长，1.3x 下只能显示半截；改展示解析后的「浏览器 · 系统」摘要，
+    // 完整 UA 仍保留在下线确认弹窗里，需要核对时可以看全。
+    final String? detail = _deviceDetail(session.device);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,7 +313,7 @@ class _SessionRow extends StatelessWidget {
                     child: Text(
                       label,
                       style: theme.textTheme.bodyMedium,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -318,9 +321,9 @@ class _SessionRow extends StatelessWidget {
                     const StatusChip(label: '当前设备', tone: StatusTone.info),
                 ],
               ),
-              if (showIdentifier)
+              if (detail != null)
                 Text(
-                  identifier,
+                  detail,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: muted,
                     fontSize: 11,
@@ -429,19 +432,60 @@ String _deviceLabel(String? device) {
     return '移动端 App';
   }
   if (raw.toLowerCase().contains('curl')) {
-    return '命令行客户端（curl）';
+    return 'curl 客户端';
   }
   if (raw.contains('WindowsPowerShell') || raw.contains('PowerShell')) {
-    return 'PowerShell 客户端';
+    return 'PowerShell';
   }
   if (raw.contains('TraeCN')) {
     return 'Trae 内置浏览器';
   }
   if (raw.contains('Chrome')) {
-    return raw.contains('Android') ? 'Chrome（Android）' : 'Chrome（Windows）';
+    return raw.contains('Android') ? 'Chrome（手机）' : 'Chrome（PC）';
   }
   if (raw.contains('Safari')) {
-    return 'Safari 浏览器';
+    return 'Safari';
   }
-  return raw.length > 32 ? '${raw.substring(0, 32)}…' : raw;
+  return raw.length > 24 ? '${raw.substring(0, 24)}…' : raw;
+}
+
+/// 从 UA 提取可读摘要（浏览器版本 · 系统），用于替代被截断的原始 UA。
+///
+/// 解析不出任何信息时返回 null，宁可不显示，也不展示半截机器串。
+String? _deviceDetail(String? device) {
+  final String raw = (device ?? '').trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+  final List<String> parts = <String>[];
+  final Match? chrome = RegExp(r'Chrome/(\d+)').firstMatch(raw);
+  if (chrome != null) {
+    parts.add('Chrome ${chrome[1]}');
+  } else if (raw.contains('Safari') && !raw.contains('Chrome')) {
+    parts.add('Safari');
+  }
+  final Match? windows = RegExp(r'Windows NT ([\d.]+)').firstMatch(raw);
+  if (windows != null) {
+    // 摘要行只有一行，「Windows 10/11 · Chrome 155」在 1.3x 下仍会截断；
+    // 系统名保持「Windows」即可，版本对识别设备没有帮助。
+    const Map<String, String> names = <String, String>{
+      '10.0': 'Windows',
+      '6.3': 'Windows',
+      '6.2': 'Windows',
+      '6.1': 'Windows',
+    };
+    parts.add(names[windows[1]] ?? 'Windows');
+  } else {
+    final Match? android = RegExp(r'Android\s+([\d.]+)').firstMatch(raw);
+    if (android != null) {
+      parts.add('Android ${android[1]}');
+    } else if (raw.contains('iPhone') || raw.contains('iPad')) {
+      parts.add('iOS');
+    } else if (raw.contains('Mac OS X')) {
+      parts.add('macOS');
+    } else if (raw.contains('Linux')) {
+      parts.add('Linux');
+    }
+  }
+  return parts.isEmpty ? null : parts.join(' · ');
 }
