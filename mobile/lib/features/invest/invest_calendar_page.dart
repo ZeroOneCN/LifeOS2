@@ -33,6 +33,9 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
   /// 选中日期（用于下方明细）；切换月份后清空。
   int? _selectedDay;
 
+  /// 明细区域 key：选中日期后用它把明细滚动到可视区。
+  final GlobalKey _detailKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -220,6 +223,8 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 10,
                     children: <Widget>[
+                      // 空月也渲染完整日历：日期格结构一致，点任意一天可看到
+                      // 「当日无交易」，不会因为某月没交易就丢掉整块日历。
                       if (calendar.days.every(
                         (ForexCalendarDay d) => !d.active,
                       ))
@@ -228,20 +233,20 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
-                        )
-                      else
-                        _CalendarGrid(
-                          year: calendar.year,
-                          month: calendar.month,
-                          days: calendar.days,
-                          selectedDay: _selectedDay,
-                          onSelect: (int day) => setState(() {
-                            _selectedDay = _selectedDay == day ? null : day;
-                          }),
                         ),
+                      _CalendarGrid(
+                        year: calendar.year,
+                        month: calendar.month,
+                        days: calendar.days,
+                        selectedDay: _selectedDay,
+                        onSelect: _selectDay,
+                      ),
                       _Legend(),
                       if (_selectedDay != null)
                         _DayDetail(
+                          // 选中后把明细滚进可视区，避免在 375dp 上点完日期
+                          // 还要手动下滑才知道明细出现在哪儿。
+                          key: _detailKey,
                           day: calendar.days.firstWhere(
                             (ForexCalendarDay d) => d.day == _selectedDay,
                           ),
@@ -257,6 +262,28 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
         ],
       ),
     );
+  }
+
+  /// 点选 / 取消某一天；选中后把明细滚动到可视区内。
+  void _selectDay(int day) {
+    final bool deselect = _selectedDay == day;
+    setState(() => _selectedDay = deselect ? null : day);
+    if (deselect) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final BuildContext? detail = _detailKey.currentContext;
+      if (detail == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        detail,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        // 0.9 让明细底部贴近可视区下沿、上方留一点上下文（日历最后一行）。
+        alignment: 0.9,
+      );
+    });
   }
 
   /// 当前展示的是否为本月。
@@ -588,6 +615,7 @@ class _Legend extends StatelessWidget {
 /// 选中日期的明细：交易笔数、盈/亏笔数、当日盈亏。
 class _DayDetail extends StatelessWidget {
   const _DayDetail({
+    super.key,
     required this.day,
     required this.year,
     required this.month,

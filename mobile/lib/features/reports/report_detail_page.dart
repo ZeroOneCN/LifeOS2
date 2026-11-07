@@ -129,7 +129,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         : detail.displayTitle;
     final List<_ReportSection> sections = detail == null
         ? const <_ReportSection>[]
-        : _collectSections(context, detail.content);
+        : _collectSections(context, detail.content, title);
     final int totalRows =
         sections.fold<int>(0, (int sum, _ReportSection item) => sum + item.rowCount);
     final int titledSections =
@@ -268,9 +268,44 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       final double parsed =
           double.tryParse(match[2]!.replaceAll(',', '')) ?? 0;
       final String sign = parsed == 0 ? '' : (match[1] ?? '');
-      output.add('$sign\$${match[2]}');
+      // 快照里的大数字可能没带千分位（如 `3770`），展示前统一补齐。
+      output.add('$sign\$${_groupDigits(match[2]!)}');
     }
     return changed ? output.join(' / ') : raw;
+  }
+
+  /// 给纯数字补千分位：`3770` → `3,770`；已带逗号或不足四位原样返回。
+  static String _groupDigits(String number) {
+    if (number.contains(',')) {
+      return number;
+    }
+    final List<String> parts = number.split('.');
+    final String intPart = parts.first;
+    if (intPart.length <= 3) {
+      return number;
+    }
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(intPart[i]);
+    }
+    return parts.length > 1 ? '$buffer.${parts[1]}' : '$buffer';
+  }
+
+  /// 正文 / 表格里独立的四位以上整数补千分位。
+  ///
+  /// 排除日期（`2026-07-10`、`2026年09月`）、时间（`18:52`）、小数、百分比与负号，
+  /// 只处理「3770」这种裸整数，避免把年份写成「2,026」。
+  static String _groupPlainNumbers(String text) {
+    if (text.isEmpty || text == '—') {
+      return text;
+    }
+    return text.replaceAllMapped(
+      RegExp(r'(?<![\d,.\-:/])(\d{4,})(?![\d.\-:/%年月日时分秒])'),
+      (Match match) => _groupDigits(match[1]!),
+    );
   }
 
   /// 健康报告的后端正文用单个 `-` 表示空值，展示前统一成「—」。
@@ -304,10 +339,45 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         .toList();
   }
 
-  /// 生活报告摘要在 1.3x 字号下会在逗号后被随机折行（甚至拆开「待办待/处理」），
-  /// 这里按分句主动换行，让断行位置可预期。
+  /// 生活报告摘要做展示归一：修掉重复词与未解释的「≈」，并按分句主动换行。
+  ///
+  /// 「待办待处理」是后端模板把「待办」「待处理」拼在一起的产物，读起来像结巴；
+  /// 「（≈）」没有说明估算口径，直接展开成「（估算）」。这两处只改展示，不动数据。
   String _lifeSummary(String text) {
-    return text.replaceAll('，', '，\n').trimRight();
+    return text
+        .replaceAll('待办待处理', '待办事项')
+        .replaceAll('（≈）', '（估算）')
+        .replaceAll('(≈)', '（估算）')
+        .replaceAll('，', '，\n')
+        .trimRight();
+  }
+
+  /// 表格单元格 / 表头的用词归一：只换词不换行（表格里不能插换行）。
+  ///
+  /// 生活报告的「有效物品日均成本合计（≈）」里的 ≈ 没有说明，展开成「（估算）」。
+  String _cellText(String text) {
+    if (text.isEmpty) {
+      return text;
+    }
+    return text
+        .replaceAll('待办待处理', '待办事项')
+        .replaceAll('（≈）', '（估算）')
+        .replaceAll('(≈)', '（估算）');
+  }
+
+  /// 整行单元格归一。
+  List<String> _rowText(List<String> row) =>
+      row.map(_cellText).toList(growable: false);
+
+  /// 正文段落展示归一：健康报告补空值符号，生活报告折叠重复词并主动断句。
+  String _bodyText(String text) {
+    if (_health) {
+      return _normalizeDashes(text);
+    }
+    if (_life) {
+      return _lifeSummary(text);
+    }
+    return text;
   }
 
   /// 生活报告的展示归一：价格列补 `¥`；「正常 / 总数 张」相等时收敛成「N 张」。
@@ -352,14 +422,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         if (cells.length >= 2 && _isMoneyLabel(cells[0])) {
           cells[1] = _usdNumber(cells[1]);
         }
-        return _stripPositions(cells);
+        return _stripPositions(cells).map(_groupPlainNumbers).toList();
       }
       for (int i = 0; i < cells.length && i < header.length; i++) {
         if (_isMoneyLabel(header[i])) {
           cells[i] = _usdNumber(cells[i]);
         }
       }
-      return _stripPositions(cells);
+      return _stripPositions(cells).map(_groupPlainNumbers).toList();
     }).toList();
   }
 
@@ -383,10 +453,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       RegExp(r'(净收益|账户净值|毛盈亏|入金|出金|体验金)\s+([+-]?\d[\d,]*(?:\.\d+)?)'),
       (Match match) => '${match[1]} ${_usdNumber(match[2]!)}',
     );
-    return withUsd.replaceAll(
-      RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
-      '',
-    );
+    return withUsd
+        .replaceAll(
+          RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
+          '',
+        )
+        .replaceAllMapped(
+          RegExp(r'(\d{4,})(?![\d.\-:/%年月日时分秒])'),
+          (Match match) => _groupDigits(match[1]!),
+        );
   }
 
   /// 摘要富文本：只给金额上色（成功绿 / 危险红 / 零中性），其余文字保持正文色。
@@ -430,9 +505,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             ? colors.danger
             : (parsed > 0 ? colors.success : null);
       }
+      // 负号与金额之间插一个不可断字符（U+2060）：1.3 倍字号下正文折行时
+      // 会出现「净收益 -」换行、`$1,624.12` 掉到下一行的情况。
+      final String amount = match[0]!;
+      final bool signed = amount.startsWith('-') || amount.startsWith('+');
+      final String amountText = signed
+          ? '${amount.substring(0, 1)}\u2060${amount.substring(1)}'
+          : amount;
       spans.add(
         TextSpan(
-          text: match[0],
+          text: amountText,
           style: TextStyle(color: color, fontWeight: FontWeight.w600),
         ),
       );
@@ -445,14 +527,19 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   /// 把 h2 / table 区块收拢成「标题 + 内容 + 行数」的分组数据。
+  ///
+  /// [pageTitle] 用于去掉正文首个标题与页头重复的情况（如页头「投资报告」+
+  /// 正文首个 h2「投资报告」），避免同一屏出现两遍同名标题。
   List<_ReportSection> _collectSections(
     BuildContext context,
     List<ReportBlock> blocks,
+    String pageTitle,
   ) {
     final List<_ReportSection> result = <_ReportSection>[];
     String? sectionTitle;
     final List<Widget> body = <Widget>[];
     int rowCount = 0;
+    bool firstHeading = true;
 
     void flush() {
       if (body.isEmpty) {
@@ -474,14 +561,22 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
     for (final ReportBlock block in blocks) {
       if (block.isHeading) {
+        final bool duplicate =
+            firstHeading && _isReportTitleHeading(block.text ?? '', pageTitle);
+        firstHeading = false;
+        if (duplicate) {
+          // 与页头同名的首个标题直接丢弃，正文内容归入无标题分组。
+          continue;
+        }
         flush();
         sectionTitle = block.text;
       } else if (block.isTable) {
+        final List<String> header = block.header.map(_cellText).toList();
         body.add(
           _ReportTable(
-            header: block.header,
-            rows: _usdRows(block.header, block.rows),
-            caption: block.caption,
+            header: header,
+            rows: _usdRows(header, block.rows.map(_rowText).toList()),
+            caption: _cellText(block.caption),
             colorizePositive: _usd,
           ),
         );
@@ -490,8 +585,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         body.add(
           _ReportTable(
             header: const <String>[],
-            rows: _usdRows(const <String>[], block.rows),
-            caption: block.caption,
+            rows: _usdRows(const <String>[], block.rows.map(_rowText).toList()),
+            caption: _cellText(block.caption),
             colorizePositive: _usd,
           ),
         );
@@ -500,7 +595,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         final String text = block.text!;
         body.add(
           Text(
-            _health ? _normalizeDashes(text) : text,
+            _bodyText(text),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         );
@@ -508,6 +603,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     }
     flush();
     return result;
+  }
+
+  /// 正文标题是否就是页头标题（忽略序号与空白，允许页头只是标题的一部分）。
+  static bool _isReportTitleHeading(String heading, String pageTitle) {
+    String normalize(String value) => value
+        .replaceAll(RegExp(r'^[一二三四五六七八九十\d]+[、.．]\s*'), '')
+        .replaceAll(RegExp(r'\s+'), '')
+        .trim();
+    final String a = normalize(heading);
+    final String b = normalize(pageTitle);
+    if (a.isEmpty || b.isEmpty) {
+      return false;
+    }
+    return a == b || (a.contains(b) && a.length - b.length <= 12);
   }
 
   /// 单个分组卡片；key 供目录跳转定位。
