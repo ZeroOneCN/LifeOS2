@@ -387,6 +387,54 @@ class MedStock {
   }
 }
 
+/// 购药记录（`GET /health/medication/purchases` 列表项）。
+///
+/// 后端字段：`buy_date` / `medicine_name` / `channel` / `unit` /
+/// `quantity` / `pills_per_unit` / `unit_price` / `total_price` / `note`。
+/// 新增购药后后端会自动同步库存与低库存提醒，删除则联动撤销提醒。
+class MedPurchase {
+  const MedPurchase({
+    required this.id,
+    required this.buyDate,
+    required this.medicineName,
+    this.channel,
+    this.unit,
+    required this.quantity,
+    this.pillsPerUnit,
+    required this.unitPrice,
+    this.totalPrice,
+    this.note,
+  });
+
+  final int id;
+  final String buyDate;
+  final String medicineName;
+  final String? channel;
+  final String? unit;
+  final double quantity;
+  final double? pillsPerUnit;
+  final double unitPrice;
+  final double? totalPrice;
+  final String? note;
+
+  factory MedPurchase.fromJson(Map<String, dynamic> json) {
+    return MedPurchase(
+      id: _toInt(json['id']),
+      buyDate: json['buy_date'] as String? ?? '',
+      medicineName: json['medicine_name'] as String? ?? '',
+      channel: json['channel'] as String?,
+      unit: json['unit'] as String?,
+      quantity: _toDouble(json['quantity']),
+      pillsPerUnit:
+          json['pills_per_unit'] == null ? null : _toDouble(json['pills_per_unit']),
+      unitPrice: _toDouble(json['unit_price']),
+      totalPrice:
+          json['total_price'] == null ? null : _toDouble(json['total_price']),
+      note: json['note'] as String?,
+    );
+  }
+}
+
 /// 可空整数解析：接口未采集时保持 null，不能兜底成 0。
 int? _toIntOrNull(Object? value) {
   if (value is num) {

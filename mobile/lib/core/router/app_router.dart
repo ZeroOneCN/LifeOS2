@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/models/finance_models.dart';
 import '../../core/models/health_models.dart';
 import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
@@ -11,6 +12,7 @@ import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_expense_create_page.dart';
 import '../../features/finance/finance_page.dart';
 import '../../features/finance/finance_planning_page.dart';
+import '../../features/finance/finance_shopping_form_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
@@ -18,6 +20,8 @@ import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_fitness_page.dart';
+import '../../features/health/health_med_purchase_form_page.dart';
+import '../../features/health/health_med_stock_form_page.dart';
 import '../../features/health/health_medication_create_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
@@ -124,6 +128,26 @@ GoRouter createAppRouter() {
                         builder: (_, _) => const HealthMedicationCreatePage(),
                       ),
                       GoRoute(
+                        path: 'purchases/new',
+                        builder: (_, _) => const HealthMedPurchaseFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'stocks/new',
+                        builder: (_, _) => const HealthMedStockFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'stocks/:sid/edit',
+                        builder: (_, GoRouterState state) =>
+                            HealthMedStockFormPage(
+                          stockId:
+                              int.tryParse(state.pathParameters['sid'] ?? '') ??
+                                  0,
+                          initial: state.extra is MedStock
+                              ? state.extra as MedStock
+                              : null,
+                        ),
+                      ),
+                      GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) =>
                             HealthMedicationDetailPage(
@@ -131,6 +155,18 @@ GoRouter createAppRouter() {
                               int.tryParse(state.pathParameters['id'] ?? '') ??
                                   0,
                           // 列表页带过来的快照：断网时也能进入并打卡。
+                          initial: state.extra is MedicationRecord
+                              ? state.extra as MedicationRecord
+                              : null,
+                        ),
+                      ),
+                      GoRoute(
+                        path: ':id/edit',
+                        builder: (_, GoRouterState state) =>
+                            HealthMedicationCreatePage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
                           initial: state.extra is MedicationRecord
                               ? state.extra as MedicationRecord
                               : null,
@@ -242,6 +278,21 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'shopping',
                     builder: (_, _) => const FinanceShoppingPage(),
+                    routes: <RouteBase>[
+                      // 编辑购物记录：日期 / 商品 / 金额 / 平台 / 分类 / 备注。
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceShoppingFormPage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                          initial: state.extra is ShoppingRecord
+                              ? state.extra as ShoppingRecord
+                              : null,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'travel',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
@@ -139,6 +140,24 @@ class _HealthMedicationDetailPageState
     );
   }
 
+  /// 编辑该记录；保存或删除后直接返回列表，由列表重拉统计与记录。
+  Future<void> _openEdit() async {
+    final MedicationRecord? record = _record;
+    if (record == null) {
+      return;
+    }
+    final String? result = await context.push<String>(
+      '/health/medication/${record.id}/edit',
+      extra: record,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (result == 'saved' || result == 'deleted') {
+      context.pop(true);
+    }
+  }
+
   /// 拉取单条用药记录；401/网络失败按状态分流。
   Future<void> _refresh() async {
     final AppScope scope = AppScope.of(context);
@@ -196,6 +215,15 @@ class _HealthMedicationDetailPageState
 
     return DetailPageScaffold(
       title: '用药明细',
+      actions: record == null
+          ? null
+          : <Widget>[
+              IconButton(
+                tooltip: '编辑该记录',
+                onPressed: _openEdit,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
       child: ListView(
         children: <Widget>[
           Column(

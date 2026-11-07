@@ -8,6 +8,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -32,6 +33,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
   MedicationStats? _stats;
   List<MedStock> _stocks = const <MedStock>[];
+  List<MedPurchase> _purchases = const <MedPurchase>[];
+  int _purchaseTotal = 0;
+  String? _purchaseError;
   int _lowCount = 0;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
@@ -172,6 +176,45 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         _message = error.message;
       });
     }
+    // 购药记录单独请求：失败只影响该区块，不拖垮整页。
+    if (mounted) {
+      await _loadPurchases();
+    }
+  }
+
+  /// 拉取最近 5 条购药记录；失败只在区块内提示。
+  Future<void> _loadPurchases() async {
+    final AppScope scope = AppScope.of(context);
+    if (!scope.auth.isLoggedIn) {
+      return;
+    }
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/medication/purchases',
+                queryParameters: <String, dynamic>{'page': 1, 'page_size': 5},
+              ))
+          .data;
+      final List<MedPurchase> items =
+          ((json?['items'] as List?) ?? const <dynamic>[])
+              .whereType<Map>()
+              .map((Map item) =>
+                  MedPurchase.fromJson(item.cast<String, dynamic>()))
+              .toList();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _purchases = items;
+        _purchaseTotal = (json?['total'] as num?)?.toInt() ?? items.length;
+        _purchaseError = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _purchaseError = error.message);
+    }
   }
 
   /// 加载更多用药记录；失败只提示，不清空已加载数据。
@@ -232,6 +275,91 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     final bool? created = await context.push<bool>('/health/medication/new');
     if (created == true && mounted) {
       _refresh();
+    }
+  }
+
+  /// 打开用药明细；在明细里编辑或删除后返回 `true`，这里重拉全部统计。
+  Future<void> _openDetail(MedicationRecord record) async {
+    final bool? changed = await context.push<bool>(
+      '/health/medication/${record.id}',
+      extra: record,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 新增 / 编辑药品库存；保存或删除后重拉库存与低库存计数。
+  Future<void> _openStock([MedStock? stock]) async {
+    final bool? changed = stock == null
+        ? await context.push<bool>('/health/medication/stocks/new')
+        : await context.push<bool>(
+            '/health/medication/stocks/${stock.id}/edit',
+            extra: stock,
+          );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 打开新增购药记录；保存后重拉库存（后端会同步补货）与购药列表。
+  Future<void> _openPurchase() async {
+    final bool? created =
+        await context.push<bool>('/health/medication/purchases/new');
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 删除购药记录：确认后删除，并重拉购药列表与库存提醒。
+  Future<void> _deletePurchase(MedPurchase purchase) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('删除该条购药记录？'),
+          content: Text(
+            '将删除 ${purchase.buyDate}「${purchase.medicineName}」的购药记录。\n'
+            '删除后购药总额与低库存提醒会同步更新，且无法恢复。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.delete<dynamic>(
+        '/health/medication/purchases/${purchase.id}',
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(const SnackBar(content: Text('已删除该条购药记录')));
+      await _refresh();
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('删除购药记录失败：${error.message}')),
+      );
     }
   }
 
@@ -503,20 +631,72 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                             color: muted,
                           ),
                         ),
-                  child: _stocks.isEmpty
-                      ? const EmptyState(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      if (_stocks.isEmpty)
+                        const EmptyState(
                           icon: Icons.medication_outlined,
                           title: '暂无药品库存',
-                          description: '在网页端新增药品后这里会显示余量',
+                          description: '点下方「新增药品」登记库存',
                           compact: true,
                         )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final MedStock stock in _stocks)
-                              _StockRow(stock: stock),
-                          ],
+                      else
+                        for (final MedStock stock in _stocks)
+                          _StockRow(
+                            stock: stock,
+                            onTap: () => _openStock(stock),
+                          ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppPrimaryAction(
+                          label: '新增药品',
+                          onPressed: () => _openStock(),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                SectionCard(
+                  title: '购药记录',
+                  trailing: Text(
+                    '共 $_purchaseTotal 条',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      if (_purchaseError != null)
+                        Text(
+                          '购药记录加载失败：$_purchaseError',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        )
+                      else if (_purchases.isEmpty)
+                        const EmptyState(
+                          icon: Icons.shopping_bag_outlined,
+                          title: '暂无购药记录',
+                          description: '点下方「记录购药」登记补货',
+                          compact: true,
+                        )
+                      else
+                        for (final MedPurchase purchase in _purchases)
+                          _PurchaseRow(
+                            purchase: purchase,
+                            onDelete: () => _deletePurchase(purchase),
+                          ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: AppPrimaryAction(
+                          label: '记录购药',
+                          onPressed: _openPurchase,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 SectionCard(
                   title: '用药记录',
@@ -541,10 +721,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                                   outboxOpMedicationCheckin,
                                   record.id,
                                 ),
-                                onTap: () => context.push(
-                                  '/health/medication/${record.id}',
-                                  extra: record,
-                                ),
+                                onTap: () => _openDetail(record),
                                 onCheckIn: () => _openCheckIn(record),
                               ),
                           ],
@@ -565,76 +742,149 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
   }
 }
 
-/// 库存行：名称 + 余量/预警值 + 预计可用天数。
+/// 库存行：名称 + 余量/预警值 + 预计可用天数；点按进入编辑/删除。
 class _StockRow extends StatelessWidget {
-  const _StockRow({required this.stock});
+  const _StockRow({required this.stock, required this.onTap});
 
   final MedStock stock;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Row(
+                    spacing: 6,
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          stock.name,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (stock.isLow)
+                        const StatusChip(
+                          label: '库存偏低',
+                          tone: StatusTone.danger,
+                        ),
+                    ],
+                  ),
+                  Text(
+                    '余量 ${_trim(stock.quantity)} ${stock.unit} · '
+                    '预警 ${_trim(stock.threshold)} ${stock.unit}',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
+              children: <Widget>[
+                if (stock.daysLeft != null)
+                  Text(
+                    '约 ${stock.daysLeft} 天',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: stock.isLow ? theme.colorScheme.error : muted,
+                    ),
+                  ),
+                if (stock.predictedDate != null)
+                  Text(
+                    stock.predictedDate!,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+              ],
+            ),
+            Icon(Icons.chevron_right, size: 18, color: muted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 去掉小数的整数显示（20.0 → 20）。
+  String _trim(double value) {
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+  }
+}
+
+/// 购药记录行：日期 / 药品 / 数量 / 总价 + 删除入口。
+class _PurchaseRow extends StatelessWidget {
+  const _PurchaseRow({required this.purchase, required this.onDelete});
+
+  final MedPurchase purchase;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final String unit = purchase.unit ?? '盒';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        spacing: 12,
+        spacing: 8,
         children: <Widget>[
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 2,
               children: <Widget>[
-                Row(
-                  spacing: 6,
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        stock.name,
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (stock.isLow)
-                      const StatusChip(
-                        label: '库存偏低',
-                        tone: StatusTone.danger,
-                      ),
-                  ],
+                Text(
+                  purchase.medicineName,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '余量 ${_trim(stock.quantity)} ${stock.unit} · '
-                  '预警 ${_trim(stock.threshold)} ${stock.unit}',
+                  '${purchase.buyDate} · '
+                  '${_trim(purchase.quantity)} $unit'
+                  '${purchase.channel == null ? '' : ' · ${purchase.channel}'}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              if (stock.daysLeft != null)
-                Text(
-                  '约 ${stock.daysLeft} 天',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: stock.isLow ? theme.colorScheme.error : muted,
-                  ),
-                ),
-              if (stock.predictedDate != null)
-                Text(
-                  stock.predictedDate!,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-            ],
+          if (purchase.totalPrice != null)
+            Text(
+              formatMoney(purchase.totalPrice!),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
+            ),
+          IconButton(
+            tooltip: '删除购药记录',
+            onPressed: onDelete,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              Icons.delete_outline,
+              size: 20,
+              color: theme.colorScheme.error,
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// 去掉小数的整数显示（20.0 → 20）。
+  /// 去掉无意义的尾零（2.0 → 2）。
   String _trim(double value) {
     return value == value.roundToDouble()
         ? value.toStringAsFixed(0)
