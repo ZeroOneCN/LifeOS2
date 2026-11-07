@@ -127,6 +127,7 @@ def crud_router(
     conflict_msg: str | None = None,
     list_transform: Callable[[list, Session, int], list] | None = None,
     after_write: Callable[[Session, int], None] | None = None,
+    on_update: Callable[[Session, Any, dict, dict], None] | None = None,
 ) -> APIRouter:
     """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
 
@@ -142,6 +143,9 @@ def crud_router(
     实时数据覆盖模型存储的字段值（如 bill_paid_this_month），返回处理后的 items。
     after_write: 写操作（新增/更新/删除/批量）提交后的联动钩子，签名 `(db, user_id)`。
     钩子自身需保证异常安全，避免影响写接口返回。
+    on_update: 单条更新（PUT）提交前的联动钩子，签名 `(db, obj, data, before)`：
+    obj 为已按 payload 赋值后的实体，data 为 `exclude_unset` 后的请求字段，
+    before 为这些字段赋值前的原值快照，用于判断某个字段是否真的发生了变化。
     """
 
     router = APIRouter(prefix=prefix, tags=[tag])
@@ -332,8 +336,13 @@ def crud_router(
                 exclude_id=item_id,
                 conflict_msg=conflict_msg,
             )
-        for key, value in payload.model_dump(exclude_unset=True).items():
+        data = payload.model_dump(exclude_unset=True)
+        # 记录赋值前的原值，供 on_update 判断字段是否真的发生变化
+        before = {key: getattr(obj, key, None) for key in data}
+        for key, value in data.items():
             setattr(obj, key, value)
+        if on_update:
+            on_update(db, obj, data, before)
         db.commit()
         if after_write and user_owned:
             after_write(db, current_user.id)

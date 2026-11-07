@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -279,6 +279,42 @@ def delete_debt_payment(
     return {"id": debt.id, "remaining": debt.remaining, "status": debt.status}
 
 
+def _recalc_debt_after_amount_change(db: Session, debt: FinanceDebt) -> None:
+    """本金变更后按该债务的全部还款明细重算剩余与状态。
+
+    口径与 `POST /finance/debts/{item_id}/repay` 完全一致：
+    `FinanceDebtPayment.amount` 是「清账额（含优惠）」，`discount` 只是其中优惠部分，
+    因此已还合计取 Σ payments.amount（不再额外扣减 discount）；
+    `remaining = amount − Σ payments.amount`，≤1e-6 归零并置为 settled。
+    """
+    paid = db.scalar(
+        select(func.coalesce(func.sum(FinanceDebtPayment.amount), 0)).where(
+            FinanceDebtPayment.debt_id == debt.id,
+            FinanceDebtPayment.user_id == debt.user_id,
+        )
+    ) or 0
+    remaining = round(float(debt.amount or 0) - float(paid), 2)
+    if remaining <= 1e-6:
+        debt.remaining = 0
+        debt.status = "settled"
+    else:
+        debt.remaining = remaining
+        debt.status = "active"
+
+
+def _debt_on_update(db: Session, obj, data: dict, before: dict) -> None:
+    """仅当本次 PUT 真的修改了本金 amount 时才联动重算剩余与状态。
+
+    改对方、备注、日期、手工剩余等字段不触发重算，避免覆盖用户手工维护的金额。
+    """
+    if "amount" not in data:
+        return
+    old_amount = before.get("amount")
+    if old_amount is not None and float(obj.amount or 0) == float(old_amount or 0):
+        return
+    _recalc_debt_after_amount_change(db, obj)
+
+
 router.include_router(
     crud_router(
         prefix="/finance/debts",
@@ -289,5 +325,6 @@ router.include_router(
         order_by=FinanceDebt.debt_date,
         date_column="debt_date",
         stats_func=_debt_stats,
+        on_update=_debt_on_update,
     )
 )
