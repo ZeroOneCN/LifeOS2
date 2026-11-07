@@ -141,7 +141,8 @@ type ForexStats = {
     max_day_profit_date?: string | null
     max_day_loss_date?: string | null
     max_drawdown: number
-    max_drawdown_pct: number
+    /** 最大回撤百分比；净投入为 0 或过小时后端返回 null，表示无有效基准 */
+    max_drawdown_pct: number | null
     profit_factor?: number
     longest_win_streak: number
     longest_loss_streak: number
@@ -451,16 +452,21 @@ const NEW_ROW = (): PositionRow => ({
 })
 
 function PositionCalculator({ equity }: { equity?: number }) {
+  // 只有正净值才可作为模拟净值注入：净值为负或 0 时留空，交由用户手动输入
+  const injectedEquity =
+    equity != null && Number.isFinite(equity) && equity > 0 ? equity : null
   // 净值：默认注入实时净值，可手动变更；点「重置」恢复为实时净值
-  const [equityVal, setEquityVal] = useState(() => (equity != null ? String(equity) : ''))
+  const [equityVal, setEquityVal] = useState(() =>
+    injectedEquity != null ? String(injectedEquity) : '',
+  )
   const [contractSize, setContractSize] = useState('100000') // 每手合约规格（标准手=100000）
   const [stopOutPct, setStopOutPct] = useState('100') // 爆仓保证金比例 %
   const [warnPct, setWarnPct] = useState('150') // 预警保证金比例 %
   const [rows, setRows] = useState<PositionRow[]>([NEW_ROW()])
 
   useEffect(() => {
-    if (equity != null) setEquityVal(String(equity))
-  }, [equity])
+    if (injectedEquity != null) setEquityVal(String(injectedEquity))
+  }, [injectedEquity])
 
   const addRow = () => setRows((prev) => [...prev, NEW_ROW()])
   const removeRow = (id: number) => setRows((prev) => prev.filter((r) => r.id !== id))
@@ -551,8 +557,8 @@ function PositionCalculator({ equity }: { equity?: number }) {
             <div className="space-y-1">
               <Label>账户净值（可改）</Label>
               <div className="flex gap-1">
-                <Input type="number" value={equityVal} onChange={(e) => setEquityVal(e.target.value)} placeholder="0" />
-                <Tip label="重置为实时净值"><Button variant="outline" size="icon" onClick={() => equity != null && setEquityVal(String(equity))}>
+                <Input type="number" value={equityVal} onChange={(e) => setEquityVal(e.target.value)} placeholder="输入模拟净值" />
+                <Tip label="重置为实时净值"><Button variant="outline" size="icon" onClick={() => injectedEquity != null && setEquityVal(String(injectedEquity))} disabled={injectedEquity == null} aria-label="重置为实时净值">
                   <RefreshCw className="size-4" />
                 </Button></Tip>
               </div>
@@ -570,18 +576,25 @@ function PositionCalculator({ equity }: { equity?: number }) {
               <Input type="number" value={warnPct} onChange={(e) => setWarnPct(e.target.value)} placeholder="150" />
             </div>
           </div>
+          {equity != null && injectedEquity == null ? (
+            <p className="mt-3 text-xs text-warning">
+              {equity < 0
+                ? `账户净值为负（${fmtVal(equity)}），请手动输入模拟净值`
+                : '账户净值为 0，请手动输入模拟净值'}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-sm min-w-0 max-w-[55%] truncate" title="持仓清单（多仓位并行）">
               <Plus className="size-4 text-decor-indigo" /> 持仓清单（多仓位并行）
             </CardTitle>
             <CardDescription>每个仓位独立杠杆，共同占用保证金，联动计算爆仓价格</CardDescription>
           </div>
-          <CardHeaderActions>
+          <CardHeaderActions className="shrink-0">
             <Button size="sm" variant="outline" onClick={addRow}>
               <Plus /> 添加仓位
             </Button>
@@ -981,7 +994,7 @@ function ImportButton({ onDone }: { onDone: () => void }) {
 // ---------------------------------------------------------------------------
 // 页面
 // ---------------------------------------------------------------------------
-function StatCard({ icon: Icon, label, value, hint, valueCls = '' }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; valueCls?: string }) {
+function StatCard({ icon: Icon, label, value, hint, valueCls = '', valueTitle }: { icon: typeof TrendingUp; label: string; value: string; hint?: string; valueCls?: string; valueTitle?: string }) {
   const numeric = Number(value.replace(/[^0-9.-]/g, '')) || 0
   const isMoneySign = label.includes('盈亏') || label.includes('收益') || label.includes('净值')
   // 显式 valueCls 与按符号着色互斥，避免同一元素叠加冲突的颜色类
@@ -1003,7 +1016,7 @@ function StatCard({ icon: Icon, label, value, hint, valueCls = '' }: { icon: typ
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${tone}`}>{value}</div>
+        <div className={`text-2xl font-semibold ${tone}`} title={valueTitle}>{value}</div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
@@ -1073,7 +1086,7 @@ export function ForexPage() {
             <>
               {s && (
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} - 出金 ${fmtVal(s.total_withdraw)}`} />
+                  <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`净投入 ${fmtVal(s.total_deposit - s.total_withdraw + s.total_experience)} + 净盈亏 ${fmtPnl(s.net_profit)}`} />
                   <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
                   <StatCard icon={Download} label="交易数" value={`${formatInt(s.trade_count)} 笔`} hint={`持仓 ${formatInt(s.open_count)} · 品种 ${formatInt(s.symbol_count)}`} />
                   <StatCard icon={Percent} label="胜率" value={formatPercent(s.win_rate ?? 0)} hint={`盈亏比 ${formatDecimal(s.profit_loss_ratio ?? 0, 2)}`} />
@@ -1142,7 +1155,21 @@ export function ForexPage() {
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : DASH} />
                   <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : DASH} />
-                  <StatCard icon={TrendingUp} label="最大回撤" value={`${fmtVal(a.max_drawdown)}`} hint={`回撤幅度 ${formatPercent(a.max_drawdown_pct)}`} />
+                  <StatCard
+                    icon={TrendingUp}
+                    label="最大回撤"
+                    value={fmtVal(a.max_drawdown)}
+                    hint={
+                      a.max_drawdown_pct == null
+                        ? '回撤幅度 —（净投入不足基准，暂无有效百分比）'
+                        : `回撤幅度 ${formatPercent(a.max_drawdown_pct)}`
+                    }
+                    valueTitle={
+                      a.max_drawdown_pct == null
+                        ? '累计净投入为 0 或不足 1 美元，回撤没有有效分母，故不展示百分比'
+                        : undefined
+                    }
+                  />
                   <StatCard icon={TrendingUp} label="平均持仓" value={fmtHolding(a.avg_holding_minutes)} hint={`连胜 ${formatInt(a.longest_win_streak)} · 连亏 ${formatInt(a.longest_loss_streak)}`} />
                 </section>
               )}

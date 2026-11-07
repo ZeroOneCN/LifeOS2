@@ -61,7 +61,8 @@ type OverviewData = {
     avg_win?: number
     avg_loss?: number
     max_drawdown: number
-    max_drawdown_pct: number
+    /** 最大回撤百分比；净投入为 0 或过小时后端返回 null，表示无有效基准 */
+    max_drawdown_pct: number | null
     profit_factor?: number
     longest_win_streak: number
     longest_loss_streak: number
@@ -90,11 +91,13 @@ function StatCard({
   label,
   value,
   hint,
+  valueTitle,
 }: {
   icon: typeof TrendingUp
   label: string
   value: string
   hint?: string
+  valueTitle?: string
 }) {
   const numeric = Number(value.replace(/[^0-9.-]/g, '')) || 0
   const isMoneySign = ['盈亏', '收益', '净值'].some((k) => label.includes(k))
@@ -115,7 +118,7 @@ function StatCard({
         </CardHeaderActions>
       </CardHeader>
       <CardContent>
-        <div className={`text-2xl font-semibold ${tone}`}>
+        <div className={`text-2xl font-semibold ${tone}`} title={valueTitle}>
           {value}
         </div>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
@@ -217,7 +220,7 @@ export function InvestmentOverviewPage() {
       />
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`入金 ${fmtVal(s.total_deposit)} / 出金 ${fmtVal(s.total_withdraw)}`} />
+        <StatCard icon={TrendingUp} label="账户净值" value={fmtVal(s.account_value)} hint={`净投入 ${fmtVal(s.total_deposit - s.total_withdraw + s.total_experience)} + 净盈亏 ${fmtPnl(s.net_profit)}`} />
         <StatCard icon={Percent} label="净收益" value={fmtPnl(s.net_profit)} hint={`毛盈亏 ${fmtPnl(s.gross_pnl)}`} />
         <StatCard icon={Download} label="交易数" value={`${formatInt(s.trade_count)} 笔`} hint={`持仓 ${formatInt(s.open_count)} · 品种 ${formatInt(s.symbol_count)}`} />
         <StatCard icon={Percent} label="胜率" value={formatPercent(s.win_rate ?? 0)} hint={`盈亏比 ${formatDecimal(s.profit_loss_ratio ?? 0, 2)}`} />
@@ -301,7 +304,21 @@ export function InvestmentOverviewPage() {
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={Percent} label="平均盈利" value={a.avg_win != null ? fmtVal(a.avg_win) : DASH} />
         <StatCard icon={Percent} label="平均亏损" value={a.avg_loss != null ? fmtVal(a.avg_loss) : DASH} />
-        <StatCard icon={TrendingUp} label="最大回撤" value={fmtVal(a.max_drawdown)} hint={`幅度 ${formatPercent(a.max_drawdown_pct)}`} />
+        <StatCard
+          icon={TrendingUp}
+          label="最大回撤"
+          value={fmtVal(a.max_drawdown)}
+          hint={
+            a.max_drawdown_pct == null
+              ? '幅度 —（净投入不足基准，暂无有效百分比）'
+              : `幅度 ${formatPercent(a.max_drawdown_pct)}`
+          }
+          valueTitle={
+            a.max_drawdown_pct == null
+              ? '累计净投入为 0 或不足 1 美元，回撤没有有效分母，故不展示百分比'
+              : undefined
+          }
+        />
         <StatCard icon={TrendingUp} label="盈利因子" value={a.profit_factor != null ? fmtNum(a.profit_factor) : DASH} hint={`连胜 ${formatInt(a.longest_win_streak)} · 连亏 ${formatInt(a.longest_loss_streak)}`} />
       </section>
     </div>
