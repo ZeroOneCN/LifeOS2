@@ -386,6 +386,19 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     final BankStats? stats = _stats;
     final bool ready = _status == LoadStatus.ready && stats != null;
 
+    // 余额合计口径：银行卡余额 + 手机号卡「已采集」余额。
+    // 手机号卡没有单独的采集标记，与单卡「余额 —」用同一判定，避免合计与单卡矛盾。
+    final double bankBalance = stats?.balanceTotal ?? 0;
+    final int phoneCollectedCount = _phones
+        .where((PhoneCard phone) => phone.collectedBalance != null)
+        .length;
+    final double phoneBalance = _phones.fold<double>(
+      0,
+      (double sum, PhoneCard phone) => sum + (phone.collectedBalance ?? 0),
+    );
+    final int phoneUncollectedCount = _phones.length - phoneCollectedCount;
+    final double balanceTotal = bankBalance + phoneBalance;
+
     return DetailPageScaffold(
       title: '卡片管理',
       child: Column(
@@ -408,9 +421,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
             SectionCard(
               title: '合计',
               trailing: Text(
-                '银行卡 ${formatInt(stats.total)} · '
-                '手机号卡 ${formatInt(_phoneTotal)} · '
-                '合计 ${formatInt(stats.total + _phoneTotal)}',
+                '银行卡 + 手机号卡',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -436,7 +447,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                       Expanded(
                         child: MetricPlaceholder(
                           label: '余额合计',
-                          value: formatMoney(stats.balanceTotal),
+                          value: formatMoney(balanceTotal),
                         ),
                       ),
                     ],
@@ -463,6 +474,19 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                         ),
                       ),
                     ],
+                  ),
+                  Text(
+                    phoneUncollectedCount > 0
+                        ? '口径：余额合计 = 银行卡 ${formatMoney(bankBalance)} + '
+                            '手机号卡已采集 ${formatMoney(phoneBalance)}'
+                            '（${formatInt(phoneCollectedCount)} 张已采集；'
+                            '${formatInt(phoneUncollectedCount)} 张未采集，未计入）'
+                        : '口径：余额合计 = 银行卡 ${formatMoney(bankBalance)} + '
+                            '手机号卡 ${formatMoney(phoneBalance)}'
+                            '（${formatInt(phoneCollectedCount)} 张均已采集）',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),

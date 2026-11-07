@@ -422,20 +422,28 @@ class PhoneCard {
   /// 完整号码展示：与银行卡同一口径（长号码分组，不脱敏、不截断）。
   String get displayNumber => formatCardNumber(phoneNumber);
 
+  /// 已采集的余额；未采集（返回 null，或起始余额为 0 且流水净额为 0）返回 null。
+  ///
+  /// 与 [balanceText] 使用同一判定，合计口径据此只累加「已采集部分」。
+  double? get collectedBalance {
+    final double? value = balance;
+    if (value == null) {
+      return null;
+    }
+    if (value == 0 && (openingBalance ?? 0) == 0) {
+      return null;
+    }
+    return value;
+  }
+
   /// 话费余额文案。
   ///
   /// 后端 `balance` 恒为派生值（起始余额 + Σ流水），没有单独的「是否已采集」标记；
   /// 因此按「返回 null，或起始余额 0（默认值）且流水净额 0」判定为未采集，显示「—」，
   /// 其余按金额展示（真 0 显示 `¥0.00`）。
   String get balanceText {
-    final double? value = balance;
-    if (value == null) {
-      return '—';
-    }
-    if (value == 0 && (openingBalance ?? 0) == 0) {
-      return '—';
-    }
-    return formatMoney(value);
+    final double? value = collectedBalance;
+    return value == null ? '—' : formatMoney(value);
   }
 
   /// 复制用纯号码；缺号时返回 null。
