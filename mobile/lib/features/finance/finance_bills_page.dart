@@ -6,18 +6,24 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import '../../theme/app_theme.dart';
+import 'finance_bill_detail_sheet.dart';
+import 'finance_bill_form_page.dart';
 import 'finance_status_widgets.dart';
 
-/// 账单管理：汇总（待还/已还/利息）+ 即将到期 + 全部账单分页。
+/// 账单管理：按网页端 `/finance/bills` 的三个 Tab 组织。
 ///
-/// 数据：
-/// - `GET /finance/loan-bills/stats?days=0`（全部口径的汇总与即将到期）
-/// - `GET /finance/loan-bills?page=&page_size=20`（分页列表）
-/// - `GET /finance/loan-platforms?page_size=100`（平台 id → 名称）
+/// 数据（与网页端同源）：
+/// - 网贷借还：`GET /finance/loan-bills/stats?days=0`、`GET /finance/loan-bills`
+/// - 房租水电：`GET /finance/housing`、`GET /finance/utilities`
+/// - 服务订阅：`GET /finance/subscriptions`
+///
+/// 三个 Tab 共用同一个纵向 ListView，切换只换内容，不产生横向滚动或栏位跳动。
 class FinanceBillsPage extends StatefulWidget {
   const FinanceBillsPage({super.key});
 
@@ -26,10 +32,17 @@ class FinanceBillsPage extends StatefulWidget {
 }
 
 class _FinanceBillsPageState extends State<FinanceBillsPage> {
+  /// 0 网贷借还、1 房租水电、2 服务订阅。
+  int _tab = 0;
+
   final List<BillItem> _items = <BillItem>[];
   final Map<int, String> _platforms = <int, String>{};
-
   BillStats? _stats;
+
+  List<HousingItem>? _housings;
+  List<UtilityItem>? _utilities;
+  List<SubscriptionItem>? _subscriptions;
+
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
@@ -49,7 +62,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     });
   }
 
-  /// 首屏/重试：并行拉汇总、第一页列表与平台名，任一失败整体进入失败态。
+  /// 按当前 Tab 拉取数据；首次切换时按需加载，之后切换只重绘。
   Future<void> _refresh() async {
     final AppScope scope = AppScope.of(context);
     if (!scope.auth.isLoggedIn) {
@@ -62,67 +75,22 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       return;
     }
     setState(() {
-      _status = _stats == null ? LoadStatus.loading : LoadStatus.ready;
+      _status = LoadStatus.loading;
       _message = null;
     });
     try {
-      final Future<Map<String, dynamic>?> statsFuture = scope.apiClient
-          .get<Map<String, dynamic>>(
-            '/finance/loan-bills/stats',
-            queryParameters: <String, dynamic>{'days': 0},
-          )
-          .then((value) => value.data);
-      final Future<Map<String, dynamic>?> listFuture = scope.apiClient
-          .get<Map<String, dynamic>>(
-            '/finance/loan-bills',
-            queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
-          )
-          .then((value) => value.data);
-      final Future<Map<String, dynamic>?> platformFuture = scope.apiClient
-          .get<Map<String, dynamic>>(
-            '/finance/loan-platforms',
-            queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
-          )
-          .then((value) => value.data);
-      final List<Map<String, dynamic>?> responses =
-          await Future.wait(<Future<Map<String, dynamic>?>>[
-        statsFuture,
-        listFuture,
-        platformFuture,
-      ]);
-      final Map<String, dynamic>? statsJson = responses[0];
-      final Map<String, dynamic>? listJson = responses[1];
-      final Map<String, dynamic>? platformJson = responses[2];
-      if (statsJson == null || listJson == null) {
-        throw const ApiException(
-          kind: ApiErrorKind.badResponse,
-          message: '账单接口返回数据为空',
-        );
-      }
-      final List<BillItem> items = _parseItems(listJson);
-      final Map<int, String> platforms = <int, String>{};
-      for (final Map item
-          in ((platformJson?['items'] as List?) ?? const <dynamic>[])
-              .whereType<Map>()) {
-        platforms[(item['id'] as num?)?.toInt() ?? -1] =
-            item['name'] as String? ?? '';
+      switch (_tab) {
+        case 0:
+          await _loadLoan(scope);
+        case 1:
+          await _loadHousing(scope);
+        case 2:
+          await _loadSubscriptions(scope);
       }
       if (!mounted) {
         return;
       }
-      setState(() {
-        _stats = BillStats.fromJson(statsJson);
-        _items
-          ..clear()
-          ..addAll(items);
-        _platforms
-          ..clear()
-          ..addAll(platforms);
-        _page = 1;
-        _total = (listJson['total'] as num?)?.toInt() ?? items.length;
-        _hasMore = _items.length < _total;
-        _status = LoadStatus.ready;
-      });
+      setState(() => _status = LoadStatus.ready);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -134,7 +102,118 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     }
   }
 
-  /// 加载更多：追加下一页；失败只提示，不清空已加载数据。
+  /// 网贷借还：汇总 + 每页 20 条账单 + 平台名映射。
+  Future<void> _loadLoan(AppScope scope) async {
+    final List<Map<String, dynamic>?> responses =
+        await Future.wait(<Future<Map<String, dynamic>?>>[
+      scope.apiClient
+          .get<Map<String, dynamic>>(
+            '/finance/loan-bills/stats',
+            queryParameters: <String, dynamic>{'days': 0},
+          )
+          .then((value) => value.data),
+      scope.apiClient
+          .get<Map<String, dynamic>>(
+            '/finance/loan-bills',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
+          )
+          .then((value) => value.data),
+      scope.apiClient
+          .get<Map<String, dynamic>>(
+            '/finance/loan-platforms',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
+          )
+          .then((value) => value.data),
+    ]);
+    final Map<String, dynamic>? statsJson = responses[0];
+    final Map<String, dynamic>? listJson = responses[1];
+    final Map<String, dynamic>? platformJson = responses[2];
+    if (statsJson == null || listJson == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.badResponse,
+        message: '账单接口返回数据为空',
+      );
+    }
+    final List<BillItem> items = _parseBills(listJson);
+    final Map<int, String> platforms = <int, String>{};
+    for (final Map item
+        in ((platformJson?['items'] as List?) ?? const <dynamic>[])
+            .whereType<Map>()) {
+      platforms[(item['id'] as num?)?.toInt() ?? -1] =
+          item['name'] as String? ?? '';
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _stats = BillStats.fromJson(statsJson);
+      _items
+        ..clear()
+        ..addAll(items);
+      _platforms
+        ..clear()
+        ..addAll(platforms);
+      _page = 1;
+      _total = (listJson['total'] as num?)?.toInt() ?? items.length;
+      _hasMore = _items.length < _total;
+    });
+  }
+
+  /// 房租水电：住房与水电记录各取前 100 条（与网页端列表口径一致）。
+  Future<void> _loadHousing(AppScope scope) async {
+    final List<Map<String, dynamic>?> responses =
+        await Future.wait(<Future<Map<String, dynamic>?>>[
+      scope.apiClient
+          .get<Map<String, dynamic>>(
+            '/finance/housing',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
+          )
+          .then((value) => value.data),
+      scope.apiClient
+          .get<Map<String, dynamic>>(
+            '/finance/utilities',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
+          )
+          .then((value) => value.data),
+    ]);
+    final Map<String, dynamic>? housingJson = responses[0];
+    final Map<String, dynamic>? utilityJson = responses[1];
+    if (housingJson == null || utilityJson == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.badResponse,
+        message: '房租水电接口返回数据为空',
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _housings = _parseList(housingJson, HousingItem.fromJson);
+      _utilities = _parseList(utilityJson, UtilityItem.fromJson);
+    });
+  }
+
+  /// 服务订阅：取前 100 条。
+  Future<void> _loadSubscriptions(AppScope scope) async {
+    final Map<String, dynamic>? json = (await scope.apiClient
+            .get<Map<String, dynamic>>('/finance/subscriptions',
+                queryParameters: <String, dynamic>{'page': 1, 'page_size': 100}))
+        .data;
+    if (json == null) {
+      throw const ApiException(
+        kind: ApiErrorKind.badResponse,
+        message: '订阅接口返回数据为空',
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _subscriptions = _parseList(json, SubscriptionItem.fromJson);
+    });
+  }
+
+  /// 加载更多（仅网贷借还使用）。
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) {
       return;
@@ -160,7 +239,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       }
       setState(() {
         _page += 1;
-        _items.addAll(_parseItems(json));
+        _items.addAll(_parseBills(json));
         _total = (json['total'] as num?)?.toInt() ?? _items.length;
         _hasMore = _items.length < _total;
       });
@@ -178,11 +257,17 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     }
   }
 
-  /// 从分页响应中取出 `items` 并转为 [BillItem]。
-  List<BillItem> _parseItems(Map<String, dynamic> json) {
+  List<BillItem> _parseBills(Map<String, dynamic> json) =>
+      _parseList(json, BillItem.fromJson);
+
+  /// 通用分页解析：`items` 逐项交给构造函数。
+  List<T> _parseList<T>(
+    Map<String, dynamic> json,
+    T Function(Map<String, dynamic>) fromJson,
+  ) {
     return ((json['items'] as List?) ?? const <dynamic>[])
         .whereType<Map>()
-        .map((Map item) => BillItem.fromJson(item.cast<String, dynamic>()))
+        .map((Map item) => fromJson(item.cast<String, dynamic>()))
         .toList();
   }
 
@@ -197,11 +282,65 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
+  /// 切换 Tab：未加载过的数据先拉取，已加载的直接切换。
+  void _selectTab(int index) {
+    if (index == _tab) {
+      return;
+    }
+    setState(() => _tab = index);
+    final bool loaded = switch (index) {
+      1 => _housings != null && _utilities != null,
+      2 => _subscriptions != null,
+      _ => _stats != null,
+    };
+    if (!loaded) {
+      _refresh();
+    }
+  }
+
+  /// 打开新增 / 编辑表单；保存或删除成功返回 true 时刷新当前 Tab。
+  Future<void> _openForm(BillKind kind, {int? id}) async {
+    final String path = id == null
+        ? '/finance/bills/new'
+        : '/finance/bills/edit/$id';
+    final bool? changed = await context.push<bool>(
+      '$path?kind=${kind.name}',
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 详情层：先看完整字段，再决定编辑或删除。
+  ///
+  /// 编辑交给 [BillKind] 对应的表单页（返回 true 时重拉当前 Tab）；
+  /// 删除已在详情层内二次确认完成，这里只负责刷新列表。
+  Future<void> _showBillDetail({
+    required BillKind kind,
+    required int id,
+    required Widget sheet,
+  }) async {
+    final BillDetailAction? action =
+        await showModalBottomSheet<BillDetailAction>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (BuildContext _) => sheet,
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    if (action == BillDetailAction.edit) {
+      await _openForm(kind, id: id);
+    } else {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final BillStats? stats = _stats;
-
     return DetailPageScaffold(
       title: '账单管理',
       child: ListView(
@@ -210,122 +349,261 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: <Widget>[
+              _TabSelector(value: _tab, onChanged: _selectTab),
               ListStatusView(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '全部账单',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '待还',
-                              value: formatMoney(stats.remaining),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '已还',
-                              value: formatMoney(stats.paid),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '利息合计',
-                              value: formatMoney(stats.totalInterest),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          StatusChip(
-                            label: '待还 ${stats.pendingCount}',
-                            tone: StatusTone.danger,
-                          ),
-                          StatusChip(
-                            label: '部分还款 ${stats.partialCount}',
-                            tone: StatusTone.warning,
-                          ),
-                          StatusChip(
-                            label: '已结清 ${stats.clearedCount}',
-                            tone: StatusTone.success,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                if (stats.upcoming.isNotEmpty)
-                  SectionCard(
-                    title: '即将到期',
-                    child: Column(
-                      spacing: 4,
-                      children: <Widget>[
-                        for (final BillItem bill in stats.upcoming)
-                          BillRow(
-                            bill: bill,
-                            platformName: _platformName(bill.platformId),
-                            onTap: () => _openDetail(bill),
-                          ),
-                      ],
-                    ),
-                  ),
-                SectionCard(
-                  title: '全部账单',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.receipt_long_outlined,
-                          title: '暂无账单',
-                          description: '后端暂无账单数据',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final BillItem bill in _items)
-                              BillRow(
-                                bill: bill,
-                                platformName: _platformName(bill.platformId),
-                                onTap: () => _openDetail(bill),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  _LoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+              if (_status == LoadStatus.ready) ..._content(theme),
             ],
           ),
         ],
       ),
     );
+  }
+
+  /// 当前 Tab 的内容区块。
+  List<Widget> _content(ThemeData theme) {
+    switch (_tab) {
+      case 1:
+        return _housingContent(theme);
+      case 2:
+        return _subscriptionContent(theme);
+      default:
+        return _loanContent(theme);
+    }
+  }
+
+  List<Widget> _loanContent(ThemeData theme) {
+    final BillStats? stats = _stats;
+    if (stats == null) {
+      return const <Widget>[];
+    }
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    return <Widget>[
+      SectionCard(
+        title: '合计',
+        trailing: AppPrimaryAction(
+          label: '新增账单',
+          onPressed: () => _openForm(BillKind.loan),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: <Widget>[
+            Row(
+              spacing: 16,
+              children: <Widget>[
+                Expanded(
+                  child: MetricPlaceholder(
+                    label: '待还',
+                    value: formatMoney(stats.remaining),
+                  ),
+                ),
+                Expanded(
+                  child: MetricPlaceholder(
+                    label: '已还',
+                    value: formatMoney(stats.paid),
+                  ),
+                ),
+                Expanded(
+                  child: MetricPlaceholder(
+                    label: '利息合计',
+                    value: formatMoney(stats.totalInterest),
+                  ),
+                ),
+              ],
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                StatusChip(
+                  label: '待还 ${stats.pendingCount}',
+                  tone: StatusTone.danger,
+                ),
+                StatusChip(
+                  label: '部分还款 ${stats.partialCount}',
+                  tone: StatusTone.warning,
+                ),
+                StatusChip(
+                  label: '已结清 ${stats.clearedCount}',
+                  tone: StatusTone.success,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      if (stats.upcoming.isNotEmpty)
+        SectionCard(
+          title: '即将到期',
+          child: Column(
+            spacing: 4,
+            children: <Widget>[
+              for (final BillItem bill in stats.upcoming)
+                BillRow(
+                  bill: bill,
+                  platformName: _platformName(bill.platformId),
+                  onTap: () => _openLoanDetail(bill),
+                ),
+            ],
+          ),
+        ),
+      SectionCard(
+        title: '全部账单',
+        trailing: Text(
+          '共 $_total 条',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        ),
+        child: _items.isEmpty
+            ? const EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: '暂无账单',
+                description: '点右上「新增账单」录入第一条',
+                compact: true,
+              )
+            : Column(
+                spacing: 4,
+                children: <Widget>[
+                  for (final BillItem bill in _items)
+                    BillRow(
+                      bill: bill,
+                      platformName: _platformName(bill.platformId),
+                      onTap: () => _openLoanDetail(bill),
+                    ),
+                ],
+              ),
+      ),
+      if (_items.isNotEmpty)
+        _LoadMoreFooter(
+          loading: _loadingMore,
+          hasMore: _hasMore,
+          onPressed: _loadMore,
+        ),
+    ];
+  }
+
+  List<Widget> _housingContent(ThemeData theme) {
+    final List<HousingItem> housings = _housings ?? const <HousingItem>[];
+    final List<UtilityItem> utilities = _utilities ?? const <UtilityItem>[];
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    return <Widget>[
+      SectionCard(
+        title: '租房信息',
+        trailing: AppPrimaryAction(
+          label: '新增住房',
+          onPressed: () => _openForm(BillKind.housing),
+        ),
+        child: housings.isEmpty
+            ? const EmptyState(
+                icon: Icons.home_outlined,
+                title: '暂无住房记录',
+                description: '点右上「新增住房」录入租房信息',
+                compact: true,
+              )
+            : Column(
+                spacing: 4,
+                children: <Widget>[
+                  for (final HousingItem housing in housings)
+                    _RecordRow(
+                      title: housing.name,
+                      subtitle: '${housing.rentTermLabel} · 月租 '
+                          '${formatMoney(housing.actualMonthlyRent)} · 入住 '
+                          '${_shortDate(housing.moveInDate)}',
+                      onTap: () => _openHousingDetail(housing),
+                    ),
+                ],
+              ),
+      ),
+      SectionCard(
+        title: '水电缴费',
+        trailing: AppPrimaryAction(
+          label: '新增缴费',
+          onPressed: () => _openForm(BillKind.utility),
+        ),
+        child: utilities.isEmpty
+            ? const EmptyState(
+                icon: Icons.water_drop_outlined,
+                title: '暂无水电记录',
+                description: '点右上「新增缴费」录入水费/电费',
+                compact: true,
+              )
+            : Column(
+                spacing: 4,
+                children: <Widget>[
+                  for (final UtilityItem item in utilities)
+                    _RecordRow(
+                      title: '${_shortMonth(item.billMonth)} · '
+                          '${_feeTypeLabel(item.feeType)}',
+                      subtitle: '${formatMoney(item.amount)}'
+                          '${item.dueDate == null ? '' : ' · 到期 ${_shortDate(item.dueDate)}'}'
+                          ' · ${item.paid ? '已缴' : '未缴'}',
+                      trailing: StatusChip(
+                        label: item.paid ? '已缴' : '未缴',
+                        tone: item.paid ? StatusTone.success : StatusTone.warning,
+                      ),
+                      onTap: () => _openUtilityDetail(item),
+                    ),
+                ],
+              ),
+      ),
+      Text(
+        '住房与水电记录直接读写网页端同一批接口；删除前会二次确认。',
+        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+      ),
+    ];
+  }
+
+  List<Widget> _subscriptionContent(ThemeData theme) {
+    final List<SubscriptionItem> items =
+        _subscriptions ?? const <SubscriptionItem>[];
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    return <Widget>[
+      SectionCard(
+        title: '订阅列表',
+        trailing: AppPrimaryAction(
+          label: '新增订阅',
+          onPressed: () => _openForm(BillKind.subscription),
+        ),
+        child: items.isEmpty
+            ? const EmptyState(
+                icon: Icons.subscriptions_outlined,
+                title: '暂无订阅',
+                description: '点右上「新增订阅」录入会员/服务器等周期性付费',
+                compact: true,
+              )
+            : Column(
+                spacing: 4,
+                children: <Widget>[
+                  for (final SubscriptionItem item in items)
+                    _RecordRow(
+                      title: item.planName == null || item.planName!.isEmpty
+                          ? item.name
+                          : '${item.name} · ${item.planName}',
+                      subtitle: '${item.category} · '
+                          '${formatMoney(item.amount)} / '
+                          '${item.billingCycleLabel} · 开通 '
+                          '${_shortDate(item.startDate)}',
+                      trailing: StatusChip(
+                        label: item.statusLabel,
+                        tone: switch (item.status) {
+                          'expired' => StatusTone.info,
+                          'cancelled' => StatusTone.info,
+                          _ => StatusTone.success,
+                        },
+                      ),
+                      onTap: () => _openSubscriptionDetail(item),
+                    ),
+                ],
+              ),
+      ),
+      Text(
+        '金额与周期、状态字段与网页端一致；修改会立即同步到网页端。',
+        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+      ),
+    ];
   }
 
   /// 平台 id → 名称；未拉到平台列表时退化为「平台 id」。
@@ -337,10 +615,224 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     return name;
   }
 
-  /// 进入账单明细，平台名通过查询参数透传，省一次请求。
-  void _openDetail(BillItem bill) {
-    context.push(
-      '/finance/bills/${bill.id}?platform=${Uri.encodeComponent(_platformName(bill.platformId))}',
+  /// 网贷：详情层内可查看还款记录，再进入编辑/删除。
+  void _openLoanDetail(BillItem bill) {
+    _showBillDetail(
+      kind: BillKind.loan,
+      id: bill.id,
+      sheet: FinanceBillDetailSheet(
+        kind: BillKind.loan,
+        bill: bill,
+        platformName: _platformName(bill.platformId),
+      ),
+    );
+  }
+
+  /// 住房：点列表项先弹出完整租房信息，详情层里再提供编辑。
+  void _openHousingDetail(HousingItem item) {
+    _showBillDetail(
+      kind: BillKind.housing,
+      id: item.id,
+      sheet: FinanceBillDetailSheet(
+        kind: BillKind.housing,
+        housing: item,
+      ),
+    );
+  }
+
+  /// 水电：详情层展示所属住房、账期、费用类型、到期与缴费状态。
+  void _openUtilityDetail(UtilityItem item) {
+    _showBillDetail(
+      kind: BillKind.utility,
+      id: item.id,
+      sheet: FinanceBillDetailSheet(
+        kind: BillKind.utility,
+        utility: item,
+        housingName: _housingName(item.housingId),
+      ),
+    );
+  }
+
+  /// 订阅：详情层展示方案、周期、金额、起止与续费状态。
+  void _openSubscriptionDetail(SubscriptionItem item) {
+    _showBillDetail(
+      kind: BillKind.subscription,
+      id: item.id,
+      sheet: FinanceBillDetailSheet(
+        kind: BillKind.subscription,
+        subscription: item,
+      ),
+    );
+  }
+
+  /// 住房 id → 名称；未关联或列表没加载到时返回 null（详情里显示「—」）。
+  String? _housingName(int? id) {
+    if (id == null) {
+      return null;
+    }
+    for (final HousingItem item in _housings ?? const <HousingItem>[]) {
+      if (item.id == id) {
+        return item.name;
+      }
+    }
+    return null;
+  }
+
+  /// `yyyy-MM-dd` → `MM-dd`，列表里节省横向空间。
+  static String _shortDate(String? value) {
+    if (value == null || value.isEmpty) {
+      return '未设置';
+    }
+    return value.length >= 10 ? value.substring(5) : value;
+  }
+
+  /// `yyyy-MM-dd` → `yyyy-MM`。
+  static String _shortMonth(String? value) {
+    if (value == null || value.isEmpty) {
+      return '—';
+    }
+    return value.length >= 7 ? value.substring(0, 7) : value;
+  }
+
+  /// 水电费用类型文案。
+  static String _feeTypeLabel(String value) {
+    switch (value) {
+      case 'water':
+        return '水费';
+      case 'gas':
+        return '燃气费';
+      case 'property':
+        return '物业费';
+      case 'broadband':
+        return '宽带费';
+      case 'other':
+        return '其他';
+      default:
+        return '电费';
+    }
+  }
+}
+
+/// 三个 Tab 的分段选择器：固定单行、8dp 小圆角、选中态纯主题色（黑白灰），
+/// 不使用 M3 `SegmentedButton` 默认的 `secondaryContainer`（会露蓝色）。
+class _TabSelector extends StatelessWidget {
+  const _TabSelector({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  static const List<String> _labels = <String>[
+    '网贷借还',
+    '房租水电',
+    '服务订阅',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(AppRadii.control),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          for (int index = 0; index < _labels.length; index++)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: index == value,
+                child: InkWell(
+                  onTap: () => onChanged(index),
+                  borderRadius: BorderRadius.circular(AppRadii.control),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: index == value ? scheme.primary : Colors.transparent,
+                      borderRadius:
+                          BorderRadius.circular(AppRadii.control),
+                    ),
+                    child: Text(
+                      _labels[index],
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: index == value
+                            ? scheme.onPrimary
+                            : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 通用记录行：标题 + 副标题 + 可选状态芯片。
+class _RecordRow extends StatelessWidget {
+  const _RecordRow({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          spacing: 8,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ?trailing,
+            const Icon(Icons.chevron_right, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/health_models.dart';
 import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
-import '../../features/finance/finance_bill_detail_page.dart';
+import '../../features/finance/finance_bill_form_page.dart';
 import '../../features/finance/finance_bills_page.dart';
 import '../../features/finance/finance_debt_detail_page.dart';
 import '../../features/finance/finance_debts_page.dart';
@@ -167,13 +167,22 @@ GoRouter createAppRouter() {
                     builder: (_, _) => const FinanceBillsPage(),
                     routes: <RouteBase>[
                       GoRoute(
-                        path: ':id',
+                        path: 'new',
                         builder: (_, GoRouterState state) =>
-                            FinanceBillDetailPage(
-                          billId: int.tryParse(state.pathParameters['id'] ?? '') ??
-                              0,
-                          platformName:
-                              state.uri.queryParameters['platform'] ?? '',
+                            FinanceBillFormPage(
+                          kind: billKindFromParam(
+                            state.uri.queryParameters['kind'],
+                          ),
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceBillFormPage(
+                          kind: billKindFromParam(
+                            state.uri.queryParameters['kind'],
+                          ),
+                          id: int.tryParse(state.pathParameters['id'] ?? ''),
                         ),
                       ),
                     ],

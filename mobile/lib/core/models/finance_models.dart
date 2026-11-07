@@ -61,6 +61,7 @@ class BillItem {
     required this.paidAmount,
     required this.status,
     this.overdue = false,
+    this.graceApplied = false,
     this.note,
   });
 
@@ -73,6 +74,9 @@ class BillItem {
   final double paidAmount;
   final String status;
   final bool overdue;
+
+  /// 该账单是否已申请容时服务（固定顺延 3 天）。
+  final bool graceApplied;
   final String? note;
 
   /// 待还金额 = 应还金额 - 已还金额（后端 `upcoming.remaining` 同口径）。
@@ -92,6 +96,7 @@ class BillItem {
       paidAmount: _toDouble(json['paid_amount']),
       status: json['status'] as String? ?? 'pending',
       overdue: json['overdue'] as bool? ?? false,
+      graceApplied: json['grace_applied'] as bool? ?? false,
       note: json['note'] as String?,
     );
   }
@@ -737,3 +742,184 @@ int? _minutesOfDay(String? value) {
   }
   return hour * 60 + minute;
 }
+
+/// 住房记录（`/finance/housing`），字段与网页端「房租水电 → 租房」一致。
+class HousingItem {
+  const HousingItem({
+    required this.id,
+    required this.name,
+    required this.shortName,
+    required this.channel,
+    required this.orientation,
+    required this.moveInDate,
+    required this.moveOutDate,
+    required this.rentTerm,
+    required this.actualMonthlyRent,
+    required this.deposit,
+    required this.depositRefunded,
+    required this.depositRefundChannel,
+    required this.agentFee,
+    required this.cleanFee,
+    required this.serviceFee,
+    required this.laundryFee,
+    required this.note,
+  });
+
+  final int id;
+  final String name;
+  final String? shortName;
+  final String? channel;
+  final String? orientation;
+  final String? moveInDate;
+  final String? moveOutDate;
+  final String rentTerm;
+  final double actualMonthlyRent;
+  final double deposit;
+  final double depositRefunded;
+  final String? depositRefundChannel;
+  final double agentFee;
+  final double cleanFee;
+  final double serviceFee;
+  final double laundryFee;
+  final String? note;
+
+  /// 租期文案：月付 / 季付 / 一次性。
+  String get rentTermLabel {
+    switch (rentTerm) {
+      case 'quarterly':
+        return '季付';
+      case 'one_time':
+        return '一次性';
+      default:
+        return '月付';
+    }
+  }
+
+  factory HousingItem.fromJson(Map<String, dynamic> json) {
+    return HousingItem(
+      id: _toInt(json['id']),
+      name: json['name'] as String? ?? '',
+      shortName: json['short_name'] as String?,
+      channel: json['channel'] as String?,
+      orientation: json['orientation'] as String?,
+      moveInDate: json['move_in_date'] as String?,
+      moveOutDate: json['move_out_date'] as String?,
+      rentTerm: json['rent_term'] as String? ?? 'monthly',
+      actualMonthlyRent: _toDouble(json['actual_monthly_rent']),
+      deposit: _toDouble(json['deposit']),
+      depositRefunded: _toDouble(json['deposit_refunded']),
+      depositRefundChannel: json['deposit_refund_channel'] as String?,
+      agentFee: _toDouble(json['agent_fee']),
+      cleanFee: _toDouble(json['clean_fee']),
+      serviceFee: _toDouble(json['service_fee']),
+      laundryFee: _toDouble(json['laundry_fee']),
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 水电缴费记录（`/finance/utilities`），字段与网页端一致。
+class UtilityItem {
+  const UtilityItem({
+    required this.id,
+    required this.housingId,
+    required this.billMonth,
+    required this.feeType,
+    required this.amount,
+    required this.dueDate,
+    required this.paid,
+    required this.note,
+  });
+
+  final int id;
+  final int? housingId;
+  final String billMonth;
+  final String feeType;
+  final double amount;
+  final String? dueDate;
+  final bool paid;
+  final String? note;
+
+  factory UtilityItem.fromJson(Map<String, dynamic> json) {
+    return UtilityItem(
+      id: _toInt(json['id']),
+      housingId: json['housing_id'] == null ? null : _toInt(json['housing_id']),
+      billMonth: json['bill_month'] as String? ?? '',
+      feeType: json['fee_type'] as String? ?? 'electricity',
+      amount: _toDouble(json['amount']),
+      dueDate: json['due_date'] as String?,
+      paid: json['paid'] as bool? ?? false,
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 服务订阅记录（`/finance/subscriptions`），字段与网页端一致。
+class SubscriptionItem {
+  const SubscriptionItem({
+    required this.id,
+    required this.name,
+    required this.planName,
+    required this.category,
+    required this.billingCycle,
+    required this.amount,
+    required this.startDate,
+    required this.endDate,
+    required this.autoRenew,
+    required this.status,
+    required this.note,
+  });
+
+  final int id;
+  final String name;
+  final String? planName;
+  final String category;
+  final String billingCycle;
+  final double amount;
+  final String startDate;
+  final String? endDate;
+  final bool autoRenew;
+  final String status;
+  final String? note;
+
+  /// 计费周期文案。
+  String get billingCycleLabel {
+    switch (billingCycle) {
+      case 'quarter':
+        return '季付';
+      case 'year':
+        return '年付';
+      default:
+        return '月付';
+    }
+  }
+
+  /// 状态文案。
+  String get statusLabel {
+    switch (status) {
+      case 'expired':
+        return '已过期';
+      case 'cancelled':
+        return '已取消';
+      default:
+        return '生效中';
+    }
+  }
+
+  factory SubscriptionItem.fromJson(Map<String, dynamic> json) {
+    return SubscriptionItem(
+      id: _toInt(json['id']),
+      name: json['name'] as String? ?? '',
+      planName: json['plan_name'] as String?,
+      category: json['category'] as String? ?? '会员',
+      billingCycle: json['billing_cycle'] as String? ?? 'month',
+      amount: _toDouble(json['amount']),
+      startDate: json['start_date'] as String? ?? '',
+      endDate: json['end_date'] as String?,
+      autoRenew: json['auto_renew'] as bool? ?? false,
+      status: json['status'] as String? ?? 'active',
+      note: json['note'] as String?,
+    );
+  }
+}
+
