@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/finance_models.dart';
 import '../../core/models/health_models.dart';
+import '../../core/models/investment_models.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
@@ -37,6 +38,9 @@ import '../../features/health/health_steps_create_page.dart';
 import '../../features/health/health_steps_page.dart';
 import '../../features/invest/forex_create_page.dart';
 import '../../features/invest/forex_page.dart';
+import '../../features/invest/fund_record_form_page.dart';
+import '../../features/invest/invest_analysis_page.dart';
+import '../../features/invest/invest_calendar_page.dart';
 import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
@@ -532,6 +536,33 @@ GoRouter createAppRouter() {
                       GoRoute(
                         path: 'new',
                         builder: (_, _) => const ForexCreatePage(),
+                      ),
+                      // 资金记录新增：`POST /investment/funds`，保存后返回 true 触发列表刷新。
+                      GoRoute(
+                        path: 'funds/new',
+                        builder: (_, _) => const FundRecordFormPage(),
+                      ),
+                      // 资金记录编辑 / 删除：`extra` 带列表快照可直接预填，缺失时按 id 拉取。
+                      GoRoute(
+                        path: 'funds/edit/:id',
+                        builder: (_, GoRouterState state) => FundRecordFormPage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          initial: state.extra is FundRecord
+                              ? state.extra as FundRecord
+                              : null,
+                        ),
+                      ),
+                      // 投资分析：`GET /investment/forex/stats`（汇总口径为全部已平仓交易）。
+                      GoRoute(
+                        path: 'analysis',
+                        builder: (_, _) => const InvestAnalysisPage(),
+                      ),
+                      // 交易日历：`GET /investment/forex/calendar?month=YYYY-MM`。
+                      GoRoute(
+                        path: 'calendar',
+                        builder: (_, _) => const InvestCalendarPage(),
                       ),
                     ],
                   ),

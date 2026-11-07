@@ -8,6 +8,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -297,6 +298,25 @@ class _ForexPageState extends State<ForexPage> {
     );
   }
 
+  /// 新增资金记录；保存成功后刷新汇总与资金明细。
+  Future<void> _openFundCreate() async {
+    final bool? changed = await context.push<bool>('/invest/forex/funds/new');
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 编辑 / 删除资金记录；返回 true 后刷新。
+  Future<void> _openFundEdit(FundRecord record) async {
+    final bool? changed = await context.push<bool>(
+      '/invest/forex/funds/edit/${record.id}',
+      extra: record,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   /// 资金分页响应 `items` → [FundRecord]。
   List<FundRecord> _parseFunds(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
@@ -364,24 +384,34 @@ class _ForexPageState extends State<ForexPage> {
                   if (_status == LoadStatus.ready) ...<Widget>[
                     SectionCard(
                       title: '资金动态',
-                      trailing: Text('共 $_fundTotal 笔', style: trailingStyle),
+                      trailing: AppPrimaryAction(
+                        label: '记录资金',
+                        onPressed: _openFundCreate,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 8,
                         children: <Widget>[
+                          Text(
+                            '共 $_fundTotal 笔 · 按发生日期倒序',
+                            style: trailingStyle,
+                          ),
                           _FundMetrics(stats: _fundStats),
                           if (_funds.isEmpty)
                             const EmptyState(
                               icon: Icons.account_balance_wallet_outlined,
                               title: '暂无资金记录',
-                              description: '入金 / 出金 / 体验金可在网页端录入',
+                              description: '点右上角「记录资金」录入第一笔',
                               compact: true,
                             )
                           else
                             Column(
                               children: <Widget>[
                                 for (final FundRecord record in _funds)
-                                  _FundRow(record: record),
+                                  _FundRow(
+                                    record: record,
+                                    onTap: () => _openFundEdit(record),
+                                  ),
                               ],
                             ),
                           if (_funds.isNotEmpty)
@@ -773,9 +803,12 @@ class _FundMetric extends StatelessWidget {
 ///
 /// 金额右对齐、日期定宽、单号占剩余宽度并截断；完整单号通过 [Tooltip] 给出。
 class _FundRow extends StatelessWidget {
-  const _FundRow({required this.record});
+  const _FundRow({required this.record, required this.onTap});
 
   final FundRecord record;
+
+  /// 点击进入编辑页（左保存右删除）。
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -797,78 +830,56 @@ class _FundRow extends StatelessWidget {
         ? colors.success
         : (record.amount < 0 ? colors.danger : muted);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 50,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                record.typeLabel,
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: typeColor,
-                  fontWeight: FontWeight.w600,
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 2,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        record.typeLabel,
+                        maxLines: 1,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: typeColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        formatUsd(record.amount),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: amountColor,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // 单号与备注独占一行，避免在 375dp 上把备注挤成 `#209 · …`。
+                  Text(
+                    '${record.recordDate} · ${record.orderNo}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 78,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                formatUsd(record.amount),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: amountColor,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 70,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                record.recordDate,
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: muted,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Tooltip(
-              message: record.orderNo,
-              child: Text(
-                record.orderNo,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
-            ),
-          ),
-        ],
+            Icon(Icons.chevron_right, size: 18, color: muted),
+          ],
+        ),
       ),
     );
   }

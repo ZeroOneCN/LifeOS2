@@ -331,6 +331,21 @@ class _InvestPageState extends State<InvestPage> {
               child: FeatureGrid(
                 children: <Widget>[
                   FeatureTile(
+                    icon: Icons.candlestick_chart_outlined,
+                    title: '外汇交易',
+                    onTap: () => context.push('/invest/forex'),
+                  ),
+                  FeatureTile(
+                    icon: Icons.insights_outlined,
+                    title: '投资分析',
+                    onTap: () => context.push('/invest/forex/analysis'),
+                  ),
+                  FeatureTile(
+                    icon: Icons.calendar_month_outlined,
+                    title: '交易日历',
+                    onTap: () => context.push('/invest/forex/calendar'),
+                  ),
+                  FeatureTile(
                     icon: Icons.description_outlined,
                     title: '投资报告',
                     onTap: () => context.push('/invest/reports'),

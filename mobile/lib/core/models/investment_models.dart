@@ -187,3 +187,306 @@ class ForexTrade {
     );
   }
 }
+
+/// 资金记录类型选项：与网页端 `fundTypes` 一致，供 [AppSelectField] 使用。
+const List<({String value, String label})> kFundTypes =
+    <({String value, String label})>[
+      (value: 'deposit', label: '入金'),
+      (value: 'withdraw', label: '出金'),
+      (value: 'experience', label: '体验金'),
+    ];
+
+/// 外汇统计汇总（`GET /investment/forex/stats` → `summary`）。
+class ForexSummary {
+  const ForexSummary({
+    required this.accountValue,
+    required this.netProfit,
+    required this.grossPnl,
+    required this.totalCommission,
+    required this.totalOvernight,
+    required this.tradeCount,
+    required this.openCount,
+    required this.winRate,
+    required this.profitLossRatio,
+    required this.profitFactor,
+    required this.totalDeposit,
+    required this.totalWithdraw,
+    required this.totalExperience,
+    required this.symbolCount,
+  });
+
+  final double accountValue;
+  final double netProfit;
+  final double grossPnl;
+  final double totalCommission;
+  final double totalOvernight;
+  final int tradeCount;
+  final int openCount;
+  final double winRate;
+  final double profitLossRatio;
+  final double profitFactor;
+  final double totalDeposit;
+  final double totalWithdraw;
+  final double totalExperience;
+  final int symbolCount;
+
+  factory ForexSummary.fromJson(Map<String, dynamic> json) {
+    return ForexSummary(
+      accountValue: _toDouble(json['account_value']),
+      netProfit: _toDouble(json['net_profit']),
+      grossPnl: _toDouble(json['gross_pnl']),
+      totalCommission: _toDouble(json['total_commission']),
+      totalOvernight: _toDouble(json['total_overnight']),
+      tradeCount: _toInt(json['trade_count']),
+      openCount: _toInt(json['open_count']),
+      winRate: _toDouble(json['win_rate']),
+      profitLossRatio: _toDouble(json['profit_loss_ratio']),
+      profitFactor: _toDouble(json['profit_factor']),
+      totalDeposit: _toDouble(json['total_deposit']),
+      totalWithdraw: _toDouble(json['total_withdraw']),
+      totalExperience: _toDouble(json['total_experience']),
+      symbolCount: _toInt(json['symbol_count']),
+    );
+  }
+}
+
+/// 单品种盈亏（`by_symbol` 列表项）。
+class ForexSymbolStat {
+  const ForexSymbolStat({
+    required this.symbol,
+    required this.count,
+    required this.winRate,
+    required this.pnl,
+  });
+
+  final String symbol;
+  final int count;
+  final double winRate;
+  final double pnl;
+
+  factory ForexSymbolStat.fromJson(Map<String, dynamic> json) {
+    return ForexSymbolStat(
+      symbol: json['symbol'] as String? ?? '',
+      count: _toInt(json['count']),
+      winRate: _toDouble(json['win_rate']),
+      pnl: _toDouble(json['pnl']),
+    );
+  }
+}
+
+/// 单时段交易笔数（`analysis.hour_dist` 列表项）。
+class ForexHourStat {
+  const ForexHourStat({required this.hour, required this.count});
+
+  final int hour;
+  final int count;
+
+  /// 时段文案：`08:00`。
+  String get label => '${_two(hour)}:00';
+
+  factory ForexHourStat.fromJson(Map<String, dynamic> json) {
+    return ForexHourStat(
+      hour: _toInt(json['hour']),
+      count: _toInt(json['count']),
+    );
+  }
+}
+
+/// 交易分析指标（`GET /investment/forex/stats` → `analysis`）。
+class ForexAnalysis {
+  const ForexAnalysis({
+    required this.avgWin,
+    required this.avgLoss,
+    required this.maxSingleProfit,
+    required this.maxSingleLoss,
+    required this.maxDayProfit,
+    required this.maxDayLoss,
+    required this.maxDrawdown,
+    required this.maxDrawdownPct,
+    required this.profitFactor,
+    required this.longestWinStreak,
+    required this.longestLossStreak,
+    required this.avgHoldingMinutes,
+    required this.hourDist,
+  });
+
+  final double? avgWin;
+  final double? avgLoss;
+  final double? maxSingleProfit;
+  final double? maxSingleLoss;
+  final double? maxDayProfit;
+  final double? maxDayLoss;
+  final double maxDrawdown;
+  final double maxDrawdownPct;
+  final double profitFactor;
+  final int longestWinStreak;
+  final int longestLossStreak;
+  final int? avgHoldingMinutes;
+  final List<ForexHourStat> hourDist;
+
+  /// 平均持仓文案：`1 小时 25 分`；无平仓时间时显示「—」。
+  String get avgHoldingText {
+    final int? minutes = avgHoldingMinutes;
+    if (minutes == null || minutes <= 0) {
+      return '—';
+    }
+    if (minutes < 60) {
+      return '$minutes 分钟';
+    }
+    final int hours = minutes ~/ 60;
+    final int rest = minutes % 60;
+    return rest == 0 ? '$hours 小时' : '$hours 小时 $rest 分';
+  }
+
+  factory ForexAnalysis.fromJson(Map<String, dynamic> json) {
+    double? optional(String key) =>
+        json[key] == null ? null : _toDouble(json[key]);
+    return ForexAnalysis(
+      avgWin: optional('avg_win'),
+      avgLoss: optional('avg_loss'),
+      maxSingleProfit: optional('max_single_profit'),
+      maxSingleLoss: optional('max_single_loss'),
+      maxDayProfit: optional('max_day_profit'),
+      maxDayLoss: optional('max_day_loss'),
+      maxDrawdown: _toDouble(json['max_drawdown']),
+      maxDrawdownPct: _toDouble(json['max_drawdown_pct']),
+      profitFactor: _toDouble(json['profit_factor']),
+      longestWinStreak: _toInt(json['longest_win_streak']),
+      longestLossStreak: _toInt(json['longest_loss_streak']),
+      avgHoldingMinutes: json['avg_holding_minutes'] == null
+          ? null
+          : _toInt(json['avg_holding_minutes']),
+      hourDist: ((json['hour_dist'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) =>
+              ForexHourStat.fromJson(item.cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+}
+
+/// 外汇统计聚合（`GET /investment/forex/stats?days=`）。
+class ForexStats {
+  const ForexStats({
+    required this.summary,
+    required this.bySymbol,
+    required this.analysis,
+  });
+
+  final ForexSummary summary;
+  final List<ForexSymbolStat> bySymbol;
+  final ForexAnalysis analysis;
+
+  factory ForexStats.fromJson(Map<String, dynamic> json) {
+    return ForexStats(
+      summary: ForexSummary.fromJson(
+        (json['summary'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      ),
+      bySymbol: ((json['by_symbol'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) =>
+              ForexSymbolStat.fromJson(item.cast<String, dynamic>()))
+          .toList(),
+      analysis: ForexAnalysis.fromJson(
+        (json['analysis'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      ),
+    );
+  }
+}
+
+/// 交易日历单日（`GET /investment/forex/calendar` → `days`）。
+class ForexCalendarDay {
+  const ForexCalendarDay({
+    required this.day,
+    required this.pnl,
+    required this.count,
+    required this.win,
+    required this.loss,
+    required this.position,
+  });
+
+  final int day;
+  final double pnl;
+  final int count;
+  final int win;
+  final int loss;
+  final bool position;
+
+  /// 是否有交易（无交易的日子不显示金额）。
+  bool get active => count > 0;
+
+  factory ForexCalendarDay.fromJson(Map<String, dynamic> json) {
+    return ForexCalendarDay(
+      day: _toInt(json['day']),
+      pnl: _toDouble(json['pnl']),
+      count: _toInt(json['count']),
+      win: _toInt(json['win']),
+      loss: _toInt(json['loss']),
+      position: json['position'] as bool? ?? false,
+    );
+  }
+}
+
+/// 交易日历月汇总（`summary`）。
+class ForexCalendarSummary {
+  const ForexCalendarSummary({
+    required this.monthPnl,
+    required this.tradingDays,
+    required this.winDays,
+    required this.lossDays,
+    required this.returnRate,
+  });
+
+  final double monthPnl;
+  final int tradingDays;
+  final int winDays;
+  final int lossDays;
+  final double returnRate;
+
+  factory ForexCalendarSummary.fromJson(Map<String, dynamic> json) {
+    return ForexCalendarSummary(
+      monthPnl: _toDouble(json['month_pnl']),
+      tradingDays: _toInt(json['trading_days']),
+      winDays: _toInt(json['win_days']),
+      lossDays: _toInt(json['loss_days']),
+      returnRate: _toDouble(json['return_rate']),
+    );
+  }
+}
+
+/// 交易日历（`GET /investment/forex/calendar?month=YYYY-MM`）。
+class ForexCalendar {
+  const ForexCalendar({
+    required this.year,
+    required this.month,
+    required this.days,
+    required this.summary,
+  });
+
+  final int year;
+  final int month;
+  final List<ForexCalendarDay> days;
+  final ForexCalendarSummary summary;
+
+  /// `2026-09`：切换月份时的请求参数。
+  String get monthKey =>
+      '$year-${month < 10 ? '0$month' : '$month'}';
+
+  factory ForexCalendar.fromJson(Map<String, dynamic> json) {
+    return ForexCalendar(
+      year: _toInt(json['year']),
+      month: _toInt(json['month']),
+      days: ((json['days'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) =>
+              ForexCalendarDay.fromJson(item.cast<String, dynamic>()))
+          .toList(),
+      summary: ForexCalendarSummary.fromJson(
+        (json['summary'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      ),
+    );
+  }
+}
