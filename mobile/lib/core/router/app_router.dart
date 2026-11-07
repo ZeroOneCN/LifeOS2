@@ -21,6 +21,8 @@ import '../../features/health/health_body_ble_page.dart';
 import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_page.dart';
+import '../../features/health/health_diet_form_page.dart';
+import '../../features/health/health_diet_page.dart';
 import '../../features/health/health_fitness_form_page.dart';
 import '../../features/health/health_fitness_page.dart';
 import '../../features/health/health_med_purchase_form_page.dart';
@@ -245,6 +247,28 @@ GoRouter createAppRouter() {
                                   ? state.extra as FitnessRecord
                                   : null,
                             ),
+                      ),
+                    ],
+                  ),
+                  // 饮食记录：今日摄入汇总 + 按日期/餐次分组的记录列表。
+                  GoRoute(
+                    path: 'diet',
+                    builder: (_, _) => const HealthDietPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthDietFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) => HealthDietFormPage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          initial: state.extra is DietRecord
+                              ? state.extra as DietRecord
+                              : null,
+                        ),
                       ),
                     ],
                   ),

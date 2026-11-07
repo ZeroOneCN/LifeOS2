@@ -82,3 +82,16 @@ String formatOneDecimal(num? value) {
   final String sign = value < 0 ? '-' : '';
   return '$sign${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
 }
+
+/// 紧凑数值：整数不带小数，非整数最多两位并去掉尾零（100.0 → 100、12.50 → 12.5）。
+///
+/// 用于克数等不强制固定小数位的展示；null 返回 `—`。
+String formatCompact(num? value) {
+  if (value == null) {
+    return '—';
+  }
+  final String text = value.abs().toStringAsFixed(2);
+  final String trimmed = text.replaceFirst(RegExp(r'\.?0+$'), '');
+  final String body = trimmed.isEmpty ? '0' : trimmed;
+  return value < 0 ? '-$body' : body;
+}

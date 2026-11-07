@@ -732,6 +732,159 @@ class FitnessStats {
   }
 }
 
+/// 饮食餐次（后端 `health_diet.meal_type` 的合法取值，与网页端 MEAL_LABEL 一致）。
+const List<({String value, String label})> kMealTypes =
+    <({String value, String label})>[
+      (value: 'breakfast', label: '早餐'),
+      (value: 'lunch', label: '午餐'),
+      (value: 'dinner', label: '晚餐'),
+      (value: 'snack', label: '加餐'),
+    ];
+
+/// 餐次值 → 中文展示名；未知值原样返回（兼容历史数据）。
+String mealTypeLabel(String value) {
+  for (final ({String value, String label}) item in kMealTypes) {
+    if (item.value == value) {
+      return item.label;
+    }
+  }
+  return value;
+}
+
+/// 餐次排序权重：早餐 → 午餐 → 晚餐 → 加餐；未知值排在最后。
+///
+/// 后端列表只按 `record_date` 倒序，同一天内的餐次顺序由客户端按此权重排列。
+int mealTypeOrder(String value) {
+  for (int i = 0; i < kMealTypes.length; i++) {
+    if (kMealTypes[i].value == value) {
+      return i;
+    }
+  }
+  return kMealTypes.length;
+}
+
+/// 单条饮食记录（`GET /health/diet` 列表项）。
+///
+/// 热量与三大营养素可能为 null（历史手工数据未填），展示时须显示「—」；
+/// 新增/编辑留空提交 null，由后端按食物名与克数补算，客户端不自行计算。
+class DietRecord {
+  const DietRecord({
+    required this.id,
+    required this.recordDate,
+    required this.mealType,
+    required this.foodName,
+    required this.weightG,
+    this.calories,
+    this.protein,
+    this.carbs,
+    this.fat,
+    this.note,
+  });
+
+  final int id;
+  final String recordDate;
+  final String mealType;
+  final String foodName;
+  final double weightG;
+  final double? calories;
+  final double? protein;
+  final double? carbs;
+  final double? fat;
+  final String? note;
+
+  factory DietRecord.fromJson(Map<String, dynamic> json) {
+    return DietRecord(
+      id: _toInt(json['id']),
+      recordDate: json['record_date'] as String? ?? '',
+      mealType: json['meal_type'] as String? ?? '',
+      foodName: json['food_name'] as String? ?? '',
+      weightG: _toDouble(json['weight_g']),
+      calories: _toDoubleOrNull(json['calories']),
+      protein: _toDoubleOrNull(json['protein']),
+      carbs: _toDoubleOrNull(json['carbs']),
+      fat: _toDoubleOrNull(json['fat']),
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 每日营养小计（统计接口 `trend` 项）。
+///
+/// 与列表同源：页面顶部「今日摄入」和列表里每日小计都取自这份数据，
+/// 因此同一天的两处数字必然一致。
+class DietDayTotals {
+  const DietDayTotals({
+    required this.date,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+    required this.count,
+  });
+
+  final String date;
+  final double calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+  final int count;
+
+  factory DietDayTotals.fromJson(Map<String, dynamic> json) {
+    return DietDayTotals(
+      date: json['record_date'] as String? ?? '',
+      calories: _toDouble(json['calories']),
+      protein: _toDouble(json['protein']),
+      carbs: _toDouble(json['carbs']),
+      fat: _toDouble(json['fat']),
+      count: _toInt(json['count']),
+    );
+  }
+}
+
+/// 饮食统计（`GET /health/diet/stats?days=0`，days=0 表示全部）。
+class DietStats {
+  const DietStats({
+    required this.trend,
+    required this.totalCount,
+    required this.totalCalories,
+    required this.totalProtein,
+    this.avgCaloriesPerDay,
+  });
+
+  final List<DietDayTotals> trend;
+  final int totalCount;
+  final double totalCalories;
+  final double totalProtein;
+  final double? avgCaloriesPerDay;
+
+  /// 某天的汇总；当天没有记录时返回 null（顶部「今日」据此显示「—」）。
+  DietDayTotals? forDate(String date) {
+    for (final DietDayTotals day in trend) {
+      if (day.date == date) {
+        return day;
+      }
+    }
+    return null;
+  }
+
+  factory DietStats.fromJson(Map<String, dynamic> json) {
+    return DietStats(
+      trend: ((json['trend'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map(
+            (Map item) => DietDayTotals.fromJson(item.cast<String, dynamic>()),
+          )
+          .toList(growable: false),
+      totalCount: _toInt(json['total_count']),
+      totalCalories: _toDouble(json['total_calories']),
+      totalProtein: _toDouble(json['total_protein']),
+      avgCaloriesPerDay: json['avg_calories_per_day'] == null
+          ? null
+          : _toDouble(json['avg_calories_per_day']),
+    );
+  }
+}
+
 /// 单个体检指标的趋势点（统计接口 `items[].trend`）。
 class CheckupTrendPoint {
   const CheckupTrendPoint({required this.date, this.value, this.result});

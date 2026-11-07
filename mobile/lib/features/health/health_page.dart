@@ -190,6 +190,11 @@ class _HealthPageState extends State<HealthPage> {
                     onTap: () => context.push('/health/fitness'),
                   ),
                   FeatureTile(
+                    icon: Icons.restaurant_outlined,
+                    title: '饮食记录',
+                    onTap: () => context.push('/health/diet'),
+                  ),
+                  FeatureTile(
                     icon: Icons.assignment_outlined,
                     title: '体检指标',
                     onTap: () => context.push('/health/checkup'),
