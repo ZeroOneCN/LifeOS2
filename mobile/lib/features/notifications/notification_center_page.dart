@@ -504,8 +504,8 @@ class _NotificationTile extends StatelessWidget {
                   ),
                   child: Text(item.category, style: metaStyle),
                 ),
-                if (item.source != null && item.source!.isNotEmpty)
-                  Text('来源 ${item.source}', style: metaStyle),
+                if (item.sourceLabel != null)
+                  Text('来源 ${item.sourceLabel}', style: metaStyle),
                 Text(item.notifyDate, style: metaStyle),
               ],
             ),
