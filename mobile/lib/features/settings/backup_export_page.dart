@@ -651,26 +651,17 @@ class _LogRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Expanded(
-                child: Text(
-                  _displayTime(log.createdAt),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-              ),
               if (log.name.isNotEmpty)
                 Expanded(
-                  flex: 2,
                   child: Text(
                     log.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.end,
                     style: theme.textTheme.bodySmall,
                   ),
-                ),
+                )
+              else
+                const Spacer(),
               Text(
                 log.succeeded ? '成功' : '失败',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -681,14 +672,21 @@ class _LogRow extends StatelessWidget {
               ),
             ],
           ),
+          // 时间单独占一行、不设省略：1.3x 字号下也能完整看到「11-07 06:25」。
           Text(
-            '${format.isEmpty ? '' : '$format · '}'
-            '${log.fileSizeDisplay ?? '—'}'
-            '${log.filename == null ? '' : ' · ${log.filename}'}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            '${_displayTime(log.createdAt)}'
+            '${format.isEmpty ? '' : ' · $format'}'
+            ' · ${log.fileSizeDisplay ?? '—'}',
+            softWrap: true,
             style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),
+          if (log.filename != null && log.filename!.isNotEmpty)
+            Text(
+              log.filename!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
           if (!log.succeeded &&
               log.errorMessage != null &&
               log.errorMessage!.trim().isNotEmpty)
