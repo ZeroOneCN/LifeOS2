@@ -526,6 +526,41 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     return DetailPageScaffold(
       title: _editing ? '编辑$_kindLabel' : '新增$_kindLabel',
+      bottomBar: _loading
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (_editing)
+                  AppActionRow(
+                    first: AppPrimaryButton(
+                      label: '保存',
+                      icon: Icons.save_outlined,
+                      loading: _saving,
+                      onPressed: _deleting ? null : _save,
+                    ),
+                    second: AppDangerButton(
+                      label: '删除',
+                      loading: _deleting,
+                      onPressed: _saving || _deleting ? null : _delete,
+                    ),
+                  )
+                else
+                  AppPrimaryButton(
+                    label: '保存',
+                    icon: Icons.save_outlined,
+                    loading: _saving,
+                    onPressed: _save,
+                  ),
+                const SizedBox(height: 6),
+                Text(
+                  '金额相关操作需联网，失败时表单会保留。',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ],
+            ),
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -560,32 +595,6 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
                         ),
                       ),
                     ),
-                  if (_editing)
-                    AppActionRow(
-                      first: AppPrimaryButton(
-                        label: '保存',
-                        icon: Icons.save_outlined,
-                        loading: _saving,
-                        onPressed: _deleting ? null : _save,
-                      ),
-                      second: AppDangerButton(
-                        label: '删除',
-                        loading: _deleting,
-                        onPressed: _saving || _deleting ? null : _delete,
-                      ),
-                    )
-                  else
-                    AppPrimaryButton(
-                      label: '保存',
-                      icon: Icons.save_outlined,
-                      loading: _saving,
-                      onPressed: _save,
-                    ),
-                  Text(
-                    '账单涉及金额，保存与删除均在线提交；网络异常时表单会保留，'
-                    '不会静默进入离线队列。',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
                     ],
                   ),
                 ],
@@ -610,7 +619,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
             onChanged: (int? value) => setState(() => _platformId = value),
           ),
           _dateField(
-            label: '账单月份',
+            label: '账单月份 *',
             text: _billMonth == null ? '请选择' : _monthText(_billMonth!),
             onTap: () => _pickMonth((DateTime value) {
               setState(() => _billMonth = DateTime(value.year, value.month, 1));
@@ -654,7 +663,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
           _textField('channel', '租房渠道'),
           _textField('orientation', '房屋朝向'),
           _dateField(
-            label: '入住日期',
+            label: '入住日期 *',
             text: _moveInDate == null ? '请选择' : _dateText(_moveInDate!),
             onTap: () => _pickDate((DateTime value) {
               setState(() => _moveInDate = value);
@@ -775,7 +784,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
           ),
           _textField('amount', '每期金额', numeric: true, required: true),
           _dateField(
-            label: '开通日期（必填）',
+            label: '开通日期 *',
             text: _startDate == null ? '请选择' : _dateText(_startDate!),
             onTap: () => _pickDate((DateTime value) {
               setState(() => _startDate = value);

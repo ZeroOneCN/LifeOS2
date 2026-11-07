@@ -771,6 +771,8 @@ class _MoneyField extends StatelessWidget {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(
         labelText: label,
+        // 金额字段统一带 ¥，与账单/债务页的展示口径一致。
+        prefixText: '¥ ',
         helperText: helper,
       ),
     );
