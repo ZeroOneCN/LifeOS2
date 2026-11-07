@@ -320,11 +320,29 @@ String _metricValue(double? value) {
   return value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
 }
 
+/// 参考区间去掉无意义的尾随零：65.00-85.00 → 65-85，208.30 → 208.3。
+String _trimReference(String text) {
+  return text.replaceAllMapped(
+    RegExp(r'\d+\.\d+'),
+    (Match match) => _trimDecimal(match.group(0)!),
+  );
+}
+
+String _trimDecimal(String value) {
+  if (!value.contains('.')) {
+    return value;
+  }
+  final String trimmed = value.replaceFirst(RegExp(r'0+$'), '');
+  return trimmed.endsWith('.')
+      ? trimmed.substring(0, trimmed.length - 1)
+      : trimmed;
+}
+
 /// 参考范围：接口优先，缺失时由上下限拼出；都没有显示「—」。
 String _referenceText(CheckupItem item) {
   final String? raw = item.referenceRange?.trim();
   if (raw != null && raw.isNotEmpty) {
-    return raw;
+    return _trimReference(raw);
   }
   final double? low = item.refLow;
   final double? high = item.refHigh;
@@ -450,15 +468,18 @@ class _CheckupRow extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (unit.isNotEmpty)
-                        TextSpan(
-                          text: ' $unit',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: muted),
-                        ),
                     ],
                   ),
                 ),
+                // 单位单独成块且不换行：mL/(min*1.73m²) 这类长单位不再被
+                // 拆成「mL/（min*1.」两截。
+                if (unit.isNotEmpty)
+                  Text(
+                    unit,
+                    softWrap: false,
+                    style:
+                        theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
                 Text(
                   '参考 ${_referenceText(item)}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),

@@ -253,9 +253,8 @@ class _HealthDietPageState extends State<HealthDietPage> {
                 SectionCard(
                   title: '今日摄入',
                   trailing: Text(
-                    today == null
-                        ? '${_todayText.substring(5)} · 今日暂无记录'
-                        : '${_todayText.substring(5)} · ${today.count} 条',
+                    // 与列表分组一致使用完整日期，避免同页出现 11-08 / 2026-11-08 两种写法。
+                    '$_todayText · ${today?.count ?? 0} 条',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                   child: Column(
