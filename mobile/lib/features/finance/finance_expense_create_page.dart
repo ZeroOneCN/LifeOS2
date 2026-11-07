@@ -169,7 +169,7 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
       child: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.only(bottom: 32),
           children: <Widget>[
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

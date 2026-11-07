@@ -7,6 +7,7 @@ import '../../core/data/overview_models.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/feature_entries.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -194,9 +195,9 @@ class _HealthPageState extends State<HealthPage> {
             ),
             SectionCard(
               title: '今日用药待办',
-              trailing: TextButton(
+              trailing: AppPrimaryAction(
+                label: '新增用药',
                 onPressed: () => _openMedicationCreate(),
-                child: const Text('新增'),
               ),
               child: meds.isEmpty
                   ? EmptyState(
@@ -204,7 +205,7 @@ class _HealthPageState extends State<HealthPage> {
                       title: '今天暂无用药记录',
                       description: state.status == LoadStatus.unauthenticated
                           ? '登录后展示今日待服清单'
-                          : '点右上「新增」添加今天的用药计划',
+                          : '点右上「新增用药」添加今天的用药计划',
                       compact: true,
                     )
                   : Column(

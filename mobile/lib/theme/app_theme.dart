@@ -157,6 +157,14 @@ extension AppThemeContext on BuildContext {
       Theme.of(this).extension<AppSemanticColors>()!;
 }
 
+/// 圆角令牌：全 App 的按钮、Tab 指示器等「控件类」统一 8dp。
+///
+/// 卡片、输入框属于「容器类」，各自保持原有 12dp，不与控件混用。
+abstract final class AppRadii {
+  /// 控件圆角（按钮 / Tab 指示器 / 分段选择器）。
+  static const double control = 8;
+}
+
 abstract final class AppTheme {
   static ThemeData light() => _build(Brightness.light);
 
@@ -198,6 +206,10 @@ abstract final class AppTheme {
         // 深色模式下 primary 接近白色，靠颜色深浅区分选中太弱，
         // 因此叠加更明显的选中胶囊 + 图标放大 + 未选态降透明度。
         indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.22 : 0.10),
+        // 选中指示器只做小圆角，不用 Material 默认的大胶囊。
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
+        ),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle?>((states) {
           final bool selected = states.contains(WidgetState.selected);
@@ -242,8 +254,43 @@ abstract final class AppTheme {
           // 否则 FilledButton 放进 Row 时会强制无限宽度并触发布局断言。
           minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadii.control),
           ),
+        ),
+      ),
+      // 次操作 / 危险操作都由 OutlinedButton 承担：统一 48 高、8 圆角，
+      // 与主操作同尺寸，成对出现时不会一个长一个短。
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+          ),
+        ),
+      ),
+      // 分段选择器（区间 / 类型切换）：8dp 小圆角 + 黑白灰选中态，不用大胶囊。
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStatePropertyAll<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadii.control),
+            ),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                ? scheme.primary
+                : scheme.surfaceContainerHigh,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+            (Set<WidgetState> states) => states.contains(WidgetState.selected)
+                ? scheme.onPrimary
+                : scheme.onSurfaceVariant,
+          ),
+          side: WidgetStatePropertyAll<BorderSide>(
+            BorderSide(color: scheme.outlineVariant),
+          ),
+          visualDensity: VisualDensity.compact,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -274,7 +321,7 @@ abstract final class AppTheme {
         foregroundColor: scheme.onPrimary,
         elevation: 2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppRadii.control),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -287,22 +334,62 @@ abstract final class AppTheme {
     );
   }
 
-  /// 显式对齐 Web 色板：先 fromSeed 保证 M3 内部派生字段完整，再覆盖中性面与语义 error。
+  /// 显式覆盖所有会露出的 M3 色槽，避免 `fromSeed` 的蓝色中性色泄漏。
+  ///
+  /// `fromSeed(Color(0xFF171717))` 虽然种子近黑，但 M3 会用种子推导出一整套
+  /// 带蓝色相的 tonal palette（`secondaryContainer` 就是浅蓝），一旦只覆盖
+  /// primary / surface 等少数槽位，Tab 选中态就会露出默认蓝。因此这里把
+  /// primary / secondary / tertiary / container / fixed / surfaceTint 全量
+  /// 收敛到黑白灰体系；红色只保留在 error（危险语义）。
   static ColorScheme _colorScheme(Brightness brightness) {
     final bool isDark = brightness == Brightness.dark;
     final ColorScheme base = ColorScheme.fromSeed(
       seedColor: isDark ? AppColors.primaryDark : AppColors.primaryLight,
       brightness: brightness,
     );
+    final Color primary = isDark ? AppColors.primaryDark : AppColors.primaryLight;
+    final Color onPrimary =
+        isDark ? AppColors.onPrimaryDark : AppColors.onPrimaryLight;
+    final Color surface = isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
+    final Color onSurface =
+        isDark ? AppColors.foregroundDark : AppColors.foregroundLight;
+    final Color container = isDark ? AppColors.mutedDark : AppColors.mutedLight;
+    final Color onContainer = onSurface;
+    final Color neutral =
+        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForegroundLight;
     return base.copyWith(
-      primary: isDark ? AppColors.primaryDark : AppColors.primaryLight,
-      onPrimary: isDark ? AppColors.onPrimaryDark : AppColors.onPrimaryLight,
-      secondary: isDark ? AppColors.mutedDark : AppColors.mutedLight,
-      onSecondary: isDark ? AppColors.foregroundDark : AppColors.foregroundLight,
-      surface: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      onSurface: isDark ? AppColors.foregroundDark : AppColors.foregroundLight,
-      onSurfaceVariant:
-          isDark ? AppColors.mutedForegroundDark : AppColors.mutedForegroundLight,
+      primary: primary,
+      onPrimary: onPrimary,
+      primaryContainer: container,
+      onPrimaryContainer: onContainer,
+      secondary: neutral,
+      onSecondary: isDark ? AppColors.foregroundDark : AppColors.backgroundLight,
+      secondaryContainer: container,
+      onSecondaryContainer: onContainer,
+      tertiary: neutral,
+      onTertiary: isDark ? AppColors.foregroundDark : AppColors.backgroundLight,
+      tertiaryContainer: container,
+      onTertiaryContainer: onContainer,
+      // fixed / dim 系列同样来自种子色，一旦被新组件使用就会露出蓝色。
+      primaryFixed: container,
+      primaryFixedDim: container,
+      onPrimaryFixed: onContainer,
+      onPrimaryFixedVariant: neutral,
+      secondaryFixed: container,
+      secondaryFixedDim: container,
+      onSecondaryFixed: onContainer,
+      onSecondaryFixedVariant: neutral,
+      tertiaryFixed: container,
+      tertiaryFixedDim: container,
+      onTertiaryFixed: onContainer,
+      onTertiaryFixedVariant: neutral,
+      inversePrimary: neutral,
+      surfaceTint: Colors.transparent,
+      surface: surface,
+      onSurface: onSurface,
+      onSurfaceVariant: neutral,
+      surfaceBright: isDark ? AppColors.cardDark : AppColors.cardLight,
+      surfaceDim: surface,
       error: isDark ? AppColors.dangerDark : AppColors.dangerLight,
       onError:
           isDark ? AppColors.onSemanticDark : AppColors.onSemanticLight,
@@ -312,10 +399,9 @@ abstract final class AppTheme {
           isDark ? AppColors.backgroundDark : AppColors.cardLight,
       surfaceContainerLow:
           isDark ? AppColors.cardDark : AppColors.backgroundLight,
-      surfaceContainer: isDark ? AppColors.mutedDark : AppColors.mutedLight,
-      surfaceContainerHigh: isDark ? AppColors.mutedDark : AppColors.mutedLight,
-      surfaceContainerHighest:
-          isDark ? AppColors.mutedDark : AppColors.mutedLight,
+      surfaceContainer: container,
+      surfaceContainerHigh: container,
+      surfaceContainerHighest: container,
     );
   }
 }

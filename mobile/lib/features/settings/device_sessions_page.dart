@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -142,7 +143,6 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
-        final ThemeData theme = Theme.of(dialogContext);
         return AlertDialog(
           title: const Text('下线该设备'),
           content: Text(
@@ -150,16 +150,18 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
             '该设备会立即退出登录，需要重新登录后才能继续访问。',
           ),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(
-                foregroundColor: theme.colorScheme.error,
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
               ),
-              child: const Text('确认下线'),
+              second: AppDangerButton(
+                label: '确认下线',
+                icon: Icons.logout,
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
             ),
           ],
         );
@@ -352,14 +354,12 @@ class _SessionRow extends StatelessWidget {
           ),
         ),
         if (!session.isCurrent)
-          TextButton(
-            onPressed: revoking ? null : onRevoke,
-            style: TextButton.styleFrom(
-              foregroundColor: theme.colorScheme.error,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              minimumSize: const Size(0, 36),
-            ),
-            child: Text(revoking ? '下线中…' : '下线'),
+          AppDangerButton(
+            label: revoking ? '下线中…' : '下线',
+            icon: Icons.logout,
+            compact: true,
+            loading: revoking,
+            onPressed: onRevoke,
           ),
       ],
     );
