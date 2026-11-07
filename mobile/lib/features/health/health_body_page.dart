@@ -274,14 +274,14 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
   Widget build(BuildContext context) {
     return DetailPageScaffold(
       title: '体重记录',
-      floatingActionButton: FloatingActionButton.extended(
+      // 主操作放底栏：底栏独立占位，列表滚动到底时最后一行不会被按钮压住。
+      bottomBar: AppPrimaryButton(
+        label: '新增体重',
+        icon: Icons.add,
         onPressed: _status == LoadStatus.loading ? null : _openCreate,
-        icon: const Icon(Icons.add),
-        label: const Text('新增体重'),
       ),
       child: ListView(
-        // 底部预留悬浮「记录身体」按钮的安全距离。
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
           ListStatusView(
             status: _status,
@@ -409,7 +409,7 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
         child: const EmptyState(
           icon: Icons.monitor_weight_outlined,
           title: '暂无体重记录',
-          description: '点右下「新增体重」录入第一条',
+          description: '点底部「新增体重」录入第一条',
           compact: true,
         ),
       );

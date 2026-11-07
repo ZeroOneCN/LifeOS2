@@ -124,14 +124,14 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
 
     return DetailPageScaffold(
       title: '步数统计',
-      floatingActionButton: FloatingActionButton.extended(
+      // 主操作放底栏：底栏独立占位，走势图与明细不会被悬浮按钮压住。
+      bottomBar: AppPrimaryButton(
+        label: '新增步数',
+        icon: Icons.add,
         onPressed: _openCreate,
-        icon: const Icon(Icons.add),
-        label: const Text('新增步数'),
       ),
       child: ListView(
-        // 底部预留悬浮「新增步数」按钮的安全距离。
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -197,7 +197,7 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
                         const EmptyState(
                           icon: Icons.directions_walk_outlined,
                           title: '该区间没有步数记录',
-                          description: '点右下「新增步数」录入第一条',
+                          description: '点底部「新增步数」录入第一条',
                           compact: true,
                         )
                       else
@@ -293,7 +293,7 @@ class _TrendBars extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             spacing: 4,
             children: <Widget>[
-              for (final StepTrendPoint point in points)
+              for (int i = 0; i < points.length; i++)
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -302,23 +302,27 @@ class _TrendBars extends StatelessWidget {
                       Container(
                         height: maxSteps == 0
                             ? 2
-                            : (78 * point.steps / maxSteps).clamp(2, 78),
+                            : (78 * points[i].steps / maxSteps).clamp(2, 78),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.primary.withValues(
-                            alpha: point.steps == maxSteps ? 1 : 0.55,
+                            alpha: points[i].steps == maxSteps ? 1 : 0.55,
                           ),
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(3),
                           ),
                         ),
                       ),
-                      Text(
-                        point.date.length >= 10
-                            ? point.date.substring(8, 10)
-                            : point.date,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: 10,
+                      // X 轴默认只显示日；跨月或第一天补「月/日」，
+                      // 否则 30 天区间里看不出这几天属于哪个月。
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _axisLabel(points, i),
+                          maxLines: 1,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                          ),
                         ),
                       ),
                     ],
@@ -329,6 +333,23 @@ class _TrendBars extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// 柱状图 X 轴标签：14 根柱子里只有首根与跨月首日显示「月/日」，其余只显示日。
+  String _axisLabel(List<StepTrendPoint> points, int index) {
+    final String date = points[index].date;
+    if (date.length < 10) {
+      return date;
+    }
+    final String month = date.substring(5, 7);
+    final String day = date.substring(8, 10);
+    final bool firstOfMonth = index == 0 ||
+        (points[index - 1].date.length >= 10 &&
+            points[index - 1].date.substring(5, 7) != month);
+    if (!firstOfMonth) {
+      return day;
+    }
+    return '${int.tryParse(month) ?? month}/${int.tryParse(day) ?? day}';
   }
 }
 
@@ -581,7 +602,7 @@ class _DayPeriodSheetState extends State<_DayPeriodSheet> {
                 child: EmptyState(
                   icon: Icons.directions_walk_outlined,
                   title: '当天没有时段记录',
-                  description: '可用右下「新增步数」补录',
+                  description: '可在步数页底部「新增步数」补录',
                   compact: true,
                 ),
               )

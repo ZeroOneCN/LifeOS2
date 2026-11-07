@@ -35,13 +35,11 @@ class FinancePage extends StatelessWidget {
 
         return RootPageScaffold(
           title: '财务中心',
-          actions: <Widget>[
-            IconButton(
-              tooltip: '记一笔',
-              icon: const Icon(Icons.edit_note_outlined),
-              onPressed: () => showAddRecordSheet(context),
-            ),
-          ],
+          // 全 App 仅此页保留「记一笔」悬浮按钮：财务根页是记一笔的默认入口，
+          // 其余列表页统一用底栏主操作，不重复出现悬浮按钮。
+          floatingActionButton: const AddRecordFab(),
+          // 给悬浮按钮留出可滚动余量，滚到底时最后一张卡片不被按钮压住。
+          bottomPadding: 112,
           children: <Widget>[
             OverviewStatusBanner(
               status: state.status,
@@ -93,7 +91,7 @@ class FinancePage extends StatelessWidget {
                   ),
                   FeatureTile(
                     icon: Icons.swap_vert_outlined,
-                    title: '流水',
+                    title: '支出流水',
                     onTap: () => context.push('/finance/transactions'),
                   ),
                 ],
@@ -218,7 +216,7 @@ class _PendingBillRow extends StatelessWidget {
               Text(_displayTitle, style: theme.textTheme.bodyMedium),
               if (bill.dueDate != null)
                 Text(
-                  '到期 ${bill.dueDate}',
+                  '到期 ${formatListDate(bill.dueDate)}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
             ],

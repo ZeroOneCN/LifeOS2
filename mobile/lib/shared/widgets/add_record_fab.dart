@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-/// 全局「记一笔」FAB：按方案只挂在财务域（财务根页 + 流水页）。
+/// 全局「记一笔」FAB：只挂在财务根页。
+///
+/// 其余列表页（体重记录 / 步数 / 用药 / 流水 / 外汇）统一用底栏主操作，
+/// 全 App 不再出现第二处悬浮按钮。
 class AddRecordFab extends StatelessWidget {
   const AddRecordFab({super.key});
 

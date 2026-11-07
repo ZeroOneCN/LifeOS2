@@ -284,6 +284,30 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
     final int steps = int.tryParse(_steps.text.trim()) ?? 0;
     return DetailPageScaffold(
       title: _editing ? '编辑步数' : '新增步数',
+      // 保存 / 删除统一放底栏（与其它编辑页一致）：底栏占位，表单不会压住底栏，
+      // 键盘弹起时底栏随 body 上移，最末字段与主操作同时可达。
+      bottomBar: _loading
+          ? null
+          : (_editing
+              ? AppActionRow(
+                  first: AppPrimaryButton(
+                    label: '保存',
+                    icon: Icons.save_outlined,
+                    loading: _saving,
+                    onPressed: _deleting ? null : _save,
+                  ),
+                  second: AppDangerButton(
+                    label: '删除',
+                    loading: _deleting,
+                    onPressed: _saving || _deleting ? null : _delete,
+                  ),
+                )
+              : AppPrimaryButton(
+                  label: '保存',
+                  icon: Icons.save_outlined,
+                  loading: _saving,
+                  onPressed: _save,
+                )),
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -371,27 +395,6 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
                               color: theme.colorScheme.onErrorContainer,
                             ),
                           ),
-                        ),
-                      if (_editing)
-                        AppActionRow(
-                          first: AppPrimaryButton(
-                            label: '保存',
-                            icon: Icons.save_outlined,
-                            loading: _saving,
-                            onPressed: _deleting ? null : _save,
-                          ),
-                          second: AppDangerButton(
-                            label: '删除',
-                            loading: _deleting,
-                            onPressed: _saving || _deleting ? null : _delete,
-                          ),
-                        )
-                      else
-                        AppPrimaryButton(
-                          label: '保存',
-                          icon: Icons.save_outlined,
-                          loading: _saving,
-                          onPressed: _save,
                         ),
                       Text(
                         _editing

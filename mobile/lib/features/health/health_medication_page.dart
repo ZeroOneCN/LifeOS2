@@ -518,14 +518,14 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
     return DetailPageScaffold(
       title: '用药跟踪',
-      floatingActionButton: FloatingActionButton.extended(
+      // 主操作放底栏：底栏独立占位，购药记录与库存行不会被悬浮按钮压住。
+      bottomBar: AppPrimaryButton(
+        label: '新增用药',
+        icon: Icons.add,
         onPressed: _openCreate,
-        icon: const Icon(Icons.add),
-        label: const Text('新增用药'),
       ),
       child: ListView(
-        // 底部预留悬浮「新增用药」按钮的安全距离。
-        padding: const EdgeInsets.only(bottom: 120),
+        padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -740,7 +740,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                       ? const EmptyState(
                           icon: Icons.medication_outlined,
                           title: '暂无用药记录',
-                          description: '点右下「新增用药」添加今天的用药计划',
+                          description: '点底部「新增用药」添加今天的用药计划',
                           compact: true,
                         )
                       : Column(
@@ -817,10 +817,23 @@ class _StockRow extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    '余量 ${_trim(stock.quantity)} ${stock.unit} · '
-                    '预警 ${_trim(stock.threshold)} ${stock.unit}',
+                    // 375dp / 1.3 倍字号下「余量 20 粒 · 预警 2 粒」会折成
+                    // 两行且把「粒」挤成孤字；阈值并入括号，单位只写一次。
+                    '余量 ${_trim(stock.quantity)} ${stock.unit}'
+                    '${stock.threshold > 0 ? '（预警 ${_trim(stock.threshold)}）' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  // 预计用完日期单独占一行（整行宽度），和右侧「约 N 天」
+                  // 挤在同一行时会被省略号截掉后半句。
+                  if (stock.predictedDate != null)
+                    Text(
+                      '预计 ${formatListDate(stock.predictedDate)} 用完',
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
@@ -834,11 +847,6 @@ class _StockRow extends StatelessWidget {
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: stock.isLow ? theme.colorScheme.error : muted,
                     ),
-                  ),
-                if (stock.predictedDate != null)
-                  Text(
-                    stock.predictedDate!,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
               ],
             ),
@@ -886,9 +894,11 @@ class _PurchaseRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${purchase.buyDate} · '
+                  '${formatListDate(purchase.buyDate)} · '
                   '${_trim(purchase.quantity)} $unit'
                   '${purchase.channel == null ? '' : ' · ${purchase.channel}'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
@@ -996,7 +1006,7 @@ class _RecordRow extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    '${record.recordDate} · '
+                    '${formatListDate(record.recordDate)} · '
                     '早 ${record.doseBreakfast} 午 ${record.doseLunch} '
                     '晚 ${record.doseDinner}',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),

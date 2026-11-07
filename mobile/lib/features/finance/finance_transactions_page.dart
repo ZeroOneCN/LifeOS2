@@ -7,6 +7,7 @@ import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/add_record_fab.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -132,14 +133,18 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
     final ThemeData theme = Theme.of(context);
     final AppScope scope = AppScope.of(context);
     return DetailPageScaffold(
-      title: '流水',
-      floatingActionButton: const AddRecordFab(),
+      title: '支出流水',
+      // 主操作放底栏：底栏独立占位，队列与支出列表不会被悬浮按钮压住。
+      bottomBar: AppPrimaryButton(
+        label: '记一笔',
+        icon: Icons.edit_note_outlined,
+        onPressed: () => showAddRecordSheet(context),
+      ),
       child: ListenableBuilder(
         listenable: scope.outbox,
         builder: (BuildContext context, Widget? _) {
           return ListView(
-            // 底部预留悬浮「记一笔」按钮的安全距离。
-            padding: const EdgeInsets.only(bottom: 120),
+            padding: const EdgeInsets.only(bottom: 24),
             children: <Widget>[
               // 后端当前只有消费支出记录，没有收入流水；先把口径讲清楚。
               Padding(
@@ -242,9 +247,11 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
   Widget _recentCard(ThemeData theme) {
     return SectionCard(
       title: '最近支出',
-      trailing: TextButton(
+      // 图标 + 文字：纯文字按钮在 375/1.3x 下点击区偏小，也不够显眼。
+      trailing: TextButton.icon(
         onPressed: _loading ? null : _loadRecords,
-        child: const Text('刷新'),
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('刷新'),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -429,7 +436,7 @@ class _RecentRow extends StatelessWidget {
                   style: theme.textTheme.bodyMedium,
                 ),
                 Text(
-                  record.recordDate,
+                  formatListDate(record.recordDate),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     fontFeatures: const <FontFeature>[
