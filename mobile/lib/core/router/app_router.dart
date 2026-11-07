@@ -16,10 +16,12 @@ import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_fitness_page.dart';
+import '../../features/health/health_medication_create_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
 import '../../features/health/health_page.dart';
 import '../../features/health/health_sleep_page.dart';
+import '../../features/health/health_steps_create_page.dart';
 import '../../features/health/health_steps_page.dart';
 import '../../features/invest/forex_create_page.dart';
 import '../../features/invest/forex_page.dart';
@@ -90,11 +92,22 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'steps',
                     builder: (_, _) => const HealthStepsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthStepsCreatePage(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'medication',
                     builder: (_, _) => const HealthMedicationPage(),
                     routes: <RouteBase>[
+                      // 静态段必须在 `:id` 之前，否则会被当成记录 id 解析。
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthMedicationCreatePage(),
+                      ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) =>

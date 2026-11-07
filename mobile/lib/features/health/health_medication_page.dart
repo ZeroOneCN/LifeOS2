@@ -227,6 +227,150 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         .toList();
   }
 
+  /// 打开新增用药页；保存成功返回后立即重拉列表与今日统计。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/health/medication/new');
+    if (created == true && mounted) {
+      _refresh();
+    }
+  }
+
+  /// 列表内快速打卡：弹层列出早/午/晚，点未服的一餐直接入队。
+  ///
+  /// 之前打卡入口只在详情页，用户在列表看不到；这里把入口放到记录行上，
+  /// 同时保留详情页入口。已打卡的餐次不再重复提交。
+  Future<void> _openCheckIn(MedicationRecord record) async {
+    final Map<String, dynamic>? pending =
+        _outbox?.pendingPayloadFor(outboxOpMedicationCheckin, record.id);
+    final List<({int slot, String label, int dose, bool taken})> slots =
+        <({int slot, String label, int dose, bool taken})>[
+      (
+        slot: 0,
+        label: '早餐',
+        dose: record.doseBreakfast,
+        taken: (pending?['taken_breakfast'] as bool?) ?? record.takenBreakfast,
+      ),
+      (
+        slot: 1,
+        label: '午餐',
+        dose: record.doseLunch,
+        taken: (pending?['taken_lunch'] as bool?) ?? record.takenLunch,
+      ),
+      (
+        slot: 2,
+        label: '晚餐',
+        dose: record.doseDinner,
+        taken: (pending?['taken_dinner'] as bool?) ?? record.takenDinner,
+      ),
+    ];
+    final int? selected = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        final ThemeData theme = Theme.of(sheetContext);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  '${record.medicineName} · ${record.recordDate}',
+                  style: theme.textTheme.titleMedium,
+                ),
+              ),
+              for (final ({int slot, String label, int dose, bool taken}) item
+                  in slots)
+                if (item.dose > 0)
+                  ListTile(
+                    leading: Icon(
+                      item.taken
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      color: item.taken
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(item.label),
+                    subtitle: Text('${item.dose} 粒'),
+                    trailing: item.taken
+                        ? Text(
+                            '已服',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
+                          )
+                        : FilledButton.tonal(
+                            onPressed: () =>
+                                Navigator.of(sheetContext).pop(item.slot),
+                            child: const Text('打卡'),
+                          ),
+                  ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null && mounted) {
+      await _checkIn(record, selected);
+    }
+  }
+
+  /// 列表内打卡：以队列里的最新已服状态为基准，避免覆盖掉待同步的餐次。
+  Future<void> _checkIn(MedicationRecord record, int slot) async {
+    final OutboxController? outbox = _outbox;
+    if (outbox == null) {
+      return;
+    }
+    final Map<String, dynamic>? pending =
+        outbox.pendingPayloadFor(outboxOpMedicationCheckin, record.id);
+    final bool breakfast =
+        (pending?['taken_breakfast'] as bool?) ?? record.takenBreakfast;
+    final bool lunch = (pending?['taken_lunch'] as bool?) ?? record.takenLunch;
+    final bool dinner =
+        (pending?['taken_dinner'] as bool?) ?? record.takenDinner;
+    final bool alreadyTaken = switch (slot) {
+      0 => breakfast,
+      1 => lunch,
+      _ => dinner,
+    };
+    if (alreadyTaken) {
+      return;
+    }
+    final OutboxEntry? entry = await outbox.enqueueMedicationCheckin(
+      <String, dynamic>{
+        'id': record.id,
+        'record_date': record.recordDate,
+        'medicine_name': record.medicineName,
+        'dose_breakfast': record.doseBreakfast,
+        'dose_lunch': record.doseLunch,
+        'dose_dinner': record.doseDinner,
+        'taken_breakfast': slot == 0 ? true : breakfast,
+        'taken_lunch': slot == 1 ? true : lunch,
+        'taken_dinner': slot == 2 ? true : dinner,
+        if (record.frequency != null) 'frequency': record.frequency,
+        if (record.note != null) 'note': record.note,
+      },
+    );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          entry == null
+              ? '待同步已达上限（200 条），请先联网同步后再打卡'
+              : (outbox.isOnline
+                  ? '已打卡，正在同步到服务器'
+                  : '已打卡（待同步），联网后自动同步'),
+        ),
+      ),
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -235,7 +379,13 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
     return DetailPageScaffold(
       title: '用药跟踪',
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreate,
+        icon: const Icon(Icons.add),
+        label: const Text('新增用药'),
+      ),
       child: ListView(
+        padding: const EdgeInsets.only(bottom: 72),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -378,7 +528,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                       ? const EmptyState(
                           icon: Icons.medication_outlined,
                           title: '暂无用药记录',
-                          description: '后端暂无用药数据',
+                          description: '点右下「新增用药」添加今天的用药计划',
                           compact: true,
                         )
                       : Column(
@@ -395,6 +545,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                                   '/health/medication/${record.id}',
                                   extra: record,
                                 ),
+                                onCheckIn: () => _openCheckIn(record),
                               ),
                           ],
                         ),
@@ -499,11 +650,15 @@ class _RecordRow extends StatelessWidget {
   const _RecordRow({
     required this.record,
     required this.onTap,
+    required this.onCheckIn,
     this.pending,
   });
 
   final MedicationRecord record;
   final VoidCallback onTap;
+
+  /// 快捷打卡回调：打开早/午/晚选择弹层。
+  final VoidCallback onCheckIn;
   final Map<String, dynamic>? pending;
 
   @override
@@ -567,13 +722,29 @@ class _RecordRow extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              '$takenDoses/${record.totalDoses}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[
-                  FontFeature.tabularFigures(),
-                ],
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Text(
+                  '$takenDoses/${record.totalDoses}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
+                ),
+                if (record.totalDoses > 0 && !complete)
+                  TextButton(
+                    onPressed: onCheckIn,
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('打卡'),
+                  ),
+              ],
             ),
           ],
         ),
