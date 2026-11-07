@@ -322,6 +322,7 @@ class ReportSource {
     required this.routeBase,
     required this.emptyDescription,
     this.listPaginated = false,
+    this.usdAmounts = false,
   });
 
   /// 接口前缀，如 `/finance/reports`。
@@ -339,6 +340,11 @@ class ReportSource {
   /// 列表接口是否分页（健康报告返回 `{items,total}`，其余返回数组）。
   final bool listPaginated;
 
+  /// 报告金额是否为美元口径（投资域一律 USD，财务 / 生活域为 CNY）。
+  ///
+  /// 后端报告正文只返回数字字符串、不带币种，展示层据此补 `$`。
+  final bool usdAmounts;
+
   static const ReportSource finance = ReportSource(
     apiPath: '/finance/reports',
     pageTitle: '财务报告',
@@ -351,6 +357,7 @@ class ReportSource {
     pageTitle: '投资报告',
     routeBase: '/invest/reports',
     emptyDescription: '暂无投资报告，可在网页端生成',
+    usdAmounts: true,
   );
 
   static const ReportSource health = ReportSource(

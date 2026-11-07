@@ -20,14 +20,32 @@ String formatInt(num? value) {
 }
 
 /// 金额：`¥1,286.50`；负数显示为 `-¥1,286.50`。
-String formatMoney(num? value) {
+String formatMoney(num? value) => _money(value, '¥');
+
+/// 美元金额（投资域口径，与网页端 `formatUsd` 一致）：`$1,286.50`；
+/// 负数 `-$1,286.50`（负号在货币符号前，符号与数字之间不加空格）。
+String formatUsd(num? value) => _money(value, r'$');
+
+/// 美元盈亏：正数带 `+`，负数带 `-`，0 不带符号（对齐 `formatUsdSigned`）。
+String formatUsdSigned(num? value) => _money(value, r'$', withPlus: true);
+
+/// 金额基函数：固定 2 位小数 + 千分位，负号在货币符号前。
+String _money(num? value, String symbol, {bool withPlus = false}) {
   if (value == null) {
     return '--';
   }
-  final String fixed = value.abs().toStringAsFixed(2);
+  final num abs = value.abs();
+  final String fixed = abs.toStringAsFixed(2);
   final int dot = fixed.indexOf('.');
-  final String sign = value < 0 ? '-' : '';
-  return '$sign¥${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
+  final String body =
+      '$symbol${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
+  if (value < 0) {
+    return '-$body';
+  }
+  if (value > 0 && withPlus) {
+    return '+$body';
+  }
+  return body;
 }
 
 /// 百分比：保留一位小数。

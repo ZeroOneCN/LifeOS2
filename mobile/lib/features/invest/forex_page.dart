@@ -642,7 +642,7 @@ class _PendingTradeRow extends StatelessWidget {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                pnl == null ? '持仓中' : formatMoney(netPnl),
+                pnl == null ? '—' : formatUsdSigned(netPnl),
                 maxLines: 1,
                 softWrap: false,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -689,14 +689,14 @@ class _FundMetrics extends StatelessWidget {
             Expanded(
               child: _FundMetric(
                 label: '累计出金',
-                value: formatMoney(stats?.withdraw),
+                value: formatUsd(stats?.withdraw),
                 color: colors.danger,
               ),
             ),
             Expanded(
               child: _FundMetric(
                 label: '累计入金',
-                value: formatMoney(stats?.deposit),
+                value: formatUsd(stats?.deposit),
                 color: colors.success,
               ),
             ),
@@ -708,14 +708,14 @@ class _FundMetrics extends StatelessWidget {
             Expanded(
               child: _FundMetric(
                 label: '体验金',
-                value: formatMoney(stats?.experience),
+                value: formatUsd(stats?.experience),
                 color: colors.warning,
               ),
             ),
             Expanded(
               child: _FundMetric(
                 label: '净投入',
-                value: formatMoney(stats?.net),
+                value: formatUsd(stats?.net),
                 color: colors.info,
               ),
             ),
@@ -824,7 +824,7 @@ class _FundRow extends StatelessWidget {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                formatMoney(record.amount),
+                formatUsd(record.amount),
                 maxLines: 1,
                 softWrap: false,
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -963,11 +963,11 @@ class _TradeRow extends StatelessWidget {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                trade.isOpen ? '持仓中' : formatMoney(trade.netPnl),
+                formatUsdSigned(trade.netPnl),
                 maxLines: 1,
                 softWrap: false,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: trade.isOpen ? muted : amountColor,
+                  color: amountColor,
                   fontWeight: FontWeight.w600,
                   fontFeatures: const <FontFeature>[
                     FontFeature.tabularFigures(),

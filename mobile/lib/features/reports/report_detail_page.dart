@@ -158,8 +158,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                           ),
                         ),
                       if (detail.displaySummary.isNotEmpty)
-                        Text(
-                          detail.displaySummary,
+                        Text.rich(
+                          _summarySpan(context, detail.displaySummary),
                           style: theme.textTheme.bodyMedium,
                         ),
                     ],
@@ -181,6 +181,146 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         ],
       ),
     );
+  }
+
+  /// 是否按美元口径展示金额（投资报告）。
+  bool get _usd => widget.source.usdAmounts;
+
+  /// 金额语义列 / 行关键字；「盈亏比」「胜率」等比率不算金额。
+  static const List<String> _moneyKeys = <String>[
+    '净收益',
+    '毛盈亏',
+    '手续费',
+    '隔夜费',
+    '平均盈利',
+    '平均亏损',
+    '账户净值',
+    '入金',
+    '出金',
+    '体验金',
+    '净盈亏',
+    '盈亏',
+  ];
+
+  bool _isMoneyLabel(String label) {
+    if (label.contains('比') || label.contains('率')) {
+      return false;
+    }
+    return _moneyKeys.any(label.contains);
+  }
+
+  /// 给纯数字补 `$`：`1,234.00` → `$1,234.00`、`-1,234.00` → `-$1,234.00`。
+  ///
+  /// 「入金 / 出金」一行是两段金额，按 ` / ` 拆开分别处理；非数字原样返回。
+  String _usdNumber(String raw) {
+    final String text = raw.trim();
+    if (text.isEmpty || text == '—') {
+      return raw;
+    }
+    final List<String> parts = text.split(' / ');
+    bool changed = false;
+    final List<String> output = <String>[];
+    for (final String part in parts) {
+      final Match? match =
+          RegExp(r'^([+-])?(\d[\d,]*(?:\.\d+)?)$').firstMatch(part.trim());
+      if (match == null) {
+        output.add(part);
+        continue;
+      }
+      changed = true;
+      // `-0.00` 这类负零去掉符号，避免投资报告出现「-$0.00」。
+      final double parsed =
+          double.tryParse(match[2]!.replaceAll(',', '')) ?? 0;
+      final String sign = parsed == 0 ? '' : (match[1] ?? '');
+      output.add('$sign\$${match[2]}');
+    }
+    return changed ? output.join(' / ') : raw;
+  }
+
+  /// 只给明确的金额列 / 金额行补 `$`，笔数、胜率、手数等保持原样。
+  List<List<String>> _usdRows(List<String> header, List<List<String>> rows) {
+    if (!_usd) {
+      return rows;
+    }
+    return rows.map((List<String> row) {
+      final List<String> cells = List<String>.of(row);
+      if (header.length <= 2 && !header.any(_isMoneyLabel)) {
+        // 「指标 | 数值」型：按首列标签判断这一行是否为金额。
+        if (cells.length >= 2 && _isMoneyLabel(cells[0])) {
+          cells[1] = _usdNumber(cells[1]);
+        }
+        return _stripPositions(cells);
+      }
+      for (int i = 0; i < cells.length && i < header.length; i++) {
+        if (_isMoneyLabel(header[i])) {
+          cells[i] = _usdNumber(cells[i]);
+        }
+      }
+      return _stripPositions(cells);
+    }).toList();
+  }
+
+  /// 去掉已完结数据里残留的「（持仓 0）」文案（后端报告正文固定带这个后缀）。
+  List<String> _stripPositions(List<String> cells) {
+    return cells
+        .map((String cell) => cell.replaceAll(
+              RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
+              '',
+            ))
+        .toList();
+  }
+
+  /// 摘要正文里的金额（净收益 / 账户净值 / 毛盈亏等）补 `$`，
+  /// 并按正负着色；「持仓 N」是已完结数据的残留文案，一并去掉。
+  String _usdProse(String text) {
+    if (!_usd) {
+      return text;
+    }
+    final String withUsd = text.replaceAllMapped(
+      RegExp(r'(净收益|账户净值|毛盈亏|入金|出金|体验金)\s+([+-]?\d[\d,]*(?:\.\d+)?)'),
+      (Match match) => '${match[1]} ${_usdNumber(match[2]!)}',
+    );
+    return withUsd.replaceAll(
+      RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
+      '',
+    );
+  }
+
+  /// 摘要富文本：只给金额上色（成功绿 / 危险红 / 零中性），其余文字保持正文色。
+  TextSpan _summarySpan(BuildContext context, String text) {
+    final TextStyle? base = Theme.of(context).textTheme.bodyMedium;
+    if (!_usd) {
+      return TextSpan(text: text, style: base);
+    }
+    final AppSemanticColors colors = context.semanticColors;
+    final String normalized = _usdProse(text);
+    final List<TextSpan> spans = <TextSpan>[];
+    int last = 0;
+    for (final Match match in RegExp(r'[+-]?\$[\d,]+\.\d{2}').allMatches(normalized)) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: normalized.substring(last, match.start)));
+      }
+      final double parsed = double.tryParse(
+            match[0]!.replaceAll(RegExp(r'[^\d.\-]'), ''),
+          ) ??
+          0;
+      spans.add(
+        TextSpan(
+          text: match[0],
+          style: TextStyle(
+            color: parsed < 0
+                ? colors.danger
+                : (parsed > 0 ? colors.success : null),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+      last = match.end;
+    }
+    if (last < normalized.length) {
+      spans.add(TextSpan(text: normalized.substring(last)));
+    }
+    return TextSpan(style: base, children: spans);
   }
 
   /// 把 h2 / table 区块收拢成「标题 + 内容」的分组卡片。
@@ -215,16 +355,18 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         body.add(
           _ReportTable(
             header: block.header,
-            rows: block.rows,
+            rows: _usdRows(block.header, block.rows),
             caption: block.caption,
+            colorizePositive: _usd,
           ),
         );
       } else if (block.isKv) {
         body.add(
           _ReportTable(
             header: const <String>[],
-            rows: block.rows,
+            rows: _usdRows(const <String>[], block.rows),
             caption: block.caption,
+            colorizePositive: _usd,
           ),
         );
       } else if ((block.text ?? '').isNotEmpty) {
@@ -244,6 +386,7 @@ class _ReportTable extends StatelessWidget {
     required this.header,
     required this.rows,
     this.caption = '',
+    this.colorizePositive = false,
   });
 
   final List<String> header;
@@ -251,6 +394,9 @@ class _ReportTable extends StatelessWidget {
 
   /// 表格小标题（后端 `name`）/ 键值对分组标签（后端 `label`）。
   final String caption;
+
+  /// 正数（不带 `+` 的 `$` 金额）是否也用成功色：投资报告需要，其他域保持原规则。
+  final bool colorizePositive;
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +412,11 @@ class _ReportTable extends StatelessWidget {
       table = Column(
         children: <Widget>[
           for (final List<String> row in rows)
-            _KvRow(header: header, row: row),
+            _KvRow(
+              header: header,
+              row: row,
+              colorizePositive: colorizePositive,
+            ),
         ],
       );
     } else {
@@ -274,7 +424,11 @@ class _ReportTable extends StatelessWidget {
         children: <Widget>[
           for (int index = 0; index < rows.length; index++) ...<Widget>[
             if (index > 0) const Divider(),
-            _GroupedRow(header: header, row: rows[index]),
+            _GroupedRow(
+              header: header,
+              row: rows[index],
+              colorizePositive: colorizePositive,
+            ),
           ],
         ],
       );
@@ -301,10 +455,15 @@ class _ReportTable extends StatelessWidget {
 
 /// 两列表格的一行：左标签、右数值（等宽、正负分色）。
 class _KvRow extends StatelessWidget {
-  const _KvRow({required this.header, required this.row});
+  const _KvRow({
+    required this.header,
+    required this.row,
+    this.colorizePositive = false,
+  });
 
   final List<String> header;
   final List<String> row;
+  final bool colorizePositive;
 
   @override
   Widget build(BuildContext context) {
@@ -332,7 +491,11 @@ class _KvRow extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: _signColor(value, colors),
+                color: _signColor(
+                  value,
+                  colors,
+                  colorizePositive: colorizePositive,
+                ),
                 fontWeight: FontWeight.w600,
                 fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
@@ -346,10 +509,15 @@ class _KvRow extends StatelessWidget {
 
 /// 多列表格的一行：首列当标题，其余列按两列网格分组展示（不横向滚动）。
 class _GroupedRow extends StatelessWidget {
-  const _GroupedRow({required this.header, required this.row});
+  const _GroupedRow({
+    required this.header,
+    required this.row,
+    this.colorizePositive = false,
+  });
 
   final List<String> header;
   final List<String> row;
+  final bool colorizePositive;
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +567,7 @@ class _GroupedRow extends StatelessWidget {
                               color: _signColor(
                                 i < row.length ? row[i] : '',
                                 colors,
+                                colorizePositive: colorizePositive,
                               ),
                               fontWeight: FontWeight.w600,
                               fontFeatures: const <FontFeature>[
@@ -422,16 +591,31 @@ class _GroupedRow extends StatelessWidget {
 /// 数值正负色：`+` 开头用 success，`-` 开头用 danger，其余保持默认色。
 ///
 /// 只在「符号后紧跟数字或货币符号」时生效，避免把日期等文本误判成负数。
-Color? _signColor(String value, AppSemanticColors colors) {
+Color? _signColor(
+  String value,
+  AppSemanticColors colors, {
+  bool colorizePositive = false,
+}) {
   final String text = value.trim();
   if (text.isEmpty) {
     return null;
   }
-  if (RegExp(r'^[+＋]\s*(?:¥|￥|\d)').hasMatch(text)) {
+  if (RegExp(r'^[+＋]\s*(?:¥|￥|\$|\d)').hasMatch(text)) {
     return colors.success;
   }
-  if (RegExp(r'^[-−]\s*(?:¥|￥|\d)').hasMatch(text)) {
+  if (RegExp(r'^[-−]\s*(?:¥|￥|\$|\d)').hasMatch(text)) {
     return colors.danger;
+  }
+  // 投资报告里不带 `+` 的美元金额也算正数：> 0 用成功色，$0.00 保持中性。
+  if (colorizePositive) {
+    final String first = text.split(' / ').first.trim();
+    if (RegExp(r'^\$\s*[\d]').hasMatch(first)) {
+      final double parsed =
+          double.tryParse(first.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0;
+      if (parsed > 0) {
+        return colors.success;
+      }
+    }
   }
   return null;
 }

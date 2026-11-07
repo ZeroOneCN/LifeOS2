@@ -247,10 +247,10 @@ class InvestmentOverview {
     this.accountValue,
     this.netProfit,
     this.tradeCount,
-    this.openCount,
     this.winRate,
     this.symbolCount,
     this.reportCount,
+    this.equityTrend = const <EquityPoint>[],
   });
 
   factory InvestmentOverview.fromJson(Map<String, dynamic> json) {
@@ -259,19 +259,41 @@ class InvestmentOverview {
       accountValue: _toDouble(summary?['account_value']),
       netProfit: _toDouble(summary?['net_profit']),
       tradeCount: _toInt(summary?['trade_count']),
-      openCount: _toInt(summary?['open_count']),
       winRate: _toDouble(summary?['win_rate']),
       symbolCount: _toInt(summary?['symbol_count']),
       reportCount: _toInt(json['report_count']),
+      equityTrend: _asMapList(json['equity_trend'])
+          .map(EquityPoint.fromJson)
+          .toList(growable: false),
     );
   }
 
   final double? accountValue;
   final double? netProfit;
   final int? tradeCount;
-  final int? openCount;
   final double? winRate;
   final int? symbolCount;
   final int? reportCount;
+
+  /// 累计净收益曲线（按交易日，后端返回近 365 天窗口）。
+  final List<EquityPoint> equityTrend;
+}
+
+/// 收益曲线上的一个点：交易日 + 当日为止的累计净盈亏。
+class EquityPoint {
+  const EquityPoint({required this.date, required this.pnl});
+
+  factory EquityPoint.fromJson(Map<String, dynamic> json) {
+    return EquityPoint(
+      date: json['date'] as String? ?? '',
+      pnl: _toDouble(json['pnl']) ?? 0,
+    );
+  }
+
+  /// 交易日（`YYYY-MM-DD`）。
+  final String date;
+
+  /// 截至该交易日的累计净盈亏（USD）。
+  final double pnl;
 }
 
