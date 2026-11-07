@@ -120,6 +120,23 @@ class ApiClient {
     );
   }
 
+  /// PATCH 请求：用于只更新部分字段（如通知批量接口只提交 `read`）。
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) {
+    return _guard(
+      () => _dio.patch<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+      ),
+    );
+  }
+
   /// multipart 上传（头像），支持发送进度回调。
   Future<Response<T>> postMultipart<T>(
     String path, {

@@ -15,7 +15,7 @@ import '../../shared/widgets/section_status.dart';
 /// 数据：
 /// - `GET /notifications?page=&page_size=20`：通知列表（分页）；
 /// - `GET /notifications/stats?days=365`：未读与总数概览；
-/// - `PUT /notifications/{id}`：单条标记已读（后端更新为全量 schema，需带原字段）；
+/// - `PATCH /notifications/batch`：单条标记已读（只提交 `read`，不回写正文）；
 /// - `POST /notifications/read-all`：全部标记已读。
 ///
 /// 取舍：已读是写操作，但**不接离线队列**——已读状态滞后不致命，
@@ -189,21 +189,20 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
     }
   }
 
-  /// 单条标记已读：`PUT /notifications/{id}`（后端更新接口要求带必填原字段）。
+  /// 单条标记已读：`PATCH /notifications/batch` 只写 `read` 字段。
+  ///
+  /// 不走 `PUT /notifications/{id}`：后者复用新增 schema，必须带 `title` /
+  /// `category` / `notify_date` 等必填项，等于把客户端解码后的正文再回写一遍；
+  /// 批量 PATCH 只 `setattr(read)`，从写入路径上杜绝正文被二次编码的可能。
   Future<void> _markRead(AppNotification item) async {
     final AppScope scope = AppScope.of(context);
     setState(() => _markingId = item.id);
     try {
-      await scope.apiClient.put<Map<String, dynamic>>(
-        '/notifications/${item.id}',
+      await scope.apiClient.patch<List<dynamic>>(
+        '/notifications/batch',
         data: <String, dynamic>{
-          'title': item.title,
-          'content': item.content,
-          'category': item.category,
-          'source': item.source,
-          'read': true,
-          'notify_date': item.notifyDate,
-          'note': item.note,
+          'ids': <int>[item.id],
+          'fields': <String, dynamic>{'read': true},
         },
       );
       if (!mounted) {
