@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'core/app_scope.dart';
 import 'core/auth/auth_service.dart';
+import 'core/data/notification_unread_controller.dart';
 import 'core/data/overview_controller.dart';
 import 'core/network/api_client.dart';
 import 'core/profile/profile_service.dart';
@@ -34,6 +35,8 @@ Future<void> main() async {
   );
   authService = AuthService(apiClient, tokenStore);
   final OverviewController overview = OverviewController(apiClient, authService);
+  final NotificationUnreadController notifications =
+      NotificationUnreadController(apiClient, authService);
   final ProfileService profile = ProfileService(apiClient, authService);
   final OutboxController outbox = OutboxController(
     preferences,
@@ -50,6 +53,7 @@ Future<void> main() async {
       apiClient: apiClient,
       auth: authService,
       overview: overview,
+      notifications: notifications,
       profile: profile,
       outbox: outbox,
       child: LifeOsApp(

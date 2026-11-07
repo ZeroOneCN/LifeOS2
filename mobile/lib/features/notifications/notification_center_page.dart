@@ -116,6 +116,8 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         _expanded.clear();
         _status = LoadStatus.ready;
       });
+      // 通知中心的未读数与顶栏角标共用同一份状态，读到即同步。
+      scope.notifications.setCount(unread);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -217,6 +219,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
           _unread -= 1;
         }
       });
+      scope.notifications.setCount(_unread);
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -275,6 +278,7 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
         }
         _unread = 0;
       });
+      scope.notifications.setCount(0);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已全部标记为已读')),
       );

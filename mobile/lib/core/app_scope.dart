@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'auth/auth_service.dart';
+import 'data/notification_unread_controller.dart';
 import 'data/overview_controller.dart';
 import 'network/api_client.dart';
 import 'profile/profile_service.dart';
@@ -18,6 +19,7 @@ class AppScope extends InheritedWidget {
     required this.apiClient,
     required this.auth,
     required this.overview,
+    required this.notifications,
     required this.profile,
     required this.outbox,
     required super.child,
@@ -32,6 +34,9 @@ class AppScope extends InheritedWidget {
 
   /// 四域总览数据：随登录态自动刷新，页面用 ListenableBuilder 订阅。
   final OverviewController overview;
+
+  /// 全局未读通知数：五个 Tab 的铃铛共用，读走通知后同步更新。
+  final NotificationUnreadController notifications;
 
   /// 头像上传 / 外链设置（契约见 ProfileService）。
   final ProfileService profile;
@@ -52,6 +57,7 @@ class AppScope extends InheritedWidget {
         apiClient != oldWidget.apiClient ||
         auth != oldWidget.auth ||
         overview != oldWidget.overview ||
+        notifications != oldWidget.notifications ||
         profile != oldWidget.profile ||
         outbox != oldWidget.outbox;
   }
