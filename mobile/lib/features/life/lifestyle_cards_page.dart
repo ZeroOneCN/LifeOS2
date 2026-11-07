@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
@@ -193,75 +194,21 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
-  /// 一次性查看完整号码：先确认，再在临时弹窗里展示；关闭即隐藏，不常驻列表。
-  Future<void> _revealNumber(String title, String? number) async {
+  /// 复制纯号码：写入剪贴板并给出轻提示；缺号时提示去网页端补录。
+  Future<void> _copyNumber(String label, String? number) async {
     if (number == null || number.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('这张卡没有填写号码，无法查看')),
+        const SnackBar(content: Text('这张卡没有填写号码，无法复制')),
       );
       return;
     }
-    final bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text('查看完整$title？'),
-          content: const Text('完整号码属于敏感信息，确认后仅在本次弹窗显示，关闭即隐藏，不会出现在列表里。'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('查看'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) {
+    await Clipboard.setData(ClipboardData(text: number));
+    if (!mounted) {
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text('$title完整号码'),
-          content: SelectableText(
-            _displayNumber(number),
-            style: Theme.of(dialogContext).textTheme.titleMedium?.copyWith(
-              fontFeatures: const <FontFeature>[
-                FontFeature.tabularFigures(),
-              ],
-              letterSpacing: 1.2,
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('关闭'),
-            ),
-          ],
-        );
-      },
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已复制$label')),
     );
-  }
-
-  /// 长号码按 4 位分组便于核对；短号码（如 11 位手机号）原样展示。
-  static String _displayNumber(String number) {
-    final String value = number.replaceAll(RegExp(r'\s+'), '');
-    if (value.length <= 12) {
-      return value;
-    }
-    final StringBuffer buffer = StringBuffer();
-    for (int i = 0; i < value.length; i++) {
-      if (i > 0 && i % 4 == 0) {
-        buffer.write(' ');
-      }
-      buffer.write(value[i]);
-    }
-    return buffer.toString();
   }
 
   @override
@@ -343,7 +290,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                         ],
                       ),
                       Text(
-                        '列表只显示后四位；点击任意卡片可确认后查看完整号码（仅本次弹窗可见）。',
+                        '列表完整显示卡号（每 4 位分组，不截断）；点每张卡右侧的复制按钮可复制纯号码。',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -364,7 +311,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                     spacing: 4,
                     children: <Widget>[
                       Text(
-                        '只读：充值 / 扣费 / 校准请在网页端操作；点击号码可确认后查看完整号码',
+                        '只读：充值 / 扣费 / 校准请在网页端操作；号码完整显示，点复制按钮复制纯号码',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -380,9 +327,9 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                         for (final PhoneCard phone in _phones)
                           _PhoneCardRow(
                             card: phone,
-                            onReveal: () => _revealNumber(
+                            onCopy: () => _copyNumber(
                               '手机号',
-                              phone.fullNumber,
+                              phone.copyableNumber,
                             ),
                           ),
                     ],
@@ -409,9 +356,9 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                             for (final BankCard card in _cards)
                               _CardRow(
                                 card: card,
-                                onReveal: () => _revealNumber(
+                                onCopy: () => _copyNumber(
                                   '卡号',
-                                  card.fullNumber,
+                                  card.copyableNumber,
                                 ),
                               ),
                           ],
@@ -432,17 +379,14 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   }
 }
 
-/// 单张银行卡：卡名 + 脱敏卡号 + 银行/类型/状态 + 余额或额度。
-///
-/// 安全底线：列表只展示 [BankCard.maskedNumber]；
-/// 完整卡号必须经 [onReveal] 二次确认后一次性显示，不常驻。
+/// 单张银行卡：卡名 + 完整卡号（分组、可换行）+ 复制按钮 + 银行/类型/状态 + 余额或额度。
 class _CardRow extends StatelessWidget {
-  const _CardRow({required this.card, required this.onReveal});
+  const _CardRow({required this.card, required this.onCopy});
 
   final BankCard card;
 
-  /// 点击卡片：确认后查看完整卡号。
-  final VoidCallback onReveal;
+  /// 复制纯号码（不带空格）。
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -461,78 +405,96 @@ class _CardRow extends StatelessWidget {
       if (card.billingText != null) Text(card.billingText!, style: metaStyle),
     ];
 
-    return InkWell(
-      onTap: onReveal,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
-                children: <Widget>[
-                  Text(
-                    card.cardName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  Text(
-                    card.maskedNumber,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: metaStyle?.copyWith(
-                      fontFeatures: const <FontFeature>[
-                        FontFeature.tabularFigures(),
-                      ],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                  Wrap(spacing: 8, runSpacing: 2, children: meta),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
               children: <Widget>[
+                // 主体：银行 + 卡名（同一行，字号更大更重）。
                 Text(
-                  formatMoney(card.isCredit ? card.creditLimit : card.balance),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
+                  '${card.bank} · ${card.cardName}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  card.isCredit ? '额度' : '余额',
-                  maxLines: 1,
-                  style: metaStyle,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      // 完整卡号：不设 maxLines / ellipsis，窄屏与 1.3x 自动换行。
+                      child: Text(
+                        card.displayNumber,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onCopy,
+                      tooltip: '复制卡号',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      icon: const Icon(Icons.copy_all_outlined, size: 18),
+                    ),
+                  ],
                 ),
+                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                Wrap(spacing: 8, runSpacing: 2, children: meta),
               ],
             ),
-          ],
-        ),
+          ),
+          // 余额 / 额度是配角：中性次要色，不与主体抢视觉。
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 2,
+            children: <Widget>[
+              Text(
+                formatMoney(card.isCredit ? card.creditLimit : card.balance),
+                maxLines: 1,
+                softWrap: false,
+                style: metaStyle?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+              Text(
+                card.isCredit ? '额度' : '余额',
+                maxLines: 1,
+                style: metaStyle,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-/// 单张手机号卡（只读）：脱敏号码 + 运营商 / 套餐 / 账期 + 余额。
+/// 单张手机号卡（只读）：完整号码 + 复制按钮 + 运营商 / 套餐 / 账期 + 余额。
 class _PhoneCardRow extends StatelessWidget {
-  const _PhoneCardRow({required this.card, required this.onReveal});
+  const _PhoneCardRow({required this.card, required this.onCopy});
 
   final PhoneCard card;
 
-  /// 点击号码：确认后查看完整号码。
-  final VoidCallback onReveal;
+  /// 复制纯号码（不带空格）。
+  final VoidCallback onCopy;
 
   /// 账期文案：账单日 + 月租；都未设置时显示「账期未设置」。
   String get _billingText {
@@ -572,55 +534,70 @@ class _PhoneCardRow extends StatelessWidget {
         Text(card.note!, style: metaStyle),
     ];
 
-    return InkWell(
-      onTap: onReveal,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
-                children: <Widget>[
-                  Text(
-                    card.maskedNumber,
-                    maxLines: 1,
-                    softWrap: false,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontFeatures: const <FontFeature>[
-                        FontFeature.tabularFigures(),
-                      ],
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                  Wrap(spacing: 8, runSpacing: 2, children: meta),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
               children: <Widget>[
-                Text(
-                  card.balance == null ? '—' : formatMoney(card.balance),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(
+                      // 主体：完整手机号（字号更大、字重更重），自动换行不截断。
+                      child: Text(
+                        card.displayNumber,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onCopy,
+                      tooltip: '复制手机号',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      icon: const Icon(Icons.copy_all_outlined, size: 18),
+                    ),
+                  ],
                 ),
-                Text('余额', maxLines: 1, style: metaStyle),
+                // 运营商 / 套餐 / 账期是次要信息，小字中性色。
+                Wrap(spacing: 8, runSpacing: 2, children: meta),
               ],
             ),
-          ],
-        ),
+          ),
+          // 余额是配角：中性次要色，不用主色/警告色。
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 2,
+            children: <Widget>[
+              Text(
+                card.balance == null ? '—' : formatMoney(card.balance),
+                maxLines: 1,
+                softWrap: false,
+                style: metaStyle?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+              Text('余额', maxLines: 1, style: metaStyle),
+            ],
+          ),
+        ],
       ),
     );
   }

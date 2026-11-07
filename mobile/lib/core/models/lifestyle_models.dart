@@ -1,6 +1,6 @@
 /// 生活域模型：物品追踪与卡片管理（只读列表所需字段）。
 ///
-/// 卡号只在客户端做脱敏展示，模型不提供任何完整卡号的格式化输出。
+/// 卡号按用户要求完整展示（每 4 位分组），不提供任何脱敏输出。
 library;
 
 /// 物品状态标签：in_use / lost / loaned / recycled。
@@ -149,19 +149,36 @@ class ItemStats {
   }
 }
 
-/// 卡号脱敏：只保留后四位，其余一律用 `••••` 代替。
+/// 完整卡号展示：每 4 位用空格分组，方便在窄屏上一眼核对。
 ///
-/// 卡号为空或不足四位时返回 `未填卡号` / 原文短尾，绝不完整展示。
-String maskCardNumber(String? raw) {
-  final String digits =
-      (raw ?? '').replaceAll(RegExp(r'[^0-9]'), '');
-  if (digits.isEmpty) {
+/// 用户明确要求不再脱敏，因此这里不做任何遮挡；长号码只分组、不截断，
+/// 由界面按可用宽度自然换行。
+String formatCardNumber(String? raw) {
+  final String value = (raw ?? '').trim().replaceAll(RegExp(r'\s+'), '');
+  if (value.isEmpty) {
     return '未填卡号';
   }
-  if (digits.length <= 4) {
-    return '•••• $digits';
+  if (value.length <= 12) {
+    return value;
   }
-  return '•••• ${digits.substring(digits.length - 4)}';
+  final StringBuffer buffer = StringBuffer();
+  for (int i = 0; i < value.length; i++) {
+    if (i > 0 && i % 4 == 0) {
+      buffer.write(' ');
+    }
+    buffer.write(value[i]);
+  }
+  return buffer.toString();
+}
+
+/// 复制用纯号码：去掉空格与分隔符；缺号时返回 null。
+String? copyableCardNumber(String? raw) {
+  final String value = (raw ?? '').trim();
+  if (value.isEmpty) {
+    return null;
+  }
+  final String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+  return digits.isEmpty ? value : digits;
 }
 
 /// 银行卡类型：credit / debit。
@@ -187,7 +204,8 @@ String cardStatusLabel(String value) {
 
 /// 单张银行卡（`GET /lifestyle/bank-cards` 列表项）。
 ///
-/// 完整卡号只保存在 [cardNumber] 供脱敏计算，界面必须使用 [maskedNumber]。
+/// 完整卡号直接展示：列表用 [displayNumber]（分组不截断），
+/// 复制用 [copyableNumber]（纯数字、无空格）。
 class BankCard {
   const BankCard({
     required this.id,
@@ -223,16 +241,11 @@ class BankCard {
 
   bool get isCredit => cardCategory == 'credit';
 
-  /// 脱敏卡号（只留后四位），列表与详情只允许展示这个值。
-  String get maskedNumber => maskCardNumber(cardNumber);
+  /// 完整卡号展示：每 4 位分组，不脱敏、不截断。
+  String get displayNumber => formatCardNumber(cardNumber);
 
-  /// 完整卡号原文（去空白）；为空时返回 null。
-  ///
-  /// 只在用户主动确认后的一次性查看弹窗里使用，不得常驻界面。
-  String? get fullNumber {
-    final String value = (cardNumber ?? '').trim();
-    return value.isEmpty ? null : value;
-  }
+  /// 复制用纯号码；缺号时返回 null。
+  String? get copyableNumber => copyableCardNumber(cardNumber);
 
   /// 账单日 / 还款日文案；未设置时返回 null。
   String? get billingText {
@@ -318,7 +331,7 @@ class BankStats {
 
 /// 单张手机号卡（`GET /lifestyle/phone-cards` 列表项，只读）。
 ///
-/// 号码只保留后四位展示（复用 [maskCardNumber]），界面不得出现完整号码。
+/// 号码按用户要求完整展示，复制时提交纯数字。
 class PhoneCard {
   const PhoneCard({
     required this.id,
@@ -348,14 +361,11 @@ class PhoneCard {
   final String status;
   final String? note;
 
-  /// 脱敏号码（只留后四位），与银行卡保持一致的展示口径。
-  String get maskedNumber => maskCardNumber(phoneNumber);
+  /// 完整号码展示：与银行卡同一口径（长号码分组，不脱敏、不截断）。
+  String get displayNumber => formatCardNumber(phoneNumber);
 
-  /// 完整号码原文（去空白）；为空时返回 null。只在确认后的一次性弹窗里使用。
-  String? get fullNumber {
-    final String value = phoneNumber.trim();
-    return value.isEmpty ? null : value;
-  }
+  /// 复制用纯号码；缺号时返回 null。
+  String? get copyableNumber => copyableCardNumber(phoneNumber);
 
   /// 套餐文案：流量 / 通话 / 短信三项中有值的拼在一起；全空返回「未设置套餐」。
   ///
