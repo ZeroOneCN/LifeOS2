@@ -32,7 +32,9 @@ class ForexCreate(BaseModel):
 
 
 class ForexRead(ForexCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史订单存在 hold 等旧方向/状态取值，pattern 会让整页响应 500；请求侧保持不变
+    order_type: str
+    status: str = "closed"
 
 
 class FundCreate(BaseModel):
@@ -44,7 +46,8 @@ class FundCreate(BaseModel):
 
 
 class FundRead(FundCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史流水存在 bonus 等旧类型取值，pattern 会让整页响应 500；请求侧保持不变
+    record_type: str
 
 
 class PageOut(BaseModel, Generic[T]):
