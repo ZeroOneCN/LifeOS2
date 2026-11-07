@@ -52,8 +52,10 @@ class RootPageScaffold extends StatelessWidget {
 
 /// 二级页统一外壳：返回 + 页面标题。
 ///
-/// [bottomBar] 用于「保存 / 删除」等主操作：放在 `bottomNavigationBar` 上，
-/// 键盘弹起时由 Scaffold 抬到键盘上方，表单内容滚动时按钮始终可见。
+/// [bottomBar] 用于「保存 / 删除」等主操作：放在 body 的纵向布局里（内容区
+/// `Expanded` + 底栏），而不是 `Scaffold.bottomNavigationBar`。这样底栏始终占位，
+/// 内容只会在其上方滚动、不会被压住；键盘弹起时 body 整体收缩，底栏随之上移到
+/// 键盘上方，最末字段与主操作同时可达。
 class DetailPageScaffold extends StatelessWidget {
   const DetailPageScaffold({
     super.key,
@@ -79,20 +81,23 @@ class DetailPageScaffold extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title), actions: actions),
       floatingActionButton: floatingActionButton,
-      bottomNavigationBar: bottomBar == null
-          ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: bottomBar,
-              ),
-            ),
       body: SafeArea(
         top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, bottomBar == null ? 24 : 12),
-          child: child,
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: Padding(
+                padding:
+                    EdgeInsets.fromLTRB(16, 12, 16, bottomBar == null ? 24 : 12),
+                child: child,
+              ),
+            ),
+            if (bottomBar != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: bottomBar,
+              ),
+          ],
         ),
       ),
     );

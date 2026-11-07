@@ -380,7 +380,10 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
       child: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 32),
+          // 底部留出 120：滚到末尾时最后的「备注」仍能整体落在底栏上方；
+          // 键盘弹起后 body 收缩，仍可继续滚动到最末字段。
+          padding: const EdgeInsets.only(bottom: 120),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: <Widget>[
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -470,14 +470,14 @@ class _ForexPageState extends State<ForexPage> {
             outbox.pendingOf(outboxOpForexCreate);
         return DetailPageScaffold(
           title: '外汇交易',
-          floatingActionButton: FloatingActionButton.extended(
+          // 主操作放底栏而非悬浮按钮：底栏独立占位，内容只在其上方滚动，
+          // 柱图 X 轴末标签不会被按钮压住（1.3x 字号同样不遮挡）。
+          bottomBar: AppPrimaryButton(
+            label: '新增交易',
             onPressed: _openCreate,
-            icon: const Icon(Icons.add),
-            label: const Text('新增交易'),
           ),
           child: ListView(
-            // 底部预留悬浮「新增交易」按钮（含 1.3x 字号）的安全距离。
-            padding: const EdgeInsets.only(bottom: 120),
+            padding: const EdgeInsets.only(bottom: 24),
             children: <Widget>[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -578,7 +578,7 @@ class _ForexPageState extends State<ForexPage> {
                               icon: Icons.show_chart_outlined,
                               title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
                               description: _rangeDays == 0
-                                  ? '点击右下角「新增交易」录入第一笔'
+                                  ? '点底部「新增交易」录入第一笔'
                                   : '可切换上方「全部」查看历史记录',
                               compact: true,
                             )
