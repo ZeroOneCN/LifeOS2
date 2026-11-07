@@ -238,43 +238,82 @@ def delete_item(item_id: int, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------
 # 统计 / 数据分析
 # --------------------------------------------------------------------------
+# 回撤百分比口径保护：以累计净投入为基准；基准过小时不输出百分比；输出上限 999.99
+DRAWDOWN_BASE_MIN = 1.0
+DRAWDOWN_PCT_CAP = 999.99
+
+
+def _net_capital_of(funds) -> float:
+    """净投入 = 入金 - 出金 + 体验金（体验金带符号，亏损/失效为负）。
+
+    Args:
+        funds: InvestmentFundRecord 列表（可为全量或窗口内）。
+
+    Returns:
+        保留 2 位小数的净投入金额。
+    """
+    return round(
+        sum(f.amount for f in funds if f.record_type == "deposit")
+        - sum(f.amount for f in funds if f.record_type == "withdraw")
+        + sum(f.amount for f in funds if f.record_type == "experience"),
+        2,
+    )
+
+
 def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None) -> dict:
-    stat_trades = select(InvestmentForex)
-    stat_funds = select(InvestmentFundRecord)
+    """计算外汇交易统计。
+
+    `days` 是统一的统计窗口（含今天；days=3650 即近十年，等同全量）：
+    交易、资金记录、汇总、品种盈亏、回撤、连胜与时段分布都只统计窗口内的数据，
+    不再出现「只有收益曲线按区间、其它指标恒为全量」的口径分裂。
+
+    口径约定：
+    - `account_value`（账户净值）= 窗口净投入（入金 - 出金 + 体验金）
+      + 窗口净盈亏，与 `/investment/funds/stats` 的 `net`、投资报告的 `account_equity`
+      同口径，允许为负；它不是券商账户余额快照，而是「区间投入 + 区间盈亏」的平台口径净值。
+    - `max_drawdown` 为窗口内累计净盈亏的峰值回撤（美元绝对值，不受分母影响）；
+      `max_drawdown_pct` = 最大回撤 / 累计净投入 × 100（分母与资金页「净投入」同口径），
+      累计净投入 ≤ 1 美元时返回 None（无有效基准，避免分母趋零导致百分比失真），
+      且上限截断为 999.99，不输出四位数百分比。
+    - `open_count` 是当前仍持仓的交易数（状态量），不随统计窗口变化。
+
+    Args:
+        db: 数据库会话。
+        days: 统计窗口天数（1~3650）。
+        user_id: 用户 ID；None 表示不按用户过滤（仅内部/测试使用）。
+
+    Returns:
+        含 summary / equity_trend / daily_pnl / by_symbol / symbols / analysis 的字典。
+    """
+    stat_trades = select(InvestmentForex).order_by(InvestmentForex.id)
+    stat_funds = select(InvestmentFundRecord).order_by(InvestmentFundRecord.id)
     if user_id is not None:
         stat_trades = stat_trades.where(InvestmentForex.user_id == user_id)
         stat_funds = stat_funds.where(InvestmentFundRecord.user_id == user_id)
-    trades = db.scalars(stat_trades).all()
+    all_trades = db.scalars(stat_trades).all()
+    all_funds = db.scalars(stat_funds).all()
+
+    window_start = date.today() - timedelta(days=days - 1)
+    trades = [t for t in all_trades if _trade_date(t) >= window_start]
+    funds = [f for f in all_funds if f.record_date >= window_start]
     closed = [t for t in trades if t.status == "closed"]
-    funds = db.scalars(stat_funds).all()
+
     deposits = sum(f.amount for f in funds if f.record_type == "deposit")
     withdrawals = sum(f.amount for f in funds if f.record_type == "withdraw")
-
-    # 体验金拆三类（遵循 bonus 语义）：
-    #   赠金发放 = experience 正数；bonus_loss / bonus_expired = experience 负数（按 remark 前缀区分）
-    #   net_capital = deposit + bonus - bonus_loss - withdrawal（bonus_expired 不进净值）
-    #   remaining_bonus = max(0, bonus - bonus_loss - bonus_expired)  仅做体验金余额截断
-    bonus_credit = 0.0
-    bonus_loss = 0.0
-    bonus_expired = 0.0
-    for f in funds:
-        if f.record_type != "experience":
-            continue
-        if f.amount >= 0:
-            bonus_credit += f.amount
-        elif f.note and "bns807" in f.note:  # 体验金失效
-            bonus_expired += -f.amount
-        else:  # 体验金亏损
-            bonus_loss += -f.amount
-    net_capital = deposits - withdrawals + bonus_credit - bonus_loss
-    remaining_bonus = max(0.0, bonus_credit - bonus_loss - bonus_expired)
+    # 体验金按带符号合计（发放为正、亏损/失效为负），与资金页「体验金」卡片同口径；
+    # 不再做 max(0, …) 余额截断，避免全局 -70 被显示成 0 且把净值算错。
+    experience_total = sum(f.amount for f in funds if f.record_type == "experience")
+    net_capital = round(deposits - withdrawals + experience_total, 2)
+    # 回撤百分比的分母用「累计净投入」（与资金页净投入卡片同口径），
+    # 不用窗口内净投入：短区间内几乎没有出入金时，窗口净投入会趋近 0 再次放大百分比。
+    total_net_capital = _net_capital_of(all_funds)
 
     nets = {t.id: _trade_net(t) for t in closed}
     gross_pnl = sum(t.pnl or 0 for t in closed)
     total_commission = round(sum(t.commission or 0 for t in closed), 2)
     total_overnight = round(sum(t.overnight_fee or 0 for t in closed), 2)
     net_profit = round(sum(nets.values()), 2)
-    account_value = round(net_capital + remaining_bonus + net_profit, 2)
+    account_value = round(net_capital + net_profit, 2)
 
     wins = [n for n in nets.values() if n > 0]
     losses = [n for n in nets.values() if n < 0]
@@ -286,7 +325,7 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     avg_win = round(gross_win / len(wins), 2) if wins else None
     avg_loss = round(gross_loss / len(losses), 2) if losses else None
 
-    # 收益曲线（累计净盈亏，按交易日）
+    # 收益曲线（窗口内累计净盈亏，按交易日）：closed 已按窗口过滤，曲线从窗口起点重新累计
     daily_net: dict[date, float] = defaultdict(float)
     for t in closed:
         daily_net[_trade_date(t)] += nets[t.id]
@@ -294,12 +333,10 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     for d in sorted(daily_net):
         cumulative += daily_net[d]
         cumulative = round(cumulative, 2)
-        # 只保留近 days 天窗口
-        if d >= date.today() - timedelta(days=days - 1):
-            curve.append(
-                {"date": d.isoformat(), "pnl": cumulative,
-                 "pos": round(max(0, cumulative), 2), "neg": round(min(0, cumulative), 2)}
-            )
+        curve.append(
+            {"date": d.isoformat(), "pnl": cumulative,
+             "pos": round(max(0, cumulative), 2), "neg": round(min(0, cumulative), 2)}
+        )
 
     # 按交易品种
     by_symbol: dict[str, dict] = {}
@@ -317,20 +354,25 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     ]
     active_symbols = sorted({t.symbol for t in trades})
 
-    # 数据分析：最大回撤、连胜/连败、平均持仓、时段分布
-    drawdown_peak, drawdown_max, dd_pct = 0.0, 0.0, 0.0
+    # 数据分析：最大回撤（绝对值为累计净盈亏的峰值回撤，不涉及百分比分母）
+    drawdown_peak, drawdown_max = 0.0, 0.0
     run_total = 0.0
     for t in closed:
         run_total += nets[t.id]
         if run_total > drawdown_peak:
             drawdown_peak = run_total
-        if drawdown_peak > 0:
-            dd_pct_i = (drawdown_peak - run_total) / drawdown_peak * 100
-            if dd_pct_i > dd_pct:
-                dd_pct = dd_pct_i
         dd = drawdown_peak - run_total
         if dd > drawdown_max:
             drawdown_max = dd
+
+    # 回撤百分比：以累计净投入为分母。旧口径用累计盈亏的峰值（本例仅 50.90）做分母，
+    # 得到 5555.27% 的失真值；净投入为 0/过小时不输出百分比（None），并设上限保护。
+    if total_net_capital > DRAWDOWN_BASE_MIN:
+        max_drawdown_pct = round(
+            min(drawdown_max / total_net_capital * 100, DRAWDOWN_PCT_CAP), 2
+        )
+    else:
+        max_drawdown_pct = None
 
     longest_win = longest_loss = cur_streak = 0
     cur_len = 0
@@ -357,10 +399,9 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
         if pt:
             hour_dist[pt.hour] += 1
 
-    # 交易品种盈亏按日、净收益、手续费、隔夜费
-    trend_window = [t for t in closed if _trade_date(t) >= date.today() - timedelta(days=days - 1)]
+    # 每日净盈亏（closed 已是窗口内的交易）
     daily_pnl: dict[date, float] = defaultdict(float)
-    for t in trend_window:
+    for t in closed:
         daily_pnl[_trade_date(t)] = round(daily_pnl[_trade_date(t)] + nets[t.id], 2)
 
     # 单笔最大盈利/亏损（正盈利、负亏损，记录对应交易日）、单天最大盈利/亏损（记录对应交易日）
@@ -392,13 +433,14 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
             "total_commission": total_commission,
             "total_overnight": total_overnight,
             "trade_count": len(closed),
-            "open_count": sum(1 for t in trades if t.status == "open"),
+            # 持仓中是当前状态（不随统计窗口变化）
+            "open_count": sum(1 for t in all_trades if t.status == "open"),
             "win_rate": win_rate,
             "profit_loss_ratio": profit_loss_ratio,
             "profit_factor": profit_factor,
             "total_deposit": round(deposits, 2),
             "total_withdraw": round(withdrawals, 2),
-            "total_experience": round(remaining_bonus, 2),
+            "total_experience": round(experience_total, 2),
             "symbol_count": len(active_symbols),
         },
         "equity_trend": curve,
@@ -417,7 +459,7 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
             "max_day_profit_date": max_day_profit_date,
             "max_day_loss_date": max_day_loss_date,
             "max_drawdown": round(drawdown_max, 2),
-            "max_drawdown_pct": round(dd_pct, 2) if drawdown_peak else 0,
+            "max_drawdown_pct": max_drawdown_pct,
             "profit_factor": profit_factor,
             "longest_win_streak": longest_win,
             "longest_loss_streak": longest_loss,
