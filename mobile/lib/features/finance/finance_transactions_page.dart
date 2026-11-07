@@ -141,6 +141,16 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
             // 底部预留悬浮「记一笔」按钮的安全距离。
             padding: const EdgeInsets.only(bottom: 120),
             children: <Widget>[
+              // 后端当前只有消费支出记录，没有收入流水；先把口径讲清楚。
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: _hint(
+                  theme,
+                  Icons.info_outline,
+                  '口径：当前仅包含消费支出（来自购物记录），收入流水暂未接入。',
+                ),
+              ),
+              const SizedBox(height: 12),
               _pendingCard(theme, scope.outbox),
               const SizedBox(height: 12),
               _recentCard(theme),
