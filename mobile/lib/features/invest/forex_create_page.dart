@@ -78,6 +78,38 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
       _openTime = _parseIso(trade.openTime);
       _closeTime = _parseIso(trade.closeTime);
     }
+    _lastReadableNote = _readableNote;
+    _note.addListener(_onNoteChanged);
+  }
+
+  String? _lastReadableNote;
+
+  /// 备注变化时刷新「导入备注」释义；释义出现/消失都需要重建。
+  void _onNoteChanged() {
+    final String? next = _readableNote;
+    if (mounted && next != _lastReadableNote) {
+      _lastReadableNote = next;
+      setState(() {});
+    }
+  }
+
+  /// 把 `ID:1489599185 | TP:4315.0` 这类导入串翻译成「订单号 / 止盈价」。
+  ///
+  /// 只用于展示，不修改输入框原文，避免保存时改写历史数据。
+  String? get _readableNote {
+    final String raw = _note.text.trim();
+    if (!raw.contains('ID:') && !raw.contains('TP:')) {
+      return null;
+    }
+    final Match? id = RegExp(r'ID[:：]\s*(\d+)').firstMatch(raw);
+    final Match? tp = RegExp(r'TP[:：]\s*([\d.]+)').firstMatch(raw);
+    if (id == null && tp == null) {
+      return null;
+    }
+    return <String>[
+      if (id != null) '订单号 ${id[1]}',
+      if (tp != null) '止盈价 ${tp[1]}',
+    ].join(' · ');
   }
 
   /// 数字去尾零：`0.1000` → `0.1`，`12.00` → `12`。
@@ -590,12 +622,26 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
                 ),
                 SectionCard(
                   title: '备注',
-                  child: TextFormField(
-                    controller: _note,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: '可选，例如策略、复盘结论',
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 8,
+                    children: <Widget>[
+                      TextFormField(
+                        controller: _note,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: '可选，例如策略、复盘结论',
+                        ),
+                      ),
+                      // 历史数据里的备注可能是导入机器串，原样保留但给出可读释义。
+                      if (_readableNote != null)
+                        Text(
+                          '导入备注：$_readableNote',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],
