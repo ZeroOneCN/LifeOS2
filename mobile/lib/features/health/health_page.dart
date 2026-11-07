@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
+import '../../core/models/health_models.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/feature_entries.dart';
@@ -13,9 +15,104 @@ import '../../shared/widgets/section_status.dart';
 
 /// 健康中心根页：常用（步数 / 用药）→ 全部功能 → 今日用药待办 → 本周概览。
 ///
-/// 摘要数据来自 `GET /health/overview`（总览层），列表页仍走占位。
-class HealthPage extends StatelessWidget {
+/// 摘要数据来自 `GET /health/overview`（总览层）；
+/// 7 日均步数单独取 `GET /health/steps/stats?days=7`：
+/// 总览里的 `week_summary.steps_avg` 是按「记录条数」平均，
+/// 一天有多条分时段记录时会被拉低（实测 1,385 vs 真实日均 4,100），
+/// 因此不能直接当「日均」展示。
+class HealthPage extends StatefulWidget {
   const HealthPage({super.key});
+
+  @override
+  State<HealthPage> createState() => _HealthPageState();
+}
+
+class _HealthPageState extends State<HealthPage> {
+  OverviewController? _overview;
+
+  /// 近 7 日日均步数（按天取最大值后平均，口径与步数统计页一致）。
+  int? _weekAvgSteps;
+  bool _weekStatsLoading = false;
+  bool _weekStatsFailed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final OverviewController overview = AppScope.of(context).overview;
+    if (_overview == overview) {
+      return;
+    }
+    _overview?.healthNotifier.removeListener(_onOverviewChanged);
+    _overview = overview;
+    _overview!.healthNotifier.addListener(_onOverviewChanged);
+    // 首次进入时总览可能已就绪（登录后已拉过），补一次 7 日统计。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _weekAvgSteps == null && !_weekStatsLoading) {
+        _loadWeekAvg();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _overview?.healthNotifier.removeListener(_onOverviewChanged);
+    super.dispose();
+  }
+
+  /// 总览刷新成功（切回健康 Tab / 手动刷新）后同步重算 7 日均步数。
+  void _onOverviewChanged() {
+    if (!mounted) {
+      return;
+    }
+    final OverviewState<HealthOverview> state = _overview!.health;
+    if (state.status == LoadStatus.ready && !_weekStatsLoading) {
+      _loadWeekAvg();
+    }
+  }
+
+  /// 拉近 7 日统计，只取 `avg_steps`；失败时展示 `—`，不回退到总览的错误口径。
+  Future<void> _loadWeekAvg() async {
+    final AppScope scope = AppScope.of(context);
+    if (!scope.auth.isLoggedIn) {
+      return;
+    }
+    setState(() => _weekStatsLoading = true);
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/health/steps/stats',
+                  queryParameters: <String, dynamic>{'days': 7}))
+          .data;
+      if (json == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '步数统计返回为空',
+        );
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _weekAvgSteps = StepStats.fromJson(json).avgSteps;
+        _weekStatsLoading = false;
+        _weekStatsFailed = false;
+      });
+    } on ApiException {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _weekStatsLoading = false;
+        _weekStatsFailed = true;
+      });
+    }
+  }
+
+  /// 手动刷新：总览 + 7 日均步数。
+  void _refresh() {
+    final AppScope scope = AppScope.of(context);
+    scope.overview.refreshHealth();
+    _loadWeekAvg();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +127,13 @@ class HealthPage extends StatelessWidget {
 
         return RootPageScaffold(
           title: '健康中心',
+          actions: <Widget>[
+            IconButton(
+              tooltip: '刷新步数与用药数据',
+              onPressed: _refresh,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
           children: <Widget>[
             OverviewStatusBanner(
               status: state.status,
@@ -43,8 +147,14 @@ class HealthPage extends StatelessWidget {
                   PrimaryFeatureCard(
                     icon: Icons.directions_walk_outlined,
                     title: '步数统计',
-                    summary: '今日 ${formatInt(data?.steps)} 步',
-                    onTap: () => context.push('/health/steps'),
+                    summary: _stepsSummary(data),
+                    onTap: () async {
+                      await context.push('/health/steps');
+                      // 从步数页返回：录入可能改变今日步数，重新对账。
+                      if (context.mounted) {
+                        _refresh();
+                      }
+                    },
                   ),
                   PrimaryFeatureCard(
                     icon: Icons.medication_outlined,
@@ -84,13 +194,17 @@ class HealthPage extends StatelessWidget {
             ),
             SectionCard(
               title: '今日用药待办',
+              trailing: TextButton(
+                onPressed: () => _openMedicationCreate(),
+                child: const Text('新增'),
+              ),
               child: meds.isEmpty
                   ? EmptyState(
                       icon: Icons.medication_liquid_outlined,
                       title: '今天暂无用药记录',
                       description: state.status == LoadStatus.unauthenticated
                           ? '登录后展示今日待服清单'
-                          : '后端暂无今日用药数据',
+                          : '点右上「新增」添加今天的用药计划',
                       compact: true,
                     )
                   : Column(
@@ -108,8 +222,8 @@ class HealthPage extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: MetricPlaceholder(
-                      label: '日均步数',
-                      value: formatInt(data?.weekStepsAvg),
+                      label: '7 日均步数',
+                      value: _weekAvgText(),
                     ),
                   ),
                   Expanded(
@@ -132,6 +246,51 @@ class HealthPage extends StatelessWidget {
       },
     );
   }
+
+  /// 打开新增用药页；返回后刷新总览（今日待办与库存会变化）。
+  Future<void> _openMedicationCreate() async {
+    await context.push('/health/medication/new');
+    if (mounted) {
+      _refresh();
+    }
+  }
+
+  /// 步数摘要：总览给的是「最新一条记录」，只有日期是今天才敢写「今日」，
+  /// 否则按「最近 MM-dd」展示，避免把昨天的步数当今日。
+  String _stepsSummary(HealthOverview? data) {
+    final int? steps = data?.steps;
+    if (steps == null) {
+      return '暂无记录';
+    }
+    final String date = data?.stepsDate ?? '';
+    if (date == _todayText) {
+      return '今日 ${formatInt(steps)} 步';
+    }
+    return '最近 ${_shortDate(date)} · ${formatInt(steps)} 步';
+  }
+
+  /// 7 日均步数文案：加载中显示「…」，失败显示「—」（不展示错误口径的数值）。
+  String _weekAvgText() {
+    if (_weekStatsLoading && _weekAvgSteps == null) {
+      return '…';
+    }
+    if (_weekStatsFailed && _weekAvgSteps == null) {
+      return '—';
+    }
+    return formatInt(_weekAvgSteps);
+  }
+
+  static String get _todayText {
+    final DateTime now = DateTime.now();
+    return '${now.year}-${_two(now.month)}-${_two(now.day)}';
+  }
+
+  /// `2026-11-06` → `11-06`；长度异常时原样返回。
+  static String _shortDate(String date) {
+    return date.length >= 10 ? date.substring(5, 10) : date;
+  }
+
+  static String _two(int value) => value < 10 ? '0$value' : '$value';
 
   /// 周平均睡眠：分钟 → `7.5h`；无数据返回 `--`。
   static String _sleepText(int? minutes) {
@@ -184,4 +343,3 @@ class _MedicationRow extends StatelessWidget {
     );
   }
 }
-

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
@@ -96,6 +97,14 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
     _refresh();
   }
 
+  /// 打开新增步数页；保存成功返回 `true` 后立即重拉统计。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/health/steps/new');
+    if (created == true && mounted) {
+      _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -103,7 +112,13 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
 
     return DetailPageScaffold(
       title: '步数统计',
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreate,
+        icon: const Icon(Icons.add),
+        label: const Text('新增步数'),
+      ),
       child: ListView(
+        padding: const EdgeInsets.only(bottom: 72),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -169,7 +184,7 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
                         const EmptyState(
                           icon: Icons.directions_walk_outlined,
                           title: '该区间没有步数记录',
-                          description: '换一个时间区间或先在网页端导入步数',
+                          description: '点右下「新增步数」录入第一条',
                           compact: true,
                         )
                       else
