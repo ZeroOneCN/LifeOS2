@@ -46,10 +46,14 @@ class MetricPlaceholder extends StatelessWidget {
     super.key,
     required this.label,
     this.value = '—',
+    this.valueColor,
   });
 
   final String label;
   final String value;
+
+  /// 数值颜色：用于「优惠合计」这类需要语义色的指标。
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +70,7 @@ class MetricPlaceholder extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             style: theme.textTheme.titleMedium?.copyWith(
+              color: valueColor,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
           ),

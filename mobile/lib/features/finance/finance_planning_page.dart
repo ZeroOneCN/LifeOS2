@@ -376,7 +376,9 @@ class _PlanRow extends StatelessWidget {
           Text(
             <String>[
               plan.planDate,
-              if (plan.planType.isNotEmpty) plan.planType,
+              // 「目标」单独出现时会被读成缺值（目标是什么？），补「计划」
+              // 明确它是规划类型。
+              if (plan.planType.isNotEmpty) '${plan.planType}计划',
             ].join(' · '),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -411,10 +413,29 @@ class _PlanRow extends StatelessWidget {
               ),
             ],
           ),
-          LinearProgressIndicator(
-            value: progress ?? 0,
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(3),
+          Row(
+            spacing: 8,
+            children: <Widget>[
+              Expanded(
+                child: LinearProgressIndicator(
+                  value: progress ?? 0,
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              // 进度条只有视觉长度，补一个具体百分比，便于精确对照。
+              Text(
+                formatPercent(progress == null ? null : progress * 100),
+                maxLines: 1,
+                softWrap: false,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: muted,
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

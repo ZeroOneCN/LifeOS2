@@ -12,6 +12,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import '../../theme/app_theme.dart';
 import 'finance_status_widgets.dart';
 
 /// 旅行开支：汇总（实付 / 原价 / 优惠）+ 按行程筛选 + 按分类支出 + 明细分页。
@@ -303,6 +304,8 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
                         child: MetricPlaceholder(
                           label: '优惠合计',
                           value: formatMoney(stats.totalDiscount),
+                          // 优惠是「省下来的钱」，用语义成功色区分实付 / 原价。
+                          valueColor: context.semanticColors.success,
                         ),
                       ),
                     ],
@@ -381,11 +384,12 @@ class _TravelRow extends StatelessWidget {
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
     final List<Widget> meta = <Widget>[
-      Text(detail.detailDate, style: metaStyle),
+      // 明细里有消费日与行程（名称本身带出发日期）两个日期，加前缀区分。
+      Text('消费 ${detail.detailDate}', style: metaStyle),
       Text(detail.category, style: metaStyle),
       if (detail.durationMinutes != null)
         Text(detail.durationText, style: metaStyle),
-      if (ledgerName != null) Text(ledgerName!, style: metaStyle),
+      if (ledgerName != null) Text('行程 $ledgerName', style: metaStyle),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),

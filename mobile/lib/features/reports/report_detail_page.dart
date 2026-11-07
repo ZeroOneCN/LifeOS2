@@ -683,7 +683,7 @@ class _KvRow extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final AppSemanticColors colors = context.semanticColors;
     final String label = row.isNotEmpty ? row[0] : '';
-    final String value = row.length > 1 ? row[1] : '';
+    final String value = row.length > 1 ? _keepUnit(row[1]) : '';
     // 「18 件（花费 ¥256.88）」这类长值，若任其折行会断成「18 件（花费 / ¥256.88）」；
     // 主动在括号前换行，读起来是「数值 + 补充说明」两行。
     final String displayValue = value.length > 12 && value.contains('（')
@@ -749,6 +749,23 @@ class _GroupedRow extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final AppSemanticColors colors = context.semanticColors;
     final String title = row.isNotEmpty ? row[0] : '';
+    // 体检类表格用「偏高 / 偏低」描述状态；整行都是黑色时用户得逐字读，
+    // 这里让异常数值与状态一起带上语义色（偏高红、偏低橙）。
+    final bool high = row.any((String cell) => cell.contains('偏高'));
+    final bool low = row.any((String cell) => cell.contains('偏低'));
+    final Color abnormalColor = high ? colors.danger : colors.warning;
+    Color? cellColor(String cell) {
+      if (cell.contains('偏高')) {
+        return colors.danger;
+      }
+      if (cell.contains('偏低')) {
+        return colors.warning;
+      }
+      if ((high || low) && RegExp(r'^[-+]?[\d.]').hasMatch(cell.trim())) {
+        return abnormalColor;
+      }
+      return _signColor(cell, colors, colorizePositive: colorizePositive);
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -789,11 +806,7 @@ class _GroupedRow extends StatelessWidget {
                           Text(
                             i < row.length ? row[i] : '',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: _signColor(
-                                i < row.length ? row[i] : '',
-                                colors,
-                                colorizePositive: colorizePositive,
-                              ),
+                              color: cellColor(i < row.length ? row[i] : ''),
                               fontWeight: FontWeight.w600,
                               fontFeatures: const <FontFeature>[
                                 FontFeature.tabularFigures(),
@@ -811,6 +824,14 @@ class _GroupedRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 数字与单位之间换成不换行空格，避免「-1.7 kg」被拆成两行只剩单位。
+String _keepUnit(String text) {
+  return text.replaceAllMapped(
+    RegExp(r'(?<=[0-9)）])\s+(?=[A-Za-zµμ%°])'),
+    (Match _) => '\u00A0',
+  );
 }
 
 /// 先按行标签判断资金语义，再回退到正负色。
