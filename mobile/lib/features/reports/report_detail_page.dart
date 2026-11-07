@@ -216,6 +216,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   /// 是否按美元口径展示金额（投资报告）。
   bool get _usd => widget.source.usdAmounts;
 
+  /// 是否为健康报告（正文用 `-` 表示空值）。
+  bool get _health => identical(widget.source, ReportSource.health);
+
   /// 金额语义列 / 行关键字；「盈亏比」「胜率」等比率不算金额。
   static const List<String> _moneyKeys = <String>[
     '净收益',
@@ -267,12 +270,44 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return changed ? output.join(' / ') : raw;
   }
 
-  /// 只给明确的金额列 / 金额行补 `$`，笔数、胜率、手数等保持原样。
-  List<List<String>> _usdRows(List<String> header, List<List<String>> rows) {
-    if (!_usd) {
+  /// 健康报告的后端正文用单个 `-` 表示空值，展示前统一成「—」。
+  ///
+  /// 只替换「独立成值」的 hyphen：`-/- mmHg`、`- %`、`- mmol/L`、单独的 `-`；
+  /// 时间范围 `18:52 - 04:42` 的连字符与负号 `-1.7`、日期 `2026-07-10` 保持不变。
+  String _normalizeDashes(String text) {
+    if (text.isEmpty) {
+      return text;
+    }
+    // 先保护时间范围里的分隔连字符，稍后原样还原。
+    const String guard = '\u0001';
+    final String protectedText = text.replaceAllMapped(
+      RegExp(r'(\d{1,2}:\d{2})\s+-\s+(\d{1,2}:\d{2})'),
+      (Match match) => '${match[1]}$guard${match[2]}',
+    );
+    final String replaced = protectedText.replaceAllMapped(
+      RegExp(r'(^|[\s/])[-−](?=[\s/]|$|[A-Za-z%°])'),
+      (Match match) => '${match[1]}—',
+    );
+    return replaced.replaceAll(guard, ' - ');
+  }
+
+  /// 健康报告：把表格与键值对所有单元格做一次空值符号归一。
+  List<List<String>> _healthRows(List<List<String>> rows) {
+    if (!_health) {
       return rows;
     }
-    return rows.map((List<String> row) {
+    return rows
+        .map((List<String> row) => row.map(_normalizeDashes).toList())
+        .toList();
+  }
+
+  /// 只给明确的金额列 / 金额行补 `$`，笔数、胜率、手数等保持原样。
+  List<List<String>> _usdRows(List<String> header, List<List<String>> rows) {
+    final List<List<String>> prepareRows = _healthRows(rows);
+    if (!_usd) {
+      return prepareRows;
+    }
+    return prepareRows.map((List<String> row) {
       final List<String> cells = List<String>.of(row);
       if (header.length <= 2 && !header.any(_isMoneyLabel)) {
         // 「指标 | 数值」型：按首列标签判断这一行是否为金额。
@@ -320,7 +355,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   TextSpan _summarySpan(BuildContext context, String text) {
     final TextStyle? base = Theme.of(context).textTheme.bodyMedium;
     if (!_usd) {
-      return TextSpan(text: text, style: base);
+      return TextSpan(
+        text: _health ? _normalizeDashes(text) : text,
+        style: base,
+      );
     }
     final AppSemanticColors colors = context.semanticColors;
     final String normalized = _usdProse(text);
@@ -334,15 +372,28 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             match[0]!.replaceAll(RegExp(r'[^\d.\-]'), ''),
           ) ??
           0;
+      // 金额前面紧邻的词决定语义：出金用危险色，入金用成功色，
+      // 「净收益 / 账户净值」等仍按正负着色。
+      final String prefix = normalized.substring(
+        match.start > 8 ? match.start - 8 : 0,
+        match.start,
+      );
+      final bool isOut = prefix.contains('出金');
+      final bool isIn = prefix.contains('入金');
+      final Color? color;
+      if (isOut && !isIn) {
+        color = colors.danger;
+      } else if (isIn && !isOut) {
+        color = colors.success;
+      } else {
+        color = parsed < 0
+            ? colors.danger
+            : (parsed > 0 ? colors.success : null);
+      }
       spans.add(
         TextSpan(
           text: match[0],
-          style: TextStyle(
-            color: parsed < 0
-                ? colors.danger
-                : (parsed > 0 ? colors.success : null),
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: color, fontWeight: FontWeight.w600),
         ),
       );
       last = match.end;
@@ -406,8 +457,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         );
         rowCount += block.rows.length;
       } else if ((block.text ?? '').isNotEmpty) {
+        final String text = block.text!;
         body.add(
-          Text(block.text!, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            _health ? _normalizeDashes(text) : text,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         );
       }
     }
@@ -543,6 +598,8 @@ class _ReportTable extends StatelessWidget {
               header: header,
               row: rows[index],
               colorizePositive: colorizePositive,
+              // 字段名只在首行出现一次，避免「金额 / 占比」逐行重复。
+              showLabels: index == 0,
             ),
           ],
         ],
@@ -606,7 +663,8 @@ class _KvRow extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: _signColor(
+                color: _labelColor(
+                  label,
                   value,
                   colors,
                   colorizePositive: colorizePositive,
@@ -628,11 +686,15 @@ class _GroupedRow extends StatelessWidget {
     required this.header,
     required this.row,
     this.colorizePositive = false,
+    this.showLabels = true,
   });
 
   final List<String> header;
   final List<String> row;
   final bool colorizePositive;
+
+  /// 是否显示字段名；同组只有首行显示，其余行只列值。
+  final bool showLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -669,13 +731,14 @@ class _GroupedRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         spacing: 1,
                         children: <Widget>[
-                          Text(
-                            header[i],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: muted),
-                          ),
+                          if (showLabels)
+                            Text(
+                              header[i],
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: muted),
+                            ),
                           Text(
                             i < row.length ? row[i] : '',
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -701,6 +764,30 @@ class _GroupedRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 先按行标签判断资金语义，再回退到正负色。
+///
+/// 「入金 / 出金」是两种相反语义合在同一行，整体不着色；
+/// 单独的「出金」用危险色、「入金」用成功色，避免出现「出金 = 盈利绿」。
+Color? _labelColor(
+  String label,
+  String value,
+  AppSemanticColors colors, {
+  bool colorizePositive = false,
+}) {
+  final bool hasIn = label.contains('入金');
+  final bool hasOut = label.contains('出金');
+  if (hasIn && hasOut) {
+    return null;
+  }
+  if (hasOut) {
+    return colors.danger;
+  }
+  if (hasIn) {
+    return colors.success;
+  }
+  return _signColor(value, colors, colorizePositive: colorizePositive);
 }
 
 /// 数值正负色：`+` 开头用 success，`-` 开头用 danger，其余保持默认色。

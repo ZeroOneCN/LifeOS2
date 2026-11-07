@@ -545,7 +545,10 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
                               ),
                               decoration: const InputDecoration(
                                 labelText: '手续费',
-                                hintText: '0',
+                                hintText: '—',
+                                helperText: '留空按 0 计',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
                               ),
                               validator: _optionalNumber,
                             ),
@@ -560,7 +563,10 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
                               ),
                               decoration: const InputDecoration(
                                 labelText: '隔夜费',
-                                hintText: '0',
+                                hintText: '—',
+                                helperText: '留空按 0 计',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
                               ),
                               validator: _optionalNumber,
                             ),

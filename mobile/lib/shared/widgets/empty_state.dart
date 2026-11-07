@@ -45,7 +45,7 @@ class MetricPlaceholder extends StatelessWidget {
   const MetricPlaceholder({
     super.key,
     required this.label,
-    this.value = '--',
+    this.value = '—',
   });
 
   final String label;

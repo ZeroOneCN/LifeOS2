@@ -10,10 +10,10 @@ String _group(String digits) {
   return buffer.toString();
 }
 
-/// 整数千分位；null 或无法解析时返回 `--`。
+/// 整数千分位；null 或无法解析时返回「—」（全站统一空值符号）。
 String formatInt(num? value) {
   if (value == null) {
-    return '--';
+    return '—';
   }
   final String sign = value < 0 ? '-' : '';
   return '$sign${_group(value.round().abs().toString())}';
@@ -32,7 +32,7 @@ String formatUsdSigned(num? value) => _money(value, r'$', withPlus: true);
 /// 金额基函数：固定 2 位小数 + 千分位，负号在货币符号前。
 String _money(num? value, String symbol, {bool withPlus = false}) {
   if (value == null) {
-    return '--';
+    return '—';
   }
   final num abs = value.abs();
   final String fixed = abs.toStringAsFixed(2);
@@ -51,7 +51,7 @@ String _money(num? value, String symbol, {bool withPlus = false}) {
 /// 百分比：保留一位小数。
 String formatPercent(num? value) {
   if (value == null) {
-    return '--';
+    return '—';
   }
   return '${value.toStringAsFixed(1)}%';
 }

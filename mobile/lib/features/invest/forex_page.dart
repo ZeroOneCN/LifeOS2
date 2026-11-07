@@ -973,9 +973,21 @@ class _FundRow extends StatelessWidget {
       default:
         typeColor = muted;
     }
-    final Color amountColor = record.amount > 0
-        ? colors.success
-        : (record.amount < 0 ? colors.danger : muted);
+    // 金额颜色跟随记录类型语义：入金绿、出金红、体验金琥珀，
+    // 与左侧标签一致（出金不是收益，不能因为金额为正就染绿）。
+    final Color amountColor;
+    switch (record.recordType) {
+      case 'deposit':
+        amountColor = colors.success;
+      case 'withdraw':
+        amountColor = colors.danger;
+      case 'experience':
+        amountColor = colors.warning;
+      default:
+        amountColor = record.amount > 0
+            ? colors.success
+            : (record.amount < 0 ? colors.danger : muted);
+    }
 
     return InkWell(
       onTap: onTap,

@@ -469,7 +469,7 @@ class TravelLedger {
     if (start == null && end == null) {
       return '未设置行程日期';
     }
-    return '${start ?? '--'} ~ ${end ?? '进行中'}';
+    return '${start ?? '—'} ~ ${end ?? '进行中'}';
   }
 
   factory TravelLedger.fromJson(Map<String, dynamic> json) {
@@ -517,10 +517,10 @@ class TravelDetail {
   final String? paymentMethod;
   final String? note;
 
-  /// 时间段文案：任一端缺失时为「--」。
+  /// 时间段文案：任一端缺失时为「—」。
   String get timeRange {
     if (beginTime == null || endTime == null) {
-      return '--';
+      return '—';
     }
     return '${_clock(beginTime)}-${_clock(endTime)}';
   }
@@ -542,7 +542,7 @@ class TravelDetail {
   String get durationText {
     final int? minutes = durationMinutes;
     if (minutes == null) {
-      return '--';
+      return '—';
     }
     final int hour = minutes ~/ 60;
     final int minute = minutes % 60;
@@ -721,7 +721,7 @@ class PlanStats {
 /// `HH:MM:SS` → `HH:MM`。
 String _clock(String? value) {
   if (value == null || value.isEmpty) {
-    return '--';
+    return '—';
   }
   return value.length >= 5 ? value.substring(0, 5) : value;
 }

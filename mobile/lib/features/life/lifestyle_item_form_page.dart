@@ -445,7 +445,10 @@ class _LifestyleItemFormPageState extends State<LifestyleItemFormPage> {
                               controller: _location,
                               decoration: const InputDecoration(
                                 labelText: '存放位置',
-                                hintText: '如：书房抽屉、储物间',
+                                hintText: '—',
+                                helperText: '如：书房抽屉、储物间',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
                               ),
                               textInputAction: TextInputAction.next,
                               validator: null,

@@ -121,7 +121,7 @@ class LifePage extends StatelessWidget {
                               ),
                               Text(
                                 item.daysLeft == null
-                                    ? '--'
+                                    ? '—'
                                     : '${formatInt(item.daysLeft)} 天',
                                 style: Theme.of(context)
                                     .textTheme

@@ -371,8 +371,10 @@ class _HealthBodyFormPageState extends State<HealthBodyFormPage> {
                               ),
                               decoration: const InputDecoration(
                                 labelText: '肌肉率（可选）',
-                                hintText: '例如 74.4',
+                                hintText: '—',
                                 suffixText: '%',
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.always,
                               ),
                               onChanged: (_) => setState(() {}),
                               validator: (String? value) =>

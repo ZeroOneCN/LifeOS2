@@ -287,10 +287,10 @@ class _HealthPageState extends State<HealthPage> {
 
   static String _two(int value) => value < 10 ? '0$value' : '$value';
 
-  /// 周平均睡眠：分钟 → `7.5h`；无数据返回 `--`。
+  /// 周平均睡眠：分钟 → `7.5h`；无数据返回「—」。
   static String _sleepText(int? minutes) {
     if (minutes == null) {
-      return '--';
+      return '—';
     }
     return '${(minutes / 60).toStringAsFixed(1)}h';
   }
