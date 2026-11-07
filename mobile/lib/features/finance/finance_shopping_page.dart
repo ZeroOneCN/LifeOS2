@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
@@ -9,6 +10,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import 'finance_shopping_manage_sheet.dart';
 import 'finance_status_widgets.dart';
 
 /// 购物记录：汇总（总额 / 平均单笔 / 涉及平台）+ 按平台消费 + 全部分页记录。
@@ -18,6 +20,8 @@ import 'finance_status_widgets.dart';
 /// - `GET /finance/shopping/records/stats?days=3650`
 /// - `GET /finance/shopping/platforms?page_size=100`（id → 平台名）
 /// - `GET /finance/shopping/categories`（id → 分类名）
+///
+/// 写操作：点按记录进入编辑（保存 / 删除）；顶栏「维护」管理平台与分类。
 class FinanceShoppingPage extends StatefulWidget {
   const FinanceShoppingPage({super.key});
 
@@ -239,6 +243,13 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
 
     return DetailPageScaffold(
       title: '购物记录',
+      actions: <Widget>[
+        IconButton(
+          tooltip: '平台 / 分类维护',
+          onPressed: _manage,
+          icon: const Icon(Icons.tune_outlined),
+        ),
+      ],
       child: ListView(
         children: <Widget>[
           Column(
@@ -317,6 +328,7 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
                                 record: record,
                                 platformName: record.platformLabel(_platforms),
                                 categoryName: _categoryName(record.categoryId),
+                                onTap: () => _openRecord(record),
                               ),
                           ],
                         ),
@@ -343,19 +355,40 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
     final String? name = _categories[id];
     return (name == null || name.isEmpty) ? null : name;
   }
+
+  /// 打开编辑页；保存或删除后返回 true，回到列表立即重算汇总。
+  Future<void> _openRecord(ShoppingRecord record) async {
+    final bool? changed = await context.push<bool>(
+      '/finance/shopping/edit/${record.id}',
+      extra: record,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 平台 / 分类维护；面板内改动后重载字典与汇总。
+  Future<void> _manage() async {
+    final bool? changed = await showShoppingManageSheet(context);
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
 }
 
-/// 单条购物记录：商品名 + 日期/平台/分类 + 总价（可选单价）。
+/// 单条购物记录：商品名 + 日期/平台/分类 + 总价（可选单价），点按进入编辑。
 class _ShoppingRow extends StatelessWidget {
   const _ShoppingRow({
     required this.record,
     required this.platformName,
+    required this.onTap,
     this.categoryName,
   });
 
   final ShoppingRecord record;
   final String platformName;
   final String? categoryName;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -363,61 +396,66 @@ class _ShoppingRow extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Text(
+                    record.productName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: <Widget>[
+                      Text(record.recordDate, style: metaStyle),
+                      Text(platformName, style: metaStyle),
+                      if (categoryName != null)
+                        Text(categoryName!, style: metaStyle),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
               children: <Widget>[
                 Text(
-                  record.productName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: <Widget>[
-                    Text(record.recordDate, style: metaStyle),
-                    Text(platformName, style: metaStyle),
-                    if (categoryName != null)
-                      Text(categoryName!, style: metaStyle),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                formatMoney(record.totalPrice),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              if (record.unitPrice != null)
-                Text(
-                  '单价 ${formatMoney(record.unitPrice)}',
+                  formatMoney(record.totalPrice),
                   maxLines: 1,
                   softWrap: false,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
                 ),
-            ],
-          ),
-        ],
+                if (record.unitPrice != null)
+                  Text(
+                    '单价 ${formatMoney(record.unitPrice)}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+              ],
+            ),
+            Icon(Icons.chevron_right, size: 18, color: muted),
+          ],
+        ),
       ),
     );
   }

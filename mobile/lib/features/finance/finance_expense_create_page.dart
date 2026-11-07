@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
@@ -166,6 +167,15 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
     final bool online = scope.outbox.isOnline;
     return DetailPageScaffold(
       title: '记一笔支出',
+      bottomBar: SizedBox(
+        height: kAppButtonHeight,
+        width: double.infinity,
+        child: AppPrimaryButton(
+          label: online ? '保存' : '保存到本地',
+          loading: _saving,
+          onPressed: _saving ? null : _save,
+        ),
+      ),
       child: Form(
         key: _formKey,
         child: ListView(
@@ -185,6 +195,7 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
                       TextFormField(
                         controller: _amount,
                         autofocus: true,
+                        textAlign: TextAlign.end,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -248,29 +259,6 @@ class _FinanceExpenseCreatePageState extends State<FinanceExpenseCreatePage> {
                     decoration: const InputDecoration(
                       hintText: '可选，例如商户、用途',
                     ),
-                  ),
-                ),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _saving ? null : _save,
-                    child: _saving
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: <Widget>[
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: theme.colorScheme.onPrimary,
-                                ),
-                              ),
-                              const Text('保存中…'),
-                            ],
-                          )
-                        : Text(online ? '保存' : '保存到本地'),
                   ),
                 ),
                 Text(
