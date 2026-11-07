@@ -14,9 +14,11 @@ import '../../features/finance/finance_debt_form_page.dart';
 import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_expense_create_page.dart';
 import '../../features/finance/finance_page.dart';
+import '../../features/finance/finance_planning_form_page.dart';
 import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_form_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
+import '../../features/finance/finance_travel_form_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_body_ble_page.dart';
@@ -376,6 +378,11 @@ GoRouter createAppRouter() {
                     path: 'shopping',
                     builder: (_, _) => const FinanceShoppingPage(),
                     routes: <RouteBase>[
+                      // 新增购物记录：复用编辑表单的空 ID 模式。
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const FinanceShoppingFormPage(),
+                      ),
                       // 编辑购物记录：日期 / 商品 / 金额 / 平台 / 分类 / 备注。
                       GoRoute(
                         path: 'edit/:id',
@@ -396,10 +403,22 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'travel',
                     builder: (_, _) => const FinanceTravelPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const FinanceTravelFormPage(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'planning',
                     builder: (_, _) => const FinancePlanningPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const FinancePlanningFormPage(),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'reports',

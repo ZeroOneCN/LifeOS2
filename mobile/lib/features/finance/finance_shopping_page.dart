@@ -245,6 +245,11 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
       title: '购物记录',
       actions: <Widget>[
         IconButton(
+          tooltip: '新增购物记录',
+          onPressed: _openCreate,
+          icon: const Icon(Icons.add),
+        ),
+        IconButton(
           tooltip: '平台 / 分类维护',
           onPressed: _manage,
           icon: const Icon(Icons.tune_outlined),
@@ -371,6 +376,14 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
   Future<void> _manage() async {
     final bool? changed = await showShoppingManageSheet(context);
     if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 新增购物记录：保存成功返回 true 后重拉汇总与列表。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/finance/shopping/new');
+    if (created == true && mounted) {
       await _refresh();
     }
   }

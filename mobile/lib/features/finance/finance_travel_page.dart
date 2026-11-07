@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
@@ -181,6 +183,14 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
     }
   }
 
+  /// 新增旅行开支：保存成功返回 true 后重拉汇总与列表。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/finance/travel/new');
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
   /// 分页响应 `items` → [TravelDetail]。
   List<TravelDetail> _parseItems(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
@@ -224,6 +234,13 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
 
     return DetailPageScaffold(
       title: '旅行开支',
+      actions: <Widget>[
+        IconButton(
+          tooltip: '新增旅行开支',
+          onPressed: _openCreate,
+          icon: const Icon(Icons.add),
+        ),
+      ],
       child: ListView(
         children: <Widget>[
           Column(

@@ -8,21 +8,23 @@ import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
-/// 购物记录编辑：日期 / 商品名 / 金额 / 平台 / 分类 / 备注。
+/// 购物记录新增 / 编辑：日期 / 商品名 / 金额 / 平台 / 分类 / 备注。
 ///
 /// 后端 `PUT /finance/shopping/records/{id}` 使用 `ShoppingCreate` **全量覆盖**
-/// （`payload.model_dump()`，不是 `exclude_unset`），因此保存时必须回传
+/// （`payload.model_dump()`，不是 `exclude_unset`），因此编辑保存时必须回传
 /// 规格、单价、订单号、账本等本页未展示的字段，避免被置空。
+/// [recordId] 为空表示新增，走 `POST /finance/shopping/records`。
 ///
 /// 编辑页主操作按全 App 约定放在底部：左「保存」、右「删除」；删除二次确认。
 class FinanceShoppingFormPage extends StatefulWidget {
   const FinanceShoppingFormPage({
     super.key,
-    required this.recordId,
+    this.recordId,
     this.initial,
   });
 
-  final int recordId;
+  /// 为空表示新增。
+  final int? recordId;
 
   /// 列表页带过来的快照；为空时按 [recordId] 拉取。
   final ShoppingRecord? initial;
@@ -50,6 +52,9 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
   bool _saving = false;
   bool _deleting = false;
   String? _error;
+
+  /// 新增模式：没有记录 ID，保存走 POST。
+  bool get _creating => widget.recordId == null;
 
   @override
   void initState() {
@@ -93,7 +98,7 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
       _error = null;
     });
     try {
-      if (_record == null) {
+      if (!_creating && _record == null) {
         final Map<String, dynamic>? json = (await scope.apiClient
                 .get<Map<String, dynamic>>(
                     '/finance/shopping/records/${widget.recordId}'))
@@ -173,7 +178,7 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
       return;
     }
     final ShoppingRecord? record = _record;
-    if (record == null) {
+    if (!_creating && record == null) {
       setState(() => _error = '记录尚未加载完成');
       return;
     }
@@ -197,17 +202,26 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
       'platform_id': _platformId,
       'category_id': _categoryId,
       'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
-      // 本页不展示但后端会全量覆盖的字段，按原值回传。
-      'spec': record.spec,
-      'unit_price': record.unitPrice,
-      'order_no': record.orderNo,
-      'ledger_id': record.ledgerId,
+      // 编辑时本页不展示但后端会全量覆盖的字段，按原值回传。
+      if (record != null) ...<String, dynamic>{
+        'spec': record.spec,
+        'unit_price': record.unitPrice,
+        'order_no': record.orderNo,
+        'ledger_id': record.ledgerId,
+      },
     };
     try {
-      await scope.apiClient.put<Map<String, dynamic>>(
-        '/finance/shopping/records/${widget.recordId}',
-        data: payload,
-      );
+      if (_creating) {
+        await scope.apiClient.post<Map<String, dynamic>>(
+          '/finance/shopping/records',
+          data: payload,
+        );
+      } else {
+        await scope.apiClient.put<Map<String, dynamic>>(
+          '/finance/shopping/records/${widget.recordId}',
+          data: payload,
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -287,19 +301,28 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
-      title: '编辑购物记录',
-      bottomBar: AppActionRow(
-        first: AppPrimaryButton(
-          label: '保存',
-          loading: _saving,
-          onPressed: _loading || _saving || _deleting ? null : _save,
-        ),
-        second: AppDangerButton(
-          label: '删除',
-          loading: _deleting,
-          onPressed: _loading || _saving || _deleting ? null : _delete,
-        ),
-      ),
+      title: _creating ? '新增购物记录' : '编辑购物记录',
+      bottomBar: _creating
+          ? SizedBox(
+              width: double.infinity,
+              child: AppPrimaryButton(
+                label: '保存',
+                loading: _saving,
+                onPressed: _loading || _saving ? null : _save,
+              ),
+            )
+          : AppActionRow(
+              first: AppPrimaryButton(
+                label: '保存',
+                loading: _saving,
+                onPressed: _loading || _saving || _deleting ? null : _save,
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                loading: _deleting,
+                onPressed: _loading || _saving || _deleting ? null : _delete,
+              ),
+            ),
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(

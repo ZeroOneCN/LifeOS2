@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
@@ -156,6 +158,14 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
     }
   }
 
+  /// 新增规划：保存成功返回 true 后重拉汇总与列表。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/finance/planning/new');
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
   /// 分页响应 `items` → [PlanItem]。
   List<PlanItem> _parseItems(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
@@ -190,6 +200,13 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
 
     return DetailPageScaffold(
       title: '财务规划',
+      actions: <Widget>[
+        IconButton(
+          tooltip: '新增规划',
+          onPressed: _openCreate,
+          icon: const Icon(Icons.add),
+        ),
+      ],
       child: ListView(
         children: <Widget>[
           Column(
