@@ -305,13 +305,8 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
     final BodyLatest? latest = stats?.latest;
     final String date = latest?.date ?? '';
     return SectionCard(
+      // 记录总数只在「历史记录」卡头出现一次，概览卡不重复展示。
       title: '身体概览',
-      trailing: Text(
-        '共 ${stats?.recordCount ?? 0} 条',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 14,

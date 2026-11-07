@@ -481,15 +481,11 @@ class _FitnessRow extends StatelessWidget {
                 Icon(Icons.chevron_right, size: 18, color: muted),
               ],
             ),
+            // 备注是自由文本，不作为结构化字段重复展示；编辑页仍可查看修改。
             Text(
               detail,
               style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
-            if (record.note != null && record.note!.isNotEmpty)
-              Text(
-                record.note!,
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
           ],
         ),
       ),

@@ -192,12 +192,9 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
               ),
               const ReadOnlyNotice(),
               if (_status == LoadStatus.ready && stats != null) ...<Widget>[
+                // 记录条数只在「睡眠记录」卡头展示一次，概览卡不重复。
                 SectionCard(
                   title: '睡眠概览',
-                  trailing: Text(
-                    '记录 ${stats.recordCount} 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
                   child: Row(
                     spacing: 16,
                     children: <Widget>[
@@ -213,12 +210,6 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
                           value: stats.avgQuality == null
                               ? '—'
                               : '${formatOneDecimal(stats.avgQuality)} / 10',
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '记录条数',
-                          value: formatInt(stats.recordCount),
                         ),
                       ),
                     ],
