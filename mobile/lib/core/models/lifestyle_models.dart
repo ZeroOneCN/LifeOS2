@@ -226,6 +226,14 @@ class BankCard {
   /// 脱敏卡号（只留后四位），列表与详情只允许展示这个值。
   String get maskedNumber => maskCardNumber(cardNumber);
 
+  /// 完整卡号原文（去空白）；为空时返回 null。
+  ///
+  /// 只在用户主动确认后的一次性查看弹窗里使用，不得常驻界面。
+  String? get fullNumber {
+    final String value = (cardNumber ?? '').trim();
+    return value.isEmpty ? null : value;
+  }
+
   /// 账单日 / 还款日文案；未设置时返回 null。
   String? get billingText {
     if (!isCredit || billingDay == null || dueDay == null) {
@@ -342,6 +350,12 @@ class PhoneCard {
 
   /// 脱敏号码（只留后四位），与银行卡保持一致的展示口径。
   String get maskedNumber => maskCardNumber(phoneNumber);
+
+  /// 完整号码原文（去空白）；为空时返回 null。只在确认后的一次性弹窗里使用。
+  String? get fullNumber {
+    final String value = phoneNumber.trim();
+    return value.isEmpty ? null : value;
+  }
 
   /// 套餐文案：流量 / 通话 / 短信三项中有值的拼在一起；全空返回「未设置套餐」。
   ///

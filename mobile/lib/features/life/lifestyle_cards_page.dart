@@ -193,6 +193,77 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
+  /// 一次性查看完整号码：先确认，再在临时弹窗里展示；关闭即隐藏，不常驻列表。
+  Future<void> _revealNumber(String title, String? number) async {
+    if (number == null || number.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('这张卡没有填写号码，无法查看')),
+      );
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('查看完整$title？'),
+          content: const Text('完整号码属于敏感信息，确认后仅在本次弹窗显示，关闭即隐藏，不会出现在列表里。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('查看'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('$title完整号码'),
+          content: SelectableText(
+            _displayNumber(number),
+            style: Theme.of(dialogContext).textTheme.titleMedium?.copyWith(
+              fontFeatures: const <FontFeature>[
+                FontFeature.tabularFigures(),
+              ],
+              letterSpacing: 1.2,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('关闭'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 长号码按 4 位分组便于核对；短号码（如 11 位手机号）原样展示。
+  static String _displayNumber(String number) {
+    final String value = number.replaceAll(RegExp(r'\s+'), '');
+    if (value.length <= 12) {
+      return value;
+    }
+    final StringBuffer buffer = StringBuffer();
+    for (int i = 0; i < value.length; i++) {
+      if (i > 0 && i % 4 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(value[i]);
+    }
+    return buffer.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -215,7 +286,9 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                 SectionCard(
                   title: '合计',
                   trailing: Text(
-                    '全部银行卡',
+                    '银行卡 ${formatInt(_stats?.total)} · '
+                    '手机号卡 ${formatInt(_phoneTotal)} · '
+                    '合计 ${formatInt((_stats?.total ?? 0) + _phoneTotal)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -228,7 +301,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                         children: <Widget>[
                           Expanded(
                             child: MetricPlaceholder(
-                              label: '卡片总数',
+                              label: '银行卡数',
                               value: formatInt(stats.total),
                             ),
                           ),
@@ -269,6 +342,49 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                           ),
                         ],
                       ),
+                      Text(
+                        '列表只显示后四位；点击任意卡片可确认后查看完整号码（仅本次弹窗可见）。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SectionCard(
+                  title: '手机号卡',
+                  trailing: Text(
+                    '共 $_phoneTotal 张 · 只读',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      Text(
+                        '只读：充值 / 扣费 / 校准请在网页端操作；点击号码可确认后查看完整号码',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (_phones.isEmpty)
+                        const EmptyState(
+                          icon: Icons.sim_card_outlined,
+                          title: '暂无手机号卡',
+                          description: '充值 / 扣费 / 校准请在网页端操作',
+                          compact: true,
+                        )
+                      else
+                        for (final PhoneCard phone in _phones)
+                          _PhoneCardRow(
+                            card: phone,
+                            onReveal: () => _revealNumber(
+                              '手机号',
+                              phone.fullNumber,
+                            ),
+                          ),
                     ],
                   ),
                 ),
@@ -291,7 +407,13 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                           spacing: 4,
                           children: <Widget>[
                             for (final BankCard card in _cards)
-                              _CardRow(card: card),
+                              _CardRow(
+                                card: card,
+                                onReveal: () => _revealNumber(
+                                  '卡号',
+                                  card.fullNumber,
+                                ),
+                              ),
                           ],
                         ),
                 ),
@@ -301,37 +423,6 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                     hasMore: _hasMore,
                     onPressed: _loadMore,
                   ),
-                SectionCard(
-                  title: '手机号卡',
-                  trailing: Text(
-                    '共 $_phoneTotal 张 · 只读',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      Text(
-                        '只读：充值 / 扣费 / 校准请在网页端操作',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      if (_phones.isEmpty)
-                        const EmptyState(
-                          icon: Icons.sim_card_outlined,
-                          title: '暂无手机号卡',
-                          description: '充值 / 扣费 / 校准请在网页端操作',
-                          compact: true,
-                        )
-                      else
-                        for (final PhoneCard phone in _phones)
-                          _PhoneCardRow(card: phone),
-                    ],
-                  ),
-                ),
               ],
             ],
           ),
@@ -343,11 +434,15 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
 
 /// 单张银行卡：卡名 + 脱敏卡号 + 银行/类型/状态 + 余额或额度。
 ///
-/// 安全底线：界面只允许出现 [BankCard.maskedNumber]，不展示完整卡号。
+/// 安全底线：列表只展示 [BankCard.maskedNumber]；
+/// 完整卡号必须经 [onReveal] 二次确认后一次性显示，不常驻。
 class _CardRow extends StatelessWidget {
-  const _CardRow({required this.card});
+  const _CardRow({required this.card, required this.onReveal});
 
   final BankCard card;
+
+  /// 点击卡片：确认后查看完整卡号。
+  final VoidCallback onReveal;
 
   @override
   Widget build(BuildContext context) {
@@ -366,61 +461,65 @@ class _CardRow extends StatelessWidget {
       if (card.billingText != null) Text(card.billingText!, style: metaStyle),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
+    return InkWell(
+      onTap: onReveal,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Text(
+                    card.cardName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    card.maskedNumber,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: metaStyle?.copyWith(
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                  Wrap(spacing: 8, runSpacing: 2, children: meta),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
               children: <Widget>[
                 Text(
-                  card.cardName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                Text(
-                  card.maskedNumber,
+                  formatMoney(card.isCredit ? card.creditLimit : card.balance),
                   maxLines: 1,
                   softWrap: false,
-                  style: metaStyle?.copyWith(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     fontFeatures: const <FontFeature>[
                       FontFeature.tabularFigures(),
                     ],
-                    letterSpacing: 0.5,
                   ),
                 ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(spacing: 8, runSpacing: 2, children: meta),
+                Text(
+                  card.isCredit ? '额度' : '余额',
+                  maxLines: 1,
+                  style: metaStyle,
+                ),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                formatMoney(card.isCredit ? card.creditLimit : card.balance),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              Text(
-                card.isCredit ? '额度' : '余额',
-                maxLines: 1,
-                style: metaStyle,
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -428,9 +527,12 @@ class _CardRow extends StatelessWidget {
 
 /// 单张手机号卡（只读）：脱敏号码 + 运营商 / 套餐 / 账期 + 余额。
 class _PhoneCardRow extends StatelessWidget {
-  const _PhoneCardRow({required this.card});
+  const _PhoneCardRow({required this.card, required this.onReveal});
 
   final PhoneCard card;
+
+  /// 点击号码：确认后查看完整号码。
+  final VoidCallback onReveal;
 
   /// 账期文案：账单日 + 月租；都未设置时显示「账期未设置」。
   String get _billingText {
@@ -470,51 +572,55 @@ class _PhoneCardRow extends StatelessWidget {
         Text(card.note!, style: metaStyle),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
+    return InkWell(
+      onTap: onReveal,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Text(
+                    card.maskedNumber,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                  Wrap(spacing: 8, runSpacing: 2, children: meta),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
               children: <Widget>[
                 Text(
-                  card.maskedNumber,
+                  card.balance == null ? '—' : formatMoney(card.balance),
                   maxLines: 1,
                   softWrap: false,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontFeatures: const <FontFeature>[
                       FontFeature.tabularFigures(),
                     ],
-                    letterSpacing: 0.5,
                   ),
                 ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(spacing: 8, runSpacing: 2, children: meta),
+                Text('余额', maxLines: 1, style: metaStyle),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                card.balance == null ? '—' : formatMoney(card.balance),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              Text('余额', maxLines: 1, style: metaStyle),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
