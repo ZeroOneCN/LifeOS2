@@ -150,7 +150,14 @@ class VitalsSleepCreate(BaseModel):
 
 
 class VitalsSleepRead(VitalsSleepCreate, ORMRead):
-    pass
+    # 响应侧放宽请求校验：历史/手环数据可能存在越界值（血氧>100、心率>250、
+    # 人工改库的睡眠质量等），复用请求侧约束会让整页响应 500；请求侧约束保持不变
+    blood_oxygen: float | None = Field(None, ge=0)
+    sleep_quality: int | None = None
+    hr_min: int | None = Field(None, ge=0)
+    hr_max: int | None = Field(None, ge=0)
+    hr_avg: float | None = Field(None, ge=0)
+    hr_source: str | None = None
 
 
 class FitnessCreate(BaseModel):
@@ -205,7 +212,9 @@ class DietCreate(BaseModel):
 
 
 class DietRead(DietCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史 0 克记录与旧版 meal_type 取值不应让整页响应 500；请求侧保持不变
+    meal_type: str
+    weight_g: float = Field(ge=0)
 
 
 class BodyCreate(BaseModel):
@@ -313,7 +322,8 @@ class CheckupCreate(BaseModel):
 
 
 class CheckupRead(CheckupCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史 result 可能是「偏高」等旧取值，不应让整页响应 500；请求侧保持不变
+    result: str | None = None
 
 
 class CheckupTemplateCreate(BaseModel):
@@ -393,7 +403,8 @@ class MedPurchaseCreate(BaseModel):
 
 
 class MedPurchaseRead(MedPurchaseCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史/导入数据可能存在 0 盒记录，不应让整页响应 500；请求侧保持不变
+    quantity: float = Field(ge=0)
 
 
 class MedStockCreate(BaseModel):
