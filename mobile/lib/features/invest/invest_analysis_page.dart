@@ -16,9 +16,9 @@ import '../../theme/app_theme.dart';
 /// 数据来源（与网页端 `pages/investment/forex.tsx` 的交易统计一致）：
 /// - `GET /investment/forex/stats`。
 ///
-/// 口径说明：后端 `stats` 的 `days` 只裁剪 `equity_trend`（收益曲线），
-/// 汇总、品种盈亏、回撤、时段分布均为**全部已平仓交易**，
-/// 因此本页不提供区间切换，避免出现切了区间数字不变的空控件。
+/// 口径说明：后端 `stats` 的 `days` 是统一统计窗口（含今天），传入 3650
+/// 即近十年，等同「全部已平仓交易」；汇总、品种盈亏、回撤、时段分布与
+/// 收益曲线因此同口径，本页不提供区间切换。
 class InvestAnalysisPage extends StatefulWidget {
   const InvestAnalysisPage({super.key});
 
@@ -59,7 +59,10 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
     });
     try {
       final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/investment/forex/stats'))
+              .get<Map<String, dynamic>>(
+                '/investment/forex/stats',
+                queryParameters: <String, dynamic>{'days': 3650},
+              ))
           .data;
       if (json == null) {
         throw const ApiException(
@@ -189,42 +192,67 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
                 ),
                 SectionCard(
                   title: '回撤与连胜',
-                  child: _MetricGrid(
-                    items: <({String label, String value, Color? color})>[
-                      (
-                        label: '最大回撤',
-                        value: formatUsd(stats.analysis.maxDrawdown),
-                        color: _pnlColor(context, -stats.analysis.maxDrawdown),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _MetricGrid(
+                        items: <({String label, String value, Color? color})>[
+                          (
+                            label: '最大回撤',
+                            value: formatUsd(stats.analysis.maxDrawdown),
+                            color: _pnlColor(
+                              context,
+                              -stats.analysis.maxDrawdown,
+                            ),
+                          ),
+                          (
+                            label: '最大回撤率',
+                            // 分母过小时后端返回 null：显示「—」而不是 0%。
+                            value: stats.analysis.maxDrawdownPct == null
+                                ? '—'
+                                : formatPercent(stats.analysis.maxDrawdownPct),
+                            color: stats.analysis.maxDrawdownPct == null
+                                ? theme.colorScheme.onSurfaceVariant
+                                : _pnlColor(
+                                    context,
+                                    -stats.analysis.maxDrawdownPct!,
+                                  ),
+                          ),
+                          (
+                            label: '最长连赢',
+                            value: '${stats.analysis.longestWinStreak} 笔',
+                            color: _pnlColor(context, 1),
+                          ),
+                          (
+                            label: '最长连亏',
+                            value: '${stats.analysis.longestLossStreak} 笔',
+                            color: _pnlColor(context, -1),
+                          ),
+                          (
+                            label: '平均盈利',
+                            value: stats.analysis.avgWin == null
+                                ? '—'
+                                : formatUsd(stats.analysis.avgWin),
+                            color: _pnlColor(context, 1),
+                          ),
+                          (
+                            label: '平均亏损',
+                            value: stats.analysis.avgLoss == null
+                                ? '—'
+                                : formatUsd(stats.analysis.avgLoss),
+                            color: _pnlColor(context, -1),
+                          ),
+                        ],
                       ),
-                      (
-                        label: '最大回撤率',
-                        value: formatPercent(stats.analysis.maxDrawdownPct),
-                        color: _pnlColor(context, -stats.analysis.maxDrawdownPct),
-                      ),
-                      (
-                        label: '最长连赢',
-                        value: '${stats.analysis.longestWinStreak} 笔',
-                        color: _pnlColor(context, 1),
-                      ),
-                      (
-                        label: '最长连亏',
-                        value: '${stats.analysis.longestLossStreak} 笔',
-                        color: _pnlColor(context, -1),
-                      ),
-                      (
-                        label: '平均盈利',
-                        value: stats.analysis.avgWin == null
-                            ? '—'
-                            : formatUsd(stats.analysis.avgWin),
-                        color: _pnlColor(context, 1),
-                      ),
-                      (
-                        label: '平均亏损',
-                        value: stats.analysis.avgLoss == null
-                            ? '—'
-                            : formatUsd(stats.analysis.avgLoss),
-                        color: _pnlColor(context, -1),
-                      ),
+                      if (stats.analysis.maxDrawdownPct == null) ...<Widget>[
+                        const SizedBox(height: 10),
+                        Text(
+                          '累计净投入不超过 \$1，回撤率没有有效基准，显示为「—」。',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

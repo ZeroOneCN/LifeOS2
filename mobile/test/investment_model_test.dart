@@ -171,6 +171,20 @@ void main() {
     expect(base(minutes: 0).avgHoldingText, '—');
   });
 
+  test('回撤率可空：null 保留为 null，不折算成 0', () {
+    final ForexAnalysis noBase = ForexAnalysis.fromJson(<String, dynamic>{
+      'max_drawdown': -320.75,
+      'max_drawdown_pct': null,
+    });
+    expect(noBase.maxDrawdown, -320.75);
+    expect(noBase.maxDrawdownPct, isNull);
+
+    final ForexAnalysis normal = ForexAnalysis.fromJson(<String, dynamic>{
+      'max_drawdown_pct': 12.5,
+    });
+    expect(normal.maxDrawdownPct, 12.5);
+  });
+
   test('外汇统计空响应：给空列表与零值，页面不崩', () {
     final ForexStats stats = ForexStats.fromJson(<String, dynamic>{});
     expect(stats.summary.tradeCount, 0);

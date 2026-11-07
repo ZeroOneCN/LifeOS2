@@ -280,7 +280,8 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
         label: const Text('新增体重'),
       ),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 96),
+        // 底部预留悬浮「记录身体」按钮的安全距离。
+        padding: const EdgeInsets.only(bottom: 120),
         children: <Widget>[
           ListStatusView(
             status: _status,

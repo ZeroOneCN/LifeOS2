@@ -138,7 +138,8 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
         listenable: scope.outbox,
         builder: (BuildContext context, Widget? _) {
           return ListView(
-            padding: const EdgeInsets.only(bottom: 96),
+            // 底部预留悬浮「记一笔」按钮的安全距离。
+            padding: const EdgeInsets.only(bottom: 120),
             children: <Widget>[
               _pendingCard(theme, scope.outbox),
               const SizedBox(height: 12),

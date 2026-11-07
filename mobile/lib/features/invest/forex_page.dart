@@ -476,7 +476,8 @@ class _ForexPageState extends State<ForexPage> {
             label: const Text('新增交易'),
           ),
           child: ListView(
-            padding: const EdgeInsets.only(bottom: 88),
+            // 底部预留悬浮「新增交易」按钮（含 1.3x 字号）的安全距离。
+            padding: const EdgeInsets.only(bottom: 120),
             children: <Widget>[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1262,6 +1263,11 @@ class _FundByDateChartState extends State<_FundByDateChart> {
             ),
           ],
         ),
+        // 提示放在图上：卡片末尾会被悬浮按钮遮挡。
+        Text(
+          data.length == _maxBars ? '最近 $_maxBars 个交易日 · 横向拖动查看' : '横向拖动查看每日读数',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        ),
         LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final double scale = MediaQuery.textScalerOf(context).scale(1);
@@ -1302,10 +1308,6 @@ class _FundByDateChartState extends State<_FundByDateChart> {
               ),
             );
           },
-        ),
-        Text(
-          data.length == _maxBars ? '最近 $_maxBars 个交易日 · 横向拖动查看' : '横向拖动查看每日读数',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
       ],
     );

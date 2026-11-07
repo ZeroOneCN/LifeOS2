@@ -130,7 +130,8 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
         label: const Text('新增步数'),
       ),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 72),
+        // 底部预留悬浮「新增步数」按钮的安全距离。
+        padding: const EdgeInsets.only(bottom: 120),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

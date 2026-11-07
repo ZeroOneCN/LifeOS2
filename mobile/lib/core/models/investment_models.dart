@@ -355,7 +355,9 @@ class ForexAnalysis {
   final double? maxDayProfit;
   final double? maxDayLoss;
   final double maxDrawdown;
-  final double maxDrawdownPct;
+
+  /// 最大回撤率；累计净投入 ≤ 1 美元时后端返回 null（无有效基准）。
+  final double? maxDrawdownPct;
   final double profitFactor;
   final int longestWinStreak;
   final int longestLossStreak;
@@ -387,7 +389,9 @@ class ForexAnalysis {
       maxDayProfit: optional('max_day_profit'),
       maxDayLoss: optional('max_day_loss'),
       maxDrawdown: _toDouble(json['max_drawdown']),
-      maxDrawdownPct: _toDouble(json['max_drawdown_pct']),
+      maxDrawdownPct: json['max_drawdown_pct'] == null
+          ? null
+          : _toDouble(json['max_drawdown_pct']),
       profitFactor: _toDouble(json['profit_factor']),
       longestWinStreak: _toInt(json['longest_win_streak']),
       longestLossStreak: _toInt(json['longest_loss_streak']),

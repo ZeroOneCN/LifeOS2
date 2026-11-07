@@ -513,7 +513,8 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         label: const Text('新增用药'),
       ),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 72),
+        // 底部预留悬浮「新增用药」按钮的安全距离。
+        padding: const EdgeInsets.only(bottom: 120),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
