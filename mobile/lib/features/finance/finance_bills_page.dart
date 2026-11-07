@@ -37,6 +37,11 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   int _tab = 0;
 
   final List<BillItem> _items = <BillItem>[];
+
+  /// 未来月份的账单：服务端只按 `bill_month` 倒序分页，未来账单会占据首页，
+  /// 因此单独用 `start=次月 1 日` 拉一次，反转成本地升序后拼在列表末尾。
+  final List<BillItem> _futureItems = <BillItem>[];
+
   final Map<int, String> _platforms = <int, String>{};
   BillStats? _stats;
 
@@ -49,6 +54,12 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
 
   int _page = 1;
   int _total = 0;
+
+  /// 主列表（当前月及以前）的总条数，用于判断「加载更多」。
+  int _mainTotal = 0;
+
+  /// 主列表的查询上限（本月最后一天），加载更多时复用。
+  String _mainEnd = '';
   bool _hasMore = true;
   bool _loadingMore = false;
 
@@ -103,9 +114,18 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     }
   }
 
-  /// 网贷借还：汇总 + 每页 20 条账单 + 平台名映射。
+  /// 网贷借还：汇总 + 账单列表 + 平台名映射。
+  ///
+  /// 排序口径：月份顺序完全由后端决定（`bill_month` 倒序），客户端只按
+  /// 数据顺序分组渲染，不跨页重排。为了把「未来月份」整体压到末尾，列表
+  /// 拆成两块：主列表（`end` = 本月最后一天）先按后端分页取完，未来块
+  /// （`start` = 次月 1 日）取完后整块反转成正序。两块都取完再渲染，
+  /// 避免未来月份插到已加载的近期月份中间、或分页之间漏月份。
   Future<void> _loadLoan(AppScope scope) async {
-    final List<Map<String, dynamic>?> responses =
+    final DateTime now = DateTime.now();
+    final String mainEnd = _dateKey(DateTime(now.year, now.month + 1, 0));
+    final String futureStart = _dateKey(DateTime(now.year, now.month + 1, 1));
+    final List<Map<String, dynamic>?> basics =
         await Future.wait(<Future<Map<String, dynamic>?>>[
       scope.apiClient
           .get<Map<String, dynamic>>(
@@ -115,27 +135,26 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
           .then((value) => value.data),
       scope.apiClient
           .get<Map<String, dynamic>>(
-            '/finance/loan-bills',
-            queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
-          )
-          .then((value) => value.data),
-      scope.apiClient
-          .get<Map<String, dynamic>>(
             '/finance/loan-platforms',
             queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
           )
           .then((value) => value.data),
     ]);
-    final Map<String, dynamic>? statsJson = responses[0];
-    final Map<String, dynamic>? listJson = responses[1];
-    final Map<String, dynamic>? platformJson = responses[2];
-    if (statsJson == null || listJson == null) {
+    final Map<String, dynamic>? statsJson = basics[0];
+    final Map<String, dynamic>? platformJson = basics[1];
+    if (statsJson == null) {
       throw const ApiException(
         kind: ApiErrorKind.badResponse,
         message: '账单接口返回数据为空',
       );
     }
-    final List<BillItem> items = _parseBills(listJson);
+    final List<({List<BillItem> items, int total})> both =
+        await Future.wait(<Future<({List<BillItem> items, int total})>>[
+      _fetchBills(scope, end: mainEnd),
+      _fetchBills(scope, start: futureStart, reverse: true),
+    ]);
+    final ({List<BillItem> items, int total}) main = both[0];
+    final ({List<BillItem> items, int total}) future = both[1];
     final Map<int, String> platforms = <int, String>{};
     for (final Map item
         in ((platformJson?['items'] as List?) ?? const <dynamic>[])
@@ -150,14 +169,64 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       _stats = BillStats.fromJson(statsJson);
       _items
         ..clear()
-        ..addAll(items);
+        ..addAll(main.items);
+      _futureItems
+        ..clear()
+        ..addAll(future.items);
       _platforms
         ..clear()
         ..addAll(platforms);
-      _page = 1;
-      _total = (listJson['total'] as num?)?.toInt() ?? items.length;
-      _hasMore = _items.length < _total;
+      _page = _pagesFor(main.total);
+      _mainEnd = mainEnd;
+      _mainTotal = main.total;
+      _total = main.total + future.total;
+      _hasMore = _items.length < _mainTotal;
     });
+  }
+
+  /// 列表每页条数。按 100 取，347 条只需 4 次请求。
+  static const int _pageSize = 100;
+
+  /// 取一页 100 条时，`total` 条记录需要翻多少页。
+  int _pagesFor(int total) =>
+      total <= 0 ? 1 : (total + _pageSize - 1) ~/ _pageSize;
+
+  /// 按后端 `bill_month` 倒序取完所有页（最多 10 页，防止异常数据死循环）。
+  ///
+  /// [end] / [start] 用于把列表切成「本月及以前」和「未来」两块。
+  /// [reverse] 为 true 时整块反转（未来块用，得到未来月份正序）。
+  Future<({List<BillItem> items, int total})> _fetchBills(
+    AppScope scope, {
+    String? end,
+    String? start,
+    bool reverse = false,
+  }) async {
+    final List<BillItem> items = <BillItem>[];
+    int total = 0;
+    for (int page = 1; page <= 10; page++) {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/finance/loan-bills',
+                  queryParameters: <String, dynamic>{
+            'page': page,
+            'page_size': _pageSize,
+            'end': ?end,
+            'start': ?start,
+          }))
+          .data;
+      if (json == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '账单接口返回数据为空',
+        );
+      }
+      total = (json['total'] as num?)?.toInt() ?? items.length;
+      final List<BillItem> batch = _parseBills(json);
+      items.addAll(batch);
+      if (batch.isEmpty || items.length >= total) {
+        break;
+      }
+    }
+    return (items: reverse ? items.reversed.toList() : items, total: total);
   }
 
   /// 房租水电：住房与水电记录各取前 100 条（与网页端列表口径一致）。
@@ -214,7 +283,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     });
   }
 
-  /// 加载更多（仅网贷借还使用）。
+  /// 加载更多（仅网贷借还使用，>1000 条时才出现）：沿用后端月份倒序追加更早月份。
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) {
       return;
@@ -226,7 +295,8 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
               .get<Map<String, dynamic>>('/finance/loan-bills',
                   queryParameters: <String, dynamic>{
             'page': _page + 1,
-            'page_size': 20,
+            'page_size': _pageSize,
+            'end': _mainEnd,
           }))
           .data;
       if (json == null) {
@@ -241,8 +311,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       setState(() {
         _page += 1;
         _items.addAll(_parseBills(json));
-        _total = (json['total'] as num?)?.toInt() ?? _items.length;
-        _hasMore = _items.length < _total;
+        _hasMore = _items.length < _mainTotal;
       });
     } on ApiException catch (error) {
       if (!mounted) {
@@ -384,10 +453,11 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
 
   /// 网贷「全部账单」按月分组的 sliver 列表。
   ///
-  /// 排序口径与网页端一致：月份取 `bill_month`，按月份倒序；组内按到期日
-  /// 倒序、同日按 id 倒序；平台仅作行内信息，不参与排序与分组。
-  /// 月份分组头使用固定高度 sliver header，滚动时吸顶，「加载更多」只会
-  /// 追加更早的月份，不会打乱已有分组。
+  /// 排序口径：月份取 `bill_month`，当前月及以前按月份倒序（最近的在上），
+  /// 未来月份统一排到末尾并在未来组内按时间正序；组内按到期日倒序、
+  /// 同日按 id 倒序；平台仅作行内信息，不参与排序与分组。
+  /// 月份分组头使用固定高度 sliver header，滚动时吸顶；「加载更多」按
+  /// 服务端顺序（`bill_month` 倒序）追加更早的月份，不会打乱已加载的分组。
   List<Widget> _loanSlivers(ThemeData theme) {
     final BillStats? stats = _stats;
     if (stats == null) {
@@ -490,7 +560,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
           ],
         ),
       ),
-      if (_items.isEmpty)
+      if (_items.isEmpty && _futureItems.isEmpty)
         const SliverToBoxAdapter(
           child: SectionCard(
             title: '暂无账单',
@@ -504,35 +574,38 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
         )
       else ...<Widget>[
         for (final ({String month, List<BillItem> bills}) group
-            in groups) ...<Widget>[
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _MonthHeaderDelegate(
-              label: group.month,
-              count: group.bills.length,
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.only(bottom: 4),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (BuildContext context, int index) {
-                  final BillItem bill = group.bills[index];
-                  return BillRow(
-                    bill: bill,
-                    platformName: _platformName(bill.platformId),
-                    showMonth: false,
-                    onTap: () => _openLoanDetail(bill),
-                    onRepay: bill.status == 'cleared' || bill.remaining <= 0
-                        ? null
-                        : () => _openRepay(bill),
-                  );
-                },
-                childCount: group.bills.length,
+            in groups)
+          SliverMainAxisGroup(
+            slivers: <Widget>[
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _MonthHeaderDelegate(
+                  label: group.month,
+                  count: group.bills.length,
+                ),
               ),
-            ),
+              SliverPadding(
+                padding: const EdgeInsets.only(bottom: 4),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (BuildContext context, int index) {
+                      final BillItem bill = group.bills[index];
+                      return BillRow(
+                        bill: bill,
+                        platformName: _platformName(bill.platformId),
+                        showMonth: false,
+                        onTap: () => _openLoanDetail(bill),
+                        onRepay: bill.status == 'cleared' || bill.remaining <= 0
+                            ? null
+                            : () => _openRepay(bill),
+                      );
+                    },
+                    childCount: group.bills.length,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
         SliverToBoxAdapter(
           child: _LoadMoreFooter(
             loading: _loadingMore,
@@ -544,19 +617,21 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     ];
   }
 
-  /// 按 `bill_month` 分组并按月份倒序；组内按到期日倒序、同日按 id 倒序。
+  /// 按 `bill_month` 分组。
+  ///
+  /// 顺序完全由数据来源决定：主列表按后端 `bill_month` 倒序分页追加，
+  /// 客户端不跨页重排；未来块已整体反转为正序，拼在主列表之后。
+  /// 组内只按到期日倒序、同日按 id 倒序（同组内排序，不会丢掉跨页记录）。
   List<({String month, List<BillItem> bills})> _loanGroups() {
     final Map<String, List<BillItem>> grouped = <String, List<BillItem>>{};
-    for (final BillItem bill in _items) {
+    for (final BillItem bill in <BillItem>[..._items, ..._futureItems]) {
       final String month = bill.billMonth.length >= 7
           ? bill.billMonth.substring(0, 7)
           : bill.billMonth;
       grouped.putIfAbsent(month, () => <BillItem>[]).add(bill);
     }
-    final List<String> months = grouped.keys.toList()
-      ..sort((String a, String b) => b.compareTo(a));
-    for (final String month in months) {
-      grouped[month]!.sort((BillItem a, BillItem b) {
+    for (final List<BillItem> bills in grouped.values) {
+      bills.sort((BillItem a, BillItem b) {
         final String left = a.dueDate ?? '';
         final String right = b.dueDate ?? '';
         if (left != right) {
@@ -566,9 +641,36 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       });
     }
     return <({String month, List<BillItem> bills})>[
-      for (final String month in months)
+      for (final String month in grouped.keys)
         (month: month, bills: grouped[month]!),
     ];
+  }
+
+  /// 当前月份的 `yyyy-MM` 键，用于区分「未来月份」。
+  String _currentMonthKey() {
+    final DateTime now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
+
+  /// 今天的 `yyyy-MM-dd`（用于按日期排序的 Tab：房租、订阅）。
+  String _todayKey() => _dateKey(DateTime.now());
+
+  /// `DateTime` → `yyyy-MM-dd`，作为列表接口 `start`/`end` 的取值。
+  String _dateKey(DateTime date) {
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
+  }
+
+  /// 统一的「未来后置」排序：`today` 及以前按时间倒序（最近在前），
+  /// 未来项整体排到末尾并按时间正序（先到期/先发生的在上）。
+  int _compareFutureLast(String a, String b, String today) {
+    final bool aFuture = a.compareTo(today) > 0;
+    final bool bFuture = b.compareTo(today) > 0;
+    if (aFuture != bFuture) {
+      return aFuture ? 1 : -1;
+    }
+    return aFuture ? a.compareTo(b) : b.compareTo(a);
   }
 
   /// 当前 Tab 的内容区块。
@@ -579,138 +681,24 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       case 2:
         return _subscriptionContent(theme);
       default:
-        return _loanContent(theme);
+        return const <Widget>[];
     }
-  }
-
-  List<Widget> _loanContent(ThemeData theme) {
-    final BillStats? stats = _stats;
-    if (stats == null) {
-      return const <Widget>[];
-    }
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    return <Widget>[
-      SectionCard(
-        title: '合计',
-        trailing: AppPrimaryAction(
-          label: '新增账单',
-          onPressed: () => _openForm(BillKind.loan),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 12,
-          children: <Widget>[
-            Row(
-              spacing: 16,
-              children: <Widget>[
-                Expanded(
-                  child: MetricPlaceholder(
-                    label: '待还',
-                    value: formatMoney(stats.remaining),
-                  ),
-                ),
-                Expanded(
-                  child: MetricPlaceholder(
-                    label: '已还',
-                    value: formatMoney(stats.paid),
-                  ),
-                ),
-                Expanded(
-                  child: MetricPlaceholder(
-                    label: '利息合计',
-                    value: formatMoney(stats.totalInterest),
-                  ),
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                StatusChip(
-                  label: '待还 ${stats.pendingCount}',
-                  tone: StatusTone.danger,
-                ),
-                StatusChip(
-                  label: '部分还款 ${stats.partialCount}',
-                  tone: StatusTone.warning,
-                ),
-                StatusChip(
-                  label: '已结清 ${stats.clearedCount}',
-                  tone: StatusTone.success,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      if (stats.upcoming.isNotEmpty)
-        SectionCard(
-          title: '即将到期',
-          child: Column(
-            spacing: 4,
-            children: <Widget>[
-              for (final BillItem bill in stats.upcoming)
-                BillRow(
-                  bill: bill,
-                  platformName: _platformName(bill.platformId),
-                  onTap: () => _openLoanDetail(bill),
-                  onRepay: bill.status == 'cleared' || bill.remaining <= 0
-                      ? null
-                      : () => _openRepay(bill),
-                ),
-            ],
-          ),
-        ),
-      SectionCard(
-        title: '全部账单',
-        trailing: Text(
-          '共 $_total 条',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-        ),
-        child: _items.isEmpty
-            ? const EmptyState(
-                icon: Icons.receipt_long_outlined,
-                title: '暂无账单',
-                description: '点右上「新增账单」录入第一条',
-                compact: true,
-              )
-            : Column(
-                spacing: 4,
-                children: <Widget>[
-                  for (final BillItem bill in _items)
-                    BillRow(
-                      bill: bill,
-                      platformName: _platformName(bill.platformId),
-                      onTap: () => _openLoanDetail(bill),
-                      onRepay: bill.status == 'cleared' || bill.remaining <= 0
-                          ? null
-                          : () => _openRepay(bill),
-                    ),
-                ],
-              ),
-      ),
-      if (_items.isNotEmpty)
-        _LoadMoreFooter(
-          loading: _loadingMore,
-          hasMore: _hasMore,
-          onPressed: _loadMore,
-        ),
-    ];
   }
 
   List<Widget> _housingContent(ThemeData theme) {
-    // 与网页端一致：住房按入住日期倒序，水电按账单月份倒序。
+    // 与网贷 Tab 同一口径：当前及以前倒序在前，未来排到末尾且按时间正序。
+    final String today = _todayKey();
     final List<HousingItem> housings = <HousingItem>[
       ...?_housings,
     ]..sort(
         (HousingItem a, HousingItem b) =>
-            (b.moveInDate ?? '').compareTo(a.moveInDate ?? ''),
+            _compareFutureLast(a.moveInDate ?? '', b.moveInDate ?? '', today),
       );
     final List<UtilityItem> utilities = <UtilityItem>[
       ...?_utilities,
     ]..sort(
-        (UtilityItem a, UtilityItem b) => b.billMonth.compareTo(a.billMonth),
+        (UtilityItem a, UtilityItem b) =>
+            _compareFutureLast(a.billMonth, b.billMonth, _currentMonthKey()),
       );
     final Color muted = theme.colorScheme.onSurfaceVariant;
     return <Widget>[
@@ -781,8 +769,16 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   }
 
   List<Widget> _subscriptionContent(ThemeData theme) {
-    final List<SubscriptionItem> items =
-        _subscriptions ?? const <SubscriptionItem>[];
+    final String today = _todayKey();
+    final List<SubscriptionItem> items = <SubscriptionItem>[
+      ...?_subscriptions,
+    ]..sort(
+        (SubscriptionItem a, SubscriptionItem b) => _compareFutureLast(
+          a.startDate.length >= 10 ? a.startDate.substring(0, 10) : a.startDate,
+          b.startDate.length >= 10 ? b.startDate.substring(0, 10) : b.startDate,
+          today,
+        ),
+      );
     final Color muted = theme.colorScheme.onSurfaceVariant;
     return <Widget>[
       SectionCard(
