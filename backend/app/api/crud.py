@@ -128,6 +128,7 @@ def crud_router(
     list_transform: Callable[[list, Session, int], list] | None = None,
     after_write: Callable[[Session, int], None] | None = None,
     on_update: Callable[[Session, Any, dict, dict], None] | None = None,
+    on_delete: Callable[[Session, Any, int], None] | None = None,
 ) -> APIRouter:
     """根据模型与 schema 生成标准 CRUD 路由：列表(分页+日期过滤)/详情/新增/更新/删除，可选统计端点。
 
@@ -146,6 +147,8 @@ def crud_router(
     on_update: 单条更新（PUT）提交前的联动钩子，签名 `(db, obj, data, before)`：
     obj 为已按 payload 赋值后的实体，data 为 `exclude_unset` 后的请求字段，
     before 为这些字段赋值前的原值快照，用于判断某个字段是否真的发生了变化。
+    on_delete: 删除（单条与批量）提交前的清理钩子，签名 `(db, obj, user_id)`，
+    用于在同事务内清理关联流水，避免留下孤儿记录（不使用数据库外键级联）。
     """
 
     router = APIRouter(prefix=prefix, tags=[tag])
@@ -234,6 +237,8 @@ def crud_router(
             stmt = stmt.where(model.user_id == current_user.id)
         rows = db.scalars(stmt).all()
         for row in rows:
+            if on_delete:
+                on_delete(db, row, current_user.id)
             db.delete(row)
         db.commit()
         if after_write and user_owned:
@@ -364,6 +369,8 @@ def crud_router(
         )
         if not obj:
             raise HTTPException(status_code=404, detail="记录不存在")
+        if on_delete:
+            on_delete(db, obj, current_user.id)
         db.delete(obj)
         db.commit()
         if after_write and user_owned:

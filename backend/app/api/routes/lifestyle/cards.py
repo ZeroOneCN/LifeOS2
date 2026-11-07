@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.crud import crud_router
@@ -274,6 +274,39 @@ def _phone_extra(api_router: APIRouter):
         ).all()
 
 
+def _delete_phone_card_related(db: Session, card: LifestylePhoneCard, user_id: int) -> None:
+    """删除手机号卡前，在同一事务内清理其名下的关联流水。
+
+    手机卡的关联数据有三类：资金流水（lifestyle_phone_ledgers）、
+    月度扣账账单（lifestyle_card_bills）与旧版充值记录（lifestyle_phone_recharges）。
+    这里用显式 DELETE 而不是数据库外键级联，保持现有迁移风格；
+    同时带 user_id 条件，避免误删其他用户的同号数据。
+
+    Args:
+        db: 当前事务的数据库会话。
+        card: 即将被删除的手机号卡实体。
+        user_id: 当前登录用户 id。
+    """
+    db.execute(
+        delete(LifestylePhoneLedger).where(
+            LifestylePhoneLedger.user_id == user_id,
+            LifestylePhoneLedger.phone_card_id == card.id,
+        )
+    )
+    db.execute(
+        delete(LifestyleCardBill).where(
+            LifestyleCardBill.user_id == user_id,
+            LifestyleCardBill.phone_card_id == card.id,
+        )
+    )
+    db.execute(
+        delete(LifestylePhoneRecharge).where(
+            LifestylePhoneRecharge.user_id == user_id,
+            LifestylePhoneRecharge.phone_card_id == card.id,
+        )
+    )
+
+
 phone_router = crud_router(
     prefix="/lifestyle/phone-cards",
     tag="lifestyle-phone-cards",
@@ -285,6 +318,7 @@ phone_router = crud_router(
     stats_func=_phone_stats,
     list_transform=_phone_list_transform,
     extra_routes=_phone_extra,
+    on_delete=_delete_phone_card_related,
 )
 
 
