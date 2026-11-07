@@ -3,6 +3,8 @@
 /// 卡号按用户要求完整展示（每 4 位分组），不提供任何脱敏输出。
 library;
 
+import '../utils/formatters.dart';
+
 /// 物品状态标签：in_use / lost / loaned / recycled。
 String itemStatusLabel(String status) {
   switch (status) {
@@ -339,6 +341,7 @@ class PhoneCard {
     required this.operator,
     this.region,
     this.balance,
+    this.openingBalance,
     this.monthlyFee,
     this.billDay,
     this.dataPlan,
@@ -353,6 +356,10 @@ class PhoneCard {
   final String operator;
   final String? region;
   final double? balance;
+
+  /// 起始余额（`opening_balance`）：接口 `balance`（`balance` 字段）是
+  /// 「起始余额 + Σ流水」的派生值，起始余额为 0 且无流水时 0 只是默认值。
+  final double? openingBalance;
   final double? monthlyFee;
   final int? billDay;
   final String? dataPlan;
@@ -363,6 +370,22 @@ class PhoneCard {
 
   /// 完整号码展示：与银行卡同一口径（长号码分组，不脱敏、不截断）。
   String get displayNumber => formatCardNumber(phoneNumber);
+
+  /// 话费余额文案。
+  ///
+  /// 后端 `balance` 恒为派生值（起始余额 + Σ流水），没有单独的「是否已采集」标记；
+  /// 因此按「返回 null，或起始余额 0（默认值）且流水净额 0」判定为未采集，显示「—」，
+  /// 其余按金额展示（真 0 显示 `¥0.00`）。
+  String get balanceText {
+    final double? value = balance;
+    if (value == null) {
+      return '—';
+    }
+    if (value == 0 && (openingBalance ?? 0) == 0) {
+      return '—';
+    }
+    return formatMoney(value);
+  }
 
   /// 复制用纯号码；缺号时返回 null。
   String? get copyableNumber => copyableCardNumber(phoneNumber);
@@ -398,6 +421,9 @@ class PhoneCard {
       balance: json['balance'] == null
           ? null
           : (json['balance'] as num).toDouble(),
+      openingBalance: json['opening_balance'] == null
+          ? null
+          : (json['opening_balance'] as num).toDouble(),
       monthlyFee: json['monthly_fee'] == null
           ? null
           : (json['monthly_fee'] as num).toDouble(),

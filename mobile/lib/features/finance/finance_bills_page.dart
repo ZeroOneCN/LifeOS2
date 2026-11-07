@@ -7,11 +7,11 @@ import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
-import '../../theme/app_theme.dart';
 import 'finance_bill_detail_sheet.dart';
 import 'finance_bill_form_page.dart';
 import 'finance_status_widgets.dart';
@@ -349,7 +349,11 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: <Widget>[
-              _TabSelector(value: _tab, onChanged: _selectTab),
+              AppTabSelector(
+                labels: const <String>['网贷借还', '房租水电', '服务订阅'],
+                value: _tab,
+                onChanged: _selectTab,
+              ),
               ListStatusView(
                 status: _status,
                 message: _message,
@@ -710,74 +714,6 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       default:
         return '电费';
     }
-  }
-}
-
-/// 三个 Tab 的分段选择器：固定单行、8dp 小圆角、选中态纯主题色（黑白灰），
-/// 不使用 M3 `SegmentedButton` 默认的 `secondaryContainer`（会露蓝色）。
-class _TabSelector extends StatelessWidget {
-  const _TabSelector({required this.value, required this.onChanged});
-
-  final int value;
-  final ValueChanged<int> onChanged;
-
-  static const List<String> _labels = <String>[
-    '网贷借还',
-    '房租水电',
-    '服务订阅',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(AppRadii.control),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.7),
-        ),
-      ),
-      child: Row(
-        children: <Widget>[
-          for (int index = 0; index < _labels.length; index++)
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: index == value,
-                child: InkWell(
-                  onTap: () => onChanged(index),
-                  borderRadius: BorderRadius.circular(AppRadii.control),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: index == value ? scheme.primary : Colors.transparent,
-                      borderRadius:
-                          BorderRadius.circular(AppRadii.control),
-                    ),
-                    child: Text(
-                      _labels[index],
-                      maxLines: 1,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: index == value
-                            ? scheme.onPrimary
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 }
 

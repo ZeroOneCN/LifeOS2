@@ -6,19 +6,21 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 卡片管理：汇总（数量 / 余额 / 信用额度）+ 银行卡分页列表 + 手机号卡只读区。
+/// 卡片管理：合计概览 + 手机号卡 / 银行卡双 Tab 列表。
 ///
 /// 数据（与网页端 `pages/lifestyle/cards.tsx` 一致）：
 /// - `GET /lifestyle/bank-cards?page=&page_size=20`
 /// - `GET /lifestyle/bank-cards/stats?days=30`
 /// - `GET /lifestyle/phone-cards?page=&page_size=100`（只读，一次性加载）
 ///
-/// 手机号卡充值 / 扣费 / 校准都是写操作，本轮不做，界面明确提示去网页端操作。
+/// 两个 Tab 使用独立 `ListView`（`IndexedStack` 常驻），切换时各自保留滚动位置。
+/// Tab 组件与财务中心账单页共用 [AppTabSelector]，圆角、选中态完全一致。
 class LifestyleCardsPage extends StatefulWidget {
   const LifestyleCardsPage({super.key});
 
@@ -35,6 +37,9 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
+  /// 当前 Tab：0 = 手机号卡，1 = 银行卡。
+  int _tab = 0;
+
   int _page = 1;
   int _total = 0;
   bool _hasMore = true;
@@ -50,7 +55,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     });
   }
 
-  /// 首屏 / 重试：并行拉汇总与第一页银行卡。
+  /// 首屏 / 重试：并行拉汇总、第一页银行卡与全部手机号卡。
   Future<void> _refresh() async {
     final AppScope scope = AppScope.of(context);
     if (!scope.auth.isLoggedIn) {
@@ -131,7 +136,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     }
   }
 
-  /// 加载更多：追加下一页银行卡。
+  /// 加载更多：追加下一页银行卡（只影响银行卡 Tab）。
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) {
       return;
@@ -215,177 +220,367 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final BankStats? stats = _stats;
+    final bool ready = _status == LoadStatus.ready && stats != null;
 
     return DetailPageScaffold(
       title: '卡片管理',
-      child: ListView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
+          if (!ready)
+            Expanded(
+              child: ListView(
+                children: <Widget>[
+                  ListStatusView(
+                    status: _status,
+                    message: _message,
+                    onRetry: _refresh,
+                  ),
+                ],
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '银行卡 ${formatInt(_stats?.total)} · '
-                    '手机号卡 ${formatInt(_phoneTotal)} · '
-                    '合计 ${formatInt((_stats?.total ?? 0) + _phoneTotal)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    spacing: 12,
+            )
+          else ...<Widget>[
+            SectionCard(
+              title: '合计',
+              trailing: Text(
+                '银行卡 ${formatInt(stats.total)} · '
+                '手机号卡 ${formatInt(_phoneTotal)} · '
+                '合计 ${formatInt(stats.total + _phoneTotal)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              child: Column(
+                spacing: 12,
+                children: <Widget>[
+                  Row(
+                    spacing: 16,
                     children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '银行卡数',
-                              value: formatInt(stats.total),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '正常',
-                              value: formatInt(stats.active),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '余额合计',
-                              value: formatMoney(stats.balanceTotal),
-                            ),
-                          ),
-                        ],
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '银行卡数',
+                          value: formatInt(stats.total),
+                        ),
                       ),
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '信用额度',
-                              value: formatMoney(stats.creditTotal),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '借记卡',
-                              value: formatInt(stats.countOfCategory('debit')),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '信用卡',
-                              value: formatInt(stats.countOfCategory('credit')),
-                            ),
-                          ),
-                        ],
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '正常',
+                          value: formatInt(stats.active),
+                        ),
                       ),
-                      Text(
-                        '列表完整显示卡号（每 4 位分组，不截断）；点每张卡右侧的复制按钮可复制纯号码。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '余额合计',
+                          value: formatMoney(stats.balanceTotal),
                         ),
                       ),
                     ],
                   ),
-                ),
-                SectionCard(
-                  title: '手机号卡',
-                  trailing: Text(
-                    '共 $_phoneTotal 张 · 只读',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
+                  Row(
+                    spacing: 16,
                     children: <Widget>[
-                      Text(
-                        '只读：充值 / 扣费 / 校准请在网页端操作；号码完整显示，点复制按钮复制纯号码',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '信用额度',
+                          value: formatMoney(stats.creditTotal),
                         ),
                       ),
-                      if (_phones.isEmpty)
-                        const EmptyState(
-                          icon: Icons.sim_card_outlined,
-                          title: '暂无手机号卡',
-                          description: '充值 / 扣费 / 校准请在网页端操作',
-                          compact: true,
-                        )
-                      else
-                        for (final PhoneCard phone in _phones)
-                          _PhoneCardRow(
-                            card: phone,
-                            onCopy: () => _copyNumber(
-                              '手机号',
-                              phone.copyableNumber,
-                            ),
-                          ),
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '借记卡',
+                          value: formatInt(stats.countOfCategory('debit')),
+                        ),
+                      ),
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '信用卡',
+                          value: formatInt(stats.countOfCategory('credit')),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                SectionCard(
-                  title: '银行卡',
-                  trailing: Text(
-                    '共 $_total 张',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _cards.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.credit_card_outlined,
-                          title: '暂无银行卡',
-                          description: '可在网页端录入银行卡信息',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final BankCard card in _cards)
-                              _CardRow(
-                                card: card,
-                                onCopy: () => _copyNumber(
-                                  '卡号',
-                                  card.copyableNumber,
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_cards.isNotEmpty)
-                  _LoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
+                ],
+              ),
+            ),
+            AppTabSelector(
+              labels: <String>[
+                '手机号卡 ${formatInt(_phoneTotal)}',
+                '银行卡 ${formatInt(_total)}',
               ],
-            ],
-          ),
+              value: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _PhoneTab(
+                    phones: _phones,
+                    onCopy: (PhoneCard phone) => _copyNumber(
+                      '手机号',
+                      phone.copyableNumber,
+                    ),
+                  ),
+                  _BankTab(
+                    cards: _cards,
+                    total: _total,
+                    loadingMore: _loadingMore,
+                    hasMore: _hasMore,
+                    onLoadMore: _loadMore,
+                    onCopy: (BankCard card) => _copyNumber(
+                      '卡号',
+                      card.copyableNumber,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// 单张银行卡：卡名 + 完整卡号（分组、可换行）+ 复制按钮 + 银行/类型/状态 + 余额或额度。
+/// 手机号卡 Tab：独立滚动，切换不重置位置。
+class _PhoneTab extends StatelessWidget {
+  const _PhoneTab({required this.phones, required this.onCopy});
+
+  final List<PhoneCard> phones;
+  final ValueChanged<PhoneCard> onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return ListView(
+      key: const PageStorageKey<String>('lifestyle-cards-phone'),
+      padding: EdgeInsets.zero,
+      children: <Widget>[
+        SectionCard(
+          title: '手机号卡',
+          trailing: Text(
+            '共 ${formatInt(phones.length)} 张 · 只读',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
+            children: <Widget>[
+              Text(
+                '充值 / 扣费 / 校准请在网页端操作。',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (phones.isEmpty)
+                const EmptyState(
+                  icon: Icons.sim_card_outlined,
+                  title: '暂无手机号卡',
+                  description: '充值 / 扣费 / 校准请在网页端操作',
+                  compact: true,
+                )
+              else
+                for (final PhoneCard phone in phones)
+                  _PhoneCardRow(card: phone, onCopy: () => onCopy(phone)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 银行卡 Tab：独立滚动 + 分页页脚。
+class _BankTab extends StatelessWidget {
+  const _BankTab({
+    required this.cards,
+    required this.total,
+    required this.loadingMore,
+    required this.hasMore,
+    required this.onLoadMore,
+    required this.onCopy,
+  });
+
+  final List<BankCard> cards;
+  final int total;
+  final bool loadingMore;
+  final bool hasMore;
+  final VoidCallback onLoadMore;
+  final ValueChanged<BankCard> onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return ListView(
+      key: const PageStorageKey<String>('lifestyle-cards-bank'),
+      padding: EdgeInsets.zero,
+      children: <Widget>[
+        SectionCard(
+          title: '银行卡',
+          trailing: Text(
+            '共 ${formatInt(total)} 张',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          child: cards.isEmpty
+              ? const EmptyState(
+                  icon: Icons.credit_card_outlined,
+                  title: '暂无银行卡',
+                  description: '可在网页端录入银行卡信息',
+                  compact: true,
+                )
+              : Column(
+                  spacing: 4,
+                  children: <Widget>[
+                    for (final BankCard card in cards)
+                      _CardRow(card: card, onCopy: () => onCopy(card)),
+                  ],
+                ),
+        ),
+        if (cards.isNotEmpty)
+          _LoadMoreFooter(
+            loading: loadingMore,
+            hasMore: hasMore,
+            onPressed: onLoadMore,
+          ),
+      ],
+    );
+  }
+}
+
+/// 号码 + 余额 + 复制按钮的同一行布局。
+///
+/// - 宽度够：一行展示「号码 · 余额 复制」，文本底部对齐（数字无降部，等同基线）。
+/// - 宽度不够（1.3x / 长号码）：余额换到第二行右对齐，号码与复制按钮留在第一行，
+///   复制按钮始终固定在行尾同一列（宽 40dp），不随号码长短漂移。
+/// - 号码永不截断成省略号，必要时按 4 位分组换行。
+class _NumberBalanceRow extends StatelessWidget {
+  const _NumberBalanceRow({
+    required this.number,
+    required this.numberStyle,
+    required this.balanceText,
+    required this.balanceStyle,
+    required this.copyTooltip,
+    required this.onCopy,
+  });
+
+  final String number;
+  final TextStyle? numberStyle;
+  final String balanceText;
+  final TextStyle? balanceStyle;
+  final String copyTooltip;
+  final VoidCallback onCopy;
+
+  /// 复制按钮固定宽高：40dp 热区，行尾对齐。
+  static const double _copySize = 40;
+  static const double _gap = 8;
+
+  double _measure(String text, TextStyle? style) {
+    final TextPainter painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final double numberWidth = _measure(number, numberStyle);
+        final double balanceWidth = _measure(balanceText, balanceStyle);
+        // 号码 + 间隔 + 中间点 + 余额 + 复制按钮 是否能放进一行。
+        final bool inline = numberWidth +
+                _gap +
+                6 +
+                balanceWidth +
+                _gap +
+                _copySize <=
+            constraints.maxWidth;
+        final Widget copy = _CopyButton(
+          tooltip: copyTooltip,
+          onPressed: onCopy,
+        );
+        if (inline) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Expanded(
+                child: Text(number, style: numberStyle),
+              ),
+              const SizedBox(width: _gap),
+              Text('·', style: balanceStyle),
+              const SizedBox(width: 6),
+              Text(
+                balanceText,
+                maxLines: 1,
+                softWrap: false,
+                style: balanceStyle,
+              ),
+              copy,
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 2,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: <Widget>[
+                Expanded(child: Text(number, style: numberStyle)),
+                copy,
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                balanceText,
+                maxLines: 1,
+                softWrap: false,
+                style: balanceStyle,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 40dp 复制热区：图标 18 + Tooltip 作无障碍标签。
+class _CopyButton extends StatelessWidget {
+  const _CopyButton({required this.tooltip, required this.onPressed});
+
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        icon: const Icon(Icons.copy_all_outlined, size: 18),
+      ),
+    );
+  }
+}
+
+/// 单张银行卡：银行 + 卡名 → 卡号（主体）+ 余额（同行配角）→ 元信息。
 class _CardRow extends StatelessWidget {
   const _CardRow({required this.card, required this.onCopy});
 
   final BankCard card;
-
-  /// 复制纯号码（不带空格）。
   final VoidCallback onCopy;
 
   @override
@@ -394,8 +589,10 @@ class _CardRow extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
+    final TextStyle? balanceStyle = metaStyle?.copyWith(
+      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    );
     final List<Widget> meta = <Widget>[
-      Text(card.bank, style: metaStyle),
       Text(cardCategoryLabel(card.cardCategory), style: metaStyle),
       Text(cardFormLabel(card.cardForm), style: metaStyle),
       if (card.status != 'active')
@@ -404,96 +601,46 @@ class _CardRow extends StatelessWidget {
         Text('到期 ${card.expireDate}', style: metaStyle),
       if (card.billingText != null) Text(card.billingText!, style: metaStyle),
     ];
+    final String balanceLabel = card.isCredit ? '额度' : '余额';
+    final num? amount = card.isCredit ? card.creditLimit : card.balance;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 4,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
-              children: <Widget>[
-                // 主体：银行 + 卡名（同一行，字号更大更重）。
-                Text(
-                  '${card.bank} · ${card.cardName}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      // 完整卡号：不设 maxLines / ellipsis，窄屏与 1.3x 自动换行。
-                      child: Text(
-                        card.displayNumber,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: onCopy,
-                      tooltip: '复制卡号',
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                      icon: const Icon(Icons.copy_all_outlined, size: 18),
-                    ),
-                  ],
-                ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(spacing: 8, runSpacing: 2, children: meta),
-              ],
+          Text(
+            '${card.bank} · ${card.cardName}',
+            maxLines: 2,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
             ),
           ),
-          // 余额 / 额度是配角：中性次要色，不与主体抢视觉。
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                formatMoney(card.isCredit ? card.creditLimit : card.balance),
-                maxLines: 1,
-                softWrap: false,
-                style: metaStyle?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              Text(
-                card.isCredit ? '额度' : '余额',
-                maxLines: 1,
-                style: metaStyle,
-              ),
-            ],
+          _NumberBalanceRow(
+            number: card.displayNumber,
+            numberStyle: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              letterSpacing: 0.4,
+            ),
+            balanceText: '$balanceLabel ${formatMoney(amount)}',
+            balanceStyle: balanceStyle,
+            copyTooltip: '复制卡号',
+            onCopy: onCopy,
           ),
+          Wrap(spacing: 8, runSpacing: 2, children: meta),
         ],
       ),
     );
   }
 }
 
-/// 单张手机号卡（只读）：完整号码 + 复制按钮 + 运营商 / 套餐 / 账期 + 余额。
+/// 单张手机号卡（只读）：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期。
 class _PhoneCardRow extends StatelessWidget {
   const _PhoneCardRow({required this.card, required this.onCopy});
 
   final PhoneCard card;
-
-  /// 复制纯号码（不带空格）。
   final VoidCallback onCopy;
 
   /// 账期文案：账单日 + 月租；都未设置时显示「账期未设置」。
@@ -525,6 +672,9 @@ class _PhoneCardRow extends StatelessWidget {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final TextStyle? metaStyle =
         theme.textTheme.bodySmall?.copyWith(color: muted);
+    final TextStyle? balanceStyle = metaStyle?.copyWith(
+      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    );
     final List<Widget> meta = <Widget>[
       Text(card.operator, style: metaStyle),
       Text(card.planText, style: metaStyle),
@@ -536,67 +686,23 @@ class _PhoneCardRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 4,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      // 主体：完整手机号（字号更大、字重更重），自动换行不截断。
-                      child: Text(
-                        card.displayNumber,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: onCopy,
-                      tooltip: '复制手机号',
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                      icon: const Icon(Icons.copy_all_outlined, size: 18),
-                    ),
-                  ],
-                ),
-                // 运营商 / 套餐 / 账期是次要信息，小字中性色。
-                Wrap(spacing: 8, runSpacing: 2, children: meta),
-              ],
+          _NumberBalanceRow(
+            number: card.displayNumber,
+            numberStyle: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              letterSpacing: 0.3,
             ),
+            balanceText: '余额 ${card.balanceText}',
+            balanceStyle: balanceStyle,
+            copyTooltip: '复制手机号',
+            onCopy: onCopy,
           ),
-          // 余额是配角：中性次要色，不用主色/警告色。
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                card.balance == null ? '—' : formatMoney(card.balance),
-                maxLines: 1,
-                softWrap: false,
-                style: metaStyle?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              Text('余额', maxLines: 1, style: metaStyle),
-            ],
-          ),
+          Wrap(spacing: 8, runSpacing: 2, children: meta),
         ],
       ),
     );
