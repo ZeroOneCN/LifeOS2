@@ -61,6 +61,25 @@ def test_missing_unit_price_outputs_blank_instead_of_zero(db_session):
     assert rows[0][5] == "12.8"
 
 
+def test_shopping_detail_rows_match_declared_total(db_session):
+    """明细行数与摘要「购物 N 笔」、小节标题一致，不再截断成 30 行。"""
+    for i in range(35):
+        db_session.add(_record(None, f"商品{i:02d}", 10.0 + i, None))
+    db_session.flush()
+
+    _title, summary, content = build_finance_report(
+        db_session, START, END, "测试区间", user_id=1
+    )
+    rows = _shopping_rows(db_session)
+    assert len(rows) == 35
+    assert "购物 35 笔" in summary
+    heading = next(
+        s["text"] for s in content
+        if s.get("type") == "h2" and "购物明细" in s["text"]
+    )
+    assert heading == "四、购物明细（共 35 笔）"
+
+
 def test_unknown_platform_falls_back_to_uncategorized(db_session):
     """平台未填写或平台已被删除时，平台列回落「未分类」而不是数字 id。"""
     db_session.add(_record(None, "耳塞", 11.0, 0.45))

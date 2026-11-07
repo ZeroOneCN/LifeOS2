@@ -268,6 +268,8 @@ def build_finance_report(
     购物明细的「平台」列按 finance_shopping_platforms 映射成平台名称
     （平台已删除或无归属时回落「未分类」）；「单价」在源表中可为空，
     且明细无数量列可反推单价，空值统一输出「—」，不再用 0 兜底。
+    购物明细完整输出（不做前 N 条截断），标题标注「共 N 笔」，
+    保证明细行数与摘要「购物 N 笔」的口径一致。
     """
 
     # 购物
@@ -438,9 +440,9 @@ def build_finance_report(
         },
     ]
 
-    # 购物明细（前 30 条）
+    # 购物明细：完整输出，确保行数与摘要「购物 N 笔」一致（不再截断前 30 条）
     if shoppings:
-        content.append({"type": "h2", "text": "四、购物明细"})
+        content.append({"type": "h2", "text": f"四、购物明细（共 {len(shoppings)} 笔）"})
         content.append(
             {
                 "type": "table",
@@ -454,7 +456,7 @@ def build_finance_report(
                         f"{r.unit_price:g}" if r.unit_price is not None else "—",
                         f"{r.total_price:g}",
                     ]
-                    for r in shoppings[:30]
+                    for r in shoppings
                 ],
             }
         )
