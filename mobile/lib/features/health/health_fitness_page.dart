@@ -1,24 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
-import '../../shared/widgets/read_only_notice.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 健身运动：区间汇总 + 按类型汇总 + 按日期倒序的运动记录（只读）。
+/// 健身运动：区间汇总 + 按类型汇总 + 按日期倒序的运动记录。
 ///
 /// 数据：
 /// - `GET /health/fitness/stats?days=`（7/30/0，0 表示全部）
 /// - `GET /health/fitness?page=&page_size=20`（后端按 record_date 倒序）
+/// - 增改删：`POST/PUT/DELETE /health/fitness`（编辑页左保存右删除）
 ///
-/// 消耗热量为 null（无法按 MET 推算）时显示「—」，不按 0 展示。
+/// 列表与统计使用同一个区间（近 N 天含当天），增改删后一起重拉，
+/// 保证总时长 / 总消耗 / 次数与列表范围一致。
+/// 消耗热量或距离为 null 时显示「—」，不按 0 展示。
 class HealthFitnessPage extends StatefulWidget {
   const HealthFitnessPage({super.key});
 
@@ -55,8 +59,7 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
     if (_days <= 0) {
       return null;
     }
-    final DateTime start =
-        DateTime.now().subtract(Duration(days: _days - 1));
+    final DateTime start = DateTime.now().subtract(Duration(days: _days - 1));
     return '${start.year.toString().padLeft(4, '0')}-'
         '${start.month.toString().padLeft(2, '0')}-'
         '${start.day.toString().padLeft(2, '0')}';
@@ -85,21 +88,22 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
         'page_size': 20,
         'start': ?start,
       };
-      final List<Map<String, dynamic>?> responses =
-          await Future.wait(<Future<Map<String, dynamic>?>>[
-        scope.apiClient
-            .get<Map<String, dynamic>>(
-              '/health/fitness/stats',
-              queryParameters: <String, dynamic>{'days': _days},
-            )
-            .then((value) => value.data),
-        scope.apiClient
-            .get<Map<String, dynamic>>(
-              '/health/fitness',
-              queryParameters: listQuery,
-            )
-            .then((value) => value.data),
-      ]);
+      final List<Map<String, dynamic>?> responses = await Future.wait(
+        <Future<Map<String, dynamic>?>>[
+          scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/fitness/stats',
+                queryParameters: <String, dynamic>{'days': _days},
+              )
+              .then((value) => value.data),
+          scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/fitness',
+                queryParameters: listQuery,
+              )
+              .then((value) => value.data),
+        ],
+      );
       final Map<String, dynamic>? statsJson = responses[0];
       final Map<String, dynamic>? listJson = responses[1];
       if (statsJson == null || listJson == null) {
@@ -126,7 +130,8 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -147,14 +152,15 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
     setState(() => _loadingMore = true);
     try {
       final String? start = _startParam;
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/health/fitness',
-                  queryParameters: <String, dynamic>{
-            'page': _page + 1,
-            'page_size': 20,
-            'start': ?start,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/health/fitness',
+            queryParameters: <String, dynamic>{
+              'page': _page + 1,
+              'page_size': 20,
+              'start': ?start,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -174,9 +180,8 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _loadingMore = false);
@@ -201,6 +206,25 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
     _refresh();
   }
 
+  /// 打开新增页；保存成功返回 true 后重拉统计与列表第一页。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/health/fitness/new');
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 打开编辑页；保存或删除后返回 true，回到列表立即重算汇总。
+  Future<void> _openEdit(FitnessRecord record) async {
+    final bool? changed = await context.push<bool>(
+      '/health/fitness/edit/${record.id}',
+      extra: record,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -220,7 +244,6 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
                 message: _message,
                 onRetry: _refresh,
               ),
-              const ReadOnlyNotice(),
               SegmentedButton<int>(
                 segments: const <ButtonSegment<int>>[
                   ButtonSegment<int>(value: 7, label: Text('7 天')),
@@ -276,29 +299,40 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
                   ),
                 SectionCard(
                   title: '运动记录',
-                  trailing: Text(
-                    '共 $_total 条 · 按日期倒序',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  trailing: AppPrimaryAction(
+                    label: '新增记录',
+                    onPressed: _openCreate,
                   ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      if (_total > 0)
+                        Text(
+                          '共 $_total 条 · 按日期倒序',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      if (_items.isEmpty)
+                        const EmptyState(
                           icon: Icons.fitness_center_outlined,
                           title: '暂无运动记录',
-                          description: '该区间暂无运动记录，换一个时间区间或先在网页端添加',
+                          description: '该区间暂无记录，点右上角「新增记录」添加',
                           compact: true,
                         )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            for (int i = 0; i < _items.length; i++) ...<Widget>[
-                              if (i == 0 ||
-                                  _items[i].recordDate !=
-                                      _items[i - 1].recordDate)
-                                _DateHeader(date: _items[i].recordDate),
-                              _FitnessRow(record: _items[i]),
-                            ],
-                          ],
-                        ),
+                      else
+                        for (int i = 0; i < _items.length; i++) ...<Widget>[
+                          if (i == 0 ||
+                              _items[i].recordDate != _items[i - 1].recordDate)
+                            _DateHeader(date: _items[i].recordDate),
+                          _FitnessRow(
+                            record: _items[i],
+                            onTap: () => _openEdit(_items[i]),
+                          ),
+                        ],
+                    ],
+                  ),
                 ),
                 if (_items.isNotEmpty)
                   ListLoadMoreFooter(
@@ -352,7 +386,7 @@ class _TypeRow extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: Text(
-                item.exerciseType,
+                fitnessTypeLabel(item.exerciseType),
                 style: theme.textTheme.bodyMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -361,9 +395,7 @@ class _TypeRow extends StatelessWidget {
             Text(
               formatDuration(item.minutes),
               style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[
-                  FontFeature.tabularFigures(),
-                ],
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
             ),
           ],
@@ -399,54 +431,67 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
-/// 运动记录行：类型 + 时长 + 消耗（距离有值时追加）。
+/// 运动记录行：类型 + 时长 + 消耗 / 距离；点按进入编辑页。
+///
+/// 热量或距离缺失时显示「—」，不把空值渲染成 0 kcal / 0.00 km。
 class _FitnessRow extends StatelessWidget {
-  const _FitnessRow({required this.record});
+  const _FitnessRow({required this.record, required this.onTap});
 
   final FitnessRecord record;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
+    final String calories = record.calories == null
+        ? '消耗 —'
+        : '消耗 ${_number(record.calories)} kcal';
     final String detail = record.distanceKm == null
-        ? '${_number(record.calories)} kcal'
-        : '${_number(record.calories)} kcal · '
-            '${record.distanceKm!.toStringAsFixed(2)} km';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 2,
-        children: <Widget>[
-          Row(
-            spacing: 12,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  record.exerciseType,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        ? calories
+        : '$calories · ${record.distanceKm!.toStringAsFixed(2)} km';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 2,
+          children: <Widget>[
+            Row(
+              spacing: 8,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    fitnessTypeLabel(record.exerciseType),
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              Text(
-                formatDuration(record.durationMin),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
+                Text(
+                  formatDuration(record.durationMin),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          Text(detail, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-          if (record.note != null && record.note!.isNotEmpty)
+                Icon(Icons.chevron_right, size: 18, color: muted),
+              ],
+            ),
             Text(
-              record.note!,
+              detail,
               style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
-        ],
+            if (record.note != null && record.note!.isNotEmpty)
+              Text(
+                record.note!,
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -20,6 +20,7 @@ import '../../features/health/health_body_ble_page.dart';
 import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_page.dart';
+import '../../features/health/health_fitness_form_page.dart';
 import '../../features/health/health_fitness_page.dart';
 import '../../features/health/health_med_purchase_form_page.dart';
 import '../../features/health/health_med_stock_form_page.dart';
@@ -88,13 +89,14 @@ GoRouter createAppRouter() {
     initialLocation: '/health',
     routes: <RouteBase>[
       StatefulShellRoute.indexedStack(
-        builder: (
-          BuildContext context,
-          GoRouterState state,
-          StatefulNavigationShell navigationShell,
-        ) {
-          return AppShell(navigationShell: navigationShell);
-        },
+        builder:
+            (
+              BuildContext context,
+              GoRouterState state,
+              StatefulNavigationShell navigationShell,
+            ) {
+              return AppShell(navigationShell: navigationShell);
+            },
         branches: <StatefulShellBranch>[
           StatefulShellBranch(
             navigatorKey: healthKey,
@@ -116,13 +118,15 @@ GoRouter createAppRouter() {
                         path: ':id',
                         builder: (_, GoRouterState state) =>
                             HealthStepsCreatePage(
-                          recordId:
-                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
                                   0,
-                          initial: state.extra is StepRecord
-                              ? state.extra as StepRecord
-                              : null,
-                        ),
+                              initial: state.extra is StepRecord
+                                  ? state.extra as StepRecord
+                                  : null,
+                            ),
                       ),
                     ],
                   ),
@@ -147,38 +151,44 @@ GoRouter createAppRouter() {
                         path: 'stocks/:sid/edit',
                         builder: (_, GoRouterState state) =>
                             HealthMedStockFormPage(
-                          stockId:
-                              int.tryParse(state.pathParameters['sid'] ?? '') ??
+                              stockId:
+                                  int.tryParse(
+                                    state.pathParameters['sid'] ?? '',
+                                  ) ??
                                   0,
-                          initial: state.extra is MedStock
-                              ? state.extra as MedStock
-                              : null,
-                        ),
+                              initial: state.extra is MedStock
+                                  ? state.extra as MedStock
+                                  : null,
+                            ),
                       ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) =>
                             HealthMedicationDetailPage(
-                          recordId:
-                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
                                   0,
-                          // 列表页带过来的快照：断网时也能进入并打卡。
-                          initial: state.extra is MedicationRecord
-                              ? state.extra as MedicationRecord
-                              : null,
-                        ),
+                              // 列表页带过来的快照：断网时也能进入并打卡。
+                              initial: state.extra is MedicationRecord
+                                  ? state.extra as MedicationRecord
+                                  : null,
+                            ),
                       ),
                       GoRoute(
                         path: ':id/edit',
                         builder: (_, GoRouterState state) =>
                             HealthMedicationCreatePage(
-                          recordId:
-                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
                                   0,
-                          initial: state.extra is MedicationRecord
-                              ? state.extra as MedicationRecord
-                              : null,
-                        ),
+                              initial: state.extra is MedicationRecord
+                                  ? state.extra as MedicationRecord
+                                  : null,
+                            ),
                       ),
                     ],
                   ),
@@ -205,7 +215,7 @@ GoRouter createAppRouter() {
                         builder: (_, GoRouterState state) => HealthBodyFormPage(
                           recordId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
-                                  0,
+                              0,
                           initial: state.extra is BodyRecord
                               ? state.extra as BodyRecord
                               : null,
@@ -216,6 +226,26 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'fitness',
                     builder: (_, _) => const HealthFitnessPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthFitnessFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) =>
+                            HealthFitnessFormPage(
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is FitnessRecord
+                                  ? state.extra as FitnessRecord
+                                  : null,
+                            ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'checkup',
@@ -232,7 +262,7 @@ GoRouter createAppRouter() {
                           source: ReportSource.health,
                           reportId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
-                                  0,
+                              0,
                         ),
                       ),
                     ],
@@ -256,20 +286,22 @@ GoRouter createAppRouter() {
                         path: 'new',
                         builder: (_, GoRouterState state) =>
                             FinanceBillFormPage(
-                          kind: billKindFromParam(
-                            state.uri.queryParameters['kind'],
-                          ),
-                        ),
+                              kind: billKindFromParam(
+                                state.uri.queryParameters['kind'],
+                              ),
+                            ),
                       ),
                       GoRoute(
                         path: 'edit/:id',
                         builder: (_, GoRouterState state) =>
                             FinanceBillFormPage(
-                          kind: billKindFromParam(
-                            state.uri.queryParameters['kind'],
-                          ),
-                          id: int.tryParse(state.pathParameters['id'] ?? ''),
-                        ),
+                              kind: billKindFromParam(
+                                state.uri.queryParameters['kind'],
+                              ),
+                              id: int.tryParse(
+                                state.pathParameters['id'] ?? '',
+                              ),
+                            ),
                       ),
                     ],
                   ),
@@ -281,9 +313,12 @@ GoRouter createAppRouter() {
                         path: ':id',
                         builder: (_, GoRouterState state) =>
                             FinanceDebtDetailPage(
-                          debtId: int.tryParse(state.pathParameters['id'] ?? '') ??
-                              0,
-                        ),
+                              debtId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                            ),
                       ),
                     ],
                   ),
@@ -296,13 +331,15 @@ GoRouter createAppRouter() {
                         path: 'edit/:id',
                         builder: (_, GoRouterState state) =>
                             FinanceShoppingFormPage(
-                          recordId:
-                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
                                   0,
-                          initial: state.extra is ShoppingRecord
-                              ? state.extra as ShoppingRecord
-                              : null,
-                        ),
+                              initial: state.extra is ShoppingRecord
+                                  ? state.extra as ShoppingRecord
+                                  : null,
+                            ),
                       ),
                     ],
                   ),
@@ -325,7 +362,7 @@ GoRouter createAppRouter() {
                           source: ReportSource.finance,
                           reportId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
-                                  0,
+                              0,
                         ),
                       ),
                     ],
@@ -368,7 +405,7 @@ GoRouter createAppRouter() {
                           source: ReportSource.lifestyle,
                           reportId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
-                                  0,
+                              0,
                         ),
                       ),
                     ],
@@ -405,7 +442,7 @@ GoRouter createAppRouter() {
                           source: ReportSource.investment,
                           reportId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
-                                  0,
+                              0,
                         ),
                       ),
                     ],
@@ -429,10 +466,7 @@ GoRouter createAppRouter() {
                     path: 'account',
                     builder: (_, _) => const AccountSettingsPage(),
                   ),
-                  GoRoute(
-                    path: 'about',
-                    builder: (_, _) => const AboutPage(),
-                  ),
+                  GoRoute(path: 'about', builder: (_, _) => const AboutPage()),
                   GoRoute(
                     path: 'devices',
                     builder: (_, _) => const DeviceSessionsPage(),
@@ -453,10 +487,7 @@ GoRouter createAppRouter() {
         path: '/notifications',
         builder: (_, _) => const NotificationCenterPage(),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (_, _) => const LoginPage(),
-      ),
+      GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
     ],
   );
 }

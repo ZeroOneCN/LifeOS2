@@ -85,8 +85,9 @@ class StepStats {
     return StepStats(
       trend: ((json['trend'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              StepTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .map(
+            (Map item) => StepTrendPoint.fromJson(item.cast<String, dynamic>()),
+          )
           .toList(growable: false),
       byPeriod: ((json['by_period'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
@@ -105,24 +106,24 @@ class StepStats {
 /// 时段值是 `health_steps.period` 的原样取值，新增与编辑都用这一份口径。
 const List<({String value, String label})> kStepPeriods =
     <({String value, String label})>[
-  (value: '08-09', label: '08:00-09:00'),
-  (value: '09-10', label: '09:00-10:00'),
-  (value: '10-11', label: '10:00-11:00'),
-  (value: '11-12', label: '11:00-12:00'),
-  (value: '12-13', label: '12:00-13:00'),
-  (value: '13-14', label: '13:00-14:00'),
-  (value: '14-15', label: '14:00-15:00'),
-  (value: '15-16', label: '15:00-16:00'),
-  (value: '16-17', label: '16:00-17:00'),
-  (value: '17-18', label: '17:00-18:00'),
-  (value: '18-19', label: '18:00-19:00'),
-  (value: '19-20', label: '19:00-20:00'),
-  (value: '20-21', label: '20:00-21:00'),
-  (value: '21-22', label: '21:00-22:00'),
-  (value: '22-23', label: '22:00-23:00'),
-  (value: '23-24', label: '23:00-23:59'),
-  (value: 'full', label: '23:59（全天最终）'),
-];
+      (value: '08-09', label: '08:00-09:00'),
+      (value: '09-10', label: '09:00-10:00'),
+      (value: '10-11', label: '10:00-11:00'),
+      (value: '11-12', label: '11:00-12:00'),
+      (value: '12-13', label: '12:00-13:00'),
+      (value: '13-14', label: '13:00-14:00'),
+      (value: '14-15', label: '14:00-15:00'),
+      (value: '15-16', label: '15:00-16:00'),
+      (value: '16-17', label: '16:00-17:00'),
+      (value: '17-18', label: '17:00-18:00'),
+      (value: '18-19', label: '18:00-19:00'),
+      (value: '19-20', label: '19:00-20:00'),
+      (value: '20-21', label: '20:00-21:00'),
+      (value: '21-22', label: '21:00-22:00'),
+      (value: '22-23', label: '22:00-23:00'),
+      (value: '23-24', label: '23:00-23:59'),
+      (value: 'full', label: '23:59（全天最终）'),
+    ];
 
 /// 时段值 → 展示文案；未知值原样返回（兼容历史数据）。
 String stepPeriodLabel(String value) {
@@ -321,7 +322,7 @@ class MedicationStats {
   factory MedicationStats.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> today =
         (json['today'] as Map?)?.cast<String, dynamic>() ??
-            const <String, dynamic>{};
+        const <String, dynamic>{};
     return MedicationStats(
       todayTaken: _toInt(today['taken_count']),
       todayPending: _toInt(today['pending_count']),
@@ -332,8 +333,7 @@ class MedicationStats {
           .toList(growable: false),
       trend: ((json['trend'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              MedDayTrend.fromJson(item.cast<String, dynamic>()))
+          .map((Map item) => MedDayTrend.fromJson(item.cast<String, dynamic>()))
           .toList(growable: false),
       totalCount: _toInt(json['total_count']),
       totalPills: _toInt(json['total_pills']),
@@ -379,8 +379,7 @@ class MedStock {
       isLow: json['is_low'] as bool? ?? false,
       purchased: _toDouble(json['purchased']),
       consumed: _toInt(json['consumed']),
-      avgDaily:
-          json['avg_daily'] == null ? null : _toDouble(json['avg_daily']),
+      avgDaily: json['avg_daily'] == null ? null : _toDouble(json['avg_daily']),
       daysLeft: json['days_left'] == null ? null : _toInt(json['days_left']),
       predictedDate: json['predicted_date'] as String?,
     );
@@ -425,11 +424,13 @@ class MedPurchase {
       channel: json['channel'] as String?,
       unit: json['unit'] as String?,
       quantity: _toDouble(json['quantity']),
-      pillsPerUnit:
-          json['pills_per_unit'] == null ? null : _toDouble(json['pills_per_unit']),
+      pillsPerUnit: json['pills_per_unit'] == null
+          ? null
+          : _toDouble(json['pills_per_unit']),
       unitPrice: _toDouble(json['unit_price']),
-      totalPrice:
-          json['total_price'] == null ? null : _toDouble(json['total_price']),
+      totalPrice: json['total_price'] == null
+          ? null
+          : _toDouble(json['total_price']),
       note: json['note'] as String?,
     );
   }
@@ -578,24 +579,67 @@ class SleepStats {
   bool get hasStageData =>
       avgDeepMin != null ||
       avgLightMin != null ||
-      trend.any((SleepTrendPoint point) =>
-          point.deepSleepMin != null || point.lightSleepMin != null);
+      trend.any(
+        (SleepTrendPoint point) =>
+            point.deepSleepMin != null || point.lightSleepMin != null,
+      );
 
   factory SleepStats.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> avg =
         (json['avg'] as Map?)?.cast<String, dynamic>() ??
-            const <String, dynamic>{};
+        const <String, dynamic>{};
     return SleepStats(
       trend: ((json['trend'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              SleepTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .map(
+            (Map item) =>
+                SleepTrendPoint.fromJson(item.cast<String, dynamic>()),
+          )
           .toList(growable: false),
       avgDurationMin: _toRoundedIntOrNull(avg['sleep_duration_min']),
       avgDeepMin: _toDoubleOrNull(avg['deep_sleep_min']),
       avgQuality: _toDoubleOrNull(avg['sleep_quality']),
       recordCount: _toInt(json['record_count']),
     );
+  }
+}
+
+/// 常见运动类型（与网页端 `/health/fitness?tab=exercise` 的下拉选项一致）。
+const List<String> kFitnessExerciseOptions = <String>[
+  '跑步',
+  '慢跑',
+  '快走',
+  '散步',
+  '走路',
+  '游泳',
+  '骑行',
+  '跳绳',
+  '力量训练',
+  '举重',
+  '篮球',
+  '羽毛球',
+  '乒乓球',
+  '网球',
+  '瑜伽',
+  '普拉提',
+  '舞蹈',
+  'HIIT',
+  '有氧运动',
+];
+
+/// 历史英文/别名 → 中文展示名（与网页端 `EXERCISE_LABELS` 一致）。
+///
+/// 列表与编辑页都用它，避免 `cardio` 这类旧值直接露给用户；
+/// 编辑保存时也会把展示名写回，逐步把历史别名归一化。
+String fitnessTypeLabel(String type) {
+  switch (type) {
+    case 'cardio':
+    case 'aerobic':
+      return '有氧运动';
+    case 'running':
+      return '跑步';
+    default:
+      return type;
   }
 }
 
@@ -679,8 +723,10 @@ class FitnessStats {
       totalCalories: _toDouble(json['total_calories']),
       byType: ((json['by_type'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              FitnessTypeSummary.fromJson(item.cast<String, dynamic>()))
+          .map(
+            (Map item) =>
+                FitnessTypeSummary.fromJson(item.cast<String, dynamic>()),
+          )
           .toList(growable: false),
     );
   }
@@ -737,7 +783,7 @@ class CheckupItem {
   factory CheckupItem.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> latest =
         (json['latest'] as Map?)?.cast<String, dynamic>() ??
-            const <String, dynamic>{};
+        const <String, dynamic>{};
     return CheckupItem(
       itemName: json['item_name'] as String? ?? '',
       unit: json['unit'] as String?,
@@ -750,8 +796,10 @@ class CheckupItem {
       count: _toInt(json['count']),
       trend: ((json['trend'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              CheckupTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .map(
+            (Map item) =>
+                CheckupTrendPoint.fromJson(item.cast<String, dynamic>()),
+          )
           .toList(growable: false),
     );
   }
@@ -782,10 +830,10 @@ class CheckupStats {
   factory CheckupStats.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic> counts =
         (json['status_counts'] as Map?)?.cast<String, dynamic>() ??
-            const <String, dynamic>{};
+        const <String, dynamic>{};
     final Map<String, dynamic> labels =
         (json['status_label'] as Map?)?.cast<String, dynamic>() ??
-            const <String, dynamic>{};
+        const <String, dynamic>{};
     return CheckupStats(
       items: ((json['items'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
@@ -923,8 +971,8 @@ class BodyStats {
   final List<BodyTrendPoint> trend;
 
   factory BodyStats.fromJson(Map<String, dynamic> json) {
-    final Map<String, dynamic>? latest =
-        (json['latest'] as Map?)?.cast<String, dynamic>();
+    final Map<String, dynamic>? latest = (json['latest'] as Map?)
+        ?.cast<String, dynamic>();
     return BodyStats(
       latest: latest == null ? null : BodyLatest.fromJson(latest),
       avgWeight: _unsetZero(json['avg_weight']),
@@ -933,8 +981,9 @@ class BodyStats {
       recordCount: _toInt(json['record_count']),
       trend: ((json['trend'] as List?) ?? const <dynamic>[])
           .whereType<Map>()
-          .map((Map item) =>
-              BodyTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .map(
+            (Map item) => BodyTrendPoint.fromJson(item.cast<String, dynamic>()),
+          )
           .toList(growable: false),
     );
   }
