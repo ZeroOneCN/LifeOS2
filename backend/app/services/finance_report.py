@@ -11,6 +11,7 @@ from app.models import (
     FinanceHousing,
     FinanceInvestment,
     FinanceLoanBill,
+    FinanceShoppingPlatform,
     FinanceShoppingRecord,
     FinanceSubscription,
     FinanceTravelDetail,
@@ -262,7 +263,12 @@ def build_finance_report(
     label: str,
     user_id: int | None = None,
 ):
-    """聚合财务各模块数据生成财务报告内容（按给定起止区间）。"""
+    """聚合财务各模块数据生成财务报告内容（按给定起止区间）。
+
+    购物明细的「平台」列按 finance_shopping_platforms 映射成平台名称
+    （平台已删除或无归属时回落「未分类」）；「单价」在源表中可为空，
+    且明细无数量列可反推单价，空值统一输出「—」，不再用 0 兜底。
+    """
 
     # 购物
     shoppings = db.scalars(
@@ -273,6 +279,15 @@ def build_finance_report(
         )
     ).all()
     shopping_total = sum(r.total_price for r in shoppings)
+    # 购物明细的平台列存的是 platform_id，需按当前用户的平台表映射成名称
+    shopping_platform_names = {
+        p.id: p.name
+        for p in db.scalars(
+            select(FinanceShoppingPlatform).where(
+                FinanceShoppingPlatform.user_id == user_id
+            )
+        ).all()
+    } if user_id is not None else {}
 
     # 旅行
     travels = db.scalars(
@@ -433,10 +448,10 @@ def build_finance_report(
                 "rows": [
                     [
                         r.record_date.isoformat(),
-                        str(r.platform_id or "—"),
+                        shopping_platform_names.get(r.platform_id, "未分类"),
                         r.product_name,
                         r.spec or "—",
-                        f"{r.unit_price or 0:g}",
+                        f"{r.unit_price:g}" if r.unit_price is not None else "—",
                         f"{r.total_price:g}",
                     ]
                     for r in shoppings[:30]
