@@ -755,3 +755,139 @@ class CheckupStats {
     );
   }
 }
+
+/// 后端把「未采集」写成 0（如 `muscle_percent = 0`、`height_cm = 0`），
+/// 这里统一归一成 null，避免把 0 当成真实测量值展示。
+double? _unsetZero(Object? value) {
+  final double? parsed = _toDoubleOrNull(value);
+  return parsed == 0 ? null : parsed;
+}
+
+/// 体重/体成分记录（`GET /health/body` 列表项，与网页端 `/health/body` 同源）。
+class BodyRecord {
+  const BodyRecord({
+    required this.id,
+    required this.recordDate,
+    this.gender,
+    this.heightCm,
+    this.weightKg,
+    this.bmi,
+    this.bodyFatPercent,
+    this.musclePercent,
+  });
+
+  final int id;
+  final String recordDate;
+  final String? gender;
+  final double? heightCm;
+  final double? weightKg;
+  final double? bmi;
+  final double? bodyFatPercent;
+  final double? musclePercent;
+
+  factory BodyRecord.fromJson(Map<String, dynamic> json) {
+    return BodyRecord(
+      id: _toInt(json['id']),
+      recordDate: json['record_date'] as String? ?? '',
+      gender: json['gender'] as String?,
+      heightCm: _unsetZero(json['height_cm']),
+      weightKg: _unsetZero(json['weight_kg']),
+      bmi: _unsetZero(json['bmi']),
+      bodyFatPercent: _unsetZero(json['body_fat_percent']),
+      musclePercent: _unsetZero(json['muscle_percent']),
+    );
+  }
+}
+
+/// 体重趋势点（`GET /health/body/stats` 的 `trend`，按日期升序）。
+class BodyTrendPoint {
+  const BodyTrendPoint({
+    required this.date,
+    this.weightKg,
+    this.bmi,
+    this.bodyFatPercent,
+    this.musclePercent,
+  });
+
+  final String date;
+  final double? weightKg;
+  final double? bmi;
+  final double? bodyFatPercent;
+  final double? musclePercent;
+
+  factory BodyTrendPoint.fromJson(Map<String, dynamic> json) {
+    return BodyTrendPoint(
+      date: json['record_date'] as String? ?? '',
+      weightKg: _unsetZero(json['weight_kg']),
+      bmi: _unsetZero(json['bmi']),
+      bodyFatPercent: _unsetZero(json['body_fat_percent']),
+      musclePercent: _unsetZero(json['muscle_percent']),
+    );
+  }
+}
+
+/// 最新一条体成分（`stats.latest`；BMI 缺失时后端会按身高体重补算）。
+class BodyLatest {
+  const BodyLatest({
+    this.date,
+    this.heightCm,
+    this.weightKg,
+    this.bmi,
+    this.bodyFatPercent,
+    this.musclePercent,
+  });
+
+  final String? date;
+  final double? heightCm;
+  final double? weightKg;
+  final double? bmi;
+  final double? bodyFatPercent;
+  final double? musclePercent;
+
+  factory BodyLatest.fromJson(Map<String, dynamic> json) {
+    return BodyLatest(
+      date: json['record_date'] as String?,
+      heightCm: _unsetZero(json['height_cm']),
+      weightKg: _unsetZero(json['weight_kg']),
+      bmi: _unsetZero(json['bmi']),
+      bodyFatPercent: _unsetZero(json['body_fat_percent']),
+      musclePercent: _unsetZero(json['muscle_percent']),
+    );
+  }
+}
+
+/// 体重统计（`GET /health/body/stats?days=0`，days=0 表示全部）。
+class BodyStats {
+  const BodyStats({
+    this.latest,
+    this.avgWeight,
+    this.minWeight,
+    this.maxWeight,
+    this.recordCount = 0,
+    this.trend = const <BodyTrendPoint>[],
+  });
+
+  final BodyLatest? latest;
+  final double? avgWeight;
+  final double? minWeight;
+  final double? maxWeight;
+  final int recordCount;
+  final List<BodyTrendPoint> trend;
+
+  factory BodyStats.fromJson(Map<String, dynamic> json) {
+    final Map<String, dynamic>? latest =
+        (json['latest'] as Map?)?.cast<String, dynamic>();
+    return BodyStats(
+      latest: latest == null ? null : BodyLatest.fromJson(latest),
+      avgWeight: _unsetZero(json['avg_weight']),
+      minWeight: _unsetZero(json['min_weight']),
+      maxWeight: _unsetZero(json['max_weight']),
+      recordCount: _toInt(json['record_count']),
+      trend: ((json['trend'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) =>
+              BodyTrendPoint.fromJson(item.cast<String, dynamic>()))
+          .toList(growable: false),
+    );
+  }
+}

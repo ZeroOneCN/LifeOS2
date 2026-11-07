@@ -13,7 +13,7 @@ import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 健康中心根页：常用（步数 / 用药）→ 全部功能 → 本周概览。
+/// 健康中心根页：常用（步数 / 用药 / 体重）→ 全部功能 → 本周概览。
 ///
 /// 摘要数据来自 `GET /health/overview`（总览层）；
 /// 7 日均步数单独取 `GET /health/steps/stats?days=7`：
@@ -160,6 +160,18 @@ class _HealthPageState extends State<HealthPage> {
                     summary: '今日 ${formatInt(data?.pendingCount)} 项待服',
                     onTap: () => context.push('/health/medication'),
                   ),
+                  PrimaryFeatureCard(
+                    icon: Icons.monitor_weight_outlined,
+                    title: '体重记录',
+                    summary: _weightSummary(data),
+                    onTap: () async {
+                      await context.push('/health/body');
+                      // 从体重页返回：新增/删除会改变最新体重，重新对账。
+                      if (context.mounted) {
+                        _refresh();
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -234,6 +246,17 @@ class _HealthPageState extends State<HealthPage> {
       return '今日 ${formatInt(steps)} 步';
     }
     return '最近 ${_shortDate(date)} · ${formatInt(steps)} 步';
+  }
+
+  /// 体重摘要：总览给的是「最新一条体重记录」，日期非今天时写日期避免误解。
+  String _weightSummary(HealthOverview? data) {
+    final double? weight = data?.weightKg;
+    if (weight == null || weight == 0) {
+      return '暂无记录';
+    }
+    final String date = data?.weightDate ?? '';
+    final String value = '${weight.toStringAsFixed(1)} kg';
+    return date.isEmpty ? value : '最新 $value · ${_shortDate(date)}';
   }
 
   /// 7 日均步数文案：加载中显示「…」，失败显示「—」（不展示错误口径的数值）。

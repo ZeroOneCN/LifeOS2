@@ -66,7 +66,8 @@ Future<void> showAddRecordSheet(BuildContext context) {
               title: '体重',
               onTap: () {
                 Navigator.of(sheetContext).pop();
-                _notify(messenger, '体重表单将在后续批次接入');
+                // 体重属于健康域：用 go 切到健康分支的录入页。
+                context.go('/health/body/new');
               },
             ),
             const SizedBox(height: 8),

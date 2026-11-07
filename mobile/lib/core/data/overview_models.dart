@@ -71,12 +71,17 @@ class HealthOverview {
     this.weekStepsAvg,
     this.weekSleepAvgMin,
     this.weekFitnessCount,
+    this.weightKg,
+    this.weightDate,
+    this.bmi,
+    this.bodyFatPercent,
   });
 
   factory HealthOverview.fromJson(Map<String, dynamic> json) {
     final Map<String, dynamic>? steps = _asMap(json['latest_steps']);
     final Map<String, dynamic>? medication = _asMap(json['today_medication']);
     final Map<String, dynamic>? week = _asMap(json['week_summary']);
+    final Map<String, dynamic>? body = _asMap(json['latest_body']);
     return HealthOverview(
       steps: _toInt(steps?['steps']),
       stepsDate: steps?['record_date'] as String?,
@@ -90,6 +95,10 @@ class HealthOverview {
       weekStepsAvg: _toInt(week?['steps_avg']),
       weekSleepAvgMin: _toInt(week?['sleep_avg_min']),
       weekFitnessCount: _toInt(week?['fitness_count']),
+      weightKg: _toDouble(body?['weight_kg']),
+      weightDate: body?['record_date'] as String?,
+      bmi: _toDouble(body?['bmi']),
+      bodyFatPercent: _toDouble(body?['body_fat_percent']),
     );
   }
 
@@ -106,6 +115,12 @@ class HealthOverview {
   final int? weekStepsAvg;
   final int? weekSleepAvgMin;
   final int? weekFitnessCount;
+
+  /// 最新一条体重记录（总览 `latest_body`；0 视为未采集，展示层须转「—」）。
+  final double? weightKg;
+  final String? weightDate;
+  final double? bmi;
+  final double? bodyFatPercent;
 }
 
 /// 待还账单/账单待办条目。

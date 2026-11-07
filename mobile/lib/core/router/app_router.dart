@@ -14,6 +14,8 @@ import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
+import '../../features/health/health_body_form_page.dart';
+import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_fitness_page.dart';
 import '../../features/health/health_medication_create_page.dart';
@@ -139,6 +141,29 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'vitals-sleep',
                     builder: (_, _) => const HealthSleepPage(),
+                  ),
+                  // 体重记录：列表 + 趋势，录入/编辑与步数页同一套表单结构。
+                  GoRoute(
+                    path: 'body',
+                    builder: (_, _) => const HealthBodyPage(),
+                    routes: <RouteBase>[
+                      // 静态段必须在 `:id` 之前，否则会被当成记录 id 解析。
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthBodyFormPage(),
+                      ),
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) => HealthBodyFormPage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                          initial: state.extra is BodyRecord
+                              ? state.extra as BodyRecord
+                              : null,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'fitness',
