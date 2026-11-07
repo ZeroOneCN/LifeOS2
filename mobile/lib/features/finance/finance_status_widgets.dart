@@ -73,11 +73,19 @@ class BillRow extends StatelessWidget {
     required this.bill,
     required this.platformName,
     required this.onTap,
+    this.onRepay,
+    this.showMonth = true,
   });
 
   final BillItem bill;
   final String platformName;
   final VoidCallback onTap;
+
+  /// 还款入口（列表行，与网页端一致）；已结清时传 null。
+  final VoidCallback? onRepay;
+
+  /// 是否在行内显示账单月份；按月分组时传 false，避免与分组头重复。
+  final bool showMonth;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +112,7 @@ class BillRow extends StatelessWidget {
                     children: <Widget>[
                       Flexible(
                         child: Text(
-                          '$platformName · $month',
+                          '$platformName${showMonth ? ' · $month' : ''}',
                           style: theme.textTheme.bodyMedium,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -147,6 +155,16 @@ class BillRow extends StatelessWidget {
                   ),
               ],
             ),
+            if (onRepay != null)
+              IconButton(
+                tooltip: '还款',
+                onPressed: onRepay,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                iconSize: 20,
+                icon: const Icon(Icons.payments_outlined),
+              ),
           ],
         ),
       ),

@@ -14,6 +14,7 @@ import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 import 'finance_bill_detail_sheet.dart';
 import 'finance_bill_form_page.dart';
+import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
 /// 账单管理：按网页端 `/finance/bills` 的三个 Tab 组织。
@@ -343,28 +344,231 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
       title: '账单管理',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              AppTabSelector(
-                labels: const <String>['网贷借还', '房租水电', '服务订阅'],
-                value: _tab,
-                onChanged: _selectTab,
-              ),
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready) ..._content(theme),
-            ],
+      child: CustomScrollView(
+        slivers: <Widget>[
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: <Widget>[
+                AppTabSelector(
+                  labels: const <String>['网贷借还', '房租水电', '服务订阅'],
+                  value: _tab,
+                  onChanged: _selectTab,
+                ),
+                ListStatusView(
+                  status: _status,
+                  message: _message,
+                  onRetry: _refresh,
+                ),
+              ],
+            ),
           ),
+          if (_status == LoadStatus.ready)
+            ...(_tab == 0
+                ? _loanSlivers(theme)
+                : <Widget>[
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 12,
+                        children: _content(theme),
+                      ),
+                    ),
+                  ]),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
       ),
     );
+  }
+
+  /// 网贷「全部账单」按月分组的 sliver 列表。
+  ///
+  /// 排序口径与网页端一致：月份取 `bill_month`，按月份倒序；组内按到期日
+  /// 倒序、同日按 id 倒序；平台仅作行内信息，不参与排序与分组。
+  /// 月份分组头使用固定高度 sliver header，滚动时吸顶，「加载更多」只会
+  /// 追加更早的月份，不会打乱已有分组。
+  List<Widget> _loanSlivers(ThemeData theme) {
+    final BillStats? stats = _stats;
+    if (stats == null) {
+      return const <Widget>[];
+    }
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final List<({String month, List<BillItem> bills})> groups = _loanGroups();
+    return <Widget>[
+      SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: <Widget>[
+            SectionCard(
+              title: '合计',
+              trailing: AppPrimaryAction(
+                label: '新增账单',
+                onPressed: () => _openForm(BillKind.loan),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: <Widget>[
+                  Row(
+                    spacing: 16,
+                    children: <Widget>[
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '待还',
+                          value: formatMoney(stats.remaining),
+                        ),
+                      ),
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '已还',
+                          value: formatMoney(stats.paid),
+                        ),
+                      ),
+                      Expanded(
+                        child: MetricPlaceholder(
+                          label: '利息合计',
+                          value: formatMoney(stats.totalInterest),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      StatusChip(
+                        label: '待还 ${stats.pendingCount}',
+                        tone: StatusTone.danger,
+                      ),
+                      StatusChip(
+                        label: '部分还款 ${stats.partialCount}',
+                        tone: StatusTone.warning,
+                      ),
+                      StatusChip(
+                        label: '已结清 ${stats.clearedCount}',
+                        tone: StatusTone.success,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (stats.upcoming.isNotEmpty)
+              SectionCard(
+                title: '即将到期',
+                child: Column(
+                  spacing: 4,
+                  children: <Widget>[
+                    for (final BillItem bill in stats.upcoming)
+                      BillRow(
+                        bill: bill,
+                        platformName: _platformName(bill.platformId),
+                        onTap: () => _openLoanDetail(bill),
+                        onRepay:
+                            bill.status == 'cleared' || bill.remaining <= 0
+                                ? null
+                                : () => _openRepay(bill),
+                      ),
+                  ],
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: <Widget>[
+                  Text('全部账单', style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  Text(
+                    '共 $_total 条',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      if (_items.isEmpty)
+        const SliverToBoxAdapter(
+          child: SectionCard(
+            title: '暂无账单',
+            child: EmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: '还没有账单记录',
+              description: '点「新增账单」录入第一条',
+              compact: true,
+            ),
+          ),
+        )
+      else ...<Widget>[
+        for (final ({String month, List<BillItem> bills}) group
+            in groups) ...<Widget>[
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _MonthHeaderDelegate(
+              label: group.month,
+              count: group.bills.length,
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 4),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (BuildContext context, int index) {
+                  final BillItem bill = group.bills[index];
+                  return BillRow(
+                    bill: bill,
+                    platformName: _platformName(bill.platformId),
+                    showMonth: false,
+                    onTap: () => _openLoanDetail(bill),
+                    onRepay: bill.status == 'cleared' || bill.remaining <= 0
+                        ? null
+                        : () => _openRepay(bill),
+                  );
+                },
+                childCount: group.bills.length,
+              ),
+            ),
+          ),
+        ],
+        SliverToBoxAdapter(
+          child: _LoadMoreFooter(
+            loading: _loadingMore,
+            hasMore: _hasMore,
+            onPressed: _loadMore,
+          ),
+        ),
+      ],
+    ];
+  }
+
+  /// 按 `bill_month` 分组并按月份倒序；组内按到期日倒序、同日按 id 倒序。
+  List<({String month, List<BillItem> bills})> _loanGroups() {
+    final Map<String, List<BillItem>> grouped = <String, List<BillItem>>{};
+    for (final BillItem bill in _items) {
+      final String month = bill.billMonth.length >= 7
+          ? bill.billMonth.substring(0, 7)
+          : bill.billMonth;
+      grouped.putIfAbsent(month, () => <BillItem>[]).add(bill);
+    }
+    final List<String> months = grouped.keys.toList()
+      ..sort((String a, String b) => b.compareTo(a));
+    for (final String month in months) {
+      grouped[month]!.sort((BillItem a, BillItem b) {
+        final String left = a.dueDate ?? '';
+        final String right = b.dueDate ?? '';
+        if (left != right) {
+          return right.compareTo(left);
+        }
+        return b.id.compareTo(a.id);
+      });
+    }
+    return <({String month, List<BillItem> bills})>[
+      for (final String month in months)
+        (month: month, bills: grouped[month]!),
+    ];
   }
 
   /// 当前 Tab 的内容区块。
@@ -451,6 +655,9 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                   bill: bill,
                   platformName: _platformName(bill.platformId),
                   onTap: () => _openLoanDetail(bill),
+                  onRepay: bill.status == 'cleared' || bill.remaining <= 0
+                      ? null
+                      : () => _openRepay(bill),
                 ),
             ],
           ),
@@ -476,6 +683,9 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                       bill: bill,
                       platformName: _platformName(bill.platformId),
                       onTap: () => _openLoanDetail(bill),
+                      onRepay: bill.status == 'cleared' || bill.remaining <= 0
+                          ? null
+                          : () => _openRepay(bill),
                     ),
                 ],
               ),
@@ -490,8 +700,18 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   }
 
   List<Widget> _housingContent(ThemeData theme) {
-    final List<HousingItem> housings = _housings ?? const <HousingItem>[];
-    final List<UtilityItem> utilities = _utilities ?? const <UtilityItem>[];
+    // 与网页端一致：住房按入住日期倒序，水电按账单月份倒序。
+    final List<HousingItem> housings = <HousingItem>[
+      ...?_housings,
+    ]..sort(
+        (HousingItem a, HousingItem b) =>
+            (b.moveInDate ?? '').compareTo(a.moveInDate ?? ''),
+      );
+    final List<UtilityItem> utilities = <UtilityItem>[
+      ...?_utilities,
+    ]..sort(
+        (UtilityItem a, UtilityItem b) => b.billMonth.compareTo(a.billMonth),
+      );
     final Color muted = theme.colorScheme.onSurfaceVariant;
     return <Widget>[
       SectionCard(
@@ -617,6 +837,20 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
       return '平台 $id';
     }
     return name;
+  }
+
+  /// 列表行「还款」入口：打开底部弹层，成功后刷新汇总、列表与即将到期。
+  Future<void> _openRepay(BillItem bill) async {
+    final bool? changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (BuildContext _) => LoanRepaySheet(bill: bill),
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
   }
 
   /// 网贷：详情层内可查看还款记录，再进入编辑/删除。
@@ -813,5 +1047,57 @@ class _LoadMoreFooter extends StatelessWidget {
       );
     }
     return TextButton(onPressed: onPressed, child: const Text('加载更多'));
+  }
+}
+
+/// 「全部账单」月份分组头：固定高度并吸顶，滚动时始终压在当前月份之上。
+class _MonthHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _MonthHeaderDelegate({required this.label, required this.count});
+
+  final String label;
+  final int count;
+
+  @override
+  double get minExtent => 34;
+
+  @override
+  double get maxExtent => 34;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      height: 34,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Text(label, style: theme.textTheme.titleSmall),
+          const Spacer(),
+          Text(
+            '$count 笔',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _MonthHeaderDelegate oldDelegate) {
+    return oldDelegate.label != label || oldDelegate.count != count;
   }
 }

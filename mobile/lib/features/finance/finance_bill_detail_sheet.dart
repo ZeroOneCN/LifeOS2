@@ -7,10 +7,11 @@ import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../theme/app_theme.dart';
 import 'finance_bill_form_page.dart';
+import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
-/// 详情层返回值：编辑（由列表页跳转表单）或已删除（列表页直接刷新）。
-enum BillDetailAction { edit, deleted }
+/// 详情层返回值：编辑（由列表页跳转表单）、已删除或还款后有变更（列表页直接刷新）。
+enum BillDetailAction { edit, deleted, changed }
 
 /// 账单详情层：三个 Tab 的列表项点按后先看完整字段，再决定是否编辑/删除。
 ///
@@ -57,9 +58,16 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   String? _repaymentsError;
   bool _deleting = false;
 
+  /// 网贷账单当前快照：还款后重新拉取，保证已还/剩余/状态实时更新。
+  BillItem? _bill;
+
+  /// 本层内是否发生过还款相关变更；关闭时回传，让列表页刷新汇总。
+  bool _mutated = false;
+
   @override
   void initState() {
     super.initState();
+    _bill = widget.bill;
     if (widget.kind == BillKind.loan && widget.bill != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -71,12 +79,19 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
 
   /// 网贷账单的还款记录（列表项本身不含，需要单独取一次）。
   Future<void> _loadRepayments() async {
+    final BillItem? bill = _bill;
+    if (bill == null) {
+      return;
+    }
     final AppScope scope = AppScope.of(context);
-    setState(() => _loadingRepayments = true);
+    setState(() {
+      _loadingRepayments = true;
+      _repaymentsError = null;
+    });
     try {
       final List<dynamic>? data = (await scope.apiClient.get<List<dynamic>>(
         '/finance/repayments',
-        queryParameters: <String, dynamic>{'bill_id': widget.bill!.id},
+        queryParameters: <String, dynamic>{'bill_id': bill.id},
       ))
           .data;
       if (!mounted) {
@@ -101,11 +116,57 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
     }
   }
 
+  /// 重新拉取账单本体：还款/删除记录后已还、剩余与状态由后端重算。
+  Future<void> _reloadBill() async {
+    final BillItem? bill = _bill;
+    if (bill == null) {
+      return;
+    }
+    try {
+      final Map<String, dynamic>? data =
+          (await AppScope.of(context).apiClient.get<Map<String, dynamic>>(
+        '/finance/loan-bills/${bill.id}',
+      ))
+              .data;
+      if (!mounted || data == null) {
+        return;
+      }
+      setState(() => _bill = BillItem.fromJson(data));
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('账单刷新失败：${error.message}')),
+      );
+    }
+  }
+
+  /// 还款入口：新增或编辑还款记录；成功后刷新账单与记录并标记有变更。
+  Future<void> _openRepay({BillRepayment? repayment}) async {
+    final BillItem? bill = _bill;
+    if (bill == null) {
+      return;
+    }
+    final bool? changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (BuildContext _) =>
+          LoanRepaySheet(bill: bill, repayment: repayment),
+    );
+    if (changed == true && mounted) {
+      _mutated = true;
+      await Future.wait(<Future<void>>[_reloadBill(), _loadRepayments()]);
+    }
+  }
+
   /// 当前记录 id（四类记录共用）。
   int get _id {
     switch (widget.kind) {
       case BillKind.loan:
-        return widget.bill?.id ?? 0;
+        return _bill?.id ?? 0;
       case BillKind.housing:
         return widget.housing?.id ?? 0;
       case BillKind.utility:
@@ -171,7 +232,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   String get _deleteDescription {
     switch (widget.kind) {
       case BillKind.loan:
-        final BillItem? bill = widget.bill;
+        final BillItem? bill = _bill;
         return '将删除 ${_shortMonth(bill?.billMonth ?? '')} 的网贷账单'
             '（应还 ${formatMoney(bill?.amount ?? 0)}），'
             '不会删除平台资料。删除后无法恢复。';
@@ -277,7 +338,9 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).pop(
+                      _mutated ? BillDetailAction.changed : null,
+                    ),
                     tooltip: '关闭',
                     icon: const Icon(Icons.close),
                   ),
@@ -286,6 +349,16 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
               _statusChips(),
               ..._fieldRows(theme, muted),
               if (widget.kind == BillKind.loan) ..._repaymentSection(theme, muted),
+              if (widget.kind == BillKind.loan &&
+                  (_bill?.status != 'cleared' || (_bill?.remaining ?? 0) > 0) &&
+                  _bill != null) ...<Widget>[
+                const SizedBox(height: 4),
+                AppPrimaryButton(
+                  label: '还款',
+                  icon: Icons.payments_outlined,
+                  onPressed: _deleting ? null : _openRepay,
+                ),
+              ],
               const SizedBox(height: 4),
               AppActionRow(
                 first: AppPrimaryButton(
@@ -311,7 +384,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
     final List<Widget> chips = <Widget>[];
     switch (widget.kind) {
       case BillKind.loan:
-        final BillItem? bill = widget.bill;
+        final BillItem? bill = _bill;
         if (bill != null) {
           chips.add(StatusChip(
             label: billStatusLabel(bill.status),
@@ -354,7 +427,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
     final List<({String label, String value, Color? color})> rows;
     switch (widget.kind) {
       case BillKind.loan:
-        final BillItem? bill = widget.bill;
+        final BillItem? bill = _bill;
         if (bill == null) {
           rows = const <({String label, String value, Color? color})>[];
         } else {
@@ -489,21 +562,49 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       else if (!_loadingRepayments && _repayments.isEmpty)
         Text('暂无还款记录', style: theme.textTheme.bodySmall?.copyWith(color: muted)),
       for (final BillRepayment item in _repayments)
-        Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Text(item.repayDate, style: theme.textTheme.bodyMedium),
+        InkWell(
+          onTap: _deleting ? null : () => _openRepay(repayment: item),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              spacing: 8,
+              children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 2,
+                    children: <Widget>[
+                      Text(item.repayDate, style: theme.textTheme.bodyMedium),
+                      if (item.discount > 0 || item.method != null || item.note != null)
+                        Text(
+                          <String>[
+                            if (item.discount > 0)
+                              '优惠 ${formatMoney(item.discount)}',
+                            if (item.method != null &&
+                                item.method!.trim().isNotEmpty)
+                              item.method!,
+                            if (item.note != null && item.note!.isNotEmpty)
+                              item.note!,
+                          ].join(' · '),
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: muted),
+                        ),
+                    ],
+                  ),
+                ),
+                Text(
+                  formatMoney(item.actual),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.edit_outlined, size: 16),
+              ],
             ),
-            Text(
-              formatMoney(item.actual),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[
-                  FontFeature.tabularFigures(),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
     ];
   }

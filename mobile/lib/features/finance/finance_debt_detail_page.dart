@@ -5,11 +5,13 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../theme/app_theme.dart';
+import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
 /// 债务明细：单条债务字段 + 还款记录。
@@ -105,6 +107,25 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
     }
   }
 
+  /// 打开还款/收款弹层：新增或编辑已有记录；成功后重拉债务与还款记录。
+  Future<void> _openRepay({DebtPayment? payment}) async {
+    final DebtItem? debt = _debt;
+    if (debt == null) {
+      return;
+    }
+    final bool? changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (BuildContext _) =>
+          DebtRepaySheet(debt: debt, payment: payment),
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -187,6 +208,14 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
                         _DetailRow(label: '到期日', value: debt.dueDate!),
                       if (debt.note != null && debt.note!.trim().isNotEmpty)
                         _DetailRow(label: '备注', value: debt.note!),
+                      if (debt.status != 'settled' && debt.outstanding > 0) ...<Widget>[
+                        const Divider(height: 20),
+                        AppPrimaryButton(
+                          label: debt.isLend ? '记录收款' : '记录还款',
+                          icon: Icons.payments_outlined,
+                          onPressed: _openRepay,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -207,7 +236,10 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
                           spacing: 4,
                           children: <Widget>[
                             for (final DebtPayment item in _payments)
-                              _PaymentRow(item: item),
+                              _PaymentRow(
+                                item: item,
+                                onTap: () => _openRepay(payment: item),
+                              ),
                           ],
                         ),
                 ),
@@ -256,47 +288,53 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-/// 还款记录行：日期 + 实付（含优惠说明）。
+/// 还款记录行：日期 + 实付（含优惠说明）；点按进入编辑/删除。
 class _PaymentRow extends StatelessWidget {
-  const _PaymentRow({required this.item});
+  const _PaymentRow({required this.item, required this.onTap});
 
   final DebtPayment item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: <Widget>[
-                Text(item.repayDate, style: theme.textTheme.bodyMedium),
-                if (item.discount > 0 || item.note != null)
-                  Text(
-                    <String>[
-                      if (item.discount > 0)
-                        '优惠 ${formatMoney(item.discount)}',
-                      if (item.note != null && item.note!.isNotEmpty)
-                        item.note!,
-                    ].join(' · '),
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-              ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          spacing: 8,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Text(item.repayDate, style: theme.textTheme.bodyMedium),
+                  if (item.discount > 0 || item.note != null)
+                    Text(
+                      <String>[
+                        if (item.discount > 0)
+                          '优惠 ${formatMoney(item.discount)}',
+                        if (item.note != null && item.note!.isNotEmpty)
+                          item.note!,
+                      ].join(' · '),
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            formatMoney(item.actual),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            Text(
+              formatMoney(item.actual),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.edit_outlined, size: 16),
+          ],
+        ),
       ),
     );
   }

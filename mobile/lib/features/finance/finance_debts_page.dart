@@ -10,6 +10,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
 /// 债务管理：汇总（借入/借出/未还）+ 全部债务分页。
@@ -175,6 +176,20 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
+  /// 列表行「还款/收款」入口：打开底部弹层，成功后刷新汇总与列表。
+  Future<void> _openRepay(DebtItem item) async {
+    final bool? changed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (BuildContext _) => DebtRepaySheet(debt: item),
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -275,6 +290,11 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
                                 onTap: () => context.push(
                                   '/finance/debts/${item.id}',
                                 ),
+                                onRepay:
+                                    item.status == 'settled' ||
+                                            item.outstanding <= 0
+                                        ? null
+                                        : () => _openRepay(item),
                               ),
                           ],
                         ),
@@ -296,10 +316,17 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
 
 /// 债务列表行：名称/方向 + 对方与日期 + 未还金额与状态。
 class _DebtRow extends StatelessWidget {
-  const _DebtRow({required this.item, required this.onTap});
+  const _DebtRow({
+    required this.item,
+    required this.onTap,
+    this.onRepay,
+  });
 
   final DebtItem item;
   final VoidCallback onTap;
+
+  /// 还款/收款入口；已结清或剩余为 0 时不显示。
+  final VoidCallback? onRepay;
 
   @override
   Widget build(BuildContext context) {
@@ -371,6 +398,16 @@ class _DebtRow extends StatelessWidget {
                 ),
               ],
             ),
+            if (onRepay != null)
+              IconButton(
+                tooltip: item.isLend ? '收款' : '还款',
+                onPressed: onRepay,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                iconSize: 20,
+                icon: const Icon(Icons.payments_outlined),
+              ),
           ],
         ),
       ),

@@ -151,6 +151,7 @@ class BillRepayment {
     required this.repayDate,
     required this.amount,
     required this.discount,
+    this.method,
     this.note,
   });
 
@@ -158,13 +159,11 @@ class BillRepayment {
   final String repayDate;
   final double amount;
   final double discount;
+  final String? method;
   final String? note;
 
-  /// 实付 = 还款金额 - 优惠。
-  double get actual {
-    final double value = amount - discount;
-    return value < 0 ? 0 : value;
-  }
+  /// 实付金额：网贷还款接口的 `amount` 本身就是实付（优惠另存在 `discount`）。
+  double get actual => amount;
 
   factory BillRepayment.fromJson(Map<String, dynamic> json) {
     return BillRepayment(
@@ -172,6 +171,7 @@ class BillRepayment {
       repayDate: json['repay_date'] as String? ?? '',
       amount: _toDouble(json['amount']),
       discount: _toDouble(json['discount']),
+      method: json['method'] as String?,
       note: json['note'] as String?,
     );
   }

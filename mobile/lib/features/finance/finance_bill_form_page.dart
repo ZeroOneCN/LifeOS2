@@ -561,16 +561,16 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
                     ),
                   if (_editing)
                     AppActionRow(
-                      first: AppDangerButton(
-                        label: '删除',
-                        loading: _deleting,
-                        onPressed: _saving || _deleting ? null : _delete,
-                      ),
-                      second: AppPrimaryButton(
+                      first: AppPrimaryButton(
                         label: '保存',
                         icon: Icons.save_outlined,
                         loading: _saving,
                         onPressed: _deleting ? null : _save,
+                      ),
+                      second: AppDangerButton(
+                        label: '删除',
+                        loading: _deleting,
+                        onPressed: _saving || _deleting ? null : _delete,
                       ),
                     )
                   else
