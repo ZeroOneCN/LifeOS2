@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
+import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -21,8 +22,9 @@ import '../../theme/app_typography.dart';
 ///
 /// 摘要与收益曲线来自 `GET /investment/overview`：
 /// - `summary`：账户净值、累计净盈亏、胜率、品种数（金额口径为 USD）；
-/// - `equity_trend`：按交易日的**累计净收益**（后端按账户全量平仓交易累计，
-///   只返回近 365 天窗口），页面只按区间切片，不重算、不拼凑、不降采样。
+/// - `equity_trend`：按交易日的**累计净收益**；该接口只返回近 365 天窗口，
+///   因此「全部」区间单独调用 `GET /investment/forex/stats?days=3650` 取全量
+///   （后端该接口支持最大 3650 天），仍按天展示、不聚合、不降采样。
 ///   它不是账户净值曲线，副标题与图注都需写明。
 ///
 /// 交易明细在独立的「外汇交易」页（`/invest/forex`），这里提供明确入口。
@@ -40,6 +42,11 @@ class _InvestPageState extends State<InvestPage> {
   /// 当前选中的数据点下标；为空时默认指向区间最后一天。
   int? _selected;
 
+  /// 「全部」区间的真全量曲线（来自 `/investment/forex/stats?days=3650`）。
+  List<EquityPoint>? _fullPoints;
+  bool _loadingFull = false;
+  String? _fullError;
+
   bool get _isAll => _rangeDays == 0;
 
   String get _rangeLabel {
@@ -52,6 +59,57 @@ class _InvestPageState extends State<InvestPage> {
         return '全部';
       default:
         return '近 90 天';
+    }
+  }
+
+  /// 副标题：明确数据口径与覆盖范围，避免被误读成账户净值曲线。
+  String get _subtitle {
+    final List<EquityPoint>? full = _fullPoints;
+    if (_isAll && full != null && full.isNotEmpty) {
+      return '按交易日累计的净收益（非账户净值） · '
+          '全部（${full.first.date} ~ ${full.last.date}） · 按天';
+    }
+    return '按交易日累计的净收益（非账户净值） · $_rangeLabel · 按天';
+  }
+
+  /// 拉取真全量曲线：切换「全部」时调用；失败保留旧数据并给出重试入口。
+  Future<void> _loadFull() async {
+    if (_loadingFull) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    setState(() {
+      _loadingFull = true;
+      _fullError = null;
+    });
+    try {
+      final Map<String, dynamic>? data =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+        '/investment/forex/stats',
+        queryParameters: <String, dynamic>{'days': 3650},
+      ))
+              .data;
+      if (!mounted) {
+        return;
+      }
+      final List<dynamic> trend =
+          (data?['equity_trend'] as List<dynamic>?) ?? const <dynamic>[];
+      setState(() {
+        _fullPoints = trend
+            .whereType<Map>()
+            .map((Map item) =>
+                EquityPoint.fromJson(item.cast<String, dynamic>()))
+            .toList(growable: false);
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _fullError = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _loadingFull = false);
+      }
     }
   }
 
@@ -87,8 +145,9 @@ class _InvestPageState extends State<InvestPage> {
             scope.overview.investment;
         final InvestmentOverview? data = state.data;
         final double? netProfit = data?.netProfit;
-        final List<EquityPoint> points =
-            _series(data?.equityTrend ?? const <EquityPoint>[]);
+        final List<EquityPoint> points = _isAll
+            ? (_fullPoints ?? const <EquityPoint>[])
+            : _series(data?.equityTrend ?? const <EquityPoint>[]);
         // 未手动选择时默认指向区间最后一天；切换区间后同样回到最后一天。
         final int? selected = points.isEmpty
             ? null
@@ -183,7 +242,7 @@ class _InvestPageState extends State<InvestPage> {
                 spacing: 10,
                 children: <Widget>[
                   Text(
-                    '按交易日累计的净收益（非账户净值） · $_rangeLabel · 按天',
+                    _subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                   Align(
@@ -210,14 +269,40 @@ class _InvestPageState extends State<InvestPage> {
                           _rangeDays = selection.first;
                           _selected = null;
                         });
+                        if (selection.first == 0) {
+                          _loadFull();
+                        }
                       },
                     ),
                   ),
+                  if (_isAll && _loadingFull)
+                    const LinearProgressIndicator(minHeight: 2),
+                  if (_isAll && _fullError != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 6,
+                      children: <Widget>[
+                        Text(
+                          '全量曲线加载失败：$_fullError',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: theme.colorScheme.error),
+                        ),
+                        AppSecondaryButton(
+                          label: '重试',
+                          compact: true,
+                          onPressed: _loadFull,
+                        ),
+                      ],
+                    ),
                   if (points.length < 2)
-                    const EmptyState(
+                    EmptyState(
                       icon: Icons.show_chart,
-                      title: '该区间没有已平仓交易',
-                      description: '换一个区间查看，或等待新的平仓记录',
+                      title: _isAll && _loadingFull
+                          ? '正在加载全量数据'
+                          : '该区间没有已平仓交易',
+                      description: _isAll && _loadingFull
+                          ? '按天读取历史累计净收益'
+                          : '换一个区间查看，或等待新的平仓记录',
                       compact: true,
                     )
                   else
