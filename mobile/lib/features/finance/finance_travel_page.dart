@@ -5,6 +5,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -237,27 +238,19 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
               if (_ledgers.isNotEmpty)
                 SectionCard(
                   title: '行程筛选',
-                  child: DropdownButton<int>(
+                  child: AppSelectField<int>(
+                    label: '行程',
                     value: _ledgerId,
-                    isExpanded: true,
-                    underline: const SizedBox.shrink(),
-                    items: <DropdownMenuItem<int>>[
-                      const DropdownMenuItem<int>(
-                        value: 0,
-                        child: Text('全部行程'),
-                      ),
+                    options: <AppSelectOption<int>>[
+                      const AppSelectOption<int>(value: 0, label: '全部行程'),
                       for (final TravelLedger ledger in _ledgers)
-                        DropdownMenuItem<int>(
+                        AppSelectOption<int>(
                           value: ledger.id,
-                          child: Text(
-                            ledger.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          label: ledger.name,
                         ),
                     ],
-                    onChanged: (int? value) {
-                      if (value == null || value == _ledgerId) {
+                    onChanged: (int value) {
+                      if (value == _ledgerId) {
                         return;
                       }
                       setState(() => _ledgerId = value);

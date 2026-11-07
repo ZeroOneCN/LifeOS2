@@ -4,6 +4,7 @@ import '../../core/app_scope.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
@@ -306,33 +307,28 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
                               icon: Icons.calendar_today_outlined,
                               onTap: _pickDate,
                             ),
-                            DropdownButtonFormField<String>(
-                              initialValue: _period,
-                              isExpanded: true,
-                              decoration:
-                                  const InputDecoration(labelText: '时间段'),
-                              items: <DropdownMenuItem<String>>[
+                            AppSelectField<String>(
+                              label: '时间段',
+                              value: _period,
+                              options: <AppSelectOption<String>>[
                                 for (final ({String value, String label}) item
                                     in kStepPeriods)
-                                  DropdownMenuItem<String>(
+                                  AppSelectOption<String>(
                                     value: item.value,
-                                    child: Text(item.label),
+                                    label: item.label,
                                   ),
-                                // 历史数据可能用了选项外的时段值，原样保留避免下拉断言。
+                                // 历史数据可能用了选项外的时段值，原样保留避免选中项丢失。
                                 if (!kStepPeriods.any(
                                   (({String value, String label}) item) =>
                                       item.value == _period,
                                 ))
-                                  DropdownMenuItem<String>(
+                                  AppSelectOption<String>(
                                     value: _period,
-                                    child: Text(_period),
+                                    label: _period,
                                   ),
                               ],
-                              onChanged: (String? value) {
-                                if (value != null) {
-                                  setState(() => _period = value);
-                                }
-                              },
+                              onChanged: (String value) =>
+                                  setState(() => _period = value),
                             ),
                             TextFormField(
                               controller: _steps,

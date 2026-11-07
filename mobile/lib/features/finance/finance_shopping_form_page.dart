@@ -4,6 +4,7 @@ import '../../core/app_scope.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
@@ -371,47 +372,35 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
                               icon: Icons.calendar_today_outlined,
                               onTap: _pickDate,
                             ),
-                            DropdownButtonFormField<int?>(
-                              initialValue: _platformId,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: '平台',
-                              ),
-                              items: <DropdownMenuItem<int?>>[
-                                const DropdownMenuItem<int?>(
+                            AppSelectField<int?>(
+                              label: '平台',
+                              value: _platformId,
+                              options: <AppSelectOption<int?>>[
+                                const AppSelectOption<int?>(
                                   value: null,
-                                  child: Text('未分类'),
+                                  label: '未分类',
                                 ),
                                 for (final NamedOption item in _platforms)
-                                  DropdownMenuItem<int?>(
+                                  AppSelectOption<int?>(
                                     value: item.id,
-                                    child: Text(
-                                      item.name,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                    label: item.name,
                                   ),
                               ],
                               onChanged: (int? value) =>
                                   setState(() => _platformId = value),
                             ),
-                            DropdownButtonFormField<int?>(
-                              initialValue: _categoryId,
-                              isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: '分类',
-                              ),
-                              items: <DropdownMenuItem<int?>>[
-                                const DropdownMenuItem<int?>(
+                            AppSelectField<int?>(
+                              label: '分类',
+                              value: _categoryId,
+                              options: <AppSelectOption<int?>>[
+                                const AppSelectOption<int?>(
                                   value: null,
-                                  child: Text('未分类'),
+                                  label: '未分类',
                                 ),
                                 for (final _CategoryOption item in _categories)
-                                  DropdownMenuItem<int?>(
+                                  AppSelectOption<int?>(
                                     value: item.id,
-                                    child: Text(
-                                      item.name,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                    label: item.name,
                                   ),
                               ],
                               onChanged: (int? value) =>

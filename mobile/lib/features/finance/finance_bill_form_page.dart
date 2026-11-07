@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/app_scope.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../shared/widgets/app_buttons.dart';
+import '../../../shared/widgets/app_select.dart';
 import '../../../shared/widgets/root_page_scaffold.dart';
 import '../../../shared/widgets/section_card.dart';
 
@@ -878,7 +879,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
     );
   }
 
-  /// 下拉选择：用受控 DropdownButton，编辑态回填后能立即反映。
+  /// 下拉选择统一走 AppSelectField：受控值回填后立即反映，外观与输入框一致。
   Widget _dropdown<T>({
     required String label,
     required T? value,
@@ -886,23 +887,15 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
     required ValueChanged<T?> onChanged,
     String? hint,
   }) {
-    return InputDecorator(
-      decoration: InputDecoration(labelText: label),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          isExpanded: true,
-          value: value,
-          hint: hint == null ? null : Text(hint),
-          items: <DropdownMenuItem<T>>[
-            for (final ({T value, String label}) item in items)
-              DropdownMenuItem<T>(
-                value: item.value,
-                child: Text(item.label, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: onChanged,
-        ),
-      ),
+    return AppSelectField<T?>(
+      label: label,
+      value: value,
+      hint: hint ?? '请选择',
+      options: <AppSelectOption<T?>>[
+        for (final ({T value, String label}) item in items)
+          AppSelectOption<T?>(value: item.value, label: item.label),
+      ],
+      onChanged: onChanged,
     );
   }
 

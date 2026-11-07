@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_scope.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
@@ -322,20 +323,14 @@ class _CategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<int?>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: '分类',
-        helperText: loading ? '分类加载中…' : null,
-      ),
-      items: <DropdownMenuItem<int?>>[
-        const DropdownMenuItem<int?>(value: null, child: Text('未分类')),
+    return AppSelectField<int?>(
+      label: '分类',
+      value: value,
+      helperText: loading ? '分类加载中…' : null,
+      options: <AppSelectOption<int?>>[
+        const AppSelectOption<int?>(value: null, label: '未分类'),
         for (final MapEntry<int, String> item in categories.entries)
-          DropdownMenuItem<int?>(
-            value: item.key,
-            child: Text(item.value, overflow: TextOverflow.ellipsis),
-          ),
+          AppSelectOption<int?>(value: item.key, label: item.value),
       ],
       onChanged: onChanged,
     );
