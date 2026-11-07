@@ -139,8 +139,21 @@ class BillRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               spacing: 2,
               children: <Widget>[
-                Text(
-                  formatMoney(bill.remaining),
+                // 主数字始终是「剩余」，已结清时是 ¥0.00；
+                // 不加这行小标签会被误读成账单金额变成了 0。
+                Text.rich(
+                  TextSpan(
+                    children: <InlineSpan>[
+                      if (bill.status == 'cleared')
+                        TextSpan(
+                          text: '剩余 ',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      TextSpan(text: formatMoney(bill.remaining)),
+                    ],
+                  ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontFeatures: const <FontFeature>[
                       FontFeature.tabularFigures(),
@@ -156,14 +169,35 @@ class BillRow extends StatelessWidget {
               ],
             ),
             if (onRepay != null)
-              IconButton(
-                tooltip: '还款',
-                onPressed: onRepay,
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                iconSize: 20,
-                icon: const Icon(Icons.payments_outlined),
+              // 图标 + 文字标签：纯图标既看不出含义，又有误触风险。
+              Semantics(
+                button: true,
+                label: '还款',
+                child: InkWell(
+                  onTap: onRepay,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        Text(
+                          '还款',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
           ],
         ),

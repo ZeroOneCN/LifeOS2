@@ -149,6 +149,17 @@ class FinancePage extends StatelessWidget {
             ),
             SectionCard(
               title: '待还账单',
+              // 根页只展示前 5 条，给一个明确出口，避免用户以为这就是全部。
+              trailing: bills.isEmpty
+                  ? null
+                  : TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(64, 40),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () => context.push('/finance/bills'),
+                      child: const Text('查看全部'),
+                    ),
               child: bills.isEmpty
                   ? EmptyState(
                       icon: Icons.inbox_outlined,
@@ -179,6 +190,19 @@ class _PendingBillRow extends StatelessWidget {
 
   final PendingBill bill;
 
+  /// 账单名里常自带到期日（如「网贷账单-2026-11-08」），
+  /// 与下一行「到期 2026-11-08」重复，展示前把后缀日期去掉。
+  String get _displayTitle {
+    final String? due = bill.dueDate;
+    if (due == null || due.isEmpty) {
+      return bill.title;
+    }
+    final String stripped = bill.title
+        .replaceAll(RegExp('[\\s·\\-—]*${RegExp.escape(due)}\\s*\$'), '')
+        .trim();
+    return stripped.isEmpty ? bill.title : stripped;
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -191,7 +215,7 @@ class _PendingBillRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 2,
             children: <Widget>[
-              Text(bill.title, style: theme.textTheme.bodyMedium),
+              Text(_displayTitle, style: theme.textTheme.bodyMedium),
               if (bill.dueDate != null)
                 Text(
                   '到期 ${bill.dueDate}',

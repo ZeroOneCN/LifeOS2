@@ -535,6 +535,8 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                       BillRow(
                         bill: bill,
                         platformName: _platformName(bill.platformId),
+                        // 到期日已经在下行完整显示，行内再带账单月会挤掉平台名。
+                        showMonth: false,
                         onTap: () => _openLoanDetail(bill),
                         onRepay:
                             bill.status == 'cleared' || bill.remaining <= 0
@@ -762,7 +764,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
               ),
       ),
       Text(
-        '住房与水电记录直接读写网页端同一批接口；删除前会二次确认。',
+        '住房与水电记录与网页端共用同一份数据；删除前会再确认一次。',
         style: theme.textTheme.bodySmall?.copyWith(color: muted),
       ),
     ];
@@ -820,7 +822,7 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
               ),
       ),
       Text(
-        '金额与周期、状态字段与网页端一致；修改会立即同步到网页端。',
+        '金额、周期与状态和网页端一致，修改后会同步更新。',
         style: theme.textTheme.bodySmall?.copyWith(color: muted),
       ),
     ];

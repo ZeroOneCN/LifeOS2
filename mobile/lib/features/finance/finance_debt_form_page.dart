@@ -393,7 +393,7 @@ class _FinanceDebtFormPageState extends State<FinanceDebtFormPage> {
                                 children: <Widget>[
                                   Expanded(
                                     child: Text(
-                                      '剩余（后端返回）',
+                                      '剩余金额',
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
                                             color: theme
@@ -413,8 +413,8 @@ class _FinanceDebtFormPageState extends State<FinanceDebtFormPage> {
                                 ],
                               ),
                               Text(
-                                '剩余与状态由还款/收款记录维护；本页只修改债务本体，'
-                                '保存后以列表与详情刷新结果为准。',
+                                '剩余金额与状态由还款/收款记录决定；这里只改债务本身，'
+                                '保存后自动更新。',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
@@ -574,8 +574,8 @@ class _FinanceDebtFormPageState extends State<FinanceDebtFormPage> {
                       ),
                       Text(
                         _editing
-                            ? '保存后列表与详情会重新拉取后端数据；剩余金额与状态不在此页改写。'
-                            : '保存后借入借出合计与未结清余额会立即刷新；剩余默认等于本金。',
+                            ? '剩余金额与状态由还款记录决定，不在这里修改。'
+                            : '保存后借入借出合计与未结清余额会同步更新；剩余金额默认等于本金。',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,

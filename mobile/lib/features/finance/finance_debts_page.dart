@@ -11,7 +11,6 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
-import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
 /// 债务管理：汇总（借入/借出/未还）+ 全部债务分页。
@@ -176,20 +175,6 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
-  /// 列表行「还款/收款」入口：打开底部弹层，成功后刷新汇总与列表。
-  Future<void> _openRepay(DebtItem item) async {
-    final bool? changed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (BuildContext _) => DebtRepaySheet(debt: item),
-    );
-    if (changed == true && mounted) {
-      await _refresh();
-    }
-  }
-
   /// 新增债务：保存成功返回 true 后重拉汇总与第一页。
   Future<void> _openCreate() async {
     final bool? created = await context.push<bool>('/finance/debts/new');
@@ -307,15 +292,12 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
                           compact: true,
                         )
                       else
+                        // 整行只做一件事：进详情。还款入口统一放在详情页，
+                        // 避免行尾小图标与整行点击互相抢手势。
                         for (final DebtItem item in _items)
                           _DebtRow(
                             item: item,
                             onTap: () => _openDetail(item),
-                            onRepay:
-                                item.status == 'settled' ||
-                                    item.outstanding <= 0
-                                ? null
-                                : () => _openRepay(item),
                           ),
                     ],
                   ),
@@ -337,13 +319,10 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
 
 /// 债务列表行：名称/方向 + 对方与日期 + 未还金额与状态。
 class _DebtRow extends StatelessWidget {
-  const _DebtRow({required this.item, required this.onTap, this.onRepay});
+  const _DebtRow({required this.item, required this.onTap});
 
   final DebtItem item;
   final VoidCallback onTap;
-
-  /// 还款/收款入口；已结清或剩余为 0 时不显示。
-  final VoidCallback? onRepay;
 
   @override
   Widget build(BuildContext context) {
@@ -354,22 +333,24 @@ class _DebtRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          spacing: 12,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 2,
           children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Row(
+            Row(
+              spacing: 12,
+              children: <Widget>[
+                Expanded(
+                  child: Row(
                     spacing: 6,
                     children: <Widget>[
                       Flexible(
                         child: Text(
                           item.name,
                           style: theme.textTheme.bodyMedium,
-                          maxLines: 1,
+                          // 名称过长（如「存在我这里的钱」）时允许两行，
+                          // 不再截成「存在我…」丢掉关键信息。
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -381,50 +362,41 @@ class _DebtRow extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Text(
-                    <String>[
-                      if (item.counterparty != null &&
-                          item.counterparty!.isNotEmpty)
-                        item.counterparty!,
-                      item.debtDate,
-                      if (item.channel != null && item.channel!.isNotEmpty)
-                        item.channel!,
-                    ].join(' · '),
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                Text(
-                  formatMoney(item.outstanding),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
                 ),
-                Text(
-                  debtStatusLabel(item.status),
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  spacing: 2,
+                  children: <Widget>[
+                    Text(
+                      formatMoney(item.outstanding),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontFeatures: const <FontFeature>[
+                          FontFeature.tabularFigures(),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      debtStatusLabel(item.status),
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  ],
                 ),
               ],
             ),
-            if (onRepay != null)
-              IconButton(
-                tooltip: item.isLend ? '收款' : '还款',
-                onPressed: onRepay,
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                iconSize: 20,
-                icon: const Icon(Icons.payments_outlined),
-              ),
+            // 对方/日期/渠道独占整行：与金额同一行时 1.3x 下会把
+            // 「支付宝」拆到第二行只剩一个「宝」，独占整行后完整可读。
+            Text(
+              <String>[
+                if (item.counterparty != null && item.counterparty!.isNotEmpty)
+                  item.counterparty!,
+                item.debtDate,
+                if (item.channel != null && item.channel!.isNotEmpty)
+                  item.channel!,
+              ].join(' · '),
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),

@@ -60,13 +60,24 @@ class PrimaryFeatureCard extends StatelessWidget {
                 ],
               ),
               Text(title, style: theme.textTheme.titleMedium),
-              Text(
-                summary,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
+              // 摘要固定一行：1.3x 字号下长金额会换行，导致并排两卡内容高度不齐。
+              // 这里用 scaleDown 轻微缩小而不是折行，保证同排卡片对齐。
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    summary,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
