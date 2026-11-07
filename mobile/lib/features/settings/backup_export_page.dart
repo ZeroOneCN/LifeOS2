@@ -43,6 +43,96 @@ class _BackupExportPageState extends State<BackupExportPage> {
   int _lastSize = 0;
   DateTime? _lastAt;
 
+  /// 备份日志（只读）：`GET /backup/logs`，按时间倒序分页。
+  final List<_BackupLog> _logs = <_BackupLog>[];
+  int _logsTotal = 0;
+  int _logsPage = 0;
+  bool _logsLoading = false;
+  bool _logsLoadingMore = false;
+  String? _logsError;
+
+  @override
+  void initState() {
+    super.initState();
+    // 首帧后再取 AppScope：initState 内不允许依赖 InheritedWidget。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (AppScope.of(context).auth.user?.isAdmin ?? false) {
+        _loadLogs();
+      }
+    });
+  }
+
+  /// 拉取备份日志：`more=false` 重新拉第 1 页，`more=true` 追加下一页。
+  Future<void> _loadLogs({bool more = false}) async {
+    if (more && (_logsLoadingMore || _logs.length >= _logsTotal)) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final int nextPage = more ? _logsPage + 1 : 1;
+    setState(() {
+      if (more) {
+        _logsLoadingMore = true;
+      } else {
+        _logsLoading = true;
+        _logsError = null;
+      }
+    });
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/backup/logs',
+                  queryParameters: <String, dynamic>{
+            'page': nextPage,
+            'page_size': 10,
+          }))
+          .data;
+      if (json == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '备份日志接口返回数据为空',
+        );
+      }
+      final List<_BackupLog> items =
+          ((json['items'] as List?) ?? const <dynamic>[])
+              .whereType<Map>()
+              .map((Map item) =>
+                  _BackupLog.fromJson(item.cast<String, dynamic>()))
+              .toList();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (more) {
+          _logs.addAll(items);
+        } else {
+          _logs
+            ..clear()
+            ..addAll(items);
+        }
+        _logsPage = nextPage;
+        _logsTotal = (json['total'] as num?)?.toInt() ?? _logs.length;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _logsError = error.kind == ApiErrorKind.forbidden
+            ? '无查看权限：备份日志仅管理员可见'
+            : '备份日志读取失败：${error.message}';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _logsLoading = false;
+          _logsLoadingMore = false;
+        });
+      }
+    }
+  }
+
   /// 导出并保存：请求文件流 → 写缓存 → 打开系统分享面板。
   Future<void> _export() async {
     final AppScope scope = AppScope.of(context);
@@ -119,6 +209,8 @@ class _BackupExportPageState extends State<BackupExportPage> {
         return;
       }
       _snack('已导出 $filename（${_formatBytes(bytes.length)}），请在分享面板选择保存位置');
+      // 本次导出会在服务端新增一条「手动导出」日志，立即重拉第一页。
+      await _loadLogs();
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -365,6 +457,85 @@ class _BackupExportPageState extends State<BackupExportPage> {
                     ),
                   ),
                 ],
+                SectionCard(
+                  title: '备份日志',
+                  trailing: Text(
+                    _logsTotal > 0 ? '共 $_logsTotal 条' : '只读',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                  child: _logsLoading
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: 4,
+                          children: <Widget>[
+                            if (_logsError != null)
+                              Text(
+                                _logsError!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                            else if (_logs.isEmpty)
+                              Text(
+                                '暂无备份日志',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: muted,
+                                ),
+                              )
+                            else
+                              for (final _BackupLog log in _logs)
+                                _LogRow(log: log),
+                            if (_logs.length < _logsTotal)
+                              _logsLoadingMore
+                                  ? const Padding(
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 12),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : TextButton(
+                                      onPressed: () => _loadLogs(more: true),
+                                      child: Text(
+                                        '加载更多（已显示 ${_logs.length} / $_logsTotal）',
+                                      ),
+                                    )
+                            else if (_logs.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  '已显示全部 $_logsTotal 条',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodySmall
+                                      ?.copyWith(color: muted),
+                                ),
+                              ),
+                            const Divider(height: 16),
+                            Text(
+                              '日志只读：可查看时间、类型、结果与文件大小；'
+                              '清理日志、恢复导入请在网页端操作。',
+                              style: theme.textTheme.bodySmall
+                                  ?.copyWith(color: muted),
+                            ),
+                          ],
+                        ),
+                ),
                 Text(
                   'SQL 含表结构与数据，适合完整迁移；JSON 适合网页端导入；'
                   'ZIP 为 JSON 压缩包，使用前需先解压。移动端不做恢复导入，避免误覆盖线上数据。',
@@ -405,6 +576,128 @@ class _PermissionNotice extends StatelessWidget {
             '本页不会发起任何导出请求。',
             style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 一条备份日志（只读展示用）：`GET /backup/logs` 的 `items` 项。
+class _BackupLog {
+  const _BackupLog({
+    required this.id,
+    required this.name,
+    required this.exportFormat,
+    required this.filename,
+    required this.fileSizeDisplay,
+    required this.status,
+    required this.errorMessage,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String name;
+  final String exportFormat;
+  final String? filename;
+  final String? fileSizeDisplay;
+  final String status;
+  final String? errorMessage;
+  final DateTime? createdAt;
+
+  /// 解析接口项；缺字段时给安全默认值，不因单条异常影响整个列表。
+  factory _BackupLog.fromJson(Map<String, dynamic> json) {
+    return _BackupLog(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: (json['name'] as String?) ?? '',
+      exportFormat: (json['export_format'] as String?) ?? '',
+      filename: json['filename'] as String?,
+      fileSizeDisplay: json['file_size_display'] as String?,
+      status: (json['status'] as String?) ?? 'success',
+      errorMessage: json['error_message'] as String?,
+      createdAt: DateTime.tryParse((json['created_at'] as String?) ?? '')
+          ?.toLocal(),
+    );
+  }
+
+  bool get succeeded => status == 'success';
+}
+
+/// 日志行：`#id · 时间 · 类型` + `格式 · 大小 · 文件名`，失败时附原因。
+class _LogRow extends StatelessWidget {
+  const _LogRow({required this.log});
+
+  final _BackupLog log;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final String format = log.exportFormat.toUpperCase();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 2,
+        children: <Widget>[
+          Row(
+            spacing: 8,
+            children: <Widget>[
+              Text(
+                '#${log.id}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: muted,
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  _displayTime(log.createdAt),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ),
+              if (log.name.isNotEmpty)
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    log.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              Text(
+                log.succeeded ? '成功' : '失败',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: log.succeeded
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            '${format.isEmpty ? '' : '$format · '}'
+            '${log.fileSizeDisplay ?? '—'}'
+            '${log.filename == null ? '' : ' · ${log.filename}'}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          ),
+          if (!log.succeeded &&
+              log.errorMessage != null &&
+              log.errorMessage!.trim().isNotEmpty)
+            Text(
+              log.errorMessage!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
         ],
       ),
     );
