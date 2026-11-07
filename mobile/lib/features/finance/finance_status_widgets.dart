@@ -127,7 +127,7 @@ class BillRow extends StatelessWidget {
                   Text(
                     bill.dueDate == null
                         ? '未设置到期日'
-                        : '到期 ${bill.dueDate}${bill.overdue ? ' · 已逾期' : ''}',
+                        : '到期 ${formatListDate(bill.dueDate)}${bill.overdue ? ' · 已逾期' : ''}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: bill.overdue ? theme.colorScheme.error : muted,
                     ),

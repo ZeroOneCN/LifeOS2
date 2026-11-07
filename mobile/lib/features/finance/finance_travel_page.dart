@@ -385,7 +385,8 @@ class _TravelRow extends StatelessWidget {
         theme.textTheme.bodySmall?.copyWith(color: muted);
     final List<Widget> meta = <Widget>[
       // 明细里有消费日与行程（名称本身带出发日期）两个日期，加前缀区分。
-      Text('消费 ${detail.detailDate}', style: metaStyle),
+      // 消费日与账单 / 购物 / 流水列表统一成同年 `MM-dd`。
+      Text('消费 ${formatListDate(detail.detailDate)}', style: metaStyle),
       Text(detail.category, style: metaStyle),
       if (detail.durationMinutes != null)
         Text(detail.durationText, style: metaStyle),
@@ -415,12 +416,26 @@ class _TravelRow extends StatelessWidget {
                   children: meta,
                 ),
                 if (detail.discount > 0)
-                  Text(
-                    '原价 ${formatMoney(detail.originalPrice)} · '
-                    '优惠 ${formatMoney(detail.discount)}',
+                  // 优惠用成功色：与汇总卡「优惠合计」同色，扫视时能一眼分开
+                  // 实付（正文色）与省下的金额。
+                  Text.rich(
+                    TextSpan(
+                      style: metaStyle,
+                      children: <TextSpan>[
+                        TextSpan(
+                          text: '原价 ${formatMoney(detail.originalPrice)} · ',
+                        ),
+                        TextSpan(
+                          text: '优惠 ${formatMoney(detail.discount)}',
+                          style: TextStyle(
+                            color: context.semanticColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
               ],
             ),

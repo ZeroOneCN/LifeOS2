@@ -134,3 +134,18 @@ class ApiException implements Exception {
     return null;
   }
 }
+
+/// 面向用户的错误文案：把「××接口返回数据为空」这类内部措辞换成用户能理解的说明。
+///
+/// 这类文案来自客户端对空响应的兜底（服务端异常或代理截断）。用户不需要知道
+/// 是哪个接口、也不需要「数据为空」这种开发术语，只需要知道「没拿到数据、可以重试」。
+String humanizeApiMessage(String? message) {
+  final String text = (message ?? '').trim();
+  if (text.isEmpty) {
+    return '加载失败，请重试';
+  }
+  if (text.contains('返回数据为空') || text.contains('返回为空')) {
+    return '服务端没有返回数据，请稍后重试';
+  }
+  return text;
+}

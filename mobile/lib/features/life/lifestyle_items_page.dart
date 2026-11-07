@@ -395,14 +395,14 @@ class _ItemRow extends StatelessWidget {
     final ItemExpiry? expiry = item.expiryInfo();
     final List<Widget> meta = <Widget>[
       if (item.purchaseDate != null && item.purchaseDate!.isNotEmpty)
-        Text('购入 ${item.purchaseDate}', style: metaStyle),
+        Text('购入 ${formatListDate(item.purchaseDate)}', style: metaStyle),
       if (item.category.isNotEmpty) Text(item.category, style: metaStyle),
       if (item.location != null && item.location!.isNotEmpty)
         Text(item.location!, style: metaStyle),
       if (item.status != 'in_use')
         Text(itemStatusLabel(item.status), style: metaStyle),
       if (item.expireDate != null && item.expireDate!.isNotEmpty)
-        Text('到期 ${item.expireDate}', style: metaStyle),
+        Text('到期 ${formatListDate(item.expireDate)}', style: metaStyle),
     ];
 
     return InkWell(

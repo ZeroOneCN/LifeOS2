@@ -1028,7 +1028,7 @@ class _FundRow extends StatelessWidget {
                   ),
                   // 单号与备注独占一行，避免在 375dp 上把备注挤成 `#209 · …`。
                   Text(
-                    '${record.recordDate} · ${record.orderNo}',
+                    '${formatListDate(record.recordDate)} · ${record.orderNo}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),

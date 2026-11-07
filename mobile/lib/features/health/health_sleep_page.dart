@@ -323,7 +323,8 @@ class _SleepRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 2,
               children: <Widget>[
-                Text(record.recordDate, style: theme.textTheme.bodyMedium),
+                Text(formatListDate(record.recordDate),
+                    style: theme.textTheme.bodyMedium),
                 Text(
                   '入睡 ${record.bedtime ?? '—'} · 起床 ${record.wakeTime ?? '—'}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),

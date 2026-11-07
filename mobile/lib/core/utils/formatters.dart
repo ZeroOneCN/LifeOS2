@@ -106,3 +106,23 @@ String formatCompact(num? value) {
   final String body = trimmed.isEmpty ? '0' : trimmed;
   return value < 0 ? '-$body' : body;
 }
+
+/// 列表内的日期：同年显示 `MM-dd`，跨年 / 无法解析显示 `yyyy-MM-dd`。
+///
+/// 列表行横向空间有限，全站统一用这一套：账单、购物、流水、睡眠、外汇等
+/// 列表不再一半 `2026-09-05`、一半 `09-05`。表单与详情页仍用完整日期。
+String formatListDate(String? value, {DateTime? now}) {
+  final String raw = (value ?? '').trim();
+  if (raw.length < 10) {
+    return raw.isEmpty ? '—' : raw;
+  }
+  final DateTime? parsed = DateTime.tryParse(raw.substring(0, 10));
+  if (parsed == null) {
+    return raw;
+  }
+  final DateTime today = now ?? DateTime.now();
+  if (parsed.year == today.year) {
+    return raw.substring(5, 10);
+  }
+  return raw.substring(0, 10);
+}

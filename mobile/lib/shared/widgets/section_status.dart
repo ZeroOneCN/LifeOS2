@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/data/overview_controller.dart';
+import '../../core/network/api_exception.dart';
 
 /// 业务列表页的状态占位：加载中 / 失败 / 连接失败 / 未登录。
 ///
@@ -103,7 +104,7 @@ class OverviewStatusBanner extends StatelessWidget {
         size: 18,
         color: theme.colorScheme.error,
       );
-      text = message ?? '加载失败，请重试';
+      text = humanizeApiMessage(message);
       action = TextButton(onPressed: onRetry, child: const Text('重试'));
     }
 

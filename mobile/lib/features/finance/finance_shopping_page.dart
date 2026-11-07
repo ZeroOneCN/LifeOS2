@@ -434,7 +434,7 @@ class _ShoppingRow extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 2,
                     children: <Widget>[
-                      Text(record.recordDate, style: metaStyle),
+                      Text(formatListDate(record.recordDate), style: metaStyle),
                       Text(platformName, style: metaStyle),
                       if (categoryName != null)
                         Text(categoryName!, style: metaStyle),
