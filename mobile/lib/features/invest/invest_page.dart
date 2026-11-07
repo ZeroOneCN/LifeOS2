@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -19,8 +21,9 @@ import '../../theme/app_typography.dart';
 ///
 /// 摘要与收益曲线来自 `GET /investment/overview`：
 /// - `summary`：账户净值、累计净盈亏、胜率、品种数（金额口径为 USD）；
-/// - `equity_trend`：按交易日的**累计净收益**（后端固定返回近 365 天窗口），
-///   页面只按 30 / 90 / 365 天做前端区间切片，不重算、不拼凑。
+/// - `equity_trend`：按交易日的**累计净收益**（后端按账户全量平仓交易累计，
+///   只返回近 365 天窗口），页面只按区间切片，不重算、不拼凑、不降采样。
+///   它不是账户净值曲线，副标题与图注都需写明。
 ///
 /// 交易明细在独立的「外汇交易」页（`/invest/forex`），这里提供明确入口。
 class InvestPage extends StatefulWidget {
@@ -31,8 +34,13 @@ class InvestPage extends StatefulWidget {
 }
 
 class _InvestPageState extends State<InvestPage> {
-  /// 收益曲线区间：30 / 90 / 365 天（后端最多提供近一年）。
+  /// 收益曲线区间：30 / 90 / 365 天，0 表示「全部」（全量数据，仍按天）。
   int _rangeDays = 90;
+
+  /// 当前选中的数据点下标；为空时默认指向区间最后一天。
+  int? _selected;
+
+  bool get _isAll => _rangeDays == 0;
 
   String get _rangeLabel {
     switch (_rangeDays) {
@@ -40,14 +48,16 @@ class _InvestPageState extends State<InvestPage> {
         return '近 30 天';
       case 365:
         return '近 1 年';
+      case 0:
+        return '全部';
       default:
         return '近 90 天';
     }
   }
 
-  /// 按交易日字符串（YYYY-MM-DD）过滤区间；曲线本身是累计值，只切片不重算。
-  List<EquityPoint> _window(List<EquityPoint> all) {
-    if (all.isEmpty) {
+  /// 按交易日切片；「全部」也按天保留每个点位，不按月合并、不降采样。
+  List<EquityPoint> _series(List<EquityPoint> all) {
+    if (all.isEmpty || _isAll) {
       return all;
     }
     final DateTime cutoff =
@@ -77,9 +87,14 @@ class _InvestPageState extends State<InvestPage> {
             scope.overview.investment;
         final InvestmentOverview? data = state.data;
         final double? netProfit = data?.netProfit;
-        final List<EquityPoint> points = _window(
-          data?.equityTrend ?? const <EquityPoint>[],
-        );
+        final List<EquityPoint> points =
+            _series(data?.equityTrend ?? const <EquityPoint>[]);
+        // 未手动选择时默认指向区间最后一天；切换区间后同样回到最后一天。
+        final int? selected = points.isEmpty
+            ? null
+            : (_selected != null && _selected! < points.length
+                ? _selected
+                : points.length - 1);
 
         return RootPageScaffold(
           title: '投资中心',
@@ -167,29 +182,36 @@ class _InvestPageState extends State<InvestPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 10,
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          '累计净收益 · $_rangeLabel',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
+                  Text(
+                    '按交易日累计的净收益（非账户净值） · $_rangeLabel · 按天',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<int>(
+                      segments: const <ButtonSegment<int>>[
+                        ButtonSegment<int>(value: 30, label: Text('30 天')),
+                        ButtonSegment<int>(value: 90, label: Text('90 天')),
+                        ButtonSegment<int>(value: 365, label: Text('1 年')),
+                        ButtonSegment<int>(value: 0, label: Text('全部')),
+                      ],
+                      selected: <int>{_rangeDays},
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+                          EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         ),
                       ),
-                      SegmentedButton<int>(
-                        segments: const <ButtonSegment<int>>[
-                          ButtonSegment<int>(value: 30, label: Text('30 天')),
-                          ButtonSegment<int>(value: 90, label: Text('90 天')),
-                          ButtonSegment<int>(value: 365, label: Text('1 年')),
-                        ],
-                        selected: <int>{_rangeDays},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (Set<int> selection) {
-                          setState(() => _rangeDays = selection.first);
-                        },
-                      ),
-                    ],
+                      onSelectionChanged: (Set<int> selection) {
+                        // 换区间后读数回到新区间的最后一天，不残留旧点。
+                        setState(() {
+                          _rangeDays = selection.first;
+                          _selected = null;
+                        });
+                      },
+                    ),
                   ),
                   if (points.length < 2)
                     const EmptyState(
@@ -199,7 +221,13 @@ class _InvestPageState extends State<InvestPage> {
                       compact: true,
                     )
                   else
-                    _EquityChart(points: points, muted: muted),
+                    _EquityChart(
+                      points: points,
+                      muted: muted,
+                      selected: selected,
+                      onSelect: (int index) =>
+                          setState(() => _selected = index),
+                    ),
                 ],
               ),
             ),
@@ -273,11 +301,54 @@ class _InvestPageState extends State<InvestPage> {
 }
 
 /// 收益曲线：中性折线 + 零线以上绿色面积 / 零线以下红色面积，不染整块背景。
+///
+/// 交互：点按选中最近的数据点；长按后拖动可连续逐日滑看（松手后保留读数）。
+/// 横轴只标首尾与均分的关键日期，曲线本身保留每一个交易日的真实点位。
 class _EquityChart extends StatelessWidget {
-  const _EquityChart({required this.points, required this.muted});
+  const _EquityChart({
+    required this.points,
+    required this.muted,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final List<EquityPoint> points;
   final Color muted;
+
+  /// 当前选中的下标（由父层维护，切换区间后默认指向最后一天）。
+  final int? selected;
+  final ValueChanged<int> onSelect;
+
+  static const double _chartHeight = 152;
+  static const double _padX = 4;
+
+  /// 把横坐标换算成最近的数据点下标（点按与长按拖动共用）。
+  void _selectAt(double dx, double width) {
+    if (points.length < 2 || width <= _padX * 2) {
+      return;
+    }
+    final double lineWidth = width - _padX * 2;
+    final double ratio = ((dx - _padX) / lineWidth).clamp(0.0, 1.0);
+    onSelect((ratio * (points.length - 1)).round());
+  }
+
+  /// 横轴标签抽稀：按可用宽度取 4 个等间距关键点，重复日期去重。
+  List<String> _axisLabels(double width) {
+    final int count = width >= 320 ? 4 : (width >= 220 ? 3 : 2);
+    final List<String> labels = <String>[];
+    for (int i = 0; i < count; i++) {
+      final int index = ((points.length - 1) * i / (count - 1)).round();
+      final int safe =
+          index < 0 ? 0 : (index >= points.length ? points.length - 1 : index);
+      final String date = points[safe].date;
+      final String label =
+          date.length >= 10 ? date.substring(5) : date;
+      if (labels.isEmpty || labels.last != label) {
+        labels.add(label);
+      }
+    }
+    return labels;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,12 +363,12 @@ class _EquityChart extends StatelessWidget {
         minValue = point.pnl;
       }
     }
-    final String firstDate = points.first.date.length >= 10
-        ? points.first.date.substring(5)
-        : points.first.date;
-    final String lastDate = points.last.date.length >= 10
-        ? points.last.date.substring(5)
-        : points.last.date;
+    final EquityPoint? current = selected == null ? null : points[selected!];
+    final TextStyle? readoutStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface,
+      fontWeight: FontWeight.w600,
+      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 6,
@@ -306,36 +377,69 @@ class _EquityChart extends StatelessWidget {
           '最高 ${formatUsdSigned(maxValue)} · 最低 ${formatUsdSigned(minValue)}',
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
+        Text(
+          current == null
+              ? '点按或长按曲线查看单点数值'
+              : '${current.date} · 累计 ${formatUsdSigned(current.pnl)}',
+          style: current == null
+              ? theme.textTheme.bodySmall?.copyWith(color: muted)
+              : readoutStyle,
+        ),
         SizedBox(
-          height: 152,
-          child: CustomPaint(
-            painter: _EquityCurvePainter(
-              values: points.map((EquityPoint point) => point.pnl).toList(),
-              lineColor: theme.colorScheme.onSurface.withValues(alpha: 0.85),
-              gridColor: theme.colorScheme.outlineVariant
-                  .withValues(alpha: 0.5),
-              successColor: AppColors.successLight,
-              dangerColor: theme.colorScheme.error,
-              minimum: minValue,
-              maximum: maxValue,
-            ),
+          height: _chartHeight,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double width = constraints.maxWidth;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (TapUpDetails details) =>
+                    _selectAt(details.localPosition.dx, width),
+                onLongPressStart: (LongPressStartDetails details) =>
+                    _selectAt(details.localPosition.dx, width),
+                onLongPressMoveUpdate: (LongPressMoveUpdateDetails details) =>
+                    _selectAt(details.localPosition.dx, width),
+                child: Semantics(
+                  label: '收益曲线，点按或长按拖动查看单日数值',
+                  child: CustomPaint(
+                    size: Size(width, _chartHeight),
+                    painter: _EquityCurvePainter(
+                      values: points
+                          .map((EquityPoint point) => point.pnl)
+                          .toList(),
+                      lineColor:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                      gridColor: theme.colorScheme.outlineVariant
+                          .withValues(alpha: 0.5),
+                      successColor: AppColors.successLight,
+                      dangerColor: theme.colorScheme.error,
+                      minimum: minValue,
+                      maximum: maxValue,
+                      selectedIndex: selected,
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            Text(
-              firstDate,
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
-            ),
-            Text(
-              lastDate,
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final List<String> labels = _axisLabels(constraints.maxWidth);
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                for (final String label in labels)
+                  Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+              ],
+            );
+          },
         ),
         Text(
-          '零线以上为盈利，以下为亏损；曲线为按交易日的累计净收益，不是账户净值。',
+          '曲线为按交易日累计的净收益，不是账户净值；零线以上为盈利，以下为亏损。'
+          '按住曲线横向拖动可逐日查看。',
           style: theme.textTheme.bodySmall?.copyWith(color: muted),
         ),
       ],
@@ -344,6 +448,7 @@ class _EquityChart extends StatelessWidget {
 }
 
 /// 曲线绘制：面积按零线上下分别着色，折线中性色，零线用虚线。
+/// 选中点额外画竖向虚线 + 实心圆点。
 class _EquityCurvePainter extends CustomPainter {
   _EquityCurvePainter({
     required this.values,
@@ -353,6 +458,7 @@ class _EquityCurvePainter extends CustomPainter {
     required this.dangerColor,
     required this.minimum,
     required this.maximum,
+    this.selectedIndex,
   });
 
   final List<double> values;
@@ -362,6 +468,7 @@ class _EquityCurvePainter extends CustomPainter {
   final Color dangerColor;
   final double minimum;
   final double maximum;
+  final int? selectedIndex;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -446,6 +553,24 @@ class _EquityCurvePainter extends CustomPainter {
     final Paint dotPaint = Paint()..color = lineColor;
     canvas.drawCircle(points.first, 2.5, dotPaint);
     canvas.drawCircle(points.last, 3, dotPaint);
+
+    // 选中点：竖向虚线定位 + 实心圆点。
+    final int? index = selectedIndex;
+    if (index != null && index >= 0 && index < points.length) {
+      final Offset anchor = points[index];
+      final Paint guidePaint = Paint()
+        ..color = lineColor.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      for (double y = top; y < size.height - bottom; y += 7) {
+        canvas.drawLine(
+          Offset(anchor.dx, y),
+          Offset(anchor.dx, math.min(y + 4, size.height - bottom)),
+          guidePaint,
+        );
+      }
+      canvas.drawCircle(anchor, 4, Paint()..color = lineColor);
+    }
   }
 
   @override
@@ -454,6 +579,7 @@ class _EquityCurvePainter extends CustomPainter {
         oldDelegate.gridColor != gridColor ||
         oldDelegate.minimum != minimum ||
         oldDelegate.maximum != maximum ||
+        oldDelegate.selectedIndex != selectedIndex ||
         !listEquals(oldDelegate.values, values);
   }
 }
