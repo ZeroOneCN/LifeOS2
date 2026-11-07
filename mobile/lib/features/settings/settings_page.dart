@@ -157,6 +157,26 @@ class SettingsPage extends StatelessWidget {
                 user == null ? '/login' : '/settings/account',
               ),
             ),
+            EntryTile(
+              icon: Icons.devices_outlined,
+              title: '登录设备',
+              subtitle: user == null
+                  ? '登录后查看活跃会话'
+                  : '查看活跃会话，下线其他设备',
+              onTap: () => context.push(
+                user == null ? '/login' : '/settings/devices',
+              ),
+            ),
+            EntryTile(
+              icon: Icons.backup_outlined,
+              title: '数据备份',
+              subtitle: user != null && !user.isAdmin
+                  ? '仅管理员可导出，当前账号无权限'
+                  : '导出整库备份并通过系统分享保存',
+              onTap: () => context.push(
+                user == null ? '/login' : '/settings/backup',
+              ),
+            ),
             SectionCard(
               title: '外观',
               child: ValueListenableBuilder<ThemeMode>(

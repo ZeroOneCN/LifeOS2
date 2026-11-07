@@ -85,11 +85,13 @@ class ApiClient {
     );
   }
 
+  /// POST 请求；[onReceiveProgress] 供大文件下载（备份导出）显示接收进度。
   Future<Response<T>> post<T>(
     String path, {
     Object? data,
     Map<String, dynamic>? queryParameters,
     Options? options,
+    ProgressCallback? onReceiveProgress,
   }) {
     return _guard(
       () => _dio.post<T>(
@@ -97,6 +99,7 @@ class ApiClient {
         data: data,
         queryParameters: queryParameters,
         options: options,
+        onReceiveProgress: onReceiveProgress,
       ),
     );
   }
