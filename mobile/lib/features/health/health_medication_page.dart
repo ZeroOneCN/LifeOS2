@@ -504,6 +504,17 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final MedicationStats? stats = _stats;
+    // 近 7 天（stats.days）餐次计划的粒数合计，用于说明依从率分母。
+    final int windowTaken = stats?.bySlot.fold<int>(
+          0,
+          (int sum, MedSlot slot) => sum + slot.taken,
+        ) ??
+        0;
+    final int windowTotal = stats?.bySlot.fold<int>(
+          0,
+          (int sum, MedSlot slot) => sum + slot.total,
+        ) ??
+        0;
 
     return DetailPageScaffold(
       title: '用药跟踪',
@@ -537,24 +548,38 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                         children: <Widget>[
                           Expanded(
                             child: MetricPlaceholder(
-                              label: '已服',
-                              value: '${stats.todayTaken} 次',
+                              label: '今日已服',
+                              value: '${stats.todayTaken} 粒',
                             ),
                           ),
                           Expanded(
                             child: MetricPlaceholder(
-                              label: '待服',
-                              value: '${stats.todayPending} 次',
+                              label: '今日待服',
+                              value: '${stats.todayPending} 粒',
                             ),
                           ),
                           Expanded(
                             child: MetricPlaceholder(
                               label: '7 日依从率',
-                              value: formatPercent(stats.adherenceRate),
+                              value: windowTotal == 0
+                                  ? '—'
+                                  : formatPercent(stats.adherenceRate),
                             ),
                           ),
                         ],
                       ),
+                      Text(
+                        windowTotal == 0
+                            ? '口径：今日已服 / 待服按「粒」统计；近 7 天没有计划剂量，依从率暂记「—」。'
+                            : '口径：今日已服 / 待服按「粒」统计；7 日依从率 = 近 7 天已服 '
+                                '$windowTaken / 计划 $windowTotal 粒，今日尚未到点的剂量不计为失败。',
+                        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                      ),
+                      if (stats.todayTaken == 0 && stats.todayPending == 0)
+                        Text(
+                          '今日暂无用药计划，下方依从率统计的是近 7 天数据。',
+                          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                        ),
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
@@ -575,7 +600,12 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                             ),
                         ],
                       ),
-                      if (stats.bySlot.isNotEmpty)
+                      if (stats.bySlot.isNotEmpty) ...<Widget>[
+                        Text(
+                          '近 7 天餐次完成度（按粒）',
+                          style:
+                              theme.textTheme.bodySmall?.copyWith(color: muted),
+                        ),
                         Column(
                           spacing: 8,
                           children: <Widget>[
@@ -616,6 +646,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                               ),
                           ],
                         ),
+                      ],
                     ],
                   ),
                 ),
