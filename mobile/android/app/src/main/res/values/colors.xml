@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 自适应图标背景：与 App 深色底一致（#0A0A0A） -->
-    <color name="ic_launcher_background">#0A0A0A</color>
+    <!-- 自适应图标背景：白底（与网页端浅色品牌一致），前景红色 logo 直接叠加 -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>
