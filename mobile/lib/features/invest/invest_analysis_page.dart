@@ -169,12 +169,13 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
                       ),
                       (
                         label: '盈亏比',
-                        value: formatOneDecimal(stats.summary.profitLossRatio),
+                        // 与投资报告一致保留两位小数（报告显示 0.83，这里曾显示 0.8）。
+                        value: formatTwoDecimals(stats.summary.profitLossRatio),
                         color: theme.colorScheme.onSurface,
                       ),
                       (
                         label: '盈利因子',
-                        value: formatOneDecimal(stats.summary.profitFactor),
+                        value: formatTwoDecimals(stats.summary.profitFactor),
                         color: theme.colorScheme.onSurface,
                       ),
                       (

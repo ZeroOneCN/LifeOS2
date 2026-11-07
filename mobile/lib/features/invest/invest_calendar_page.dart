@@ -530,13 +530,17 @@ class _DayCell extends StatelessWidget {
     );
   }
 
-  /// 格子内盈亏压缩：千位以上用 k，保留一位小数。
+  /// 格子内盈亏压缩：千位以上用 k；小数只在需要时保留一位。
+  ///
+  /// 之前按金额大小切换 0/1 位小数，导致同月格子出现「-164 / +13.0」；
+  /// 现在统一规则：整数不带 `.0`，非整数保留一位。
   static String _compactPnl(double value) {
     final double abs = value.abs();
-    if (abs >= 1000) {
-      return '${value < 0 ? '-' : '+'}${(abs / 1000).toStringAsFixed(1)}k';
-    }
-    return '${value < 0 ? '-' : '+'}${abs.toStringAsFixed(abs >= 100 ? 0 : 1)}';
+    final String sign = value < 0 ? '-' : '+';
+    final String text = (abs >= 1000 ? abs / 1000 : abs).toStringAsFixed(1);
+    final String trimmed =
+        text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
+    return '$sign$trimmed${abs >= 1000 ? 'k' : ''}';
   }
 }
 

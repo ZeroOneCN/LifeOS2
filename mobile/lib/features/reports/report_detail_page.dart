@@ -219,6 +219,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   /// 是否为健康报告（正文用 `-` 表示空值）。
   bool get _health => identical(widget.source, ReportSource.health);
 
+  /// 是否为生活报告（价格列缺 `¥`、`正常 / 总数 张` 等格式需要归一）。
+  bool get _life => identical(widget.source, ReportSource.lifestyle);
+
   /// 金额语义列 / 行关键字；「盈亏比」「胜率」等比率不算金额。
   static const List<String> _moneyKeys = <String>[
     '净收益',
@@ -301,9 +304,44 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         .toList();
   }
 
+  /// 生活报告摘要在 1.3x 字号下会在逗号后被随机折行（甚至拆开「待办待/处理」），
+  /// 这里按分句主动换行，让断行位置可预期。
+  String _lifeSummary(String text) {
+    return text.replaceAll('，', '，\n').trimRight();
+  }
+
+  /// 生活报告的展示归一：价格列补 `¥`；「正常 / 总数 张」相等时收敛成「N 张」。
+  List<List<String>> _lifeRows(List<String> header, List<List<String>> rows) {
+    if (!_life) {
+      return rows;
+    }
+    final int priceIndex = header.indexOf('价格');
+    return rows.map((List<String> row) {
+      final List<String> cells = List<String>.of(row);
+      if (priceIndex >= 0 && priceIndex < cells.length) {
+        final String price = cells[priceIndex].trim();
+        if (RegExp(r'^\d+(?:\.\d+)?$').hasMatch(price)) {
+          cells[priceIndex] = '¥$price';
+        }
+      }
+      for (int i = 0; i < cells.length; i++) {
+        final Match? ratio = RegExp(
+          r'^(\d+)\s*/\s*(\d+)\s*(张|件|台|个)$',
+        ).firstMatch(cells[i].trim());
+        if (ratio != null) {
+          cells[i] = ratio[1] == ratio[2]
+              ? '${ratio[1]} ${ratio[3]}'
+              : '${ratio[1]} / ${ratio[2]} ${ratio[3]}';
+        }
+      }
+      return cells;
+    }).toList();
+  }
+
   /// 只给明确的金额列 / 金额行补 `$`，笔数、胜率、手数等保持原样。
   List<List<String>> _usdRows(List<String> header, List<List<String>> rows) {
-    final List<List<String>> prepareRows = _healthRows(rows);
+    final List<List<String>> prepareRows =
+        _lifeRows(header, _healthRows(rows));
     if (!_usd) {
       return prepareRows;
     }
@@ -356,7 +394,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final TextStyle? base = Theme.of(context).textTheme.bodyMedium;
     if (!_usd) {
       return TextSpan(
-        text: _health ? _normalizeDashes(text) : text,
+        text: _health
+            ? _normalizeDashes(text)
+            : (_life ? _lifeSummary(text) : text),
         style: base,
       );
     }
@@ -644,23 +684,30 @@ class _KvRow extends StatelessWidget {
     final AppSemanticColors colors = context.semanticColors;
     final String label = row.isNotEmpty ? row[0] : '';
     final String value = row.length > 1 ? row[1] : '';
+    // 「18 件（花费 ¥256.88）」这类长值，若任其折行会断成「18 件（花费 / ¥256.88）」；
+    // 主动在括号前换行，读起来是「数值 + 补充说明」两行。
+    final String displayValue = value.length > 12 && value.contains('（')
+        ? value.replaceFirst('（', '\n（')
+        : value;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 12,
         children: <Widget>[
+          // 左侧标签多为 6-7 个汉字（「手机卡余额合计」「银行卡（正常）」），
+          // 1.3x 下 4:5 会把标签挤成两行，改成 5:4。
           Expanded(
-            flex: 4,
+            flex: 5,
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(color: muted),
             ),
           ),
           Expanded(
-            flex: 5,
+            flex: 4,
             child: Text(
-              value,
+              displayValue,
               textAlign: TextAlign.right,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: _labelColor(
@@ -768,6 +815,9 @@ class _GroupedRow extends StatelessWidget {
 
 /// 先按行标签判断资金语义，再回退到正负色。
 ///
+/// 语义优先于符号：后端把「平均亏损」记成正数（`+$11.69`）时，
+/// 仍必须用危险色，不能因为带 `+` 就显示成盈利绿。
+/// 比率类（盈亏比 / 胜率 / 盈利因子）本身没有盈亏方向，保持中性。
 /// 「入金 / 出金」是两种相反语义合在同一行，整体不着色；
 /// 单独的「出金」用危险色、「入金」用成功色，避免出现「出金 = 盈利绿」。
 Color? _labelColor(
@@ -776,8 +826,11 @@ Color? _labelColor(
   AppSemanticColors colors, {
   bool colorizePositive = false,
 }) {
-  final bool hasIn = label.contains('入金');
-  final bool hasOut = label.contains('出金');
+  if (label.contains('比') || label.contains('率') || label.contains('因子')) {
+    return null;
+  }
+  final bool hasIn = label.contains('入金') || label.contains('盈利');
+  final bool hasOut = label.contains('出金') || label.contains('亏损');
   if (hasIn && hasOut) {
     return null;
   }
@@ -802,11 +855,19 @@ Color? _signColor(
   if (text.isEmpty) {
     return null;
   }
-  if (RegExp(r'^[+＋]\s*(?:¥|￥|\$|\d)').hasMatch(text)) {
-    return colors.success;
-  }
-  if (RegExp(r'^[-−]\s*(?:¥|￥|\$|\d)').hasMatch(text)) {
-    return colors.danger;
+  // 财务报告的负数写作 `¥-5,703.63`（货币符号在前），
+  // 所以既要认 `-$1.00`，也要认 `¥-1.00`。
+  final Match? sign = RegExp(
+    r'^([+＋\-−])?\s*(?:¥|￥|\$)?\s*([+＋\-−])?\s*[\d]',
+  ).firstMatch(text);
+  if (sign != null) {
+    final String? symbol = sign[1] ?? sign[2];
+    if (symbol == '+' || symbol == '＋') {
+      return colors.success;
+    }
+    if (symbol == '-' || symbol == '−') {
+      return colors.danger;
+    }
   }
   // 投资报告里不带 `+` 的美元金额也算正数：> 0 用成功色，$0.00 保持中性。
   if (colorizePositive) {

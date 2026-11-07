@@ -83,6 +83,17 @@ String formatOneDecimal(num? value) {
   return '$sign${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
 }
 
+/// 两位小数数值（千分位）：如 `0.83`；null 返回 `—`。
+String formatTwoDecimals(num? value) {
+  if (value == null) {
+    return '—';
+  }
+  final String fixed = value.abs().toStringAsFixed(2);
+  final int dot = fixed.indexOf('.');
+  final String sign = value < 0 ? '-' : '';
+  return '$sign${_group(fixed.substring(0, dot))}${fixed.substring(dot)}';
+}
+
 /// 紧凑数值：整数不带小数，非整数最多两位并去掉尾零（100.0 → 100、12.50 → 12.5）。
 ///
 /// 用于克数等不强制固定小数位的展示；null 返回 `—`。

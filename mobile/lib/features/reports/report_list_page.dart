@@ -233,7 +233,10 @@ class _ReportListPageState extends State<ReportListPage> {
   }
 }
 
-/// 单条报告：标题（仅报告名）+ 副标题（区间）+ 生成时间。
+/// 单条报告：统计区间作标题（同类型报告靠区间区分），生成时间作副标题。
+///
+/// 之前标题固定为报告名，同页多份报告标题完全一样，只能靠小字区间猜；
+/// 页面标题已经标明报告类型，行内再重复一次没有信息量。
 class _ReportRow extends StatelessWidget {
   const _ReportRow({required this.source, required this.item});
 
@@ -248,6 +251,13 @@ class _ReportRow extends StatelessWidget {
       color: muted,
       fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
     );
+    final String title = item.rangeText.isNotEmpty
+        ? item.rangeText
+        : (item.displayTitle.isNotEmpty
+            ? item.displayTitle
+            : '报告 #${item.id}');
+    final String meta =
+        item.createdText.isNotEmpty ? item.createdText : '编号 #${item.id}';
     return InkWell(
       onTap: () => context.push('${source.routeBase}/${item.id}'),
       borderRadius: BorderRadius.circular(8),
@@ -263,24 +273,18 @@ class _ReportRow extends StatelessWidget {
                 spacing: 3,
                 children: <Widget>[
                   Text(
-                    item.displayTitle,
+                    title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
                     ),
                   ),
-                  // 区间与生成时间放同一行 Wrap：1.3x 下换行而不是截断。
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: <Widget>[
-                      if (item.rangeText.isNotEmpty)
-                        Text(item.rangeText, style: metaStyle),
-                      if (item.createdText.isNotEmpty)
-                        Text(item.createdText, style: metaStyle),
-                    ],
-                  ),
+                  // 生成时间单独一行，1.3x 下也不会被挤掉。
+                  Text(meta, style: metaStyle),
                 ],
               ),
             ),
