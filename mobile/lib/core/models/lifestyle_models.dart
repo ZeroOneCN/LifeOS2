@@ -19,6 +19,36 @@ String itemStatusLabel(String status) {
   }
 }
 
+/// 物品状态下拉选项：取值与后端 `ItemCreate` pattern 一致，文案沿用列表既有口径。
+const List<({String value, String label})> kItemStatuses =
+    <({String value, String label})>[
+      (value: 'in_use', label: '使用中'),
+      (value: 'loaned', label: '已借出'),
+      (value: 'lost', label: '已丢失'),
+      (value: 'recycled', label: '已回收'),
+    ];
+
+/// 物品来源下拉选项：manual 手动录入 / shopping 购物同步。
+const List<({String value, String label})> kItemSources =
+    <({String value, String label})>[
+      (value: 'manual', label: '手动'),
+      (value: 'shopping', label: '购物同步'),
+    ];
+
+/// 物品分类预设：与网页端 `pages/lifestyle/items.tsx` 的固定分类一致。
+///
+/// 统计接口的 `by_category` 只覆盖已有数据，新建时若只依赖它会出现「无选项」，
+/// 因此以这组预设为底、再并入历史分类。
+const List<String> kItemCategories = <String>[
+  '电子',
+  '服饰',
+  '书籍',
+  '家居',
+  '数码配件',
+  '购物',
+  '其他',
+];
+
 /// 物品到期提示：`daysLeft` 为负表示已过期，为 0 表示今天到期。
 ///
 /// 仅当 `expire_date` 有值时才生成；没填到期日的物品返回 null，
@@ -111,6 +141,7 @@ class ItemStats {
     required this.expiring,
     required this.expired,
     required this.byStatus,
+    required this.byCategory,
   });
 
   final int total;
@@ -126,6 +157,9 @@ class ItemStats {
   final int expired;
 
   final List<LabelCount> byStatus;
+
+  /// 按分类统计；新增/编辑物品时作为分类下拉的可选项（与网页端同源）。
+  final List<LabelCount> byCategory;
 
   factory ItemStats.fromJson(Map<String, dynamic> json) {
     List<LabelCount> parse(String key, String labelKey) {
@@ -147,6 +181,7 @@ class ItemStats {
       expiring: (json['expiring'] as num?)?.toInt() ?? 0,
       expired: (json['expired'] as num?)?.toInt() ?? 0,
       byStatus: parse('by_status', 'status'),
+      byCategory: parse('by_category', 'category'),
     );
   }
 }
@@ -349,6 +384,12 @@ class PhoneCard {
     this.smsPlan,
     required this.status,
     this.note,
+    this.billingType = 'monthly',
+    this.chargeMode = 'monthly',
+    this.autoCharge = true,
+    this.billPaidThisMonth = false,
+    this.monthCharged = 0,
+    this.monthExpected = 0,
   });
 
   final int id;
@@ -367,6 +408,16 @@ class PhoneCard {
   final String? smsPlan;
   final String status;
   final String? note;
+
+  /// 资费口径（后端派生字段）：`monthly` 月租 / `yearly` 年费；扣费方式同名字段。
+  final String billingType;
+  final String chargeMode;
+  final bool autoCharge;
+
+  /// 本月是否已扣账、已扣金额与应扣金额（后端按当月流水派生）。
+  final bool billPaidThisMonth;
+  final double monthCharged;
+  final double monthExpected;
 
   /// 完整号码展示：与银行卡同一口径（长号码分组，不脱敏、不截断）。
   String get displayNumber => formatCardNumber(phoneNumber);
@@ -412,6 +463,19 @@ class PhoneCard {
     return parts.isEmpty ? '未设置套餐' : parts.join(' · ');
   }
 
+  /// 本月扣费文案；无需扣费的卡返回 null。
+  ///
+  /// 用于「扣费」按钮旁说明当前账期状态，同时为「补齐本月应扣」提供上下文。
+  String? get monthBillText {
+    if (monthExpected <= 0 && monthCharged <= 0) {
+      return null;
+    }
+    if (billPaidThisMonth) {
+      return '本月已扣 ${formatMoney(monthCharged)}';
+    }
+    return '本月应扣 ${formatMoney(monthExpected)} · 待扣';
+  }
+
   factory PhoneCard.fromJson(Map<String, dynamic> json) {
     return PhoneCard(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -432,6 +496,60 @@ class PhoneCard {
       callPlan: json['call_plan'] as String?,
       smsPlan: json['sms_plan'] as String?,
       status: json['status'] as String? ?? 'active',
+      note: json['note'] as String?,
+      billingType: json['billing_type'] as String? ?? 'monthly',
+      chargeMode: json['charge_mode'] as String? ?? 'monthly',
+      autoCharge: json['auto_charge'] as bool? ?? true,
+      billPaidThisMonth: json['bill_paid_this_month'] as bool? ?? false,
+      monthCharged: (json['month_charged'] as num?)?.toDouble() ?? 0,
+      monthExpected: (json['month_expected'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// 手机号卡资金流水（`GET /lifestyle/phone-cards/{id}/ledger`）。
+///
+/// amount 有符号：充值与余额上调为正，扣费与下调为负。
+class PhoneLedgerEntry {
+  const PhoneLedgerEntry({
+    required this.id,
+    required this.entryType,
+    required this.entryDate,
+    required this.amount,
+    this.note,
+  });
+
+  final int id;
+  final String entryType;
+  final String entryDate;
+  final double amount;
+  final String? note;
+
+  /// 充值 / 扣费 / 校准。
+  String get typeLabel {
+    switch (entryType) {
+      case 'recharge':
+        return '充值';
+      case 'charge':
+        return '扣费';
+      case 'adjust':
+        return '校准';
+      default:
+        return entryType;
+    }
+  }
+
+  /// 带符号金额文案：正数补 `+`，负数由 [formatMoney] 自带减号。
+  String get amountText => amount > 0
+      ? '+${formatMoney(amount)}'
+      : formatMoney(amount);
+
+  factory PhoneLedgerEntry.fromJson(Map<String, dynamic> json) {
+    return PhoneLedgerEntry(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      entryType: json['entry_type'] as String? ?? '',
+      entryDate: json['entry_date'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
       note: json['note'] as String?,
     );
   }

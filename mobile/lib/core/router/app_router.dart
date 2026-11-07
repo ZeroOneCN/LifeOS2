@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models/finance_models.dart';
 import '../../core/models/health_models.dart';
+import '../../core/models/lifestyle_models.dart';
 import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_form_page.dart';
@@ -39,7 +40,9 @@ import '../../features/invest/forex_page.dart';
 import '../../features/invest/invest_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
+import '../../features/life/lifestyle_item_form_page.dart';
 import '../../features/life/lifestyle_items_page.dart';
+import '../../features/life/phone_card_ops_page.dart';
 import '../../features/notifications/notification_center_page.dart';
 import '../../features/reports/report_detail_page.dart';
 import '../../features/reports/report_list_page.dart';
@@ -432,10 +435,68 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'items',
                     builder: (_, _) => const LifestyleItemsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, GoRouterState state) {
+                          final LifestyleItemFormArgs? args =
+                              state.extra is LifestyleItemFormArgs
+                              ? state.extra as LifestyleItemFormArgs
+                              : null;
+                          return LifestyleItemFormPage(
+                            categories:
+                                args?.categories ?? const <String>[],
+                          );
+                        },
+                      ),
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) {
+                          final LifestyleItemFormArgs? args =
+                              state.extra is LifestyleItemFormArgs
+                              ? state.extra as LifestyleItemFormArgs
+                              : null;
+                          return LifestyleItemFormPage(
+                            recordId:
+                                int.tryParse(
+                                  state.pathParameters['id'] ?? '',
+                                ) ??
+                                0,
+                            initial: args?.item,
+                            categories:
+                                args?.categories ?? const <String>[],
+                          );
+                        },
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'cards',
                     builder: (_, _) => const LifestyleCardsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'phone/:id/recharge',
+                        builder: (_, GoRouterState state) => PhoneRechargePage(
+                          cardId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          initial: state.extra is PhoneCard
+                              ? state.extra as PhoneCard
+                              : null,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'phone/:id/adjust',
+                        builder: (_, GoRouterState state) => PhoneAdjustPage(
+                          cardId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          initial: state.extra is PhoneCard
+                              ? state.extra as PhoneCard
+                              : null,
+                        ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'reports',

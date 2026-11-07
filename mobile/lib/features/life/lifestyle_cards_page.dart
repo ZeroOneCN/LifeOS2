@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -44,6 +48,13 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   int _total = 0;
   bool _hasMore = true;
   bool _loadingMore = false;
+
+  /// 手机号卡流水：按卡片懒加载，展开状态与缓存都放在页面级，便于操作后统一失效。
+  final Map<int, List<PhoneLedgerEntry>> _ledgers =
+      <int, List<PhoneLedgerEntry>>{};
+  final Set<int> _ledgerOpen = <int>{};
+  int? _ledgerLoadingId;
+  int? _deductingId;
 
   @override
   void initState() {
@@ -125,6 +136,8 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _hasMore = _cards.length < _total;
         _status = LoadStatus.ready;
       });
+      // 与网页端一致：进入卡片页后幂等补齐手机号卡本月应扣；有扣费时再刷新余额。
+      unawaited(_settlePhones());
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -214,6 +227,157 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('已复制$label')),
     );
+  }
+
+  /// 幂等结算手机号卡本月应扣；失败静默（不阻塞列表），有实际扣费时刷新余额。
+  Future<void> _settlePhones() async {
+    final AppScope scope = AppScope.of(context);
+    try {
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.post<Map<String, dynamic>>(
+            '/lifestyle/phone-cards/settle',
+          )).data;
+      final int charges = (json?['charges'] as num?)?.toInt() ?? 0;
+      if (charges > 0 && mounted) {
+        await _refreshPhones();
+      }
+    } on ApiException {
+      // 结算失败（如只读会话）不影响列表展示。
+    }
+  }
+
+  /// 只刷新手机号卡列表：保留银行卡分页位置，同时失效流水缓存。
+  Future<void> _refreshPhones() async {
+    final AppScope scope = AppScope.of(context);
+    try {
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/lifestyle/phone-cards',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
+          )).data;
+      if (json == null || !mounted) {
+        return;
+      }
+      final List<PhoneCard> phones = ((json['items'] as List?) ??
+              const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => PhoneCard.fromJson(item.cast<String, dynamic>()))
+          .toList();
+      setState(() {
+        _phones
+          ..clear()
+          ..addAll(phones);
+        _phoneTotal = (json['total'] as num?)?.toInt() ?? phones.length;
+        _ledgers.clear();
+        _ledgerOpen.clear();
+        _ledgerLoadingId = null;
+      });
+    } on ApiException {
+      // 后台刷新失败保持旧数据，不打断用户。
+    }
+  }
+
+  /// 打开充值页；保存成功后重拉列表，余额由后端流水派生。
+  Future<void> _openRecharge(PhoneCard card) async {
+    final bool? changed = await context.push<bool>(
+      '/life/cards/phone/${card.id}/recharge',
+      extra: card,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 打开校准页；保存成功后重拉列表。
+  Future<void> _openAdjust(PhoneCard card) async {
+    final bool? changed = await context.push<bool>(
+      '/life/cards/phone/${card.id}/adjust',
+      extra: card,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 手动补扣本月：幂等写操作，成功后立即刷新余额。
+  Future<void> _deduct(PhoneCard card) async {
+    if (_deductingId != null) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    if (!scope.outbox.isOnline) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('当前无网络：扣费需要联网，请恢复网络后重试')),
+      );
+      return;
+    }
+    setState(() => _deductingId = card.id);
+    try {
+      await scope.apiClient.post<Map<String, dynamic>>(
+        '/lifestyle/phone-cards/${card.id}/deduct',
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(
+        const SnackBar(content: Text('已补齐本月应扣，余额已刷新')),
+      );
+      await _refresh();
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text('扣费失败：${error.message}')));
+    } finally {
+      if (mounted) {
+        setState(() => _deductingId = null);
+      }
+    }
+  }
+
+  /// 展开 / 收起某张卡的最近流水；展开时按需拉取最近 5 条。
+  Future<void> _toggleLedger(PhoneCard card) async {
+    if (_ledgerOpen.contains(card.id)) {
+      setState(() => _ledgerOpen.remove(card.id));
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    setState(() {
+      _ledgerOpen.add(card.id);
+      _ledgerLoadingId = card.id;
+    });
+    try {
+      final List<dynamic>? data =
+          (await scope.apiClient.get<List<dynamic>>(
+            '/lifestyle/phone-cards/${card.id}/ledger',
+            queryParameters: <String, dynamic>{'limit': 5},
+          )).data;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ledgers[card.id] = (data ?? const <dynamic>[])
+            .whereType<Map>()
+            .map(
+              (Map item) =>
+                  PhoneLedgerEntry.fromJson(item.cast<String, dynamic>()),
+            )
+            .toList();
+        _ledgerLoadingId = null;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _ledgerOpen.remove(card.id);
+        _ledgerLoadingId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载流水失败：${error.message}')),
+      );
+    }
   }
 
   @override
@@ -321,6 +485,14 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                       '手机号',
                       phone.copyableNumber,
                     ),
+                    onRecharge: _openRecharge,
+                    onAdjust: _openAdjust,
+                    onDeduct: _deduct,
+                    deductingId: _deductingId,
+                    expandedIds: _ledgerOpen,
+                    ledgers: _ledgers,
+                    loadingLedgerId: _ledgerLoadingId,
+                    onToggleLedger: _toggleLedger,
                   ),
                   _BankTab(
                     cards: _cards,
@@ -343,12 +515,33 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   }
 }
 
-/// 手机号卡 Tab：独立滚动，切换不重置位置。
+/// 手机号卡 Tab：独立滚动，切换不重置位置；每张卡提供充值 / 扣费 / 校准与最近流水。
 class _PhoneTab extends StatelessWidget {
-  const _PhoneTab({required this.phones, required this.onCopy});
+  const _PhoneTab({
+    required this.phones,
+    required this.onCopy,
+    required this.onRecharge,
+    required this.onAdjust,
+    required this.onDeduct,
+    required this.deductingId,
+    required this.expandedIds,
+    required this.ledgers,
+    required this.loadingLedgerId,
+    required this.onToggleLedger,
+  });
 
   final List<PhoneCard> phones;
   final ValueChanged<PhoneCard> onCopy;
+  final ValueChanged<PhoneCard> onRecharge;
+  final ValueChanged<PhoneCard> onAdjust;
+  final ValueChanged<PhoneCard> onDeduct;
+
+  /// 正在补扣的卡片 id（按钮显示 loading，防止重复点击）。
+  final int? deductingId;
+  final Set<int> expandedIds;
+  final Map<int, List<PhoneLedgerEntry>> ledgers;
+  final int? loadingLedgerId;
+  final ValueChanged<PhoneCard> onToggleLedger;
 
   @override
   Widget build(BuildContext context) {
@@ -360,7 +553,7 @@ class _PhoneTab extends StatelessWidget {
         SectionCard(
           title: '手机号卡',
           trailing: Text(
-            '共 ${formatInt(phones.length)} 张 · 只读',
+            '共 ${formatInt(phones.length)} 张',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -370,7 +563,7 @@ class _PhoneTab extends StatelessWidget {
             spacing: 4,
             children: <Widget>[
               Text(
-                '充值 / 扣费 / 校准请在网页端操作。',
+                '充值 / 扣费 / 校准直接操作，余额由后端流水自动更新。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -379,12 +572,23 @@ class _PhoneTab extends StatelessWidget {
                 const EmptyState(
                   icon: Icons.sim_card_outlined,
                   title: '暂无手机号卡',
-                  description: '充值 / 扣费 / 校准请在网页端操作',
+                  description: '可在网页端录入后再充值 / 扣费 / 校准',
                   compact: true,
                 )
               else
                 for (final PhoneCard phone in phones)
-                  _PhoneCardRow(card: phone, onCopy: () => onCopy(phone)),
+                  _PhoneCardRow(
+                    card: phone,
+                    onCopy: () => onCopy(phone),
+                    onRecharge: () => onRecharge(phone),
+                    onAdjust: () => onAdjust(phone),
+                    onDeduct: () => onDeduct(phone),
+                    deducting: deductingId == phone.id,
+                    onToggleLedger: () => onToggleLedger(phone),
+                    ledgerExpanded: expandedIds.contains(phone.id),
+                    ledgerLoading: loadingLedgerId == phone.id,
+                    ledger: ledgers[phone.id],
+                  ),
             ],
           ),
         ),
@@ -636,12 +840,31 @@ class _CardRow extends StatelessWidget {
   }
 }
 
-/// 单张手机号卡（只读）：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期。
+/// 单张手机号卡：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期 → 三个写操作 → 最近流水。
 class _PhoneCardRow extends StatelessWidget {
-  const _PhoneCardRow({required this.card, required this.onCopy});
+  const _PhoneCardRow({
+    required this.card,
+    required this.onCopy,
+    required this.onRecharge,
+    required this.onAdjust,
+    required this.onDeduct,
+    required this.deducting,
+    required this.onToggleLedger,
+    required this.ledgerExpanded,
+    required this.ledgerLoading,
+    required this.ledger,
+  });
 
   final PhoneCard card;
   final VoidCallback onCopy;
+  final VoidCallback onRecharge;
+  final VoidCallback onAdjust;
+  final VoidCallback onDeduct;
+  final bool deducting;
+  final VoidCallback onToggleLedger;
+  final bool ledgerExpanded;
+  final bool ledgerLoading;
+  final List<PhoneLedgerEntry>? ledger;
 
   /// 账期文案：账单日 + 月租；都未设置时显示「账期未设置」。
   String get _billingText {
@@ -688,7 +911,7 @@ class _PhoneCardRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 4,
+        spacing: 6,
         children: <Widget>[
           _NumberBalanceRow(
             number: card.displayNumber,
@@ -703,8 +926,156 @@ class _PhoneCardRow extends StatelessWidget {
             onCopy: onCopy,
           ),
           Wrap(spacing: 8, runSpacing: 2, children: meta),
+          Row(
+            spacing: 8,
+            children: <Widget>[
+              Expanded(
+                child: AppSecondaryButton(
+                  label: '充值',
+                  compact: true,
+                  onPressed: onRecharge,
+                ),
+              ),
+              Expanded(
+                child: AppSecondaryButton(
+                  label: '扣费',
+                  compact: true,
+                  // 本月已扣满时禁止重复补扣（后端虽幂等，避免误以为还会扣钱）；
+                  // 请求进行中同样禁用，防止连点重复提交。
+                  onPressed: deducting || card.billPaidThisMonth
+                      ? null
+                      : onDeduct,
+                ),
+              ),
+              Expanded(
+                child: AppSecondaryButton(
+                  label: '校准',
+                  compact: true,
+                  onPressed: onAdjust,
+                ),
+              ),
+            ],
+          ),
+          Row(
+            children: <Widget>[
+              if (card.monthBillText != null)
+                Expanded(
+                  child: Text(
+                    card.monthBillText!,
+                    style: metaStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                const Spacer(),
+              TextButton(
+                onPressed: onToggleLedger,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: Text(
+                  ledgerExpanded ? '收起流水' : '最近流水',
+                  maxLines: 1,
+                  softWrap: false,
+                ),
+              ),
+            ],
+          ),
+          if (ledgerExpanded) _LedgerPanel(
+            loading: ledgerLoading,
+            entries: ledger,
+            theme: theme,
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// 最近流水面板：最多 5 条，日期 + 类型 + 带符号金额，备注另起一行。
+class _LedgerPanel extends StatelessWidget {
+  const _LedgerPanel({
+    required this.loading,
+    required this.entries,
+    required this.theme,
+  });
+
+  final bool loading;
+  final List<PhoneLedgerEntry>? entries;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: loading
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          : entries == null || entries!.isEmpty
+              ? Text('暂无流水记录', style: metaStyle)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 6,
+                  children: <Widget>[
+                    for (final PhoneLedgerEntry entry in entries!)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 2,
+                        children: <Widget>[
+                          Row(
+                            spacing: 8,
+                            children: <Widget>[
+                              SizedBox(
+                                width: 100,
+                                child: Text(
+                                  entry.entryDate,
+                                  style: metaStyle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(entry.typeLabel, style: metaStyle),
+                              const Spacer(),
+                              Text(
+                                entry.amountText,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                  fontFeatures: const <FontFeature>[
+                                    FontFeature.tabularFigures(),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (entry.note != null && entry.note!.trim().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 86),
+                              child: Text(entry.note!, style: metaStyle),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
     );
   }
 }

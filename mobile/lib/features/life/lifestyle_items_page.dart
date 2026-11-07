@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../theme/app_theme.dart';
+import 'lifestyle_item_form_page.dart';
 
 /// 物品追踪：汇总（数量 / 价值 / 临期 / 过期）+ 状态分布 + 物品分页。
 ///
@@ -172,6 +175,36 @@ class _LifestyleItemsPageState extends State<LifestyleItemsPage> {
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
   }
 
+  /// 分类下拉选项：来自统计接口 `by_category`，过滤空分类。
+  List<String> get _categories {
+    return ((_stats?.byCategory ?? const <LabelCount>[]))
+        .map((LabelCount item) => item.label)
+        .where((String label) => label.trim().isNotEmpty)
+        .toList();
+  }
+
+  /// 打开新增页；保存成功后重拉统计与第一页列表。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>(
+      '/life/items/new',
+      extra: LifestyleItemFormArgs(categories: _categories),
+    );
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 打开编辑页；保存或删除后重拉，让状态分布与合计同步。
+  Future<void> _openEdit(LifestyleItem item) async {
+    final bool? changed = await context.push<bool>(
+      '/life/items/edit/${item.id}',
+      extra: LifestyleItemFormArgs(item: item, categories: _categories),
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -268,26 +301,41 @@ class _LifestyleItemsPageState extends State<LifestyleItemsPage> {
                   ),
                 SectionCard(
                   title: '全部物品',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  trailing: AppPrimaryAction(
+                    label: '新增物品',
+                    onPressed: _openCreate,
                   ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 4,
+                    children: <Widget>[
+                      if (_total > 0)
+                        Text(
+                          '共 $_total 条 · 按购买日期倒序',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      if (_items.isEmpty)
+                        const EmptyState(
                           icon: Icons.inventory_2_outlined,
                           title: '暂无物品',
-                          description: '可在网页端录入，或从购物记录一键同步',
+                          description: '点右上角「新增物品」录入第一件',
                           compact: true,
                         )
-                      : Column(
+                      else
+                        Column(
                           spacing: 4,
                           children: <Widget>[
                             for (final LifestyleItem item in _items)
-                              _ItemRow(item: item),
+                              _ItemRow(
+                                item: item,
+                                onTap: () => _openEdit(item),
+                              ),
                           ],
                         ),
+                    ],
+                  ),
                 ),
                 if (_items.isNotEmpty)
                   _LoadMoreFooter(
@@ -333,9 +381,10 @@ class _CountChip extends StatelessWidget {
 ///
 /// 到期日为空的物品不显示任何临期/过期标记，避免把「未填」误判为过期。
 class _ItemRow extends StatelessWidget {
-  const _ItemRow({required this.item});
+  const _ItemRow({required this.item, required this.onTap});
 
   final LifestyleItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -356,46 +405,56 @@ class _ItemRow extends StatelessWidget {
         Text('到期 ${item.expireDate}', style: metaStyle),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Text(
+                    item.itemName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                  Wrap(spacing: 8, runSpacing: 2, children: meta),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
               children: <Widget>[
                 Text(
-                  item.itemName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
+                  formatMoney(item.price),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
                 ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(spacing: 8, runSpacing: 2, children: meta),
+                if (expiry != null)
+                  _ExpiryLabel(expiry: expiry, style: metaStyle),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                formatMoney(item.price),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              if (expiry != null) _ExpiryLabel(expiry: expiry, style: metaStyle),
-            ],
-          ),
-        ],
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }
