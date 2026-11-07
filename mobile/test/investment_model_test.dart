@@ -53,6 +53,46 @@ void main() {
     final FundStats empty = FundStats.fromJson(<String, dynamic>{});
     expect(empty.deposit, 0);
     expect(empty.net, 0);
+    expect(empty.byDate, isEmpty);
+  });
+
+  test('资金按日聚合解析：保留升序、缺字段按 0、净额与空日判定', () {
+    final FundStats stats = FundStats.fromJson(<String, dynamic>{
+      'deposit': 6033.4,
+      'withdraw': 3242.76,
+      'experience': -70,
+      'net': 2720.64,
+      'by_date': <dynamic>[
+        <String, dynamic>{
+          'date': '2026-05-13',
+          'deposit': 1000,
+          'withdraw': 0,
+          'experience': 0,
+        },
+        <String, dynamic>{
+          'date': '2026-07-02',
+          'deposit': 0,
+          'withdraw': 200,
+          'experience': -2.76,
+        },
+      ],
+    });
+    expect(stats.byDate.length, 2);
+    expect(stats.byDate.first.date, '2026-05-13');
+    expect(stats.byDate.first.net, 1000);
+    expect(stats.byDate.first.isEmpty, isFalse);
+    expect(stats.byDate.last.net, -202.76);
+    // 三类金额都有值时不判空。
+    expect(stats.byDate.last.isEmpty, isFalse);
+
+    final FundDayStat blank = FundDayStat.fromJson(<String, dynamic>{
+      'date': '2026-09-01',
+    });
+    expect(blank.deposit, 0);
+    expect(blank.withdraw, 0);
+    expect(blank.experience, 0);
+    expect(blank.net, 0);
+    expect(blank.isEmpty, isTrue);
   });
 
   test('外汇统计解析：summary / by_symbol / analysis 与时段文案', () {

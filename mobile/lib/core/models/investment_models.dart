@@ -87,6 +87,7 @@ class FundStats {
     required this.withdraw,
     required this.experience,
     required this.net,
+    this.byDate = const <FundDayStat>[],
   });
 
   final double deposit;
@@ -94,12 +95,49 @@ class FundStats {
   final double experience;
   final double net;
 
+  /// 按发生日期聚合（`by_date`，升序），供三色柱图使用。
+  final List<FundDayStat> byDate;
+
   factory FundStats.fromJson(Map<String, dynamic> json) {
     return FundStats(
       deposit: _toDouble(json['deposit']),
       withdraw: _toDouble(json['withdraw']),
       experience: _toDouble(json['experience']),
       net: _toDouble(json['net']),
+      byDate: ((json['by_date'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => FundDayStat.fromJson(item.cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+}
+
+/// 单日资金聚合（`by_date` 列表项）：三类金额均为当日合计。
+class FundDayStat {
+  const FundDayStat({
+    required this.date,
+    required this.deposit,
+    required this.withdraw,
+    required this.experience,
+  });
+
+  final String date;
+  final double deposit;
+  final double withdraw;
+  final double experience;
+
+  /// 当日净额，与四卡「净投入」同口径。
+  double get net => deposit - withdraw + experience;
+
+  /// 是否没有任何金额（全 0 的日期不画柱）。
+  bool get isEmpty => deposit == 0 && withdraw == 0 && experience == 0;
+
+  factory FundDayStat.fromJson(Map<String, dynamic> json) {
+    return FundDayStat(
+      date: json['date'] as String? ?? '',
+      deposit: _toDouble(json['deposit']),
+      withdraw: _toDouble(json['withdraw']),
+      experience: _toDouble(json['experience']),
     );
   }
 }

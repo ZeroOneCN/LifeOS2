@@ -2,20 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/models/investment_models.dart';
+import '../../core/network/api_exception.dart';
+import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
-/// 新增一笔外汇交易（`POST /investment/forex`）。
+/// 新增 / 编辑一笔外汇交易。
 ///
 /// 字段与网页端 `pages/investment/forex.tsx` 的 `tradeFields` 对齐：
 /// 交易日期、品种、订单类型、手数、开仓价、平仓价、开/平仓时间、
 /// 手续费、隔夜费、盈亏金额、备注。
 ///
-/// 写操作先落本地队列（`investment.forex.create`），断网也能保存；
-/// 在线时立即推送，列表用「待同步」角标标示本地临时记录，推送成功后
-/// 队列条目消失、服务端真实记录由列表刷新补上，不会同时出现两条。
+/// 两种模式：
+/// - 新增（[tradeId] 为空）：写操作先落本地队列（`investment.forex.create`），
+///   断网也能保存；在线时立即推送，列表用「待同步」角标标示本地临时记录。
+/// - 编辑（[tradeId] 非空）：`PUT /investment/forex/{id}`，底部「左保存右删除」，
+///   删除二次确认并说明对净盈亏 / 胜率 / 盈亏比 / 最大回撤的影响。
+///   编辑与删除都需要联网，失败时保留表单并在页内提示。
 class ForexCreatePage extends StatefulWidget {
-  const ForexCreatePage({super.key});
+  const ForexCreatePage({super.key, this.tradeId, this.initial});
+
+  /// 编辑模式的交易 id；为空即新增。
+  final int? tradeId;
+
+  /// 列表带进来的快照；缺失时编辑页不回填（路由始终带快照）。
+  final ForexTrade? initial;
 
   @override
   State<ForexCreatePage> createState() => _ForexCreatePageState();
@@ -39,6 +52,52 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
 
   bool _submitting = false;
   String? _submitError;
+  bool _deleting = false;
+
+  /// 编辑模式：非空即 `PUT /investment/forex/{id}`。
+  bool get _editing => widget.tradeId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final ForexTrade? trade = widget.initial;
+    if (trade != null) {
+      _tradeDate = DateTime.tryParse(trade.tradeDate) ?? _tradeDate;
+      _symbol.text = trade.symbol;
+      _orderType = trade.orderType == 'sell' ? 'sell' : 'buy';
+      _lotSize.text = _plain(trade.lotSize);
+      _openPrice.text = _plain(trade.openPrice);
+      _closePrice.text = trade.closePrice == null
+          ? ''
+          : _plain(trade.closePrice!);
+      _commission.text = trade.commission == 0 ? '' : _plain(trade.commission);
+      _overnightFee.text =
+          trade.overnightFee == 0 ? '' : _plain(trade.overnightFee);
+      _pnl.text = trade.pnl == null ? '' : _plain(trade.pnl!);
+      _note.text = trade.note ?? '';
+      _openTime = _parseIso(trade.openTime);
+      _closeTime = _parseIso(trade.closeTime);
+    }
+  }
+
+  /// 数字去尾零：`0.1000` → `0.1`，`12.00` → `12`。
+  String _plain(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+    return value
+        .toStringAsFixed(4)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  /// ISO 字符串 → 本地时间；无时间部分或无法解析时返回 null。
+  DateTime? _parseIso(String? iso) {
+    if (iso == null || iso.isEmpty || !iso.contains('T')) {
+      return null;
+    }
+    return DateTime.tryParse(iso)?.toLocal();
+  }
 
   @override
   void dispose() {
@@ -148,6 +207,123 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
     };
   }
 
+  /// 编辑模式提交体：后端 PUT 为全量覆盖，需带上原状态，避免已平仓记录被置为空。
+  Map<String, dynamic> _editPayload() {
+    final Map<String, dynamic> payload = _buildPayload();
+    payload['status'] = widget.initial?.status == 'open' ? 'open' : 'closed';
+    return payload;
+  }
+
+  /// 保存入口：新增走本地队列，编辑走 `PUT`。
+  Future<void> _save() async {
+    if (_submitting || _deleting) {
+      return;
+    }
+    final FormState? form = _formKey.currentState;
+    if (form == null || !form.validate()) {
+      return;
+    }
+    if (_editing) {
+      await _update();
+    } else {
+      await _submit();
+    }
+  }
+
+  /// 编辑保存：`PUT /investment/forex/{id}`，成功后返回列表并触发刷新。
+  Future<void> _update() async {
+    final AppScope scope = AppScope.of(context);
+    final NavigatorState navigator = Navigator.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    try {
+      await scope.apiClient.put<Map<String, dynamic>>(
+        '/investment/forex/${widget.tradeId}',
+        data: _editPayload(),
+      );
+      if (!mounted) {
+        return;
+      }
+      navigator.pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('交易已保存')));
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _submitError = error.message;
+      });
+    }
+  }
+
+  /// 删除交易：二次确认后单条 `DELETE`，返回列表由调用方刷新全部汇总。
+  Future<void> _delete() async {
+    final ForexTrade? trade = widget.initial;
+    final String symbol = _symbol.text.trim().isEmpty
+        ? (trade?.symbol ?? '该交易')
+        : _symbol.text.trim();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('删除该交易记录？'),
+          content: Text(
+            '将删除 $symbol ${_orderType == 'sell' ? '做空' : '做多'} '
+            '${_lotSize.text.trim().isEmpty ? '—' : _lotSize.text.trim()} 手'
+            '${trade == null ? '' : '（${formatUsdSigned(trade.netPnl)}）'}。\n'
+            '删除后净盈亏、胜率、盈亏比与最大回撤会同步重算，且无法恢复。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final NavigatorState navigator = Navigator.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _deleting = true;
+      _submitError = null;
+    });
+    try {
+      await scope.apiClient.delete<dynamic>(
+        '/investment/forex/${widget.tradeId}',
+      );
+      if (!mounted) {
+        return;
+      }
+      navigator.pop(true);
+      messenger.showSnackBar(const SnackBar(content: Text('已删除该交易记录')));
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _deleting = false;
+        _submitError = error.message;
+      });
+    }
+  }
+
   /// 保存：先入本地队列（断网也不丢），在线时由队列立即推送。
   ///
   /// 成功后返回列表（`true` 触发刷新）；队列已达上限时保留表单并提示先同步。
@@ -182,7 +358,25 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
-      title: '新增交易',
+      title: _editing ? '编辑交易' : '新增交易',
+      bottomBar: _editing
+          ? AppActionRow(
+              first: AppPrimaryButton(
+                label: '保存',
+                loading: _submitting,
+                onPressed: _deleting ? null : _save,
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                loading: _deleting,
+                onPressed: _submitting ? null : _delete,
+              ),
+            )
+          : AppPrimaryButton(
+              label: '保存交易',
+              loading: _submitting,
+              onPressed: _save,
+            ),
       child: Form(
         key: _formKey,
         child: ListView(
@@ -192,15 +386,17 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: <Widget>[
-                ListenableBuilder(
-                  listenable: AppScope.of(context).outbox,
-                  builder: (BuildContext context, Widget? _) {
-                    if (AppScope.of(context).outbox.isOnline) {
-                      return const SizedBox.shrink();
-                    }
-                    return _offlineBanner(theme);
-                  },
-                ),
+                // 编辑需要联网，断网横幅只对新增（本地队列）有意义。
+                if (!_editing)
+                  ListenableBuilder(
+                    listenable: AppScope.of(context).outbox,
+                    builder: (BuildContext context, Widget? _) {
+                      if (AppScope.of(context).outbox.isOnline) {
+                        return const SizedBox.shrink();
+                      }
+                      return _offlineBanner(theme);
+                    },
+                  ),
                 if (_submitError != null) _submitErrorBanner(theme),
                 SectionCard(
                   title: '基础信息',
@@ -393,29 +589,6 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
                     ),
                   ),
                 ),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: _submitting ? null : _submit,
-                    child: _submitting
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 8,
-                            children: <Widget>[
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: theme.colorScheme.onPrimary,
-                                ),
-                              ),
-                              const Text('提交中…'),
-                            ],
-                          )
-                        : const Text('保存交易'),
-                  ),
-                ),
               ],
             ),
           ],
@@ -499,7 +672,7 @@ class _ForexCreatePageState extends State<ForexCreatePage> {
             ),
           ),
           TextButton(
-            onPressed: _submitting ? null : _submit,
+            onPressed: _submitting || _deleting ? null : _save,
             child: const Text('重试'),
           ),
         ],

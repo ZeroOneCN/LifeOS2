@@ -537,6 +537,18 @@ GoRouter createAppRouter() {
                         path: 'new',
                         builder: (_, _) => const ForexCreatePage(),
                       ),
+                      // 交易编辑 / 删除：`extra` 带列表快照预填，避免二次请求。
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) => ForexCreatePage(
+                          tradeId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                              0,
+                          initial: state.extra is ForexTrade
+                              ? state.extra as ForexTrade
+                              : null,
+                        ),
+                      ),
                       // 资金记录新增：`POST /investment/funds`，保存后返回 true 触发列表刷新。
                       GoRoute(
                         path: 'funds/new',
