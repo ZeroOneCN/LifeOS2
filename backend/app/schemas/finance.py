@@ -194,7 +194,13 @@ class LoanPlatformCreate(BaseModel):
 
 
 class LoanPlatformRead(LoanPlatformCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史平台配置可能超出当前表单上限（天数为 0 或 >31、容时 >15 天等），
+    # 复用请求侧约束会让整页响应 500；请求侧约束保持不变
+    bill_day: int | None = Field(None, ge=0)
+    due_day: int | None = Field(None, ge=0)
+    grace_days: int = Field(3, ge=0)
+    grace_hour: int = Field(0, ge=0)
+    penalty_rate: float = Field(0, ge=0)
 
 
 class LoanBillCreate(BaseModel):
@@ -211,7 +217,8 @@ class LoanBillCreate(BaseModel):
 
 
 class LoanBillRead(LoanBillCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史账单存在 overdue 等旧状态取值，不应让整页响应 500；请求侧保持不变
+    status: str = "pending"
 
 
 class RepaymentCreate(BaseModel):
@@ -224,7 +231,8 @@ class RepaymentCreate(BaseModel):
 
 
 class RepaymentRead(RepaymentCreate, ORMRead):
-    pass
+    # 响应侧放宽：账单自动结清会写入 0 元还款记录，gt=0 会让整页响应 500；请求侧保持不变
+    amount: float = Field(ge=0)
 
 
 class PlanCreate(BaseModel):
@@ -238,7 +246,8 @@ class PlanCreate(BaseModel):
 
 
 class PlanRead(PlanCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史计划存在 paused 等旧状态取值，不应让整页响应 500；请求侧保持不变
+    status: str = "active"
 
 
 class DebtCreate(BaseModel):
@@ -257,7 +266,11 @@ class DebtCreate(BaseModel):
 
 
 class DebtRead(DebtCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史借贷存在 other 方向、超长渠道名与旧状态取值，
+    # 复用请求侧 pattern/max_length 会让整页响应 500；请求侧约束保持不变
+    direction: str
+    channel: str | None = None
+    status: str = "active"
 
 
 class DebtPaymentCreate(BaseModel):
@@ -268,6 +281,8 @@ class DebtPaymentCreate(BaseModel):
 
 
 class DebtPaymentRead(DebtPaymentCreate, ORMRead):
+    # 响应侧放宽：历史清账存在 0 元还款记录，gt=0 会让整页响应 500；请求侧保持不变
+    amount: float = Field(ge=0)
     debt_id: int
 
 
@@ -301,7 +316,8 @@ class CurrencyCreate(BaseModel):
 
 
 class CurrencyRead(CurrencyCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史汇率可能为 0（未维护/占位），gt=0 会让整页响应 500；请求侧保持不变
+    rate_to_cny: float = Field(ge=0)
 
 
 class DebtRepayPayload(BaseModel):
