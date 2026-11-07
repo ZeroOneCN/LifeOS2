@@ -132,29 +132,20 @@ loan_platforms_router = crud_router(
 )
 router.include_router(loan_platforms_router)
 
-loan_bills_router = crud_router(
-    prefix="/finance/loan-bills",
-    tag="finance-loan-bills",
-    model=FinanceLoanBill,
-    create_schema=LoanBillCreate,
-    read_schema=LoanBillRead,
-    order_by=FinanceLoanBill.bill_month,
-    date_column="bill_month",
-    stats_func=_bills_stats,
-)
-router.include_router(loan_bills_router)
 
+def _recalc_bill_totals(db: Session, bill: FinanceLoanBill) -> None:
+    """按账单的全部还款明细重算已还额与状态。
 
-def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
-    if not bill_id:
-        return
-    bill = db.get(FinanceLoanBill, bill_id)
-    if not bill or bill.user_id != user_id:
-        return
+    口径与 `POST /finance/repayments` 一致（注意与债务侧相反）：
+    账单 `amount` 是实付、`discount` 另计，故
+    `paid_amount = Σ repayments(amount + discount)`；
+    状态规则：`amount − paid_amount ≤ 1e-2` → cleared，`paid_amount > 0` → partial，
+    否则 pending。容时/逾期属展示层派生，不写入账务。
+    """
     reps = db.scalars(
         select(FinanceRepayment).where(
-            FinanceRepayment.bill_id == bill_id,
-            FinanceRepayment.user_id == user_id,
+            FinanceRepayment.bill_id == bill.id,
+            FinanceRepayment.user_id == bill.user_id,
         )
     ).all()
     # 已还 = 实付 + 优惠（优惠券/抵扣同样抵减欠款）；取整到分，避免浮点累加误差（如 1823.0300000000002）
@@ -165,6 +156,42 @@ def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
         bill.status = "partial"
     else:
         bill.status = "pending"
+
+
+def _sync_bill(db: Session, bill_id: int | None, user_id: int) -> None:
+    if not bill_id:
+        return
+    bill = db.get(FinanceLoanBill, bill_id)
+    if not bill or bill.user_id != user_id:
+        return
+    _recalc_bill_totals(db, bill)
+
+
+def _bill_on_update(db: Session, obj, data: dict, before: dict) -> None:
+    """仅当本次 PUT 真的修改了应付额 amount 时，才重算已还额与状态。
+
+    改平台、账单月、到期日、备注、手工已还额等字段均不触发重算。
+    """
+    if "amount" not in data:
+        return
+    old_amount = before.get("amount")
+    if old_amount is not None and float(obj.amount or 0) == float(old_amount or 0):
+        return
+    _recalc_bill_totals(db, obj)
+
+
+loan_bills_router = crud_router(
+    prefix="/finance/loan-bills",
+    tag="finance-loan-bills",
+    model=FinanceLoanBill,
+    create_schema=LoanBillCreate,
+    read_schema=LoanBillRead,
+    order_by=FinanceLoanBill.bill_month,
+    date_column="bill_month",
+    stats_func=_bills_stats,
+    on_update=_bill_on_update,
+)
+router.include_router(loan_bills_router)
 
 
 repayments_router = APIRouter(prefix="/finance/repayments", tags=["finance-repayments"])
