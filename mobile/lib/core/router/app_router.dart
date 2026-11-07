@@ -8,6 +8,7 @@ import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_form_page.dart';
 import '../../features/finance/finance_bills_page.dart';
 import '../../features/finance/finance_debt_detail_page.dart';
+import '../../features/finance/finance_debt_form_page.dart';
 import '../../features/finance/finance_debts_page.dart';
 import '../../features/finance/finance_expense_create_page.dart';
 import '../../features/finance/finance_page.dart';
@@ -309,6 +310,24 @@ GoRouter createAppRouter() {
                     path: 'debts',
                     builder: (_, _) => const FinanceDebtsPage(),
                     routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const FinanceDebtFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'edit/:id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceDebtFormPage(
+                              debtId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is DebtItem
+                                  ? state.extra as DebtItem
+                                  : null,
+                            ),
+                      ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) =>

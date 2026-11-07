@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
@@ -61,14 +62,10 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
     });
     try {
       final Future<Map<String, dynamic>?> debtFuture = scope.apiClient
-          .get<Map<String, dynamic>>(
-            '/finance/debts/${widget.debtId}',
-          )
+          .get<Map<String, dynamic>>('/finance/debts/${widget.debtId}')
           .then((value) => value.data);
       final Future<List<dynamic>?> paymentsFuture = scope.apiClient
-          .get<List<dynamic>>(
-            '/finance/debts/${widget.debtId}/payments',
-          )
+          .get<List<dynamic>>('/finance/debts/${widget.debtId}/payments')
           .then((value) => value.data);
       final Map<String, dynamic>? debtJson = await debtFuture;
       final List<dynamic> paymentsJson =
@@ -95,7 +92,8 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -118,10 +116,30 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (BuildContext _) =>
-          DebtRepaySheet(debt: debt, payment: payment),
+      builder: (BuildContext _) => DebtRepaySheet(debt: debt, payment: payment),
     );
     if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 编辑债务本体：保存后重拉详情；删除后连同详情一起退回列表，
+  /// 避免停留在「记录不存在」的已删详情上。
+  Future<void> _openEdit() async {
+    final DebtItem? debt = _debt;
+    if (debt == null) {
+      return;
+    }
+    final Object? result = await context.push<Object?>(
+      '/finance/debts/edit/${debt.id}',
+      extra: debt,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (result == 'deleted') {
+      context.pop();
+    } else if (result == 'saved') {
       await _refresh();
     }
   }
@@ -182,10 +200,7 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
                         value: debt.counterparty ?? '未填写',
                       ),
                       _DetailRow(label: '发生日期', value: debt.debtDate),
-                      _DetailRow(
-                        label: '本金',
-                        value: formatMoney(debt.amount),
-                      ),
+                      _DetailRow(label: '本金', value: formatMoney(debt.amount)),
                       _DetailRow(
                         label: '未还金额',
                         value: formatMoney(debt.outstanding),
@@ -208,14 +223,26 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
                         _DetailRow(label: '到期日', value: debt.dueDate!),
                       if (debt.note != null && debt.note!.trim().isNotEmpty)
                         _DetailRow(label: '备注', value: debt.note!),
-                      if (debt.status != 'settled' && debt.outstanding > 0) ...<Widget>[
-                        const Divider(height: 20),
-                        AppPrimaryButton(
-                          label: debt.isLend ? '记录收款' : '记录还款',
-                          icon: Icons.payments_outlined,
-                          onPressed: _openRepay,
+                      const Divider(height: 20),
+                      if (debt.status != 'settled' && debt.outstanding > 0)
+                        AppActionRow(
+                          first: AppPrimaryButton(
+                            label: debt.isLend ? '记录收款' : '记录还款',
+                            icon: Icons.payments_outlined,
+                            onPressed: _openRepay,
+                          ),
+                          second: AppSecondaryButton(
+                            label: '编辑债务',
+                            icon: Icons.edit_outlined,
+                            onPressed: _openEdit,
+                          ),
+                        )
+                      else
+                        AppSecondaryButton(
+                          label: '编辑债务',
+                          icon: Icons.edit_outlined,
+                          onPressed: _openEdit,
                         ),
-                      ],
                     ],
                   ),
                 ),

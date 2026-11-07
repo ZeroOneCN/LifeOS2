@@ -6,6 +6,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -75,11 +76,9 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
             queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
           )
           .then((value) => value.data);
-      final List<Map<String, dynamic>?> responses =
-          await Future.wait(<Future<Map<String, dynamic>?>>[
-        statsFuture,
-        listFuture,
-      ]);
+      final List<Map<String, dynamic>?> responses = await Future.wait(
+        <Future<Map<String, dynamic>?>>[statsFuture, listFuture],
+      );
       final Map<String, dynamic>? statsJson = responses[0];
       final Map<String, dynamic>? listJson = responses[1];
       if (statsJson == null || listJson == null) {
@@ -121,13 +120,14 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
     final AppScope scope = AppScope.of(context);
     setState(() => _loadingMore = true);
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/finance/debts',
-                  queryParameters: <String, dynamic>{
-            'page': _page + 1,
-            'page_size': 20,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/finance/debts',
+            queryParameters: <String, dynamic>{
+              'page': _page + 1,
+              'page_size': 20,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -147,9 +147,8 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _loadingMore = false);
@@ -170,7 +169,8 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
     if (error.isUnauthorized) {
       return LoadStatus.unauthenticated;
     }
-    final bool offline = scope.auth.hasLocalSession &&
+    final bool offline =
+        scope.auth.hasLocalSession &&
         (error.kind == ApiErrorKind.network ||
             error.kind == ApiErrorKind.timeout);
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
@@ -186,6 +186,22 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
       builder: (BuildContext _) => DebtRepaySheet(debt: item),
     );
     if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 新增债务：保存成功返回 true 后重拉汇总与第一页。
+  Future<void> _openCreate() async {
+    final bool? created = await context.push<bool>('/finance/debts/new');
+    if (created == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 打开债务详情；无论是否在详情里编辑/还款，返回后都重拉一次。
+  Future<void> _openDetail(DebtItem item) async {
+    await context.push<void>('/finance/debts/${item.id}', extra: item);
+    if (mounted) {
       await _refresh();
     }
   }
@@ -268,36 +284,41 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
                 ),
                 SectionCard(
                   title: '全部债务',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                  trailing: AppPrimaryAction(
+                    label: '新增债务',
+                    onPressed: _openCreate,
                   ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
+                  child: Column(
+                    spacing: 4,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      if (_total > 0)
+                        Text(
+                          '共 $_total 条 · 按日期倒序',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      if (_items.isEmpty)
+                        const EmptyState(
                           icon: Icons.handshake_outlined,
                           title: '暂无债务记录',
-                          description: '后端暂无债务数据',
+                          description: '点右上角「新增债务」录入第一笔借入 / 借出',
                           compact: true,
                         )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final DebtItem item in _items)
-                              _DebtRow(
-                                item: item,
-                                onTap: () => context.push(
-                                  '/finance/debts/${item.id}',
-                                ),
-                                onRepay:
-                                    item.status == 'settled' ||
-                                            item.outstanding <= 0
-                                        ? null
-                                        : () => _openRepay(item),
-                              ),
-                          ],
-                        ),
+                      else
+                        for (final DebtItem item in _items)
+                          _DebtRow(
+                            item: item,
+                            onTap: () => _openDetail(item),
+                            onRepay:
+                                item.status == 'settled' ||
+                                    item.outstanding <= 0
+                                ? null
+                                : () => _openRepay(item),
+                          ),
+                    ],
+                  ),
                 ),
                 if (_items.isNotEmpty)
                   _DebtsFooter(
@@ -316,11 +337,7 @@ class _FinanceDebtsPageState extends State<FinanceDebtsPage> {
 
 /// 债务列表行：名称/方向 + 对方与日期 + 未还金额与状态。
 class _DebtRow extends StatelessWidget {
-  const _DebtRow({
-    required this.item,
-    required this.onTap,
-    this.onRepay,
-  });
+  const _DebtRow({required this.item, required this.onTap, this.onRepay});
 
   final DebtItem item;
   final VoidCallback onTap;
