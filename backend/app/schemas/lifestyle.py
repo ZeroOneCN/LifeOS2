@@ -29,7 +29,9 @@ class ItemCreate(BaseModel):
 
 
 class ItemRead(ItemCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史物品存在 broken 等旧状态/来源取值，pattern 会让整页响应 500；请求侧保持不变
+    status: str = "in_use"
+    source: str = "manual"
 
 
 class PhoneCardCreate(BaseModel):
@@ -53,6 +55,11 @@ class PhoneCardCreate(BaseModel):
 
 
 class PhoneCardRead(PhoneCardCreate, ORMRead):
+    # 响应侧放宽：历史号卡存在旧计费/状态取值与超出 1..31 的账单日，不应让整页响应 500；请求侧保持不变
+    bill_day: int | None = Field(None, ge=0)
+    billing_type: str = "monthly"
+    charge_mode: str = "monthly"
+    status: str = "active"
     # 以下为列表派生字段，不落库
     month_charged: float | None = None  # 本月已扣金额
     month_expected: float | None = None  # 本月应扣金额（月租）
@@ -76,7 +83,12 @@ class BankCardCreate(BaseModel):
 
 
 class BankCardRead(BankCardCreate, ORMRead):
-    pass
+    # 响应侧放宽：历史银行卡存在旧类别/状态取值与超出 1..31 的账单日，不应让整页响应 500；请求侧保持不变
+    card_category: str = "debit"
+    card_form: str = "physical"
+    billing_day: int | None = Field(None, ge=0)
+    due_day: int | None = Field(None, ge=0)
+    status: str = "active"
 
 
 class CarrierCreate(BaseModel):
