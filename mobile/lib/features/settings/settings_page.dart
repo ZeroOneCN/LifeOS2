@@ -333,7 +333,7 @@ class _AccountCard extends StatelessWidget {
               ),
               if (current != null)
                 TextButton(
-                  onPressed: () => _logout(context, scope),
+                  onPressed: () => _confirmLogout(context, scope),
                   child: const Text('退出'),
                 )
               else if (offline)
@@ -353,8 +353,39 @@ class _AccountCard extends StatelessWidget {
     );
   }
 
-  /// 退出登录：清本地令牌并让总览回到「未登录」状态，失败不阻塞。
-  Future<void> _logout(BuildContext context, AppScope scope) async {
+  /// 退出登录：先二次确认（说明离线队列的去留），再清本地令牌并回到「未登录」。
+  ///
+  /// 本地离线队列不会因登出而清空：未同步记录保留在本机，
+  /// 下次登录后会按 FIFO 继续推送。
+  Future<void> _confirmLogout(BuildContext context, AppScope scope) async {
+    final int pending = scope.outbox.pendingCount;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('退出登录？'),
+          content: Text(
+            pending > 0
+                ? '本机还有 $pending 条未同步记录。退出登录不会清空它们，'
+                    '会保留在本机，下次登录后继续自动同步；但退出后需重新登录才能查看数据。'
+                : '退出后需要重新输入账号密码才能登录，本机已同步的数据仍保留在服务器。',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('退出登录'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
     await scope.auth.logout();
     if (!context.mounted) {
       return;
@@ -471,8 +502,37 @@ class _AvatarSheetState extends State<_AvatarSheet> {
     }
   }
 
-  /// 移除头像：`avatar_url: null`。
+  /// 移除头像：先确认，再以 `avatar_url: null` 清空账号头像。
   Future<void> _remove() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        final ThemeData theme = Theme.of(dialogContext);
+        return AlertDialog(
+          title: const Text('移除头像？'),
+          content: const Text(
+            '会从账号里删除当前头像，其他设备登录后也会同步消失；'
+            '可以随时重新上传，但移除后无法恢复原图。',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+              ),
+              child: const Text('确认移除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
     setState(() => _busy = true);
     try {
       await widget.scope.profile.setAvatarUrl(null);
