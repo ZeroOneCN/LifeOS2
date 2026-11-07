@@ -4,6 +4,7 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/notification_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -245,13 +246,17 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
           title: const Text('全部标记已读'),
           content: Text('将把 $_unread 条未读通知标记为已读，是否继续？'),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确定'),
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppPrimaryButton(
+                label: '确定',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
             ),
           ],
         );

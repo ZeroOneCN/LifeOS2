@@ -710,13 +710,17 @@ class _AvatarUrlDialogState extends State<_AvatarUrlDialog> {
         ),
       ),
       actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('保存'),
+        AppActionRow(
+          first: AppSecondaryButton(
+            label: '取消',
+            compact: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          second: AppPrimaryButton(
+            label: '保存',
+            compact: true,
+            onPressed: _submit,
+          ),
         ),
       ],
     );

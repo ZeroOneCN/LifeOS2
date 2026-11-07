@@ -13,13 +13,39 @@ import '../../theme/app_theme.dart';
 ///
 /// 同一页面里成对出现的「编辑 / 删除」必须放进 [AppActionRow]，
 /// 两个按钮各占一半宽度，保证宽高等比。
+///
+/// 所有按钮文字一律单行显示（由 [_ButtonLabel] 统一约束）：
+/// 空间不足时整体等比缩小，不折行、不截断，避免并排按钮一侧被挤成两行。
 const double kAppButtonHeight = 48;
 const double kAppButtonCompactHeight = 36;
 const double kAppButtonRadius = AppRadii.control;
 const double kAppInlineActionHeight = 36;
 const double kAppInlineActionRadius = AppRadii.control;
 
+/// 按钮文字：强制单行。
+///
+/// `softWrap: false` + `maxLines: 1` 保证永不折行；
+/// 外层 `FittedBox(scaleDown)` 在宽度不够时把文字整体等比缩小到一行放得下，
+/// 从而「收紧文字」而不是「换行」或「省略号截断」。
+class _ButtonLabel extends StatelessWidget {
+  const _ButtonLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text, maxLines: 1, softWrap: false),
+    );
+  }
+}
+
 /// 主操作按钮：填充主色 + 图标 + 48 高 + 8 圆角。
+///
+/// [compact] 只缩小高度与内边距（用于确认弹窗与三按钮并列行），
+/// 形状、圆角、颜色语义保持一致。
+/// [icon] 传 null 时只显示文字，用于 1:1:1 三等宽窄屏，避免图标挤占文字宽度。
 class AppPrimaryButton extends StatelessWidget {
   const AppPrimaryButton({
     super.key,
@@ -27,15 +53,32 @@ class AppPrimaryButton extends StatelessWidget {
     required this.onPressed,
     this.icon = Icons.check,
     this.loading = false,
+    this.compact = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
   final bool loading;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final double height = compact ? kAppButtonCompactHeight : kAppButtonHeight;
+    final ButtonStyle style = FilledButton.styleFrom(
+      minimumSize: Size(compact ? 0 : 64, height),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kAppButtonRadius),
+      ),
+    );
+    if (icon == null && !loading) {
+      return FilledButton(
+        onPressed: onPressed,
+        style: style,
+        child: _ButtonLabel(label),
+      );
+    }
     return FilledButton.icon(
       onPressed: loading ? null : onPressed,
       icon: loading
@@ -45,14 +88,8 @@ class AppPrimaryButton extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Icon(icon, size: 18),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(64, kAppButtonHeight),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(kAppButtonRadius),
-        ),
-      ),
+      label: _ButtonLabel(label),
+      style: style,
     );
   }
 }
@@ -87,13 +124,13 @@ class AppSecondaryButton extends StatelessWidget {
         ? OutlinedButton(
             onPressed: onPressed,
             style: style,
-            child: Text(label),
+            child: _ButtonLabel(label),
           )
         : OutlinedButton.icon(
             onPressed: onPressed,
             style: style,
             icon: Icon(icon, size: 18),
-            label: Text(label),
+            label: _ButtonLabel(label),
           );
   }
 }
@@ -140,7 +177,7 @@ class AppDangerButton extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : Icon(icon, size: 18),
-      label: Text(label),
+      label: _ButtonLabel(label),
     );
   }
 }
@@ -178,12 +215,15 @@ class AppPrimaryAction extends StatelessWidget {
         textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 13),
       ),
       icon: Icon(icon, size: 18),
-      label: Text(label, maxLines: 1),
+      label: _ButtonLabel(label),
     );
   }
 }
 
-/// 成对操作行：两侧各占一半，宽高完全一致（编辑 / 删除的标准布局）。
+/// 成对 / 三连操作行：各按钮等分宽度，宽高完全一致（编辑 / 删除的标准布局）。
+///
+/// [third] 非空时为 1:1:1 三等宽（用于状态页多条修复动作同行）；
+/// 窄屏文字余量靠「短文案 + 无图标」保证，不靠缩字号硬塞。
 ///
 /// 确认弹窗也把它包进 `actions`，避免 `AlertDialog` 的 OverflowBar
 /// 按文字长度分配宽度（「取消」比「确认移除」短一截）。
@@ -192,19 +232,26 @@ class AppActionRow extends StatelessWidget {
     super.key,
     required this.first,
     required this.second,
+    this.third,
   });
 
   final Widget first;
   final Widget second;
+  final Widget? third;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      spacing: 12,
-      children: <Widget>[
-        Expanded(child: first),
-        Expanded(child: second),
-      ],
+    // 并列动作统一等宽、等高，避免不同按钮文案导致的视觉失衡。
+    return IntrinsicHeight(
+      child: Row(
+        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Expanded(child: first),
+          Expanded(child: second),
+          if (third != null) Expanded(child: third!),
+        ],
+      ),
     );
   }
 }
