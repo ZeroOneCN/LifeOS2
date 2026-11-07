@@ -303,6 +303,45 @@ class _HealthBodyFormPageState extends State<HealthBodyFormPage> {
         : weight / ((height / 100) * (height / 100));
     return DetailPageScaffold(
       title: _editing ? '编辑体重' : '新增体重',
+      bottomBar: _loading
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                if (_editing)
+                  AppActionRow(
+                    first: AppPrimaryButton(
+                      label: '保存',
+                      icon: Icons.save_outlined,
+                      loading: _saving,
+                      onPressed: _deleting ? null : _save,
+                    ),
+                    second: AppDangerButton(
+                      label: '删除',
+                      loading: _deleting,
+                      onPressed: _saving || _deleting ? null : _delete,
+                    ),
+                  )
+                else
+                  AppPrimaryButton(
+                    label: '保存',
+                    icon: Icons.save_outlined,
+                    loading: _saving,
+                    onPressed: _save,
+                  ),
+                const SizedBox(height: 6),
+                Text(
+                  _editing
+                      ? '保存后概览与趋势会同步更新，删除会回退统计。'
+                      : '同一天可录入多条；保存后概览与趋势会更新。',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
       child: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -433,38 +472,6 @@ class _HealthBodyFormPageState extends State<HealthBodyFormPage> {
                             ),
                           ),
                         ),
-                      if (_editing)
-                        AppActionRow(
-                          first: AppPrimaryButton(
-                            label: '保存',
-                            icon: Icons.save_outlined,
-                            loading: _saving,
-                            onPressed: _deleting ? null : _save,
-                          ),
-                          second: AppDangerButton(
-                            label: '删除',
-                            loading: _deleting,
-                            onPressed: _saving || _deleting ? null : _delete,
-                          ),
-                        )
-                      else
-                        AppPrimaryButton(
-                          label: '保存',
-                          icon: Icons.save_outlined,
-                          loading: _saving,
-                          onPressed: _save,
-                        ),
-                      Text(
-                        _editing
-                            ? '保存与删除均在线提交；保存后概览与趋势立即刷新，'
-                                '删除会同步回退统计。'
-                            : '同一天可以录入多条记录（与网页端一致，只有蓝牙同步才会覆盖当天）；'
-                                '保存后概览与趋势立即刷新。',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
                     ],
                   ),
                 ],

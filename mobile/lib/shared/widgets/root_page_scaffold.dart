@@ -78,6 +78,10 @@ class DetailPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 悬浮按钮会盖住内容区最后一行：这里统一预留出按钮高度，
+    // 调用方无需再各自算 bottomPadding。
+    final double fabInset = floatingActionButton == null ? 0 : 88;
+    final double contentBottom = (bottomBar == null ? 24 : 12) + fabInset;
     return Scaffold(
       appBar: AppBar(title: Text(title), actions: actions),
       floatingActionButton: floatingActionButton,
@@ -87,15 +91,15 @@ class DetailPageScaffold extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: Padding(
-                padding:
-                    EdgeInsets.fromLTRB(16, 12, 16, bottomBar == null ? 24 : 12),
+                padding: EdgeInsets.fromLTRB(16, 12, 16, contentBottom),
                 child: child,
               ),
             ),
             if (bottomBar != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: bottomBar,
+                // 统一撑满宽度：单按钮底栏与双按钮底栏左右边界一致。
+                child: SizedBox(width: double.infinity, child: bottomBar),
               ),
           ],
         ),
