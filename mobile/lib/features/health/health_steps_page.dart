@@ -6,6 +6,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -103,6 +104,17 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
     if (created == true && mounted) {
       _refresh();
     }
+  }
+
+  /// 点按某一天：打开当天时段明细，逐条进入编辑/删除。
+  Future<void> _openDay(String date) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _DayPeriodSheet(date: date, onChanged: _refresh),
+    );
   }
 
   @override
@@ -216,7 +228,7 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
                 SectionCard(
                   title: '每日明细',
                   trailing: Text(
-                    '最近 ${stats.trend.length > 14 ? 14 : stats.trend.length} 天',
+                    '最近 ${stats.trend.length > 14 ? 14 : stats.trend.length} 天 · 点按编辑',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -233,7 +245,10 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
                           children: <Widget>[
                             for (final StepTrendPoint point
                                 in stats.trend.reversed.take(14))
-                              _DailyRow(point: point),
+                              _DailyRow(
+                                point: point,
+                                onTap: () => _openDay(point.date),
+                              ),
                           ],
                         ),
                 ),
@@ -364,42 +379,280 @@ class _PeriodBar extends StatelessWidget {
   }
 }
 
-/// 每日明细行：日期 + 步数 + 距离/热量。
+/// 每日明细行：日期 + 步数 + 距离/热量；点按进入当天时段明细。
 class _DailyRow extends StatelessWidget {
-  const _DailyRow({required this.point});
+  const _DailyRow({required this.point, required this.onTap});
 
   final StepTrendPoint point;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: <Widget>[
-                Text(point.date, style: theme.textTheme.bodyMedium),
-                Text(
-                  '${point.distanceKm.toStringAsFixed(2)} km · '
-                  '${point.calories.toStringAsFixed(1)} kcal',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+        child: Row(
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Text(point.date, style: theme.textTheme.bodyMedium),
+                  Text(
+                    '${point.distanceKm.toStringAsFixed(2)} km · '
+                    '${point.calories.toStringAsFixed(1)} kcal',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              formatInt(point.steps),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: muted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 当天时段明细弹层：列出该日每条 `health_steps` 记录，点按进入编辑。
+///
+/// 数据：`GET /health/steps?start=date&end=date`（返回含 id，可直接编辑/删除）。
+class _DayPeriodSheet extends StatefulWidget {
+  const _DayPeriodSheet({required this.date, required this.onChanged});
+
+  final String date;
+
+  /// 编辑/删除成功后通知父页面重拉统计（总览、日均、时段分布一起刷新）。
+  final VoidCallback onChanged;
+
+  @override
+  State<_DayPeriodSheet> createState() => _DayPeriodSheetState();
+}
+
+class _DayPeriodSheetState extends State<_DayPeriodSheet> {
+  List<StepRecord>? _records;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _load();
+      }
+    });
+  }
+
+  /// 按日期拉取时段记录；时段按时间先后排序，`full`（全天累计）排最后。
+  Future<void> _load() async {
+    final AppScope scope = AppScope.of(context);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/health/steps', queryParameters: {
+        'start': widget.date,
+        'end': widget.date,
+        'page_size': 100,
+      }))
+          .data;
+      if (json == null) {
+        throw const ApiException(
+          kind: ApiErrorKind.badResponse,
+          message: '时段记录返回为空',
+        );
+      }
+      final List<StepRecord> records =
+          ((json['items'] as List?) ?? const <dynamic>[])
+              .whereType<Map>()
+              .map((Map item) =>
+                  StepRecord.fromJson(item.cast<String, dynamic>()))
+              .toList(growable: false);
+      records.sort((StepRecord a, StepRecord b) {
+        if (a.isFull != b.isFull) {
+          return a.isFull ? 1 : -1;
+        }
+        return a.period.compareTo(b.period);
+      });
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _records = records;
+        _loading = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = error.message;
+      });
+    }
+  }
+
+  /// 进入编辑页；保存或删除返回 `true` 后刷新本弹层与页面统计。
+  Future<void> _openEdit(StepRecord record) async {
+    final bool? changed = await context.push<bool>(
+      '/health/steps/${record.id}',
+      extra: record,
+    );
+    if (!mounted || changed != true) {
+      return;
+    }
+    widget.onChanged();
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final List<StepRecord>? records = _records;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          16 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
+          children: <Widget>[
+            Text(
+              '${widget.date} 时段明细',
+              style: theme.textTheme.titleMedium,
+            ),
+            Text(
+              '点按任意时段可修改步数/时段，或删除该记录。',
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
+            const SizedBox(height: 4),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 28),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  spacing: 8,
+                  children: <Widget>[
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                    AppSecondaryButton(
+                      label: '重试',
+                      compact: true,
+                      onPressed: _load,
+                    ),
+                  ],
                 ),
-              ],
+              )
+            else if (records == null || records.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: EmptyState(
+                  icon: Icons.directions_walk_outlined,
+                  title: '当天没有时段记录',
+                  description: '可用右下「新增步数」补录',
+                  compact: true,
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: records.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (BuildContext context, int index) {
+                    final StepRecord record = records[index];
+                    return _PeriodRecordRow(
+                      record: record,
+                      onTap: () => _openEdit(record),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 弹层里的单条时段记录行：时段 + 步数 + 距离，尾部编辑箭头。
+class _PeriodRecordRow extends StatelessWidget {
+  const _PeriodRecordRow({required this.record, required this.onTap});
+
+  final StepRecord record;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+        child: Row(
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Text(
+                    stepPeriodLabel(record.period),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: record.isFull ? FontWeight.w600 : null,
+                    ),
+                  ),
+                  Text(
+                    '${record.distanceKm.toStringAsFixed(2)} km · '
+                    '${record.calories.toStringAsFixed(1)} kcal',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            formatInt(point.steps),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            Text(
+              '${formatInt(record.steps)} 步',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
             ),
-          ),
-        ],
+            Icon(Icons.edit_outlined, size: 18, color: muted),
+          ],
+        ),
       ),
     );
   }

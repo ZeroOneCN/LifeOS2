@@ -97,6 +97,19 @@ GoRouter createAppRouter() {
                         path: 'new',
                         builder: (_, _) => const HealthStepsCreatePage(),
                       ),
+                      // 时段记录编辑：`extra` 带列表快照可直接预填，缺失时按 id 拉取。
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            HealthStepsCreatePage(
+                          recordId:
+                              int.tryParse(state.pathParameters['id'] ?? '') ??
+                                  0,
+                          initial: state.extra is StepRecord
+                              ? state.extra as StepRecord
+                              : null,
+                        ),
+                      ),
                     ],
                   ),
                   GoRoute(

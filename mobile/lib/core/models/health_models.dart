@@ -100,6 +100,80 @@ class StepStats {
   }
 }
 
+/// 后端 `EXPECTED_PERIODS` 对应的步数时段选项（16 个整点段 + 全天最终段）。
+///
+/// 时段值是 `health_steps.period` 的原样取值，新增与编辑都用这一份口径。
+const List<({String value, String label})> kStepPeriods =
+    <({String value, String label})>[
+  (value: '08-09', label: '08:00-09:00'),
+  (value: '09-10', label: '09:00-10:00'),
+  (value: '10-11', label: '10:00-11:00'),
+  (value: '11-12', label: '11:00-12:00'),
+  (value: '12-13', label: '12:00-13:00'),
+  (value: '13-14', label: '13:00-14:00'),
+  (value: '14-15', label: '14:00-15:00'),
+  (value: '15-16', label: '15:00-16:00'),
+  (value: '16-17', label: '16:00-17:00'),
+  (value: '17-18', label: '17:00-18:00'),
+  (value: '18-19', label: '18:00-19:00'),
+  (value: '19-20', label: '19:00-20:00'),
+  (value: '20-21', label: '20:00-21:00'),
+  (value: '21-22', label: '21:00-22:00'),
+  (value: '22-23', label: '22:00-23:00'),
+  (value: '23-24', label: '23:00-23:59'),
+  (value: 'full', label: '23:59（全天最终）'),
+];
+
+/// 时段值 → 展示文案；未知值原样返回（兼容历史数据）。
+String stepPeriodLabel(String value) {
+  for (final ({String value, String label}) item in kStepPeriods) {
+    if (item.value == value) {
+      return item.label;
+    }
+  }
+  return value;
+}
+
+/// 单条时段步数记录（`GET /health/steps` 列表项，可编辑/删除）。
+///
+/// 一条记录 = 某天某个时段，唯一键是 `(record_date, period)`；
+/// `full` 表示当天最终累计（与分时段相加会重复，展示时分开说明）。
+class StepRecord {
+  const StepRecord({
+    required this.id,
+    required this.recordDate,
+    required this.period,
+    required this.steps,
+    required this.distanceKm,
+    required this.calories,
+    this.strideCm,
+  });
+
+  final int id;
+  final String recordDate;
+  final String period;
+  final int steps;
+  final double distanceKm;
+  final double calories;
+
+  /// 入库时的步幅；编辑时原样回传，避免后端按默认 70cm 重算距离。
+  final double? strideCm;
+
+  bool get isFull => period == 'full';
+
+  factory StepRecord.fromJson(Map<String, dynamic> json) {
+    return StepRecord(
+      id: _toInt(json['id']),
+      recordDate: json['record_date'] as String? ?? '',
+      period: json['period'] as String? ?? 'full',
+      steps: _toInt(json['steps']),
+      distanceKm: _toDouble(json['distance_km']),
+      calories: _toDouble(json['calories']),
+      strideCm: json['stride_cm'] == null ? null : _toDouble(json['stride_cm']),
+    );
+  }
+}
+
 /// 单日用药记录（`GET /health/medication` 列表项）。
 ///
 /// 每天一条记录，早/午/晚分别有粒数与是否已服。
