@@ -6,8 +6,6 @@ import '../../core/network/api_exception.dart';
 import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/add_record_fab.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -134,12 +132,6 @@ class _FinanceTransactionsPageState extends State<FinanceTransactionsPage> {
     final AppScope scope = AppScope.of(context);
     return DetailPageScaffold(
       title: '支出流水',
-      // 主操作放底栏：底栏独立占位，队列与支出列表不会被悬浮按钮压住。
-      bottomBar: AppPrimaryButton(
-        label: '记一笔',
-        icon: Icons.edit_note_outlined,
-        onPressed: () => showAddRecordSheet(context),
-      ),
       child: ListenableBuilder(
         listenable: scope.outbox,
         builder: (BuildContext context, Widget? _) {

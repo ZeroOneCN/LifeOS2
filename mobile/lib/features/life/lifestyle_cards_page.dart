@@ -40,7 +40,6 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   final List<CardBill> _cardBills = <CardBill>[];
 
   BankStats? _stats;
-  int _phoneTotal = 0;
   int _carrierTotal = 0;
   int _cardBillTotal = 0;
   LoadStatus _status = LoadStatus.loading;
@@ -171,8 +170,6 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _cardBills
           ..clear()
           ..addAll(bills);
-        _phoneTotal =
-            (phoneJson?['total'] as num?)?.toInt() ?? phones.length;
         _carrierTotal =
             (carrierJson?['total'] as num?)?.toInt() ?? carriers.length;
         _cardBillTotal =
@@ -313,7 +310,6 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _phones
           ..clear()
           ..addAll(phones);
-        _phoneTotal = (json['total'] as num?)?.toInt() ?? phones.length;
         _ledgers.clear();
         _ledgerOpen.clear();
         _ledgerLoadingId = null;
@@ -564,22 +560,8 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final BankStats? stats = _stats;
     final bool ready = _status == LoadStatus.ready && stats != null;
-
-    // 余额合计口径：银行卡余额 + 手机号卡「已采集」余额。
-    // 手机号卡没有单独的采集标记，与单卡「余额 —」用同一判定，避免合计与单卡矛盾。
-    final double bankBalance = stats?.balanceTotal ?? 0;
-    final int phoneCollectedCount = _phones
-        .where((PhoneCard phone) => phone.collectedBalance != null)
-        .length;
-    final double phoneBalance = _phones.fold<double>(
-      0,
-      (double sum, PhoneCard phone) => sum + (phone.collectedBalance ?? 0),
-    );
-    final int phoneUncollectedCount = _phones.length - phoneCollectedCount;
-    final double balanceTotal = bankBalance + phoneBalance;
 
     return DetailPageScaffold(
       title: '卡片管理',
@@ -600,85 +582,12 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
               ),
             )
           else ...<Widget>[
-            SectionCard(
-              title: '合计',
-              trailing: Text(
-                '银行卡 + 手机号卡',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              child: Column(
-                spacing: 12,
-                children: <Widget>[
-                  Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '银行卡数',
-                          value: formatInt(stats.total),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '正常',
-                          value: formatInt(stats.active),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '余额合计',
-                          value: formatMoney(balanceTotal),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '信用额度',
-                          value: formatMoney(stats.creditTotal),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '借记卡',
-                          value: formatInt(stats.countOfCategory('debit')),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '信用卡',
-                          value: formatInt(stats.countOfCategory('credit')),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    phoneUncollectedCount > 0
-                        ? '口径：余额合计 = 银行卡 ${formatMoney(bankBalance)} + '
-                            '手机号卡已采集 ${formatMoney(phoneBalance)}'
-                            '（${formatInt(phoneCollectedCount)} 张已采集；'
-                            '${formatInt(phoneUncollectedCount)} 张未采集，未计入）'
-                        : '口径：余额合计 = 银行卡 ${formatMoney(bankBalance)} + '
-                            '手机号卡 ${formatMoney(phoneBalance)}'
-                            '（${formatInt(phoneCollectedCount)} 张均已采集）',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             AppTabSelector(
-              labels: <String>[
-                '手机号卡 ${formatInt(_phoneTotal)}',
-                '银行卡 ${formatInt(_total)}',
-                '运营商 ${formatInt(_carrierTotal)}',
-                '卡账单 ${formatInt(_cardBillTotal)}',
+              labels: const <String>[
+                '手机号',
+                '银行卡',
+                '运营商',
+                '卡账单',
               ],
               value: _tab,
               onChanged: (int index) => setState(() => _tab = index),
