@@ -206,6 +206,65 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
     }
   }
 
+  /// 二次确认后一次性下线其余所有设备；本机会话由后端按 refresh_token 保留。
+  Future<void> _revokeOthers() async {
+    final int others =
+        (_sessions ?? const <_LoginSession>[]).where((_LoginSession s) => !s.isCurrent).length;
+    if (others == 0) {
+      return;
+    }
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('下线其他所有设备'),
+          content: Text(
+            '将下线除当前设备外的 $others 个登录会话。\n'
+            '这些设备会立即退出登录，需要重新登录。\n'
+            '当前设备不受影响。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '确认全部下线',
+                icon: Icons.phonelink_erase,
+                compact: true,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    setState(() => _revokingId = -1);
+    try {
+      await scope.auth.revokeOtherSessions();
+      if (!mounted) {
+        return;
+      }
+      _snack('已下线其余 $others 个设备');
+      await _refresh();
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _snack('批量下线失败：${error.message}');
+    } finally {
+      if (mounted) {
+        setState(() => _revokingId = null);
+      }
+    }
+  }
+
   void _snack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -301,6 +360,14 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
                           ],
                         ),
                 ),
+                // 会话多时逐条下线成本高：后端 `revoke-others` 以当前 refresh_token
+                // 识别本机会话，只清理其余设备，不会把本机踢下线。
+                if (all.any((_LoginSession s) => !s.isCurrent))
+                  AppSecondaryButton(
+                    label: '下线其他所有设备（${all.where((_LoginSession s) => !s.isCurrent).length}）',
+                    icon: Icons.phonelink_erase,
+                    onPressed: _revokingId == null ? _revokeOthers : null,
+                  ),
                 Text(
                   '当前设备不能在这里下线，如需退出请到设置页点「退出」。'
                   '时间以服务器记录为准。',

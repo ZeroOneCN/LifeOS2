@@ -59,6 +59,7 @@ Future<void> main() async {
       child: LifeOsApp(
         router: createAppRouter(),
         themeMode: preferences.themeMode,
+        fontScaleRatio: preferences.fontScaleRatio,
       ),
     ),
   );

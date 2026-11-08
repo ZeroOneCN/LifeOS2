@@ -61,7 +61,6 @@ import '../../features/reports/report_generate_page.dart';
 import '../../features/reports/report_list_page.dart';
 import '../../features/settings/about_page.dart';
 import '../../features/settings/account_settings_page.dart';
-import '../../features/settings/backup_export_page.dart';
 import '../../features/settings/device_sessions_page.dart';
 import '../../features/settings/server_config_page.dart';
 import '../../features/settings/settings_page.dart';
@@ -777,10 +776,6 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'devices',
                     builder: (_, _) => const DeviceSessionsPage(),
-                  ),
-                  GoRoute(
-                    path: 'backup',
-                    builder: (_, _) => const BackupExportPage(),
                   ),
                 ],
               ),

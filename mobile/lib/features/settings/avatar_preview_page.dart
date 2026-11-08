@@ -101,6 +101,59 @@ class _AvatarPreviewPageState extends State<AvatarPreviewPage> {
     }
   }
 
+  /// 长按不再直接落盘：先弹出与微信一致的「保存图片」选项，
+  /// 用户明确点「保存到相册」后才执行写入，避免误触把图片存进相册。
+  Future<void> _showSaveOptions() async {
+    if (_saving) {
+      return;
+    }
+    final bool? confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Text(
+                  '长按操作',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.download_outlined, color: Colors.white),
+                title: const Text(
+                  '保存到相册',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () => Navigator.of(sheetContext).pop(true),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close, color: Colors.white70),
+                title: const Text(
+                  '取消',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                onTap: () => Navigator.of(sheetContext).pop(false),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (confirmed == true && mounted) {
+      await _save();
+    }
+  }
+
   /// 大图页用浅色浮条提示，避免默认深色 SnackBar 在黑底上看不清。
   void _toast(String message) {
     ScaffoldMessenger.of(context)
@@ -122,29 +175,13 @@ class _AvatarPreviewPageState extends State<AvatarPreviewPage> {
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('头像预览'),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _saving ? null : _save,
-            tooltip: '保存到相册',
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.download_outlined),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Stack(
           children: <Widget>[
             Positioned.fill(
               child: GestureDetector(
-                onLongPress: _saving ? null : _save,
+                onLongPress: _saving ? null : _showSaveOptions,
                 behavior: HitTestBehavior.opaque,
                 child: InteractiveViewer(
                   minScale: 1,
@@ -209,7 +246,7 @@ class _AvatarPreviewPageState extends State<AvatarPreviewPage> {
                     ],
                   ),
                   Text(
-                    '双指缩放 · 长按图片保存到相册',
+                    '双指缩放 · 长按图片可保存到相册',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.65),

@@ -183,16 +183,6 @@ class SettingsPage extends StatelessWidget {
                 user == null ? '/login' : '/settings/devices',
               ),
             ),
-            EntryTile(
-              icon: Icons.backup_outlined,
-              title: '数据备份',
-              subtitle: user != null && !user.isAdmin
-                  ? '仅管理员可导出，当前账号无权限'
-                  : '导出整库备份并通过系统分享保存',
-              onTap: () => context.push(
-                user == null ? '/login' : '/settings/backup',
-              ),
-            ),
             SectionCard(
               title: '外观',
               child: ValueListenableBuilder<ThemeMode>(
@@ -239,6 +229,60 @@ class SettingsPage extends StatelessWidget {
                 },
               ),
             ),
+            SectionCard(
+              title: '字体大小',
+              child: ValueListenableBuilder<double?>(
+                valueListenable: scope.preferences.fontScaleRatio,
+                builder: (BuildContext context, double? ratio, _) {
+                  final String selected = ratio == null ? 'system' : '$ratio';
+                  return RadioGroup<String>(
+                    groupValue: selected,
+                    onChanged: (String? value) {
+                      if (value == null) {
+                        return;
+                      }
+                      scope.preferences.setFontScaleRatio(
+                        value == 'system' ? null : double.tryParse(value),
+                      );
+                    },
+                    child: const Column(
+                      children: <Widget>[
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: 'system',
+                          title: Text('跟随系统'),
+                        ),
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: '0.9',
+                          title: Text('小 0.9×'),
+                        ),
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: '1.0',
+                          title: Text('标准 1.0×'),
+                        ),
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: '1.15',
+                          title: Text('大 1.15×'),
+                        ),
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: '1.3',
+                          title: Text('特大 1.3×'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
             EntryTile(
               icon: Icons.info_outline,
               title: '关于',
@@ -246,7 +290,7 @@ class SettingsPage extends StatelessWidget {
               onTap: () => context.push('/settings/about'),
             ),
             Text(
-              '点击头像查看大图（长按保存到相册）；更换或移除头像请在大图页底部操作。',
+              '点击头像查看大图（长按可保存）；更换或移除头像请在大图页底部操作。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

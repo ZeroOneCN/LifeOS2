@@ -132,6 +132,24 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 下线除当前设备外的所有登录会话。
+  ///
+  /// 后端 `POST /auth/sessions/revoke-others` 以 refresh_token 识别「当前会话」，
+  /// 只删除其余会话，因此不会把本机踢下线。返回被清理的会话数量由列表刷新体现。
+  Future<void> revokeOtherSessions() async {
+    final String? refresh = await _tokenStore.readRefreshToken();
+    if (refresh == null || refresh.isEmpty) {
+      throw const ApiException(
+        kind: ApiErrorKind.unauthorized,
+        message: '本地没有可用的刷新令牌，请重新登录',
+      );
+    }
+    await _api.post<void>(
+      '/auth/sessions/revoke-others',
+      data: <String, dynamic>{'refresh_token': refresh},
+    );
+  }
+
   /// 用 `/user/profile` 刷新账号资料（头像等），成功后通知所有订阅者。
   ///
   /// 兼容两种响应：`{...用户字段}` 或 `{ "user": {...} }`。
