@@ -24,6 +24,7 @@ import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_body_ble_page.dart';
 import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
+import '../../features/health/health_checkup_form_page.dart';
 import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_diet_form_page.dart';
 import '../../features/health/health_diet_page.dart';
@@ -35,6 +36,7 @@ import '../../features/health/health_medication_create_page.dart';
 import '../../features/health/health_medication_detail_page.dart';
 import '../../features/health/health_medication_page.dart';
 import '../../features/health/health_page.dart';
+import '../../features/health/health_sleep_form_page.dart';
 import '../../features/health/health_sleep_page.dart';
 import '../../features/health/health_steps_create_page.dart';
 import '../../features/health/health_steps_page.dart';
@@ -51,6 +53,7 @@ import '../../features/life/lifestyle_items_page.dart';
 import '../../features/life/phone_card_ops_page.dart';
 import '../../features/notifications/notification_center_page.dart';
 import '../../features/reports/report_detail_page.dart';
+import '../../features/reports/report_generate_page.dart';
 import '../../features/reports/report_list_page.dart';
 import '../../features/settings/about_page.dart';
 import '../../features/settings/account_settings_page.dart';
@@ -207,6 +210,27 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'vitals-sleep',
                     builder: (_, _) => const HealthSleepPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthSleepFormPage(),
+                      ),
+                      // 编辑：列表带快照可直接预填，缺失时按 id 拉取。
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            HealthSleepFormPage(
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is SleepRecord
+                                  ? state.extra as SleepRecord
+                                  : null,
+                            ),
+                      ),
+                    ],
                   ),
                   // 体重记录：列表 + 趋势，录入/编辑与步数页同一套表单结构。
                   GoRoute(
@@ -284,12 +308,38 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'checkup',
                     builder: (_, _) => const HealthCheckupPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'new',
+                        builder: (_, _) => const HealthCheckupFormPage(),
+                      ),
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            HealthCheckupFormPage(
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is CheckupRecord
+                                  ? state.extra as CheckupRecord
+                                  : null,
+                            ),
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'reports',
                     builder: (_, _) =>
                         const ReportListPage(source: ReportSource.health),
                     routes: <RouteBase>[
+                      GoRoute(
+                        path: 'generate',
+                        builder: (_, _) => const ReportGeneratePage(
+                          source: ReportSource.health,
+                        ),
+                      ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) => ReportDetailPage(
@@ -426,6 +476,12 @@ GoRouter createAppRouter() {
                         const ReportListPage(source: ReportSource.finance),
                     routes: <RouteBase>[
                       GoRoute(
+                        path: 'generate',
+                        builder: (_, _) => const ReportGeneratePage(
+                          source: ReportSource.finance,
+                        ),
+                      ),
+                      GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) => ReportDetailPage(
                           source: ReportSource.finance,
@@ -467,8 +523,7 @@ GoRouter createAppRouter() {
                               ? state.extra as LifestyleItemFormArgs
                               : null;
                           return LifestyleItemFormPage(
-                            categories:
-                                args?.categories ?? const <String>[],
+                            categories: args?.categories ?? const <String>[],
                           );
                         },
                       ),
@@ -486,8 +541,7 @@ GoRouter createAppRouter() {
                                 ) ??
                                 0,
                             initial: args?.item,
-                            categories:
-                                args?.categories ?? const <String>[],
+                            categories: args?.categories ?? const <String>[],
                           );
                         },
                       ),
@@ -526,6 +580,12 @@ GoRouter createAppRouter() {
                     builder: (_, _) =>
                         const ReportListPage(source: ReportSource.lifestyle),
                     routes: <RouteBase>[
+                      GoRoute(
+                        path: 'generate',
+                        builder: (_, _) => const ReportGeneratePage(
+                          source: ReportSource.lifestyle,
+                        ),
+                      ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) => ReportDetailPage(
@@ -602,6 +662,12 @@ GoRouter createAppRouter() {
                     builder: (_, _) =>
                         const ReportListPage(source: ReportSource.investment),
                     routes: <RouteBase>[
+                      GoRoute(
+                        path: 'generate',
+                        builder: (_, _) => const ReportGeneratePage(
+                          source: ReportSource.investment,
+                        ),
+                      ),
                       GoRoute(
                         path: ':id',
                         builder: (_, GoRouterState state) => ReportDetailPage(
