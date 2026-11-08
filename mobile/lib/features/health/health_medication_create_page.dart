@@ -12,9 +12,8 @@ import '../../shared/widgets/section_card.dart';
 /// 新增走 `POST /health/medication`；编辑走 `PUT /health/medication/{id}`
 /// （后端 `exclude_unset` 部分更新，未展示的 `frequency` 不会被清空）。
 ///
-/// 为什么新增在线提交而不是离线队列：后端该接口没有幂等键，
-/// 入队重试可能写出两条同日同药记录（直接影响依从率统计）。
-/// **打卡**仍是对既有记录的 PUT 更新，天然幂等，继续走离线队列。
+/// 所有写操作均直连服务端（移动端离线队列已下线）：
+/// 新增/编辑失败时按「网络错误 / 服务端错误」明确提示，不静默失败。
 class HealthMedicationCreatePage extends StatefulWidget {
   const HealthMedicationCreatePage({super.key, this.recordId, this.initial});
 
@@ -168,7 +167,7 @@ class _HealthMedicationCreatePageState extends State<HealthMedicationCreatePage>
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：保存用药记录需要联网，请恢复网络后重试');
       return;
     }

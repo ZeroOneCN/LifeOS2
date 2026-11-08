@@ -135,6 +135,25 @@ class ApiException implements Exception {
   }
 }
 
+/// 写操作失败的统一文案：显式区分「网络侧」与「服务端侧」，避免静默失败。
+String describeWriteFailure(ApiException error) {
+  switch (error.kind) {
+    case ApiErrorKind.network:
+    case ApiErrorKind.timeout:
+    case ApiErrorKind.badCertificate:
+      return '网络错误：${error.message}';
+    case ApiErrorKind.unauthorized:
+      return '登录状态已失效，请重新登录';
+    case ApiErrorKind.forbidden:
+    case ApiErrorKind.notFound:
+    case ApiErrorKind.server:
+    case ApiErrorKind.badResponse:
+    case ApiErrorKind.cancelled:
+    case ApiErrorKind.unknown:
+      return '服务端错误：${error.message}';
+  }
+}
+
 /// 面向用户的错误文案：把「××接口返回数据为空」这类内部措辞换成用户能理解的说明。
 ///
 /// 这类文案来自客户端对空响应的兜底（服务端异常或代理截断）。用户不需要知道

@@ -9,8 +9,8 @@ import 'core/auth/auth_service.dart';
 import 'core/data/notification_unread_controller.dart';
 import 'core/data/overview_controller.dart';
 import 'core/network/api_client.dart';
+import 'core/network/connectivity_service.dart';
 import 'core/profile/profile_service.dart';
-import 'core/queue/outbox_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/storage/preferences_service.dart';
 import 'core/storage/token_store.dart';
@@ -34,17 +34,16 @@ Future<void> main() async {
     onSessionExpired: () => authService.handleSessionExpired(),
   );
   authService = AuthService(apiClient, tokenStore);
-  final OverviewController overview = OverviewController(apiClient, authService);
-  final NotificationUnreadController notifications =
-      NotificationUnreadController(apiClient, authService);
-  final ProfileService profile = ProfileService(apiClient, authService);
-  final OutboxController outbox = OutboxController(
-    preferences,
+  final OverviewController overview = OverviewController(
     apiClient,
     authService,
   );
-  // 离线队列必须在 runApp 前加载：保证首屏待同步条数准确、冷启动队列不丢。
-  await outbox.init();
+  final NotificationUnreadController notifications =
+      NotificationUnreadController(apiClient, authService);
+  final ProfileService profile = ProfileService(apiClient, authService);
+  final ConnectivityService connectivity = ConnectivityService();
+  // 先取一次连通性，保证首屏的「无网络」提示准确。
+  await connectivity.init();
 
   runApp(
     AppScope(
@@ -55,7 +54,7 @@ Future<void> main() async {
       overview: overview,
       notifications: notifications,
       profile: profile,
-      outbox: outbox,
+      connectivity: connectivity,
       child: LifeOsApp(
         router: createAppRouter(),
         themeMode: preferences.themeMode,
@@ -68,4 +67,3 @@ Future<void> main() async {
   // 监听到登录态变化自动拉四个总览。
   unawaited(authService.restore());
 }
-

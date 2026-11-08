@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 
-/// 普通偏好存储（非敏感）：服务器地址、主题、离线队列等。
+/// 普通偏好存储（非敏感）：服务器地址、主题、字体缩放。
 /// 敏感令牌不落这里，见 `TokenStore`（flutter_secure_storage）。
 class PreferencesService {
   PreferencesService._(this._prefs);
@@ -45,22 +45,6 @@ class PreferencesService {
       default:
         return ThemeMode.system;
     }
-  }
-
-  /// 读取任意字符串键：离线队列等结构化数据以 JSON 字符串存储。
-  String? readString(String key) => _prefs.getString(key);
-
-  /// 写入任意字符串键。
-  Future<void> writeString(String key, String value) async {
-    await _prefs.setString(key, value);
-  }
-
-  /// 读取任意布尔键。
-  bool? readBool(String key) => _prefs.getBool(key);
-
-  /// 写入任意布尔键。
-  Future<void> writeBool(String key, bool value) async {
-    await _prefs.setBool(key, value);
   }
 
   /// 当前服务器地址（含 `/api/v1` 前缀），未设置时回退默认值。

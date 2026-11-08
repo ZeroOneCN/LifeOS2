@@ -117,7 +117,7 @@ class _AboutPageState extends State<AboutPage> {
 /// 隐私政策：说明数据去向与本地存储范围。
 ///
 /// 没有后端页面可跳，内容按 App 实际行为写（自建服务端、令牌安全存储、
-/// 离线队列本地暂存、无第三方统计 SDK），避免放一个空链接。
+/// 本地只存界面偏好、无第三方统计 SDK），避免放一个空链接。
 Future<void> _showPrivacyPolicy(BuildContext context) {
   return showDialog<void>(
     context: context,

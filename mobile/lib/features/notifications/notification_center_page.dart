@@ -19,8 +19,8 @@ import '../../shared/widgets/section_status.dart';
 /// - `PATCH /notifications/batch`：单条标记已读（只提交 `read`，不回写正文）；
 /// - `POST /notifications/read-all`：全部标记已读。
 ///
-/// 取舍：已读是写操作，但**不接离线队列**——已读状态滞后不致命，
-/// 失败时只提示「请重试」，不占用队列额度、也不引入跨端覆盖风险。
+/// 已读是写操作，直接请求服务端：失败时只提示「请重试」，
+/// 不本地乐观标记，避免与服务端真实状态不一致。
 class NotificationCenterPage extends StatefulWidget {
   const NotificationCenterPage({super.key});
 

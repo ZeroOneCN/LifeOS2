@@ -38,8 +38,8 @@ BillKind billKindFromParam(String? value) {
 
 /// 账单新增 / 编辑表单（四类记录共用）。
 ///
-/// 写操作一律在线提交：账单涉及金额，失败时保留表单让用户重试，
-/// 避免静默进入离线队列后重复补录产生重复扣款记录。
+/// 写操作一律直接请求服务端：账单涉及金额，失败时保留表单让用户重试，
+/// 不本地暂存，避免重复补录产生重复扣款记录。
 class FinanceBillFormPage extends StatefulWidget {
   const FinanceBillFormPage({super.key, required this.kind, this.id});
 
@@ -389,7 +389,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：账单涉及金额，需联网后保存');
       return;
     }

@@ -5,8 +5,6 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
-import '../../core/queue/outbox_controller.dart';
-import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/app_buttons.dart';
@@ -46,9 +44,6 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
   bool _hasMore = true;
   bool _loadingMore = false;
 
-  OutboxController? _outbox;
-  DateTime? _seenSyncAt;
-
   @override
   void initState() {
     super.initState();
@@ -58,41 +53,6 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         _refresh();
       }
     });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final OutboxController outbox = AppScope.of(context).outbox;
-    if (_outbox == outbox) {
-      return;
-    }
-    _outbox?.removeListener(_onOutboxChanged);
-    _outbox = outbox;
-    _seenSyncAt = outbox.lastSyncAt;
-    outbox.addListener(_onOutboxChanged);
-  }
-
-  @override
-  void dispose() {
-    _outbox?.removeListener(_onOutboxChanged);
-    super.dispose();
-  }
-
-  /// 队列变化：刷新待同步标记；同步成功后重新拉取服务端真实数据。
-  void _onOutboxChanged() {
-    if (!mounted) {
-      return;
-    }
-    final DateTime? syncAt = _outbox?.lastSyncAt;
-    final bool syncAdvanced = syncAt != null && syncAt != _seenSyncAt;
-    if (syncAdvanced) {
-      _seenSyncAt = syncAt;
-    }
-    setState(() {});
-    if (syncAdvanced) {
-      _refresh();
-    }
   }
 
   /// 首屏/重试：并行拉统计、库存与第一页记录，任一失败整体失败。
@@ -127,12 +87,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
       final Future<Map<String, dynamic>?> stocksFuture = scope.apiClient
           .get<Map<String, dynamic>>('/health/medication/stocks')
           .then((value) => value.data);
-      final List<Map<String, dynamic>?> responses =
-          await Future.wait(<Future<Map<String, dynamic>?>>[
-        statsFuture,
-        listFuture,
-        stocksFuture,
-      ]);
+      final List<Map<String, dynamic>?> responses = await Future.wait(
+        <Future<Map<String, dynamic>?>>[statsFuture, listFuture, stocksFuture],
+      );
       final Map<String, dynamic>? statsJson = responses[0];
       final Map<String, dynamic>? listJson = responses[1];
       final Map<String, dynamic>? stocksJson = responses[2];
@@ -146,7 +103,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
       final List<MedStock> stocks =
           ((stocksJson?['items'] as List?) ?? const <dynamic>[])
               .whereType<Map>()
-              .map((Map item) => MedStock.fromJson(item.cast<String, dynamic>()))
+              .map(
+                (Map item) => MedStock.fromJson(item.cast<String, dynamic>()),
+              )
               .toList(growable: false);
       if (!mounted) {
         return;
@@ -167,7 +126,8 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -190,17 +150,18 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
       return;
     }
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>(
-                '/health/medication/purchases',
-                queryParameters: <String, dynamic>{'page': 1, 'page_size': 5},
-              ))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/health/medication/purchases',
+            queryParameters: <String, dynamic>{'page': 1, 'page_size': 5},
+          )).data;
       final List<MedPurchase> items =
           ((json?['items'] as List?) ?? const <dynamic>[])
               .whereType<Map>()
-              .map((Map item) =>
-                  MedPurchase.fromJson(item.cast<String, dynamic>()))
+              .map(
+                (Map item) =>
+                    MedPurchase.fromJson(item.cast<String, dynamic>()),
+              )
               .toList();
       if (!mounted) {
         return;
@@ -226,13 +187,14 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     final AppScope scope = AppScope.of(context);
     setState(() => _loadingMore = true);
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/health/medication',
-                  queryParameters: <String, dynamic>{
-            'page': _page + 1,
-            'page_size': 20,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/health/medication',
+            queryParameters: <String, dynamic>{
+              'page': _page + 1,
+              'page_size': 20,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -252,9 +214,8 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _loadingMore = false);
@@ -266,16 +227,20 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
   List<MedicationRecord> _parseItems(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
         .whereType<Map>()
-        .map((Map item) =>
-            MedicationRecord.fromJson(item.cast<String, dynamic>()))
+        .map(
+          (Map item) => MedicationRecord.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
 
   /// 打开新增用药页；保存成功返回后立即重拉列表与今日统计。
+  ///
+  /// 表单保存后 pop 的是 `'saved'` 字符串（详情页编辑同样用它区分已保存），
+  /// 这里必须按字符串接收，否则类型不匹配拿到 null，列表不会刷新。
   Future<void> _openCreate() async {
-    final bool? created = await context.push<bool>('/health/medication/new');
-    if (created == true && mounted) {
-      _refresh();
+    final String? result = await context.push<String>('/health/medication/new');
+    if (result == 'saved' && mounted) {
+      await _refresh();
     }
   }
 
@@ -305,8 +270,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
   /// 打开新增购药记录；保存后重拉库存（后端会同步补货）与购药列表。
   Future<void> _openPurchase() async {
-    final bool? created =
-        await context.push<bool>('/health/medication/purchases/new');
+    final bool? created = await context.push<bool>(
+      '/health/medication/purchases/new',
+    );
     if (created == true && mounted) {
       await _refresh();
     }
@@ -375,34 +341,32 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     }
   }
 
-  /// 列表内快速打卡：弹层列出早/午/晚，点未服的一餐直接入队。
+  /// 列表内快速打卡：弹层列出早/午/晚，点未服的一餐直接提交。
   ///
   /// 之前打卡入口只在详情页，用户在列表看不到；这里把入口放到记录行上，
   /// 同时保留详情页入口。已打卡的餐次不再重复提交。
   Future<void> _openCheckIn(MedicationRecord record) async {
-    final Map<String, dynamic>? pending =
-        _outbox?.pendingPayloadFor(outboxOpMedicationCheckin, record.id);
     final List<({int slot, String label, int dose, bool taken})> slots =
         <({int slot, String label, int dose, bool taken})>[
-      (
-        slot: 0,
-        label: '早餐',
-        dose: record.doseBreakfast,
-        taken: (pending?['taken_breakfast'] as bool?) ?? record.takenBreakfast,
-      ),
-      (
-        slot: 1,
-        label: '午餐',
-        dose: record.doseLunch,
-        taken: (pending?['taken_lunch'] as bool?) ?? record.takenLunch,
-      ),
-      (
-        slot: 2,
-        label: '晚餐',
-        dose: record.doseDinner,
-        taken: (pending?['taken_dinner'] as bool?) ?? record.takenDinner,
-      ),
-    ];
+          (
+            slot: 0,
+            label: '早餐',
+            dose: record.doseBreakfast,
+            taken: record.takenBreakfast,
+          ),
+          (
+            slot: 1,
+            label: '午餐',
+            dose: record.doseLunch,
+            taken: record.takenLunch,
+          ),
+          (
+            slot: 2,
+            label: '晚餐',
+            dose: record.doseDinner,
+            taken: record.takenDinner,
+          ),
+        ];
     final int? selected = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
@@ -458,57 +422,49 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     }
   }
 
-  /// 列表内打卡：以队列里的最新已服状态为基准，避免覆盖掉待同步的餐次。
+  /// 列表内打卡：直接提交 `PUT /health/medication/{id}`。
   Future<void> _checkIn(MedicationRecord record, int slot) async {
-    final OutboxController? outbox = _outbox;
-    if (outbox == null) {
-      return;
-    }
-    final Map<String, dynamic>? pending =
-        outbox.pendingPayloadFor(outboxOpMedicationCheckin, record.id);
-    final bool breakfast =
-        (pending?['taken_breakfast'] as bool?) ?? record.takenBreakfast;
-    final bool lunch = (pending?['taken_lunch'] as bool?) ?? record.takenLunch;
-    final bool dinner =
-        (pending?['taken_dinner'] as bool?) ?? record.takenDinner;
     final bool alreadyTaken = switch (slot) {
-      0 => breakfast,
-      1 => lunch,
-      _ => dinner,
+      0 => record.takenBreakfast,
+      1 => record.takenLunch,
+      _ => record.takenDinner,
     };
     if (alreadyTaken) {
       return;
     }
-    final OutboxEntry? entry = await outbox.enqueueMedicationCheckin(
-      <String, dynamic>{
-        'id': record.id,
-        'record_date': record.recordDate,
-        'medicine_name': record.medicineName,
-        'dose_breakfast': record.doseBreakfast,
-        'dose_lunch': record.doseLunch,
-        'dose_dinner': record.doseDinner,
-        'taken_breakfast': slot == 0 ? true : breakfast,
-        'taken_lunch': slot == 1 ? true : lunch,
-        'taken_dinner': slot == 2 ? true : dinner,
-        if (record.frequency != null) 'frequency': record.frequency,
-        if (record.note != null) 'note': record.note,
-      },
-    );
+    final AppScope scope = AppScope.of(context);
+    try {
+      await scope.apiClient.put<Map<String, dynamic>>(
+        '/health/medication/${record.id}',
+        data: <String, dynamic>{
+          'id': record.id,
+          'record_date': record.recordDate,
+          'medicine_name': record.medicineName,
+          'dose_breakfast': record.doseBreakfast,
+          'dose_lunch': record.doseLunch,
+          'dose_dinner': record.doseDinner,
+          'taken_breakfast': slot == 0 ? true : record.takenBreakfast,
+          'taken_lunch': slot == 1 ? true : record.takenLunch,
+          'taken_dinner': slot == 2 ? true : record.takenDinner,
+          if (record.frequency != null) 'frequency': record.frequency,
+          if (record.note != null) 'note': record.note,
+        },
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打卡失败。${describeWriteFailure(error)}')),
+      );
+      return;
+    }
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          entry == null
-              ? '待同步已达上限（200 条），请先联网同步后再打卡'
-              : (outbox.isOnline
-                  ? '已打卡，正在同步到服务器'
-                  : '已打卡（待同步），联网后自动同步'),
-        ),
-      ),
-    );
-    setState(() {});
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已打卡')));
+    await _refresh();
   }
 
   @override
@@ -517,12 +473,14 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     final Color muted = theme.colorScheme.onSurfaceVariant;
     final MedicationStats? stats = _stats;
     // 近 7 天（stats.days）餐次计划的粒数合计，用于说明依从率分母。
-    final int windowTaken = stats?.bySlot.fold<int>(
+    final int windowTaken =
+        stats?.bySlot.fold<int>(
           0,
           (int sum, MedSlot slot) => sum + slot.taken,
         ) ??
         0;
-    final int windowTotal = stats?.bySlot.fold<int>(
+    final int windowTotal =
+        stats?.bySlot.fold<int>(
           0,
           (int sum, MedSlot slot) => sum + slot.total,
         ) ??
@@ -584,13 +542,17 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                         windowTotal == 0
                             ? '口径：今日已服 / 待服按「粒」统计；近 7 天没有计划剂量，依从率暂记「—」。'
                             : '口径：今日已服 / 待服按「粒」统计；7 日依从率 = 近 7 天已服 '
-                                '$windowTaken / 计划 $windowTotal 粒，今日尚未到点的剂量不计为失败。',
-                        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                                  '$windowTaken / 计划 $windowTotal 粒，今日尚未到点的剂量不计为失败。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
                       ),
                       if (stats.todayTaken == 0 && stats.todayPending == 0)
                         Text(
                           '今日暂无用药计划，下方依从率统计的是近 7 天数据。',
-                          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
                         ),
                       Wrap(
                         spacing: 8,
@@ -604,8 +566,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                             label: '累计 ${stats.totalPills} 粒',
                             tone: StatusTone.info,
                           ),
-                          if (stats.bySlot.any((MedSlot slot) =>
-                              slot.total > slot.taken))
+                          if (stats.bySlot.any(
+                            (MedSlot slot) => slot.total > slot.taken,
+                          ))
                             StatusChip(
                               label: '有未服用的餐次',
                               tone: StatusTone.warning,
@@ -615,8 +578,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                       if (stats.bySlot.isNotEmpty) ...<Widget>[
                         Text(
                           '近 7 天餐次完成度（按粒）',
-                          style:
-                              theme.textTheme.bodySmall?.copyWith(color: muted),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
                         ),
                         Column(
                           spacing: 8,
@@ -640,7 +604,8 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                                             ? 0
                                             : slot.taken / slot.total,
                                         minHeight: 6,
-                                        backgroundColor: theme.colorScheme
+                                        backgroundColor: theme
+                                            .colorScheme
                                             .surfaceContainerHighest,
                                       ),
                                     ),
@@ -762,10 +727,6 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                             for (final MedicationRecord record in _items)
                               _RecordRow(
                                 record: record,
-                                pending: _outbox?.pendingPayloadFor(
-                                  outboxOpMedicationCheckin,
-                                  record.id,
-                                ),
                                 onTap: () => _openDetail(record),
                                 onCheckIn: () => _openCheckIn(record),
                               ),
@@ -958,16 +919,12 @@ class _PurchaseRow extends StatelessWidget {
   }
 }
 
-/// 用药记录行：日期/药名 + 早中晚用量 + 完成状态 + 待同步标记。
-///
-/// [pending] 为本地待同步的打卡请求体：有值时按它覆盖已服状态，
-/// 让列表在断网时也能立即反映用户的打卡，不必等服务器。
+/// 用药记录行：日期/药名 + 早中晚用量 + 完成状态。
 class _RecordRow extends StatelessWidget {
   const _RecordRow({
     required this.record,
     required this.onTap,
     required this.onCheckIn,
-    this.pending,
   });
 
   final MedicationRecord record;
@@ -975,19 +932,14 @@ class _RecordRow extends StatelessWidget {
 
   /// 快捷打卡回调：打开早/午/晚选择弹层。
   final VoidCallback onCheckIn;
-  final Map<String, dynamic>? pending;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    final Map<String, dynamic>? local = pending;
-    final bool takenBreakfast =
-        (local?['taken_breakfast'] as bool?) ?? record.takenBreakfast;
-    final bool takenLunch =
-        (local?['taken_lunch'] as bool?) ?? record.takenLunch;
-    final bool takenDinner =
-        (local?['taken_dinner'] as bool?) ?? record.takenDinner;
+    final bool takenBreakfast = record.takenBreakfast;
+    final bool takenLunch = record.takenLunch;
+    final bool takenDinner = record.takenDinner;
     final int takenDoses =
         (takenBreakfast ? record.doseBreakfast : 0) +
         (takenLunch ? record.doseLunch : 0) +
@@ -1020,13 +972,10 @@ class _RecordRow extends StatelessWidget {
                       ),
                       StatusChip(
                         label: complete ? '已完成' : '未完成',
-                        tone: complete ? StatusTone.success : StatusTone.warning,
+                        tone: complete
+                            ? StatusTone.success
+                            : StatusTone.warning,
                       ),
-                      if (local != null)
-                        const StatusChip(
-                          label: '待同步',
-                          tone: StatusTone.info,
-                        ),
                     ],
                   ),
                   Text(

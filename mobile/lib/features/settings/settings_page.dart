@@ -8,7 +8,6 @@ import '../../core/app_scope.dart';
 import '../../core/models/app_user.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/profile/profile_service.dart';
-import '../../core/queue/outbox_controller.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -26,11 +25,7 @@ class SettingsPage extends StatelessWidget {
     final AppScope scope = AppScope.of(context);
 
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[
-        scope.auth,
-        scope.overview,
-        scope.outbox,
-      ]),
+      listenable: Listenable.merge(<Listenable>[scope.auth, scope.overview]),
       builder: (BuildContext context, _) {
         final AppUser? user = scope.auth.user;
         final bool offline = scope.auth.connectionFailed;
@@ -50,11 +45,7 @@ class SettingsPage extends StatelessWidget {
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        baseUrl,
-                        maxLines: 1,
-                        softWrap: false,
-                      ),
+                      child: Text(baseUrl, maxLines: 1, softWrap: false),
                     ),
                   ),
                   onTap: () => context.push('/settings/server'),
@@ -76,7 +67,8 @@ class SettingsPage extends StatelessWidget {
                     // 「已加载 / 待加载」是技术状态，用户看不懂；改成能否看到
                     // 最近数据 + 点按刷新。
                     label: '首页数据',
-                    value: scope.overview.health.hasData ||
+                    value:
+                        scope.overview.health.hasData ||
                             scope.overview.finance.hasData
                         ? '已同步最新数据'
                         : (offline ? '未同步' : '同步中…'),
@@ -103,85 +95,19 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
             ),
-            SectionCard(
-              title: '离线队列',
-              child: Column(
-                children: <Widget>[
-                  _InfoRow(
-                    label: '待同步',
-                    value:
-                        '${scope.outbox.pendingCount} / ${OutboxController.maxEntries} 条',
-                  ),
-                  const Divider(height: 16),
-                  _InfoRow(
-                    label: '上次同步',
-                    value: _formatSyncTime(scope.outbox.lastSyncAt),
-                  ),
-                  if (!scope.outbox.isOnline) ...<Widget>[
-                    const Divider(height: 16),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '当前无网络，恢复后按入队顺序自动推送',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: null,
-                          child: const Text('立即同步'),
-                        ),
-                      ],
-                    ),
-                  ] else if (scope.outbox.pendingCount > 0) ...<Widget>[
-                    const Divider(height: 16),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            scope.outbox.isSyncing
-                                ? '正在同步…'
-                                : (scope.outbox.needsManualRetry
-                                    ? '自动重试已停止，请手动重试'
-                                    : (scope.outbox.lastError ??
-                                        '有积压，点击右侧立即推送')),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scope.outbox.lastError == null
-                                  ? theme.colorScheme.onSurfaceVariant
-                                  : theme.colorScheme.error,
-                            ),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed:
-                              scope.outbox.isSyncing ? null : scope.outbox.retryNow,
-                          child: const Text('立即同步'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
             EntryTile(
               icon: Icons.manage_accounts_outlined,
               title: '账户设置',
               subtitle: user == null ? '登录后可管理账号信息' : null,
-              onTap: () => context.push(
-                user == null ? '/login' : '/settings/account',
-              ),
+              onTap: () =>
+                  context.push(user == null ? '/login' : '/settings/account'),
             ),
             EntryTile(
               icon: Icons.devices_outlined,
               title: '登录设备',
-              subtitle: user == null
-                  ? '登录后查看活跃会话'
-                  : '查看活跃会话，下线其他设备',
-              onTap: () => context.push(
-                user == null ? '/login' : '/settings/devices',
-              ),
+              subtitle: user == null ? '登录后查看活跃会话' : '查看活跃会话，下线其他设备',
+              onTap: () =>
+                  context.push(user == null ? '/login' : '/settings/devices'),
             ),
             SectionCard(
               title: '外观',
@@ -196,10 +122,10 @@ class SettingsPage extends StatelessWidget {
                         children: <Widget>[
                           for (final (String label, ThemeMode target)
                               in const <(String, ThemeMode)>[
-                            ('跟随系统', ThemeMode.system),
-                            ('浅色', ThemeMode.light),
-                            ('深色', ThemeMode.dark),
-                          ])
+                                ('跟随系统', ThemeMode.system),
+                                ('浅色', ThemeMode.light),
+                                ('深色', ThemeMode.dark),
+                              ])
                             Expanded(
                               child: _SegmentedOption(
                                 label: label,
@@ -235,14 +161,15 @@ class SettingsPage extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           Expanded(
-                            child: Text('跟随系统', style: theme.textTheme.bodyMedium),
+                            child: Text(
+                              '跟随系统',
+                              style: theme.textTheme.bodyMedium,
+                            ),
                           ),
                           Switch(
                             value: followSystem,
-                            onChanged: (bool value) =>
-                                scope.preferences.setFontScaleRatio(
-                              value ? null : 1.0,
-                            ),
+                            onChanged: (bool value) => scope.preferences
+                                .setFontScaleRatio(value ? null : 1.0),
                           ),
                         ],
                       ),
@@ -252,17 +179,17 @@ class SettingsPage extends StatelessWidget {
                         children: <Widget>[
                           for (final (String label, double value)
                               in const <(String, double)>[
-                            ('小', 0.9),
-                            ('标准', 1.0),
-                            ('大', 1.15),
-                            ('特大', 1.3),
-                          ])
+                                ('小', 0.9),
+                                ('标准', 1.0),
+                                ('大', 1.15),
+                                ('特大', 1.3),
+                              ])
                             Expanded(
                               child: _SegmentedOption(
                                 label: label,
                                 selected: ratio == value,
-                                onTap: () => scope.preferences
-                                    .setFontScaleRatio(value),
+                                onTap: () =>
+                                    scope.preferences.setFontScaleRatio(value),
                               ),
                             ),
                         ],
@@ -320,9 +247,8 @@ class _AccountCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push(
-          current == null ? '/login' : '/settings/account',
-        ),
+        onTap: () =>
+            context.push(current == null ? '/login' : '/settings/account'),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -333,9 +259,7 @@ class _AccountCard extends StatelessWidget {
                     ? null
                     : () => _openAvatar(context, scope, current),
                 child: Tooltip(
-                  message: current == null
-                      ? '登录后可设置头像'
-                      : '点击查看头像大图',
+                  message: current == null ? '登录后可设置头像' : '点击查看头像大图',
                   child: UserAvatar(user: current, radius: 26),
                 ),
               ),
@@ -422,37 +346,29 @@ class _AccountCard extends StatelessWidget {
       return;
     }
     // 用根 Navigator 压栈：大图页必须盖住底部导航，才是真正的全屏预览。
-    final AvatarPreviewAction? action = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<AvatarPreviewAction>(
-      MaterialPageRoute<AvatarPreviewAction>(
-        builder: (BuildContext _) => AvatarPreviewPage(url: url),
-      ),
-    );
+    final AvatarPreviewAction? action =
+        await Navigator.of(
+          context,
+          rootNavigator: true,
+        ).push<AvatarPreviewAction>(
+          MaterialPageRoute<AvatarPreviewAction>(
+            builder: (BuildContext _) => AvatarPreviewPage(url: url),
+          ),
+        );
     if (action == null || !context.mounted) {
       return;
     }
     await showAvatarSheet(context, scope);
   }
 
-  /// 退出登录：先二次确认（说明离线队列的去留），再清本地令牌并回到「未登录」。
-  ///
-  /// 本地离线队列不会因登出而清空：未同步记录保留在本机，
-  /// 下次登录后会按 FIFO 继续推送。
+  /// 退出登录：先二次确认，再清本地令牌并回到「未登录」。
   Future<void> _confirmLogout(BuildContext context, AppScope scope) async {
-    final int pending = scope.outbox.pendingCount;
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('退出登录？'),
-          content: Text(
-            pending > 0
-                ? '本机还有 $pending 条未同步记录。退出登录不会清空它们，'
-                    '会保留在本机，下次登录后继续自动同步；但退出后需重新登录才能查看数据。'
-                : '退出后需要重新输入账号密码才能登录，本机已同步的数据仍保留在服务器。',
-          ),
+          content: const Text('退出后需要重新输入账号密码才能登录，数据仍保留在服务器。'),
           actions: <Widget>[
             AppActionRow(
               first: AppSecondaryButton(
@@ -478,9 +394,8 @@ class _AccountCard extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已退出登录')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已退出登录')));
   }
 }
 
@@ -648,9 +563,8 @@ class _AvatarSheetState extends State<_AvatarSheet> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -741,9 +655,8 @@ class _AvatarUrlDialogState extends State<_AvatarUrlDialog> {
     final String text = _controller.text.trim();
     final String? error = AvatarRules.validateUrl(text);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
       return;
     }
     Navigator.of(context).pop(text);
@@ -799,28 +712,22 @@ class _Option extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Color color =
-        danger ? theme.colorScheme.error : theme.colorScheme.onSurface;
+    final Color color = danger
+        ? theme.colorScheme.error
+        : theme.colorScheme.onSurface;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       enabled: onTap != null,
       leading: Icon(icon, color: danger ? theme.colorScheme.error : null),
-      title: Text(title, style: theme.textTheme.bodyLarge?.copyWith(color: color)),
+      title: Text(
+        title,
+        style: theme.textTheme.bodyLarge?.copyWith(color: color),
+      ),
       subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
   }
-}
-
-/// 上次同步时间的展示文本：本地时区 `MM-dd HH:mm`，从未同步显示占位。
-String _formatSyncTime(DateTime? time) {
-  if (time == null) {
-    return '尚未同步';
-  }
-  final DateTime local = time.toLocal();
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
 }
 
 class _InfoRow extends StatelessWidget {

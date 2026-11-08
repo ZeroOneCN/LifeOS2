@@ -484,7 +484,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     }
     final AppScope scope = AppScope.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       messenger.showSnackBar(
         const SnackBar(content: Text('当前无网络：扣费需要联网，请恢复网络后重试')),
       );

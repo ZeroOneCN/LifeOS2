@@ -5,8 +5,6 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
-import '../../core/queue/outbox_controller.dart';
-import '../../core/queue/outbox_entry.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
@@ -15,7 +13,7 @@ import '../finance/finance_status_widgets.dart';
 /// 用药记录明细：单日记录的三餐用量与完成情况。
 ///
 /// 数据：`GET /health/medication/{id}`；[initial] 是列表页带过来的快照，
-/// 断网进入时先用它渲染，打卡仍可走本地队列，联网后刷新为服务端真实值。
+/// 断网进入时先用它渲染，打卡直接请求服务端，失败按网络 / 服务端错误提示。
 class HealthMedicationDetailPage extends StatefulWidget {
   const HealthMedicationDetailPage({
     super.key,
@@ -38,8 +36,6 @@ class _HealthMedicationDetailPageState
   MedicationRecord? _record;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
-  OutboxController? _outbox;
-  DateTime? _seenSyncAt;
 
   @override
   void initState() {
@@ -54,51 +50,13 @@ class _HealthMedicationDetailPageState
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final OutboxController outbox = AppScope.of(context).outbox;
-    if (_outbox == outbox) {
-      return;
-    }
-    _outbox?.removeListener(_onOutboxChanged);
-    _outbox = outbox;
-    _seenSyncAt = outbox.lastSyncAt;
-    outbox.addListener(_onOutboxChanged);
-  }
-
-  @override
-  void dispose() {
-    _outbox?.removeListener(_onOutboxChanged);
-    super.dispose();
-  }
-
-  /// 队列变化：刷新「待同步」标记；同步成功后再拉一次服务端真实值。
-  void _onOutboxChanged() {
-    if (!mounted) {
-      return;
-    }
-    final DateTime? syncAt = _outbox?.lastSyncAt;
-    final bool syncAdvanced = syncAt != null && syncAt != _seenSyncAt;
-    if (syncAdvanced) {
-      _seenSyncAt = syncAt;
-    }
-    setState(() {});
-    if (syncAdvanced) {
-      _refresh();
-    }
-  }
-
-  /// 离线打卡：本地立即标记已服并写入队列；联网后自动 PUT 回服务端。
-  ///
-  /// 打卡是对既有记录的更新（`PUT /health/medication/{id}`），
-  /// 同一请求体重复执行结果一致，因此重试天然幂等，不做查重。
+  /// 打卡：直接 `PUT /health/medication/{id}`，失败按网络 / 服务端错误分别提示。
   Future<void> _checkIn(int slot) async {
     final MedicationRecord? record = _record;
-    final OutboxController? outbox = _outbox;
-    if (record == null || outbox == null) {
+    if (record == null) {
       return;
     }
+    final AppScope scope = AppScope.of(context);
     final Map<String, dynamic> payload = <String, dynamic>{
       'id': record.id,
       'record_date': record.recordDate,
@@ -112,16 +70,21 @@ class _HealthMedicationDetailPageState
       if (record.frequency != null) 'frequency': record.frequency,
       if (record.note != null) 'note': record.note,
     };
-    final OutboxEntry? entry = await outbox.enqueueMedicationCheckin(payload);
-    if (!mounted) {
+    try {
+      await scope.apiClient.put<Map<String, dynamic>>(
+        '/health/medication/${record.id}',
+        data: payload,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打卡失败。${describeWriteFailure(error)}')),
+      );
       return;
     }
-    if (entry == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('待同步已达上限（200 条），请先联网同步后再打卡'),
-        ),
-      );
+    if (!mounted) {
       return;
     }
     setState(() {
@@ -131,13 +94,8 @@ class _HealthMedicationDetailPageState
         takenDinner: slot == 2 ? true : null,
       );
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          outbox.isOnline ? '已打卡，正在同步到服务器' : '已打卡（待同步），联网后自动同步',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已打卡')));
   }
 
   /// 编辑该记录；保存或删除后直接返回列表，由列表重拉统计与记录。
@@ -175,10 +133,10 @@ class _HealthMedicationDetailPageState
       _message = null;
     });
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>(
-                  '/health/medication/${widget.recordId}'))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/health/medication/${widget.recordId}',
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -196,7 +154,8 @@ class _HealthMedicationDetailPageState
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -259,15 +218,6 @@ class _HealthMedicationDetailPageState
                                 ? StatusTone.success
                                 : StatusTone.warning,
                           ),
-                          if (_outbox?.hasPendingTarget(
-                                outboxOpMedicationCheckin,
-                                record.id,
-                              ) ??
-                              false)
-                            const StatusChip(
-                              label: '待同步',
-                              tone: StatusTone.info,
-                            ),
                         ],
                       ),
                       _DetailRow(label: '日期', value: record.recordDate),
@@ -349,7 +299,7 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-/// 单餐行：餐次 + 粒数 + 已服/未服；未服时可直接打卡（离线走队列）。
+/// 单餐行：餐次 + 粒数 + 已服/未服；未服时可直接打卡。
 class _MealRow extends StatelessWidget {
   const _MealRow({
     required this.label,
@@ -369,7 +319,10 @@ class _MealRow extends StatelessWidget {
     return Row(
       spacing: 12,
       children: <Widget>[
-        SizedBox(width: 44, child: Text(label, style: theme.textTheme.bodyMedium)),
+        SizedBox(
+          width: 44,
+          child: Text(label, style: theme.textTheme.bodyMedium),
+        ),
         Expanded(
           child: Text(
             dose == 0 ? '无需服用' : '$dose 粒',

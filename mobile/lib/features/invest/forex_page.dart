@@ -5,8 +5,6 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/investment_models.dart';
 import '../../core/network/api_exception.dart';
-import '../../core/queue/outbox_controller.dart';
-import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -26,8 +24,7 @@ import '../finance/finance_status_widgets.dart';
 /// 页内「统计区间」是唯一时间口径：资金四卡、三色柱图、资金明细与交易记录
 /// 全部由同一个 `_rangeDays` 推导出的 `start` / `end` 拉取，避免两处区间不一致。
 ///
-/// 新增 / 编辑交易分别进入 `/invest/forex/new`、`/invest/forex/edit/{id}`，
-/// 返回 `true` 后刷新汇总与两个列表。
+/// 行情与交易数据统一由网页端导入，移动端只读：本页不提供新增 / 编辑入口。
 class ForexPage extends StatefulWidget {
   const ForexPage({super.key});
 
@@ -57,9 +54,6 @@ class _ForexPageState extends State<ForexPage> {
   int _tradeTotal = 0;
   bool _tradeHasMore = false;
   bool _tradeLoadingMore = false;
-
-  OutboxController? _outbox;
-  DateTime? _seenSyncAt;
 
   /// 区间左边界（`YYYY-MM-DD`）；全部时为空。
   String? get _rangeStart {
@@ -98,42 +92,6 @@ class _ForexPageState extends State<ForexPage> {
         _refresh();
       }
     });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final OutboxController outbox = AppScope.of(context).outbox;
-    if (_outbox == outbox) {
-      return;
-    }
-    _outbox?.removeListener(_onOutboxChanged);
-    _outbox = outbox;
-    _seenSyncAt = outbox.lastSyncAt;
-    outbox.addListener(_onOutboxChanged);
-  }
-
-  @override
-  void dispose() {
-    _outbox?.removeListener(_onOutboxChanged);
-    super.dispose();
-  }
-
-  /// 队列变化：刷新「待同步」临时行；推送成功后重新拉服务端真实记录，
-  /// 让临时行消失、真实行补上，不会同时出现两条。
-  void _onOutboxChanged() {
-    if (!mounted) {
-      return;
-    }
-    final DateTime? syncAt = _outbox?.lastSyncAt;
-    final bool syncAdvanced = syncAt != null && syncAt != _seenSyncAt;
-    if (syncAdvanced) {
-      _seenSyncAt = syncAt;
-    }
-    setState(() {});
-    if (syncAdvanced) {
-      _refresh();
-    }
   }
 
   /// 首屏/重试：并行拉资金合计、资金明细第一页、交易第一页。
@@ -226,15 +184,14 @@ class _ForexPageState extends State<ForexPage> {
     AppScope scope,
   ) async {
     if (_rangeDays == 0) {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>(
-                '/investment/funds',
-                queryParameters: <String, dynamic>{
-                  'page': 1,
-                  'page_size': _pageSize,
-                },
-              ))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/investment/funds',
+            queryParameters: <String, dynamic>{
+              'page': 1,
+              'page_size': _pageSize,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -249,15 +206,11 @@ class _ForexPageState extends State<ForexPage> {
     final List<FundRecord> all = <FundRecord>[];
     int total = 0;
     for (int page = 1; page <= 5; page++) {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>(
-                '/investment/funds',
-                queryParameters: <String, dynamic>{
-                  'page': page,
-                  'page_size': 100,
-                },
-              ))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/investment/funds',
+            queryParameters: <String, dynamic>{'page': page, 'page_size': 100},
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -294,13 +247,14 @@ class _ForexPageState extends State<ForexPage> {
     final AppScope scope = AppScope.of(context);
     setState(() => _fundLoadingMore = true);
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/investment/funds',
-                  queryParameters: <String, dynamic>{
-            'page': _fundPage + 1,
-            'page_size': _pageSize,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/investment/funds',
+            queryParameters: <String, dynamic>{
+              'page': _fundPage + 1,
+              'page_size': _pageSize,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -320,9 +274,8 @@ class _ForexPageState extends State<ForexPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _fundLoadingMore = false);
@@ -338,14 +291,15 @@ class _ForexPageState extends State<ForexPage> {
     final AppScope scope = AppScope.of(context);
     setState(() => _tradeLoadingMore = true);
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/investment/forex',
-                  queryParameters: <String, dynamic>{
-            ..._rangeParams,
-            'page': _tradePage + 1,
-            'page_size': _pageSize,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/investment/forex',
+            queryParameters: <String, dynamic>{
+              ..._rangeParams,
+              'page': _tradePage + 1,
+              'page_size': _pageSize,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -365,9 +319,8 @@ class _ForexPageState extends State<ForexPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _tradeLoadingMore = false);
@@ -385,10 +338,7 @@ class _ForexPageState extends State<ForexPage> {
 
   /// 查看交易详情（只读，无编辑 / 删除入口）。
   Future<void> _openTradeDetail(ForexTrade trade) async {
-    await context.push<void>(
-      '/invest/forex/edit/${trade.id}',
-      extra: trade,
-    );
+    await context.push<void>('/invest/forex/edit/${trade.id}', extra: trade);
   }
 
   /// 资金分页响应 `items` → [FundRecord]。
@@ -412,7 +362,8 @@ class _ForexPageState extends State<ForexPage> {
     if (error.isUnauthorized) {
       return LoadStatus.unauthenticated;
     }
-    final bool offline = scope.auth.hasLocalSession &&
+    final bool offline =
+        scope.auth.hasLocalSession &&
         (error.kind == ApiErrorKind.network ||
             error.kind == ApiErrorKind.timeout);
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
@@ -424,380 +375,126 @@ class _ForexPageState extends State<ForexPage> {
     final TextStyle? trailingStyle = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    final OutboxController outbox = AppScope.of(context).outbox;
-
-    return ListenableBuilder(
-      listenable: outbox,
-      builder: (BuildContext context, Widget? _) {
-        final List<OutboxEntry> pending =
-            outbox.pendingOf(outboxOpForexCreate);
-        return DetailPageScaffold(
-          title: '外汇交易',
-          // 行情与资金数据统一由网页端导入：移动端不提供新增入口，
-          // 因此页面没有底栏，也没有悬浮按钮。
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 24),
+    return DetailPageScaffold(
+      title: '外汇交易',
+      // 行情与资金数据统一由网页端导入：移动端不提供新增入口，
+      // 因此页面没有底栏，也没有悬浮按钮。
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 24),
+        children: <Widget>[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
             children: <Widget>[
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: <Widget>[
-                  if (pending.isNotEmpty) _PendingTradesCard(
-                    entries: pending,
-                    outbox: outbox,
-                    theme: theme,
-                  ),
-                  ListStatusView(
-                    status: _status,
-                    message: _message,
-                    onRetry: _refresh,
-                  ),
-                  if (_status == LoadStatus.ready) ...<Widget>[
-                    SectionCard(
-                      title: '资金动态',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 8,
-                        children: <Widget>[
-                          // 时间范围紧贴标题下方：唯一的统计口径，
-                          // 四卡、柱图、明细与交易记录都按它重拉。
-                          SegmentedButton<int>(
-                            segments: const <ButtonSegment<int>>[
-                              ButtonSegment<int>(
-                                value: 30,
-                                label: Text('近 30 天', maxLines: 1),
-                              ),
-                              ButtonSegment<int>(
-                                value: 90,
-                                label: Text('近 90 天', maxLines: 1),
-                              ),
-                              ButtonSegment<int>(
-                                value: 0,
-                                label: Text('全部', maxLines: 1),
-                              ),
-                            ],
-                            selected: <int>{_rangeDays},
-                            showSelectedIcon: false,
-                            onSelectionChanged: (Set<int> selection) =>
-                                _setRange(selection.first),
+              ListStatusView(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+              if (_status == LoadStatus.ready) ...<Widget>[
+                SectionCard(
+                  title: '资金动态',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 8,
+                    children: <Widget>[
+                      // 时间范围紧贴标题下方：唯一的统计口径，
+                      // 四卡、柱图、明细与交易记录都按它重拉。
+                      SegmentedButton<int>(
+                        segments: const <ButtonSegment<int>>[
+                          ButtonSegment<int>(
+                            value: 30,
+                            label: Text('近 30 天', maxLines: 1),
                           ),
-                          Text(
-                            '$_rangeLabel · 四卡、柱图、明细与交易记录同口径',
-                            style: trailingStyle,
+                          ButtonSegment<int>(
+                            value: 90,
+                            label: Text('近 90 天', maxLines: 1),
                           ),
-                          Text(
-                            '共 $_fundTotal 笔 · 按发生日期倒序',
-                            style: trailingStyle,
+                          ButtonSegment<int>(
+                            value: 0,
+                            label: Text('全部', maxLines: 1),
                           ),
-                          _FundMetrics(stats: _fundStats),
-                          _FundByDateChart(
-                            days: _fundStats?.byDate ?? const <FundDayStat>[],
-                          ),
-                          if (_funds.isEmpty)
-                            EmptyState(
-                              icon: Icons.account_balance_wallet_outlined,
-                              title: _rangeDays == 0 ? '暂无资金记录' : '该区间没有资金记录',
-                              description: _rangeDays == 0
-                                  ? '资金记录由网页端导入，移动端仅支持查看'
-                                  : '可切换上方「全部」查看历史记录',
-                              compact: true,
-                            )
-                          else
-                            Column(
-                              children: <Widget>[
-                                for (final FundRecord record in _funds)
-                                  _FundRow(
-                                    record: record,
-                                    onTap: () => _openFundDetail(record),
-                                  ),
-                              ],
-                            ),
-                          if (_funds.isNotEmpty)
-                            ListLoadMoreFooter(
-                              loading: _fundLoadingMore,
-                              hasMore: _fundHasMore,
-                              onPressed: _loadMoreFunds,
-                            ),
                         ],
+                        selected: <int>{_rangeDays},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (Set<int> selection) =>
+                            _setRange(selection.first),
                       ),
-                    ),
-                    SectionCard(
-                      title: '交易记录',
-                      trailing: Text(
-                        '$_rangeLabel · 共 $_tradeTotal 笔'
-                        '${pending.isEmpty ? '' : ' · 待同步 ${pending.length}'}',
+                      Text(
+                        '$_rangeLabel · 四卡、柱图、明细与交易记录同口径',
                         style: trailingStyle,
                       ),
-                      child: _trades.isEmpty
-                          ? EmptyState(
-                              icon: Icons.show_chart_outlined,
-                              title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
-                              description: _rangeDays == 0
-                                  ? '交易数据由网页端导入，移动端仅支持查看'
-                                  : '可切换上方「全部」查看历史记录',
-                              compact: true,
-                            )
-                          : Column(
-                              children: <Widget>[
-                                for (final ForexTrade trade in _trades)
-                                  _TradeRow(
-                                    trade: trade,
-                                    onTap: () => _openTradeDetail(trade),
-                                  ),
-                              ],
-                            ),
-                    ),
-                    if (_trades.isNotEmpty)
-                      ListLoadMoreFooter(
-                        loading: _tradeLoadingMore,
-                        hasMore: _tradeHasMore,
-                        onPressed: _loadMoreTrades,
+                      Text('共 $_fundTotal 笔 · 按发生日期倒序', style: trailingStyle),
+                      _FundMetrics(stats: _fundStats),
+                      _FundByDateChart(
+                        days: _fundStats?.byDate ?? const <FundDayStat>[],
                       ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// 待同步外汇交易卡：本地临时行 + 失败原因 + 自动重试状态。
-///
-/// 临时行完全来自队列（不写服务端列表），推送成功后队列条目被移除，
-/// 列表随 `lastSyncAt` 前进重新拉取，因此不会出现「临时 + 真实」两条。
-class _PendingTradesCard extends StatelessWidget {
-  const _PendingTradesCard({
-    required this.entries,
-    required this.outbox,
-    required this.theme,
-  });
-
-  final List<OutboxEntry> entries;
-  final OutboxController outbox;
-  final ThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool headIsForex =
-        outbox.entries.isNotEmpty &&
-        outbox.entries.first.opType == outboxOpForexCreate;
-    return SectionCard(
-      title: '待同步',
-      trailing: Text(
-        '${entries.length} 笔',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 8,
-        children: <Widget>[
-          if (!outbox.isOnline)
-            _QueueHint(
-              icon: Icons.cloud_off_outlined,
-              text: '当前无网络，恢复后按入队顺序自动推送',
-            ),
-          for (final OutboxEntry entry in entries)
-            _PendingTradeRow(entry: entry),
-          if (headIsForex && outbox.nextRetryAt != null)
-            _QueueHint(
-              icon: Icons.schedule_outlined,
-              text: '下次自动重试：${_hm(outbox.nextRetryAt!)}',
-            ),
-          if (headIsForex && outbox.needsManualRetry)
-            _QueueHint(
-              icon: Icons.error_outline,
-              text: '自动重试已达上限，请手动重试',
-              color: theme.colorScheme.error,
-            ),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  outbox.isSyncing ? '正在同步…' : '按入队顺序推送，失败即停',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                      if (_funds.isEmpty)
+                        EmptyState(
+                          icon: Icons.account_balance_wallet_outlined,
+                          title: _rangeDays == 0 ? '暂无资金记录' : '该区间没有资金记录',
+                          description: _rangeDays == 0
+                              ? '资金记录由网页端导入，移动端仅支持查看'
+                              : '可切换上方「全部」查看历史记录',
+                          compact: true,
+                        )
+                      else
+                        Column(
+                          children: <Widget>[
+                            for (final FundRecord record in _funds)
+                              _FundRow(
+                                record: record,
+                                onTap: () => _openFundDetail(record),
+                              ),
+                          ],
+                        ),
+                      if (_funds.isNotEmpty)
+                        ListLoadMoreFooter(
+                          loading: _fundLoadingMore,
+                          hasMore: _fundHasMore,
+                          onPressed: _loadMoreFunds,
+                        ),
+                    ],
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: outbox.isSyncing || !outbox.isOnline
-                    ? null
-                    : outbox.retryNow,
-                child: const Text('立即同步'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 页内提示：图标 + 文案，可选错误色。
-class _QueueHint extends StatelessWidget {
-  const _QueueHint({required this.icon, required this.text, this.color});
-
-  final IconData icon;
-  final String text;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color contentColor = color ?? theme.colorScheme.onSurfaceVariant;
-    return Row(
-      spacing: 8,
-      children: <Widget>[
-        Icon(icon, size: 18, color: contentColor),
-        Expanded(
-          child: Text(
-            text,
-            style: theme.textTheme.bodySmall?.copyWith(color: contentColor),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 本地临时交易行：与真实交易相同的版式，额外带「待同步」角标。
-class _PendingTradeRow extends StatelessWidget {
-  const _PendingTradeRow({required this.entry});
-
-  final OutboxEntry entry;
-
-  /// 价格文案：百元以下保留 4 位，与真实交易一致。
-  String _price(num value) {
-    final double v = value.toDouble();
-    return v.abs() >= 100 ? v.toStringAsFixed(2) : v.toStringAsFixed(4);
-  }
-
-  /// 手数文案：去掉无意义的 `.00`。
-  String _lots(num value) {
-    final String fixed = value.toDouble().toStringAsFixed(2);
-    return fixed.endsWith('.00') ? fixed.substring(0, fixed.length - 3) : fixed;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
-      color: muted,
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
-    final AppSemanticColors colors = context.semanticColors;
-    final Map<String, dynamic> payload = entry.payload;
-    final String symbol = payload['symbol'] as String? ?? '';
-    final String orderType = payload['order_type'] as String? ?? 'buy';
-    final num lotSize = payload['lot_size'] as num? ?? 0;
-    final num openPrice = payload['open_price'] as num? ?? 0;
-    final num? closePrice = payload['close_price'] as num?;
-    final num? pnl = payload['pnl'] as num?;
-    final num netPnl = (pnl ?? 0) +
-        (payload['commission'] as num? ?? 0) +
-        (payload['overnight_fee'] as num? ?? 0);
-    final bool failed = entry.lastError != null;
-    final String tradeDate = payload['trade_date'] as String? ?? '';
-    final Color amountColor = netPnl > 0
-        ? colors.success
-        : (netPnl < 0 ? colors.danger : muted);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
-              children: <Widget>[
-                Row(
-                  spacing: 6,
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        symbol.isEmpty ? '未命名交易' : symbol,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                SectionCard(
+                  title: '交易记录',
+                  trailing: Text(
+                    '$_rangeLabel · 共 $_tradeTotal 笔',
+                    style: trailingStyle,
+                  ),
+                  child: _trades.isEmpty
+                      ? EmptyState(
+                          icon: Icons.show_chart_outlined,
+                          title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
+                          description: _rangeDays == 0
+                              ? '交易数据由网页端导入，移动端仅支持查看'
+                              : '可切换上方「全部」查看历史记录',
+                          compact: true,
+                        )
+                      : Column(
+                          children: <Widget>[
+                            for (final ForexTrade trade in _trades)
+                              _TradeRow(
+                                trade: trade,
+                                onTap: () => _openTradeDetail(trade),
+                              ),
+                          ],
                         ),
-                      ),
-                    ),
-                    Text(
-                      orderType == 'sell' ? '做空' : '做多',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: orderType == 'sell'
-                            ? colors.warning
-                            : colors.info,
-                      ),
-                    ),
-                    const StatusChip(
-                      label: '待同步',
-                      tone: StatusTone.info,
-                    ),
-                  ],
                 ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: <Widget>[
-                    Text(tradeDate, style: metaStyle),
-                    Text('${_lots(lotSize)} 手', style: metaStyle),
-                    Text('开 ${_price(openPrice)}', style: metaStyle),
-                    if (closePrice != null)
-                      Text('平 ${_price(closePrice)}', style: metaStyle),
-                  ],
-                ),
-                if (failed)
-                  Text(
-                    entry.lastError!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
+                if (_trades.isNotEmpty)
+                  ListLoadMoreFooter(
+                    loading: _tradeLoadingMore,
+                    hasMore: _tradeHasMore,
+                    onPressed: _loadMoreTrades,
                   ),
               ],
-            ),
-          ),
-          SizedBox(
-            width: 92,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                pnl == null ? '—' : formatUsdSigned(netPnl),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: pnl == null ? muted : amountColor,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
-}
-
-/// `HH:mm`：展示自动重试时间。
-String _hm(DateTime time) {
-  final DateTime local = time.toLocal();
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(local.hour)}:${two(local.minute)}';
 }
 
 /// 资金四卡：累计出金 / 累计入金 / 体验金 / 净投入。
@@ -860,9 +557,8 @@ class _FundMetrics extends StatelessWidget {
         Text(
           '口径：区间入金 − 出金（含体验金）。展示下限为 \$0.00，'
           '这是「区间净投入 + 区间盈亏」口径，不是账户余额。',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -1043,8 +739,9 @@ class _TradeRow extends StatelessWidget {
       color: muted,
       fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
     );
-    final Color directionColor =
-        trade.orderType == 'sell' ? colors.warning : colors.info;
+    final Color directionColor = trade.orderType == 'sell'
+        ? colors.warning
+        : colors.info;
     final Color amountColor = trade.netPnl > 0
         ? colors.success
         : (trade.netPnl < 0 ? colors.danger : muted);
@@ -1053,74 +750,77 @@ class _TradeRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
-              children: <Widget>[
-                Row(
-                  spacing: 6,
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        trade.symbol,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Row(
+                    spacing: 6,
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          trade.symbol,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      trade.orderTypeLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: directionColor,
+                      Text(
+                        trade.orderTypeLabel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: directionColor,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是截断。
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: <Widget>[
-                    Text(trade.timeText, style: metaStyle),
-                    Text('${_lots(trade.lotSize)} 手', style: metaStyle),
-                    Text('开 ${_price(trade.openPrice)}', style: metaStyle),
-                    if (trade.closePrice != null)
-                      Text('平 ${_price(trade.closePrice!)}', style: metaStyle),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是截断。
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: <Widget>[
+                      Text(trade.timeText, style: metaStyle),
+                      Text('${_lots(trade.lotSize)} 手', style: metaStyle),
+                      Text('开 ${_price(trade.openPrice)}', style: metaStyle),
+                      if (trade.closePrice != null)
+                        Text(
+                          '平 ${_price(trade.closePrice!)}',
+                          style: metaStyle,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(
-            width: 92,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                formatUsdSigned(trade.netPnl),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: amountColor,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
+            SizedBox(
+              width: 92,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  formatUsdSigned(trade.netPnl),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: amountColor,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Icon(Icons.chevron_right, size: 18, color: muted),
-        ],
-      ),
+            Icon(Icons.chevron_right, size: 18, color: muted),
+          ],
+        ),
       ),
     );
   }
@@ -1326,7 +1026,10 @@ class _FundByDatePainter extends CustomPainter {
       return;
     }
     final double labelHeight = textScaler.scale(14);
-    final double barsHeight = (size.height - labelHeight - 4).clamp(1, size.height);
+    final double barsHeight = (size.height - labelHeight - 4).clamp(
+      1,
+      size.height,
+    );
     final double groupWidth = size.width / data.length;
 
     double maxValue = 0;
@@ -1385,7 +1088,8 @@ class _FundByDatePainter extends CustomPainter {
             (value: day.withdraw, color: withdrawColor),
             (value: day.experience, color: experienceColor),
           ];
-      final double totalWidth = bars.length * barWidth + (bars.length - 1) * gap;
+      final double totalWidth =
+          bars.length * barWidth + (bars.length - 1) * gap;
       double x = center - totalWidth / 2;
       for (final ({double value, Color color}) bar in bars) {
         if (bar.value != 0) {
@@ -1402,8 +1106,7 @@ class _FundByDatePainter extends CustomPainter {
         x += barWidth + gap;
       }
       // X 轴标签抽稀：首尾必显示，其余按步长。
-      final bool showLabel =
-          i % labelStep == 0 || i == data.length - 1;
+      final bool showLabel = i % labelStep == 0 || i == data.length - 1;
       if (showLabel) {
         final String text = day.date.length >= 10
             ? day.date.substring(5)

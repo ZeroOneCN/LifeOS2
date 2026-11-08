@@ -228,7 +228,7 @@ class _HealthSleepFormPageState extends State<HealthSleepFormPage> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：睡眠记录需要联网保存，请恢复网络后重试');
       return;
     }

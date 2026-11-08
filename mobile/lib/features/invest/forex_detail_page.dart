@@ -56,9 +56,10 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
       _message = null;
     });
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/investment/forex/${widget.tradeId}'))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/investment/forex/${widget.tradeId}',
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -124,8 +125,8 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
                           color: trade.pnl == null
                               ? theme.colorScheme.onSurfaceVariant
                               : (trade.pnl! >= 0
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.error),
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.error),
                         ),
                       ),
                       Text(
@@ -147,24 +148,15 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
                       _DetailRow(label: '品种', value: trade.symbol),
                       _DetailRow(label: '方向', value: trade.orderTypeLabel),
                       _DetailRow(label: '手数', value: _plain(trade.lotSize)),
-                      _DetailRow(
-                        label: '开仓价',
-                        value: _plain(trade.openPrice),
-                      ),
+                      _DetailRow(label: '开仓价', value: _plain(trade.openPrice)),
                       _DetailRow(
                         label: '平仓价',
                         value: trade.closePrice == null
                             ? '—'
                             : _plain(trade.closePrice!),
                       ),
-                      _DetailRow(
-                        label: '开仓时间',
-                        value: _time(trade.openTime),
-                      ),
-                      _DetailRow(
-                        label: '平仓时间',
-                        value: _time(trade.closeTime),
-                      ),
+                      _DetailRow(label: '开仓时间', value: _time(trade.openTime)),
+                      _DetailRow(label: '平仓时间', value: _time(trade.closeTime)),
                       _DetailRow(
                         label: '持仓时长',
                         value: formatDuration(trade.holding),
@@ -177,27 +169,19 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
                         label: '隔夜费',
                         value: formatUsd(trade.overnightFee),
                       ),
-                      _DetailRow(label: '状态', value: trade.isOpen ? '持仓中' : '已平仓'),
+                      _DetailRow(
+                        label: '状态',
+                        value: trade.isOpen ? '持仓中' : '已平仓',
+                      ),
                     ],
                   ),
                 ),
                 if (trade.note != null && trade.note!.trim().isNotEmpty)
                   SectionCard(
                     title: '备注',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 6,
-                      children: <Widget>[
-                        Text(trade.note!, style: theme.textTheme.bodyMedium),
-                        if (_readableNote(trade.note!) != null)
-                          Text(
-                            '导入释义：${_readableNote(trade.note!)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
+                    // 后端已按库内原文返回（字段名保留，不翻译、不重排），
+                    // 这里只展示一次原文，不再做可读化解析或追加释义行。
+                    child: Text(trade.note!, style: theme.textTheme.bodyMedium),
                   ),
                 Text(
                   '行情数据由网页端导入，移动端仅支持查看。',
@@ -231,22 +215,6 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
       return raw.substring(0, 16).replaceFirst('T', ' ');
     }
     return raw;
-  }
-
-  /// 把 `ID:1489599185 | TP:4315.0` 这类导入串翻译成可读释义。
-  String? _readableNote(String raw) {
-    if (!raw.contains('ID:') && !raw.contains('TP:')) {
-      return null;
-    }
-    final Match? id = RegExp(r'ID[:：]\s*(\d+)').firstMatch(raw);
-    final Match? tp = RegExp(r'TP[:：]\s*([\d.]+)').firstMatch(raw);
-    if (id == null && tp == null) {
-      return null;
-    }
-    return <String>[
-      if (id != null) '订单号 ${id[1]}',
-      if (tp != null) '止盈价 ${tp[1]}',
-    ].join(' · ');
   }
 }
 

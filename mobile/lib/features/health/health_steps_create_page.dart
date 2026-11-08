@@ -17,9 +17,8 @@ import '../../shared/widgets/section_card.dart';
 /// 距离与消耗由后端按步幅自动计算，编辑时回传原记录的 `stride_cm`，
 /// 避免按默认 70cm 重算导致距离口径漂移。
 ///
-/// 为什么不做离线队列：步数录入的诉求是「录完立刻看到汇总变化」，
-/// 而后端没有幂等键，排队重试可能重复入库（同一天同一时段会被 409 拦下，
-/// 但用户得回队列里手动处理）；在线提交失败时用户就在表单前，可直接重试。
+/// 写入直接请求服务端：后端没有幂等键，延迟重试可能重复入库；
+/// 保存失败时用户就在表单前，按「网络错误 / 服务端错误」提示后可直接重试。
 class HealthStepsCreatePage extends StatefulWidget {
   const HealthStepsCreatePage({
     super.key,
@@ -164,7 +163,7 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：步数录入需要联网，请恢复网络后重试');
       return;
     }

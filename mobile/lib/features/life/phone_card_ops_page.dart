@@ -113,7 +113,7 @@ class _PhoneRechargePageState extends State<PhoneRechargePage> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：充值需要联网，请恢复网络后重试');
       return;
     }
@@ -342,7 +342,7 @@ class _PhoneAdjustPageState extends State<PhoneAdjustPage> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    if (!scope.outbox.isOnline) {
+    if (!scope.connectivity.isOnline) {
       setState(() => _error = '当前无网络：校准需要联网，请恢复网络后重试');
       return;
     }
