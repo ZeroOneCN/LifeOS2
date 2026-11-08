@@ -8,6 +8,7 @@ import '../../core/models/lifestyle_models.dart';
 import '../../core/models/report_models.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/finance/finance_bill_form_page.dart';
+import '../../features/finance/finance_bill_manage_page.dart';
 import '../../features/finance/finance_bills_page.dart';
 import '../../features/finance/finance_debt_detail_page.dart';
 import '../../features/finance/finance_debt_form_page.dart';
@@ -19,6 +20,7 @@ import '../../features/finance/finance_planning_page.dart';
 import '../../features/finance/finance_shopping_form_page.dart';
 import '../../features/finance/finance_shopping_page.dart';
 import '../../features/finance/finance_travel_form_page.dart';
+import '../../features/finance/finance_travel_manage_page.dart';
 import '../../features/finance/finance_travel_page.dart';
 import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_body_ble_page.dart';
@@ -46,6 +48,7 @@ import '../../features/invest/fund_record_form_page.dart';
 import '../../features/invest/invest_analysis_page.dart';
 import '../../features/invest/invest_calendar_page.dart';
 import '../../features/invest/invest_page.dart';
+import '../../features/life/card_form_page.dart';
 import '../../features/life/life_page.dart';
 import '../../features/life/lifestyle_cards_page.dart';
 import '../../features/life/lifestyle_item_form_page.dart';
@@ -157,6 +160,20 @@ GoRouter createAppRouter() {
                       GoRoute(
                         path: 'purchases/new',
                         builder: (_, _) => const HealthMedPurchaseFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'purchases/:id',
+                        builder: (_, GoRouterState state) =>
+                            HealthMedPurchaseFormPage(
+                              purchaseId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is MedPurchase
+                                  ? state.extra as MedPurchase
+                                  : null,
+                            ),
                       ),
                       GoRoute(
                         path: 'stocks/new',
@@ -387,6 +404,19 @@ GoRouter createAppRouter() {
                               ),
                             ),
                       ),
+                      // 配套字典维护：网贷平台 / 租房渠道 / 订阅分类。
+                      GoRoute(
+                        path: 'manage/:kind',
+                        builder: (_, GoRouterState state) =>
+                            FinanceBillManagePage(
+                              kind: switch (state.pathParameters['kind']) {
+                                'housing' => BillManageKind.rentChannel,
+                                'subscription' =>
+                                  BillManageKind.subscriptionCategory,
+                                _ => BillManageKind.loanPlatform,
+                              },
+                            ),
+                      ),
                     ],
                   ),
                   GoRoute(
@@ -458,6 +488,25 @@ GoRouter createAppRouter() {
                         path: 'new',
                         builder: (_, _) => const FinanceTravelFormPage(),
                       ),
+                      GoRoute(
+                        path: 'manage',
+                        builder: (_, _) => const FinanceTravelManagePage(),
+                      ),
+                      // 编辑旅行明细：带起止时间 / 交通信息 / 支付方式。
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            FinanceTravelFormPage(
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is TravelDetail
+                                  ? state.extra as TravelDetail
+                                  : null,
+                            ),
+                      ),
                     ],
                   ),
                   GoRoute(
@@ -467,6 +516,20 @@ GoRouter createAppRouter() {
                       GoRoute(
                         path: 'new',
                         builder: (_, _) => const FinancePlanningFormPage(),
+                      ),
+                      GoRoute(
+                        path: ':id',
+                        builder: (_, GoRouterState state) =>
+                            FinancePlanningFormPage(
+                              recordId:
+                                  int.tryParse(
+                                    state.pathParameters['id'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is PlanItem
+                                  ? state.extra as PlanItem
+                                  : null,
+                            ),
                       ),
                     ],
                   ),
@@ -551,6 +614,26 @@ GoRouter createAppRouter() {
                     path: 'cards',
                     builder: (_, _) => const LifestyleCardsPage(),
                     routes: <RouteBase>[
+                      // 新增 / 编辑卡片：kind 决定字段，id 作为 query 传入。
+                      GoRoute(
+                        path: 'form/:kind',
+                        builder: (_, GoRouterState state) {
+                          final CardKind kind = cardKindFromParam(
+                            state.pathParameters['kind'],
+                          );
+                          final Object? extra = state.extra;
+                          return CardFormPage(
+                            kind: kind,
+                            id: int.tryParse(
+                              state.uri.queryParameters['id'] ?? '',
+                            ),
+                            phone: extra is PhoneCard ? extra : null,
+                            bank: extra is BankCard ? extra : null,
+                            carrier: extra is Carrier ? extra : null,
+                            bill: extra is CardBill ? extra : null,
+                          );
+                        },
+                      ),
                       GoRoute(
                         path: 'phone/:id/recharge',
                         builder: (_, GoRouterState state) => PhoneRechargePage(
