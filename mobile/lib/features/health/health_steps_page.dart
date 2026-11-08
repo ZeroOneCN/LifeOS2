@@ -106,6 +106,49 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
     }
   }
 
+  /// 步幅设置：读取当前值，保存后后端会按新步幅重算全部距离。
+  Future<void> _openStrideSettings() async {
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    double? current;
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/health/steps/settings'))
+          .data;
+      current = (json?['stride_cm'] as num?)?.toDouble();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('读取步幅失败：${error.message}')));
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final double? value = await showDialog<double>(
+      context: context,
+      builder: (BuildContext context) => _StrideDialog(initial: current),
+    );
+    if (value == null || !mounted) {
+      return;
+    }
+    try {
+      await scope.apiClient.put<Map<String, dynamic>>(
+        '/health/steps/settings',
+        data: <String, dynamic>{'stride_cm': value},
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(const SnackBar(content: Text('已更新步幅，历史距离已重算')));
+      await _refresh();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('保存失败：${error.message}')));
+      }
+    }
+  }
+
   /// 点按某一天：打开当天时段明细，逐条进入编辑/删除。
   Future<void> _openDay(String date) async {
     await showModalBottomSheet<void>(
@@ -124,6 +167,13 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
 
     return DetailPageScaffold(
       title: '步数统计',
+      actions: <Widget>[
+        IconButton(
+          tooltip: '步幅设置',
+          onPressed: _openStrideSettings,
+          icon: const Icon(Icons.straighten_outlined),
+        ),
+      ],
       // 主操作放底栏：底栏独立占位，走势图与明细不会被悬浮按钮压住。
       bottomBar: AppPrimaryButton(
         label: '新增步数',
@@ -676,6 +726,77 @@ class _PeriodRecordRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 步幅设置对话框：只提交 `stride_cm`，单位厘米。
+class _StrideDialog extends StatefulWidget {
+  const _StrideDialog({this.initial});
+
+  final double? initial;
+
+  @override
+  State<_StrideDialog> createState() => _StrideDialogState();
+}
+
+class _StrideDialogState extends State<_StrideDialog> {
+  late final TextEditingController _value = TextEditingController(
+    text: widget.initial == null
+        ? ''
+        : (widget.initial == widget.initial!.roundToDouble()
+            ? widget.initial!.toStringAsFixed(0)
+            : '${widget.initial}'),
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _value.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('步幅设置'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: <Widget>[
+          const Text('步幅用于按步数换算距离；保存后后端会重算全部历史距离。'),
+          TextField(
+            controller: _value,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: '步幅（厘米）',
+              errorText: _error,
+            ),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        AppActionRow(
+          first: AppSecondaryButton(
+            label: '取消',
+            compact: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          second: AppPrimaryButton(
+            label: '保存',
+            compact: true,
+            onPressed: () {
+              final double? value = double.tryParse(_value.text.trim());
+              if (value == null || value < 0) {
+                setState(() => _error = '请填写不小于 0 的步幅');
+                return;
+              }
+              Navigator.of(context).pop(value);
+            },
+          ),
+        ),
+      ],
     );
   }
 }
