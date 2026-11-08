@@ -188,43 +188,36 @@ class SettingsPage extends StatelessWidget {
               child: ValueListenableBuilder<ThemeMode>(
                 valueListenable: scope.preferences.themeMode,
                 builder: (BuildContext context, ThemeMode mode, _) {
-                  void select(ThemeMode? value) {
-                    if (value != null) {
-                      scope.preferences.setThemeMode(value);
-                    }
-                  }
-
-                  return RadioGroup<ThemeMode>(
-                    groupValue: mode,
-                    onChanged: select,
-                    child: Column(
-                      children: <Widget>[
-                        const RadioListTile<ThemeMode>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: ThemeMode.light,
-                          title: Text('浅色'),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      // 与字体档位同一套分段视觉：横向等宽、圆角/间距一致。
+                      Row(
+                        children: <Widget>[
+                          for (final (String label, ThemeMode target)
+                              in const <(String, ThemeMode)>[
+                            ('跟随系统', ThemeMode.system),
+                            ('浅色', ThemeMode.light),
+                            ('深色', ThemeMode.dark),
+                          ])
+                            Expanded(
+                              child: _SegmentedOption(
+                                label: label,
+                                selected: mode == target,
+                                onTap: () =>
+                                    scope.preferences.setThemeMode(target),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '选择会立即生效，并在下次冷启动时保留。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        const RadioListTile<ThemeMode>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: ThemeMode.dark,
-                          title: Text('深色'),
-                        ),
-                        const RadioListTile<ThemeMode>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: ThemeMode.system,
-                          title: Text('跟随系统'),
-                        ),
-                        Text(
-                          '选择会立即生效，并在下次冷启动时保留。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -265,7 +258,7 @@ class SettingsPage extends StatelessWidget {
                             ('特大', 1.3),
                           ])
                             Expanded(
-                              child: _FontScaleOption(
+                              child: _SegmentedOption(
                                 label: label,
                                 selected: ratio == value,
                                 onTap: () => scope.preferences
@@ -864,9 +857,10 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// 字体档位按钮：横向等宽排列，选中态用主色填充，替代纵向 Radio 列表。
-class _FontScaleOption extends StatelessWidget {
-  const _FontScaleOption({
+/// 横向分段选项：主题模式与字体档位共用同一套视觉（等宽、圆角、间距一致），
+/// 选中态用主色填充，替代纵向 Radio 列表。
+class _SegmentedOption extends StatelessWidget {
+  const _SegmentedOption({
     required this.label,
     required this.selected,
     required this.onTap,
