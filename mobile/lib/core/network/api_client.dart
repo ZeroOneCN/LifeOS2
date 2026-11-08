@@ -137,14 +137,20 @@ class ApiClient {
     );
   }
 
-  /// multipart 上传（头像），支持发送进度回调。
+  /// multipart 上传（头像 / Excel 导入），支持发送进度回调。
   Future<Response<T>> postMultipart<T>(
     String path, {
     required FormData data,
+    Map<String, dynamic>? queryParameters,
     ProgressCallback? onSendProgress,
   }) {
     return _guard(
-      () => _dio.post<T>(path, data: data, onSendProgress: onSendProgress),
+      () => _dio.post<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        onSendProgress: onSendProgress,
+      ),
     );
   }
 
