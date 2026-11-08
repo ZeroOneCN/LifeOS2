@@ -147,11 +147,58 @@ def _trade_date(t: InvestmentForex) -> date:
     return t.trade_date
 
 
+# 导入链路把 MT5 备注写成 `ID:169756053 | TP:4672.0 | SL:4300.0` 这类机器串，
+# 这里仅在对外输出时转成可读标签；数据库中的原始备注保持不变（导入去重仍依赖 ID）。
+_NOTE_TOKEN = re.compile(r"^(ID|TP|SL)\s*[:：]\s*(.+)$", re.IGNORECASE)
+_NOTE_LABELS = {"ID": "订单号", "TP": "止盈价", "SL": "止损价"}
+
+
+def clean_note(note: str | None) -> str | None:
+    """把外汇交易备注中的机器串转换为可读文本（只用于展示，不回写数据库）。
+
+    导入备注的原始格式为 `ID:<订单号> | TP:<止盈价> | SL:<止损价>`，
+    直接展示对用户不可读。本函数把 ID/TP/SL 映射为中文标签，
+    其余人工填写的片段原样保留；不含机器串的备注原样返回。
+
+    降级约定：空备注返回 None；格式异常（如 `ID:` 后无内容）不做解析、
+    也不抛异常，最多把无法识别的片段原样保留。
+
+    Args:
+        note: 数据库中的原始备注。
+
+    Returns:
+        可读备注；无有效内容时返回 None。
+    """
+    if not note:
+        return None
+    text = str(note).strip()
+    if not text:
+        return None
+
+    parts: list[str] = []
+    has_machine = False
+    for seg in re.split(r"[|｜]", text):
+        seg = seg.strip()
+        if not seg:
+            continue
+        m = _NOTE_TOKEN.match(seg)
+        if m:
+            has_machine = True
+            parts.append(f"{_NOTE_LABELS[m.group(1).upper()]} {m.group(2).strip()}")
+        else:
+            parts.append(seg)
+
+    if not has_machine:
+        return text
+    return " · ".join(parts) or None
+
+
 # --------------------------------------------------------------------------
 # CRUD
 # --------------------------------------------------------------------------
 def _read(t: InvestmentForex) -> ForexRead:
-    return ForexRead.model_validate(t)
+    """序列化交易记录；备注只输出可读文本，机器串不外露（库中原文不动）。"""
+    return ForexRead.model_validate(t).model_copy(update={"note": clean_note(t.note)})
 
 
 @router.get("", response_model=PageOut[ForexRead])
@@ -188,6 +235,11 @@ def _apply_payload(obj: InvestmentForex, payload: ForexCreate):
     data.setdefault("holding", _holding_minutes(data.get("open_time"), data.get("close_time")))
     # 保底：持仓时间由开平仓时间自动计算
     data["holding"] = data.get("holding") or _holding_minutes(data.get("open_time"), data.get("close_time"))
+    # 备注回写保护：读接口返回的是可读备注，客户端原样回传时保留库中原始串，
+    # 避免丢失导入订单号（重新导入的去重依赖它）
+    note = data.get("note")
+    if note is not None and obj.note and clean_note(obj.note) == note.strip():
+        data["note"] = obj.note
     for key, value in data.items():
         setattr(obj, key, value)
 
