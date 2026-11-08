@@ -381,6 +381,19 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     }
   }
 
+  /// 打开当前 Tab 的配套字典维护页（平台 / 渠道 / 分类）。
+  Future<void> _openManage() async {
+    final String kind = switch (_tab) {
+      1 => 'housing',
+      2 => 'subscription',
+      _ => 'loan',
+    };
+    await context.push<Object?>('/finance/bills/manage/$kind');
+    if (mounted) {
+      await _refresh();
+    }
+  }
+
   /// 详情层：先看完整字段，再决定编辑或删除。
   ///
   /// 编辑交给 [BillKind] 对应的表单页（返回 true 时重拉当前 Tab）；
@@ -411,8 +424,20 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final String manageLabel = switch (_tab) {
+      1 => '维护租房渠道',
+      2 => '维护订阅分类',
+      _ => '维护网贷平台',
+    };
     return DetailPageScaffold(
       title: '账单管理',
+      actions: <Widget>[
+        IconButton(
+          tooltip: manageLabel,
+          onPressed: _openManage,
+          icon: const Icon(Icons.tune_outlined),
+        ),
+      ],
       child: CustomScrollView(
         slivers: <Widget>[
           SliverToBoxAdapter(

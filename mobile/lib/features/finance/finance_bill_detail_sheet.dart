@@ -64,6 +64,11 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   /// 本层内是否发生过还款相关变更；关闭时回传，让列表页刷新汇总。
   bool _mutated = false;
 
+  /// 房租期次：仅住房详情需要，进入后按 housing_id 拉取。
+  List<RentTerm> _terms = const <RentTerm>[];
+  bool _loadingTerms = false;
+  String? _termsError;
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +80,289 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
         }
       });
     }
+    if (widget.kind == BillKind.housing && widget.housing != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadTerms();
+        }
+      });
+    }
+  }
+
+  /// 房租期次列表（后端返回裸数组，不是分页对象）。
+  Future<void> _loadTerms() async {
+    final HousingItem? housing = widget.housing;
+    if (housing == null) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    setState(() {
+      _loadingTerms = true;
+      _termsError = null;
+    });
+    try {
+      final List<dynamic>? data = (await scope.apiClient.get<List<dynamic>>(
+        '/finance/rent-terms',
+        queryParameters: <String, dynamic>{'housing_id': housing.id},
+      ))
+          .data;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _terms = (data ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => RentTerm.fromJson(item.cast<String, dynamic>()))
+            .toList(growable: false);
+        _loadingTerms = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingTerms = false;
+        _termsError = error.message;
+      });
+    }
+  }
+
+  /// 新增期次：金额、到期日、是否已交。
+  Future<void> _addTerm() async {
+    final HousingItem? housing = widget.housing;
+    if (housing == null) {
+      return;
+    }
+    final _TermDraft? draft = await showDialog<_TermDraft>(
+      context: context,
+      builder: (BuildContext context) => const _TermFormDialog(),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.post<Map<String, dynamic>>(
+        '/finance/rent-terms',
+        data: <String, dynamic>{
+          'housing_id': housing.id,
+          'amount': draft.amount,
+          'due_date': draft.dueDate,
+          'paid': draft.paid,
+        },
+      );
+      if (!mounted) {
+        return;
+      }
+      _mutated = true;
+      messenger.showSnackBar(const SnackBar(content: Text('已新增一期房租')));
+      await _loadTerms();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('新增失败：${error.message}')));
+      }
+    }
+  }
+
+  /// 编辑期次金额 / 到期日；`paid` 单独用 [_togglePaid]。
+  Future<void> _editTerm(RentTerm term) async {
+    final _TermDraft? draft = await showDialog<_TermDraft>(
+      context: context,
+      builder: (BuildContext context) => _TermFormDialog(initial: term),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    await _putTerm(
+      term,
+      <String, dynamic>{
+        'amount': draft.amount,
+        'due_date': draft.dueDate,
+      },
+      '已更新该期房租',
+    );
+  }
+
+  /// 标记已交 / 未交。
+  Future<void> _togglePaid(RentTerm term) async {
+    await _putTerm(
+      term,
+      <String, dynamic>{'paid': !term.paid},
+      term.paid ? '已标记为未交' : '已标记为已交',
+    );
+  }
+
+  /// 期次 PUT 使用查询参数（后端签名如此），不是 JSON body。
+  Future<void> _putTerm(
+    RentTerm term,
+    Map<String, dynamic> changes,
+    String successText,
+  ) async {
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.put<Map<String, dynamic>>(
+        '/finance/rent-terms/${term.id}',
+        queryParameters: changes,
+      );
+      if (!mounted) {
+        return;
+      }
+      _mutated = true;
+      messenger.showSnackBar(SnackBar(content: Text(successText)));
+      await _loadTerms();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('更新失败：${error.message}')));
+      }
+    }
+  }
+
+  /// 删除期次：二次确认后 DELETE。
+  Future<void> _deleteTerm(RentTerm term) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('删除这一期房租？'),
+          content: Text(
+            '将删除第 ${term.termNo} 期（${formatMoney(term.amount)}，'
+            '到期 ${term.dueDate}）。删除后租房统计会同步回退，且无法恢复。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.delete<dynamic>(
+        '/finance/rent-terms/${term.id}',
+      );
+      if (!mounted) {
+        return;
+      }
+      _mutated = true;
+      messenger.showSnackBar(const SnackBar(content: Text('已删除该期房租')));
+      await _loadTerms();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('删除失败：${error.message}')));
+      }
+    }
+  }
+
+  /// 房租期次区块：标题 + 新增入口 + 每期状态与操作。
+  List<Widget> _rentTermSection(ThemeData theme, Color muted) {
+    return <Widget>[
+      const Divider(height: 24),
+      Row(
+        children: <Widget>[
+          Expanded(
+            child: Text('房租期次', style: theme.textTheme.titleSmall),
+          ),
+          TextButton.icon(
+            onPressed: _addTerm,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('新增一期'),
+          ),
+        ],
+      ),
+      if (_loadingTerms)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: LinearProgressIndicator(minHeight: 2),
+        )
+      else if (_termsError != null)
+        Text(
+          '期次加载失败：$_termsError',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        )
+      else if (_terms.isEmpty)
+        Text(
+          '暂无期次，点「新增一期」按合同录入',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        )
+      else
+        Column(
+          spacing: 4,
+          children: <Widget>[
+            for (final RentTerm term in _terms)
+              Row(
+                spacing: 8,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          '第 ${term.termNo} 期 · ${formatMoney(term.amount)}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        Text(
+                          '到期 ${term.dueDate}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  StatusChip(
+                    label: term.paid ? '已交' : '未交',
+                    tone: term.paid ? StatusTone.success : StatusTone.warning,
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '期次操作',
+                    padding: EdgeInsets.zero,
+                    onSelected: (String value) {
+                      switch (value) {
+                        case 'edit':
+                          _editTerm(term);
+                        case 'paid':
+                          _togglePaid(term);
+                        case 'delete':
+                          _deleteTerm(term);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) =>
+                        <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('编辑金额 / 到期日'),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'paid',
+                        child: Text(term.paid ? '标记为未交' : '标记为已交'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text('删除本期'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+          ],
+        ),
+    ];
   }
 
   /// 网贷账单的还款记录（列表项本身不含，需要单独取一次）。
@@ -348,6 +636,8 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
               ),
               _statusChips(),
               ..._fieldRows(theme, muted),
+              if (widget.kind == BillKind.housing)
+                ..._rentTermSection(theme, muted),
               if (widget.kind == BillKind.loan) ..._repaymentSection(theme, muted),
               if (widget.kind == BillKind.loan &&
                   (_bill?.status != 'cleared' || (_bill?.remaining ?? 0) > 0) &&
@@ -636,6 +926,173 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       default:
         return '电费';
     }
+  }
+}
+
+/// 房租期次：与后端 `/finance/rent-terms` 字段一致。
+class RentTerm {
+  const RentTerm({
+    required this.id,
+    required this.termNo,
+    required this.amount,
+    required this.dueDate,
+    required this.paid,
+  });
+
+  factory RentTerm.fromJson(Map<String, dynamic> json) {
+    return RentTerm(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      termNo: (json['term_no'] as num?)?.toInt() ?? 0,
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      dueDate: json['due_date'] as String? ?? '',
+      paid: json['paid'] as bool? ?? false,
+    );
+  }
+
+  final int id;
+  final int termNo;
+  final double amount;
+  final String dueDate;
+  final bool paid;
+}
+
+/// 期次表单返回值。
+class _TermDraft {
+  const _TermDraft({
+    required this.amount,
+    required this.dueDate,
+    required this.paid,
+  });
+
+  final double amount;
+  final String dueDate;
+  final bool paid;
+}
+
+/// 新增 / 编辑期次：金额、到期日、是否已交。
+class _TermFormDialog extends StatefulWidget {
+  const _TermFormDialog({this.initial});
+
+  final RentTerm? initial;
+
+  @override
+  State<_TermFormDialog> createState() => _TermFormDialogState();
+}
+
+class _TermFormDialogState extends State<_TermFormDialog> {
+  final TextEditingController _amount = TextEditingController();
+  late String _dueDate;
+  bool _paid = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final RentTerm? initial = widget.initial;
+    final DateTime now = DateTime.now();
+    String two(int value) => value < 10 ? '0$value' : '$value';
+    _dueDate = initial?.dueDate ??
+        '${now.year}-${two(now.month)}-${two(now.day)}';
+    if (initial != null) {
+      _amount.text = initial.amount == initial.amount.roundToDouble()
+          ? initial.amount.toStringAsFixed(0)
+          : initial.amount.toString();
+      _paid = initial.paid;
+    }
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    super.dispose();
+  }
+
+  /// 选择到期日。
+  Future<void> _pickDate() async {
+    final DateTime initial = DateTime.tryParse(_dueDate) ?? DateTime.now();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    String two(int value) => value < 10 ? '0$value' : '$value';
+    setState(() {
+      _dueDate = '${picked.year}-${two(picked.month)}-${two(picked.day)}';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool editing = widget.initial != null;
+    return AlertDialog(
+      title: Text(editing ? '编辑这一期房租' : '新增一期房租'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: <Widget>[
+            TextField(
+              controller: _amount,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: '金额'),
+            ),
+            InkWell(
+              onTap: _pickDate,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: '到期日',
+                  suffixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                ),
+                child: Text(_dueDate),
+              ),
+            ),
+            if (!editing)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('已交'),
+                value: _paid,
+                onChanged: (bool value) => setState(() => _paid = value),
+              ),
+            if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        AppActionRow(
+          first: AppSecondaryButton(
+            label: '取消',
+            compact: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          second: AppPrimaryButton(
+            label: '保存',
+            compact: true,
+            onPressed: () {
+              final double? amount = double.tryParse(_amount.text.trim());
+              if (amount == null || amount < 0) {
+                setState(() => _error = '请填写不小于 0 的金额');
+                return;
+              }
+              Navigator.of(context).pop(
+                _TermDraft(
+                  amount: amount,
+                  dueDate: _dueDate,
+                  paid: _paid,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 
