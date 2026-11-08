@@ -7,6 +7,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -192,6 +193,75 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
     }
   }
 
+  /// 编辑明细：带快照进入表单，保存后重拉汇总与列表。
+  Future<void> _openEdit(TravelDetail detail) async {
+    final bool? changed = await context.push<bool>(
+      '/finance/travel/${detail.id}',
+      extra: detail,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 删除明细：二次确认写明对合计与分类统计的影响。
+  Future<void> _deleteDetail(TravelDetail detail) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('删除这条旅行开支？'),
+          content: Text(
+            '将删除「${detail.item}」（实付 ${formatMoney(detail.actualPrice)}）。\n'
+            '删除后实付 / 原价 / 优惠合计与分类统计会同步回退，且无法恢复。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.delete<dynamic>(
+        '/finance/travel/details/${detail.id}',
+      );
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(const SnackBar(content: Text('已删除该条旅行开支')));
+      await _refresh();
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text('删除失败：${error.message}')));
+    }
+  }
+
+  /// 打开行程 / 支付方式维护页；返回后重拉字典与列表。
+  Future<void> _openManage() async {
+    await context.push<Object?>('/finance/travel/manage');
+    if (mounted) {
+      await _refresh();
+    }
+  }
+
   /// 分页响应 `items` → [TravelDetail]。
   List<TravelDetail> _parseItems(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
@@ -236,6 +306,11 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
     return DetailPageScaffold(
       title: '旅行开支',
       actions: <Widget>[
+        IconButton(
+          tooltip: '维护行程与支付方式',
+          onPressed: _openManage,
+          icon: const Icon(Icons.tune_outlined),
+        ),
         IconButton(
           tooltip: '新增旅行开支',
           onPressed: _openCreate,
@@ -338,6 +413,8 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
                               _TravelRow(
                                 detail: detail,
                                 ledgerName: _ledgerName(detail.ledgerId),
+                                onEdit: () => _openEdit(detail),
+                                onDelete: () => _deleteDetail(detail),
                               ),
                           ],
                         ),
@@ -372,10 +449,17 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
 
 /// 单条旅行明细：项目 + 日期/分类/时长/行程 + 实付与优惠。
 class _TravelRow extends StatelessWidget {
-  const _TravelRow({required this.detail, this.ledgerName});
+  const _TravelRow({
+    required this.detail,
+    this.ledgerName,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final TravelDetail detail;
   final String? ledgerName;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -392,63 +476,83 @@ class _TravelRow extends StatelessWidget {
         Text(detail.durationText, style: metaStyle),
       if (ledgerName != null) Text('行程 $ledgerName', style: metaStyle),
     ];
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 3,
-              children: <Widget>[
-                Text(
-                  detail.item,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: meta,
-                ),
-                if (detail.discount > 0)
-                  // 优惠用成功色：与汇总卡「优惠合计」同色，扫视时能一眼分开
-                  // 实付（正文色）与省下的金额。
-                  Text.rich(
-                    TextSpan(
-                      style: metaStyle,
-                      children: <TextSpan>[
-                        TextSpan(
-                          text: '原价 ${formatMoney(detail.originalPrice)} · ',
-                        ),
-                        TextSpan(
-                          text: '优惠 ${formatMoney(detail.discount)}',
-                          style: TextStyle(
-                            color: context.semanticColors.success,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    maxLines: 1,
+    return InkWell(
+      onTap: onEdit,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 3,
+                children: <Widget>[
+                  Text(
+                    detail.item,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
                   ),
+                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: meta,
+                  ),
+                  if (detail.discount > 0)
+                    // 优惠用成功色：与汇总卡「优惠合计」同色，扫视时能一眼分开
+                    // 实付（正文色）与省下的金额。
+                    Text.rich(
+                      TextSpan(
+                        style: metaStyle,
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: '原价 ${formatMoney(detail.originalPrice)} · ',
+                          ),
+                          TextSpan(
+                            text: '优惠 ${formatMoney(detail.discount)}',
+                            style: TextStyle(
+                              color: context.semanticColors.success,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            Text(
+              formatMoney(detail.actualPrice),
+              maxLines: 1,
+              softWrap: false,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: '更多操作',
+              padding: EdgeInsets.zero,
+              onSelected: (String value) {
+                if (value == 'edit') {
+                  onEdit();
+                } else {
+                  onDelete();
+                }
+              },
+              itemBuilder: (BuildContext context) =>
+                  const <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
+                PopupMenuItem<String>(value: 'delete', child: Text('删除')),
               ],
             ),
-          ),
-          Text(
-            formatMoney(detail.actualPrice),
-            maxLines: 1,
-            softWrap: false,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
