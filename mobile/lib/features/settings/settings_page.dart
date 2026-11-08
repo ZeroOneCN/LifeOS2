@@ -234,51 +234,54 @@ class SettingsPage extends StatelessWidget {
               child: ValueListenableBuilder<double?>(
                 valueListenable: scope.preferences.fontScaleRatio,
                 builder: (BuildContext context, double? ratio, _) {
-                  final String selected = ratio == null ? 'system' : '$ratio';
-                  return RadioGroup<String>(
-                    groupValue: selected,
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      scope.preferences.setFontScaleRatio(
-                        value == 'system' ? null : double.tryParse(value),
-                      );
-                    },
-                    child: const Column(
-                      children: <Widget>[
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: 'system',
-                          title: Text('跟随系统'),
+                  // `null` = 跟随系统；其余为相对系统的缩放档位。
+                  final bool followSystem = ratio == null;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text('跟随系统', style: theme.textTheme.bodyMedium),
+                          ),
+                          Switch(
+                            value: followSystem,
+                            onChanged: (bool value) =>
+                                scope.preferences.setFontScaleRatio(
+                              value ? null : 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // 四档横向等宽；不出现倍数字样，也不换行。
+                      Row(
+                        children: <Widget>[
+                          for (final (String label, double value)
+                              in const <(String, double)>[
+                            ('小', 0.9),
+                            ('标准', 1.0),
+                            ('大', 1.15),
+                            ('特大', 1.3),
+                          ])
+                            Expanded(
+                              child: _FontScaleOption(
+                                label: label,
+                                selected: ratio == value,
+                                onTap: () => scope.preferences
+                                    .setFontScaleRatio(value),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '只调整文字大小，切换时页面不会重新加载数据。',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: '0.9',
-                          title: Text('小 0.9×'),
-                        ),
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: '1.0',
-                          title: Text('标准 1.0×'),
-                        ),
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: '1.15',
-                          title: Text('大 1.15×'),
-                        ),
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          value: '1.3',
-                          title: Text('特大 1.3×'),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   );
                 },
               ),
@@ -856,6 +859,50 @@ class _InfoRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 字体档位按钮：横向等宽排列，选中态用主色填充，替代纵向 Radio 列表。
+class _FontScaleOption extends StatelessWidget {
+  const _FontScaleOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Material(
+        color: selected ? colors.primary : colors.surfaceContainerHighest,
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            height: 44,
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: selected ? colors.onPrimary : colors.onSurfaceVariant,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

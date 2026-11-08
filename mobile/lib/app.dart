@@ -22,8 +22,11 @@ class LifeOsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 只有主题切换才重建 `MaterialApp`；字体缩放放在 `builder` 内部单独监听，
+    // 避免每次调节字号都重建 MaterialApp / Router（那会连带重建全部 Tab 分支，
+    // 也是之前切换字号时卡顿的主要原因）。
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[themeMode, fontScaleRatio]),
+      listenable: themeMode,
       builder: (BuildContext context, Widget? _) {
         return MaterialApp.router(
           title: AppConfig.appName,
@@ -35,17 +38,27 @@ class LifeOsApp extends StatelessWidget {
           // 字体缩放叠加在系统缩放之上：
           // 跟随系统时直接沿用原 `textScaler`，自定义档位则乘上比例。
           builder: (BuildContext context, Widget? child) {
-            final double? ratio = fontScaleRatio.value;
-            if (child == null || ratio == null) {
-              return child ?? const SizedBox.shrink();
+            if (child == null) {
+              return const SizedBox.shrink();
             }
-            final MediaQueryData media = MediaQuery.of(context);
-            final double systemFactor = media.textScaler.scale(1.0);
-            return MediaQuery(
-              data: media.copyWith(
-                textScaler: TextScaler.linear(systemFactor * ratio),
-              ),
+            return ValueListenableBuilder<double?>(
+              valueListenable: fontScaleRatio,
+              // child 传下去，切换字号时不重建页面树，只替换 MediaQuery。
               child: child,
+              builder: (BuildContext context, double? ratio, Widget? scaled) {
+                final Widget page = scaled ?? const SizedBox.shrink();
+                if (ratio == null) {
+                  return page;
+                }
+                final MediaQueryData media = MediaQuery.of(context);
+                final double systemFactor = media.textScaler.scale(1.0);
+                return MediaQuery(
+                  data: media.copyWith(
+                    textScaler: TextScaler.linear(systemFactor * ratio),
+                  ),
+                  child: page,
+                );
+              },
             );
           },
         );
