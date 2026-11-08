@@ -75,11 +75,19 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 底栏与内容同底色、无阴影无描边：层级只靠图标/文字选中态表达，
+    // 避免 Tab 上沿出现一条分割线或渐变的“两条”视觉。
+    final ThemeData theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: widget.navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
         destinations: _destinations,
         onDestinationSelected: (int index) {
           widget.navigationShell.goBranch(
