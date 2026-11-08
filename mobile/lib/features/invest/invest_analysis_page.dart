@@ -144,7 +144,12 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
                     items: <({String label, String value, Color? color})>[
                       (
                         label: '账户净值',
-                        value: formatUsd(stats.summary.accountValue),
+                        // 业务规则：净值不可能为负，展示下限 $0.00。
+                        value: formatUsd(
+                          stats.summary.accountValue < 0
+                              ? 0
+                              : stats.summary.accountValue,
+                        ),
                         color: theme.colorScheme.onSurface,
                       ),
                       (

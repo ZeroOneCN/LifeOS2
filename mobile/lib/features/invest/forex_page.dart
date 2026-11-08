@@ -8,7 +8,6 @@ import '../../core/network/api_exception.dart';
 import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -376,56 +375,20 @@ class _ForexPageState extends State<ForexPage> {
     }
   }
 
-  /// 进入新增页；保存成功（返回 true）后刷新汇总与两个列表。
-  Future<void> _openCreate() async {
-    final bool? created = await context.push<bool>('/invest/forex/new');
-    if (created != true || !mounted) {
-      return;
-    }
-    final OutboxController outbox = AppScope.of(context).outbox;
-    if (outbox.isOnline) {
-      await _refresh();
-    }
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          outbox.isOnline ? '交易已保存，正在同步到服务器' : '交易已存本地，联网后自动同步',
-        ),
-      ),
-    );
-  }
-
-  /// 新增资金记录；保存成功后刷新汇总与资金明细。
-  Future<void> _openFundCreate() async {
-    final bool? changed = await context.push<bool>('/invest/forex/funds/new');
-    if (changed == true && mounted) {
-      await _refresh();
-    }
-  }
-
-  /// 编辑 / 删除资金记录；返回 true 后刷新。
-  Future<void> _openFundEdit(FundRecord record) async {
-    final bool? changed = await context.push<bool>(
+  /// 查看资金记录详情（只读，无编辑 / 删除入口）。
+  Future<void> _openFundDetail(FundRecord record) async {
+    await context.push<void>(
       '/invest/forex/funds/edit/${record.id}',
       extra: record,
     );
-    if (changed == true && mounted) {
-      await _refresh();
-    }
   }
 
-  /// 编辑 / 删除交易；返回 true 后重拉汇总与两个列表。
-  Future<void> _openTradeEdit(ForexTrade trade) async {
-    final bool? changed = await context.push<bool>(
+  /// 查看交易详情（只读，无编辑 / 删除入口）。
+  Future<void> _openTradeDetail(ForexTrade trade) async {
+    await context.push<void>(
       '/invest/forex/edit/${trade.id}',
       extra: trade,
     );
-    if (changed == true && mounted) {
-      await _refresh();
-    }
   }
 
   /// 资金分页响应 `items` → [FundRecord]。
@@ -470,12 +433,8 @@ class _ForexPageState extends State<ForexPage> {
             outbox.pendingOf(outboxOpForexCreate);
         return DetailPageScaffold(
           title: '外汇交易',
-          // 主操作放底栏而非悬浮按钮：底栏独立占位，内容只在其上方滚动，
-          // 柱图 X 轴末标签不会被按钮压住（1.3x 字号同样不遮挡）。
-          bottomBar: AppPrimaryButton(
-            label: '新增交易',
-            onPressed: _openCreate,
-          ),
+          // 行情与资金数据统一由网页端导入：移动端不提供新增入口，
+          // 因此页面没有底栏，也没有悬浮按钮。
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: <Widget>[
@@ -496,10 +455,6 @@ class _ForexPageState extends State<ForexPage> {
                   if (_status == LoadStatus.ready) ...<Widget>[
                     SectionCard(
                       title: '资金动态',
-                      trailing: AppPrimaryAction(
-                        label: '记录资金',
-                        onPressed: _openFundCreate,
-                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 8,
@@ -543,7 +498,7 @@ class _ForexPageState extends State<ForexPage> {
                               icon: Icons.account_balance_wallet_outlined,
                               title: _rangeDays == 0 ? '暂无资金记录' : '该区间没有资金记录',
                               description: _rangeDays == 0
-                                  ? '点右上角「记录资金」录入第一笔'
+                                  ? '资金记录由网页端导入，移动端仅支持查看'
                                   : '可切换上方「全部」查看历史记录',
                               compact: true,
                             )
@@ -553,7 +508,7 @@ class _ForexPageState extends State<ForexPage> {
                                 for (final FundRecord record in _funds)
                                   _FundRow(
                                     record: record,
-                                    onTap: () => _openFundEdit(record),
+                                    onTap: () => _openFundDetail(record),
                                   ),
                               ],
                             ),
@@ -578,7 +533,7 @@ class _ForexPageState extends State<ForexPage> {
                               icon: Icons.show_chart_outlined,
                               title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
                               description: _rangeDays == 0
-                                  ? '点底部「新增交易」录入第一笔'
+                                  ? '交易数据由网页端导入，移动端仅支持查看'
                                   : '可切换上方「全部」查看历史记录',
                               compact: true,
                             )
@@ -587,7 +542,7 @@ class _ForexPageState extends State<ForexPage> {
                                 for (final ForexTrade trade in _trades)
                                   _TradeRow(
                                     trade: trade,
-                                    onTap: () => _openTradeEdit(trade),
+                                    onTap: () => _openTradeDetail(trade),
                                   ),
                               ],
                             ),
@@ -857,6 +812,10 @@ class _FundMetrics extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppSemanticColors colors = context.semanticColors;
+    // 业务规则：净值不可能为负，0 即代表账户已无余额。
+    // 后端在区间口径下会给出负数（区间净投入 + 区间盈亏），展示层一律取 0 下限。
+    final double? net = stats?.net;
+    final double? netFloor = net == null ? null : (net < 0 ? 0 : net);
     return Column(
       spacing: 12,
       children: <Widget>[
@@ -892,11 +851,18 @@ class _FundMetrics extends StatelessWidget {
             Expanded(
               child: _FundMetric(
                 label: '净投入',
-                value: formatUsd(stats?.net),
+                value: formatUsd(netFloor),
                 color: colors.info,
               ),
             ),
           ],
+        ),
+        Text(
+          '口径：区间入金 − 出金（含体验金）。展示下限为 \$0.00，'
+          '这是「区间净投入 + 区间盈亏」口径，不是账户余额。',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
         ),
       ],
     );

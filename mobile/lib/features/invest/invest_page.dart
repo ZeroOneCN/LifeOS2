@@ -178,11 +178,19 @@ class _InvestPageState extends State<InvestPage> {
                           spacing: 4,
                           children: <Widget>[
                             Text(
-                              formatUsd(data?.accountValue),
+                              // 业务规则：净值不可能为负；后端全量口径已修正为 0，
+                              // 这里再做一次展示下限，避免区间口径的负数直接透出。
+                              formatUsd(
+                                data?.accountValue == null
+                                    ? null
+                                    : (data!.accountValue! < 0
+                                        ? 0
+                                        : data.accountValue),
+                              ),
                               style: AppTypography.amountLarge,
                             ),
                             Text(
-                              '账户净值',
+                              '账户净值（下限 \$0.00）',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: muted,
                               ),
@@ -382,7 +390,7 @@ class _InvestPageState extends State<InvestPage> {
                   Text(
                     state.status == LoadStatus.unauthenticated
                         ? '登录后可查看近一年外汇交易明细。'
-                        : '外汇交易明细已接入：可查看近一年全部交易、按币种筛选并新增交易。',
+                        : '外汇交易明细已接入：可查看近一年全部交易并按币种筛选，交易数据由网页端导入。',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                   AppPrimaryButton(

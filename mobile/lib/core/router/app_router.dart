@@ -42,9 +42,9 @@ import '../../features/health/health_sleep_form_page.dart';
 import '../../features/health/health_sleep_page.dart';
 import '../../features/health/health_steps_create_page.dart';
 import '../../features/health/health_steps_page.dart';
-import '../../features/invest/forex_create_page.dart';
+import '../../features/invest/forex_detail_page.dart';
 import '../../features/invest/forex_page.dart';
-import '../../features/invest/fund_record_form_page.dart';
+import '../../features/invest/fund_record_detail_page.dart';
 import '../../features/invest/invest_analysis_page.dart';
 import '../../features/invest/invest_calendar_page.dart';
 import '../../features/invest/invest_page.dart';
@@ -695,14 +695,10 @@ GoRouter createAppRouter() {
                     path: 'forex',
                     builder: (_, _) => const ForexPage(),
                     routes: <RouteBase>[
-                      GoRoute(
-                        path: 'new',
-                        builder: (_, _) => const ForexCreatePage(),
-                      ),
-                      // 交易编辑 / 删除：`extra` 带列表快照预填，避免二次请求。
+                      // 交易详情（只读）：行情数据由网页端导入，移动端无写入入口。
                       GoRoute(
                         path: 'edit/:id',
-                        builder: (_, GoRouterState state) => ForexCreatePage(
+                        builder: (_, GoRouterState state) => ForexDetailPage(
                           tradeId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
                               0,
@@ -711,19 +707,14 @@ GoRouter createAppRouter() {
                               : null,
                         ),
                       ),
-                      // 资金记录新增：`POST /investment/funds`，保存后返回 true 触发列表刷新。
-                      GoRoute(
-                        path: 'funds/new',
-                        builder: (_, _) => const FundRecordFormPage(),
-                      ),
-                      // 资金记录编辑 / 删除：`extra` 带列表快照可直接预填，缺失时按 id 拉取。
+                      // 资金记录详情（只读）：后端无单条 GET，只能用列表快照。
                       GoRoute(
                         path: 'funds/edit/:id',
-                        builder: (_, GoRouterState state) => FundRecordFormPage(
+                        builder: (_, GoRouterState state) => FundRecordDetailPage(
                           recordId:
                               int.tryParse(state.pathParameters['id'] ?? '') ??
                               0,
-                          initial: state.extra is FundRecord
+                          record: state.extra is FundRecord
                               ? state.extra as FundRecord
                               : null,
                         ),
