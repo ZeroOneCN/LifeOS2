@@ -6,6 +6,51 @@ from sqlalchemy.orm import Session
 
 from app.models import InvestmentForex, InvestmentFundRecord
 
+# 失效赠金记录（体验金失效）备注前缀：这类负数不从本金里剔除
+EXPIRED_BONUS_MARK = "bns807"
+
+
+def is_expired_bonus(note: str | None) -> bool:
+    """判断一条体验金记录是否为「失效赠金」。
+
+    Args:
+        note: 资金记录备注。
+
+    Returns:
+        备注含 bns807 时返回 True，否则 False。
+    """
+    return bool(note) and EXPIRED_BONUS_MARK in note
+
+
+def net_capital_of(funds) -> float:
+    """按统一业务口径计算净投入（与外汇统计共用）。
+
+    净投入 = 入金 - 出金 + 赠金发放 - 体验金亏损。
+    其中：
+    - 失效赠金（备注含 bns807）**不从本金里剔除**，等价于仍计入本金；
+    - 赠金只在体验金记录这一处计一次（发放为正、亏损为负），
+      不再额外叠加「剩余赠金余额」，避免 bonus 与 remaining_bonus 重复计价。
+
+    真实库代入：6033.40 - 3242.76 + 0 - 13.91 = 2776.73。
+
+    Args:
+        funds: InvestmentFundRecord 可迭代对象。
+
+    Returns:
+        保留两位小数的净投入金额。
+    """
+    total = 0.0
+    for f in funds:
+        if f.record_type == "deposit":
+            total += f.amount
+        elif f.record_type == "withdraw":
+            total -= f.amount
+        elif f.record_type == "experience":
+            # 正数赠金发放照常计入；负数只在「非失效赠金」时扣减
+            if f.amount >= 0 or not is_expired_bonus(f.note):
+                total += f.amount
+    return round(total, 2)
+
 
 def _net(t) -> float:
     return (t.pnl or 0) + (t.commission or 0) + (t.overnight_fee or 0)
@@ -93,7 +138,13 @@ def build_investment_report(
     top_wins = [x for x in sorted_by_net[:5] if x[1] > 0]
     top_losses = sorted([x for x in nets if x[1] < 0], key=lambda x: x[1])[:5]
 
-    account_equity = deposit - withdraw + experience + net_profit
+    # 账户净值口径（业务定义，不是券商账户余额快照）：
+    #   净值 = 净投入 + 区间净盈亏
+    #   净投入 = 入金 - 出金 + 赠金发放 - 体验金亏损
+    # 失效赠金（备注含 bns807）不从本金里剔除，等价于仍计入本金；
+    # 赠金只在体验金记录这一处计一次，不再叠加剩余赠金余额。
+    # 真实库代入：6033.40 - 3242.76 + 0 - 13.91 + (-2776.73) = 0.00
+    account_equity = round(net_capital_of(funds) + net_profit, 2)
 
     title = f"{label} 投资报告"
     summary = (

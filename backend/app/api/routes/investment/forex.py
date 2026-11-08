@@ -13,6 +13,7 @@ from app.core.security import get_current_user
 from app.models import InvestmentForex, InvestmentFundRecord, UserProfile
 from app.schemas.investment import ForexCreate, ForexRead
 from app.schemas.health import PageOut
+from app.services.investment_report import net_capital_of
 
 router = APIRouter(prefix="/investment/forex", tags=["investment-forex"])
 
@@ -243,21 +244,8 @@ DRAWDOWN_BASE_MIN = 1.0
 DRAWDOWN_PCT_CAP = 999.99
 
 
-def _net_capital_of(funds) -> float:
-    """净投入 = 入金 - 出金 + 体验金（体验金带符号，亏损/失效为负）。
-
-    Args:
-        funds: InvestmentFundRecord 列表（可为全量或窗口内）。
-
-    Returns:
-        保留 2 位小数的净投入金额。
-    """
-    return round(
-        sum(f.amount for f in funds if f.record_type == "deposit")
-        - sum(f.amount for f in funds if f.record_type == "withdraw")
-        + sum(f.amount for f in funds if f.record_type == "experience"),
-        2,
-    )
+# 净投入统一口径（与投资报告共用）：入金 - 出金 + 赠金发放 - 体验金亏损，
+# 失效赠金不从本金剔除（等价于仍计入本金），赠金只计一次。
 
 
 def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None) -> dict:
@@ -268,12 +256,15 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     不再出现「只有收益曲线按区间、其它指标恒为全量」的口径分裂。
 
     口径约定：
-    - `account_value`（账户净值）= 窗口净投入（入金 - 出金 + 体验金）
-      + 窗口净盈亏，与 `/investment/funds/stats` 的 `net`、投资报告的 `account_equity`
-      同口径，允许为负；它不是券商账户余额快照，而是「区间投入 + 区间盈亏」的平台口径净值。
+    - `account_value`（账户净值）= 窗口净投入 + 窗口净盈亏。
+      净投入 = 入金 - 出金 + 赠金发放 - 体验金亏损：
+      失效赠金（备注含 bns807）**不从本金中剔除**，等价于仍计入本金；
+      赠金只在这一处计一次（发放为正、亏损为负），不再额外叠加剩余赠金余额。
+      真实库代入：6033.40 - 3242.76 + 0 - 13.91 + (-2776.73) = 0.00。
+      它不是券商账户余额快照，而是「区间投入 + 区间盈亏」的平台口径净值。
     - `max_drawdown` 为窗口内累计净盈亏的峰值回撤（美元绝对值，不受分母影响）；
       `max_drawdown_pct` = 最大回撤 / 累计净投入 × 100（分母与资金页「净投入」同口径），
-      累计净投入 ≤ 1 美元时返回 None（无有效基准，避免分母趋零导致百分比失真），
+      累计净投入 ≤ 1 美元或为负时返回 None（无有效基准，避免分母趋零导致百分比失真），
       且上限截断为 999.99，不输出四位数百分比。
     - `open_count` 是当前仍持仓的交易数（状态量），不随统计窗口变化。
 
@@ -303,16 +294,18 @@ def compute_forex_stats(db: Session, days: int = 365, user_id: int | None = None
     # 体验金按带符号合计（发放为正、亏损/失效为负），与资金页「体验金」卡片同口径；
     # 不再做 max(0, …) 余额截断，避免全局 -70 被显示成 0 且把净值算错。
     experience_total = sum(f.amount for f in funds if f.record_type == "experience")
-    net_capital = round(deposits - withdrawals + experience_total, 2)
+    # 净投入按统一口径计算：失效赠金不从本金剔除（等价于仍计入本金），赠金只计一次
+    net_capital = net_capital_of(funds)
     # 回撤百分比的分母用「累计净投入」（与资金页净投入卡片同口径），
     # 不用窗口内净投入：短区间内几乎没有出入金时，窗口净投入会趋近 0 再次放大百分比。
-    total_net_capital = _net_capital_of(all_funds)
+    total_net_capital = net_capital_of(all_funds)
 
     nets = {t.id: _trade_net(t) for t in closed}
     gross_pnl = sum(t.pnl or 0 for t in closed)
     total_commission = round(sum(t.commission or 0 for t in closed), 2)
     total_overnight = round(sum(t.overnight_fee or 0 for t in closed), 2)
     net_profit = round(sum(nets.values()), 2)
+    # 账户净值 = 净投入 + 净盈亏（净投入已按失效赠金仍计入本金的口径计算）
     account_value = round(net_capital + net_profit, 2)
 
     wins = [n for n in nets.values() if n > 0]
@@ -527,15 +520,12 @@ def calendar(month: str | None = Query(None), db: Session = Depends(get_db),
     trading_days = sum(1 for d in by_day.values() if d["count"] > 0)
     win_days = sum(1 for d in by_day.values() if d["pnl"] > 0)
     loss_days = sum(1 for d in by_day.values() if d["pnl"] < 0)
-    # 月收益率 = 本月净盈亏 / 累计净投入本金（入金+赠金-亏损-出金），该值也可由其余明细调整
+    # 月收益率 = 本月净盈亏 / 累计净投入本金（统一口径：失效赠金不从本金剔除、赠金只计一次）
     fund_rows = db.scalars(
         select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
     ).all()
-    net_capital = sum(f.amount for f in fund_rows if f.record_type == "deposit")
-    net_capital += sum(max(0, f.amount) for f in fund_rows if f.record_type == "experience")
-    net_capital -= sum(f.amount for f in fund_rows if f.record_type == "withdraw")
-    net_capital -= sum(-f.amount for f in fund_rows if f.record_type == "experience" and f.amount < 0 and not (f.note and "bns807" in f.note))
-    base = net_capital if net_capital and net_capital != 0 else 1.0
+    net_capital = net_capital_of(fund_rows)
+    base = net_capital if net_capital != 0 else 1.0
     return_rate = round(month_pnl / base * 100, 2) if base else 0.0
 
     return {

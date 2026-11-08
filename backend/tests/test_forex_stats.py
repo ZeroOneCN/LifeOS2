@@ -30,13 +30,14 @@ def _trade(days_ago: int = 0, pnl: float = 0.0, symbol: str = "EURUSD",
 
 
 def _fund(record_type: str, amount: float, days_ago: int = 0,
-          user_id: int = 1) -> InvestmentFundRecord:
-    """构造一条资金记录（入金/出金/体验金）。"""
+          user_id: int = 1, note: str | None = None) -> InvestmentFundRecord:
+    """构造一条资金记录（入金/出金/体验金，可带备注区分失效赠金）。"""
     return InvestmentFundRecord(
         user_id=user_id,
         record_type=record_type,
         amount=amount,
         record_date=date.today() - timedelta(days=days_ago),
+        note=note,
     )
 
 
@@ -45,26 +46,42 @@ def _stats(db_session, days: int = 365) -> dict:
     return compute_forex_stats(db_session, days=days, user_id=1)
 
 
-def test_account_value_can_be_negative(db_session):
-    """账户净值 = 净投入 + 净盈亏，允许为负，不能被截断成 0。"""
+def test_account_value_counts_expired_bonus_as_capital(db_session):
+    """失效赠金不从本金剔除：净值 = 净投入 + 净盈亏，结果为 0.00。
+
+    真实库同口径：6033.40 - 3242.76 + 0 - 13.91 + (-2776.73) = 0.00
+    （失效赠金 -56.09 不参与扣减）。
+    """
     db_session.add_all([
-        _fund("deposit", 100.0),
-        _fund("withdraw", 120.0),
-        _fund("experience", -10.0),
-        _trade(pnl=-30.0),
+        _fund("deposit", 200.0),
+        _fund("experience", -50.0, note="bns807 体验金失效"),
+        _trade(pnl=-200.0),
     ])
     db_session.flush()
 
     summary = _stats(db_session)["summary"]
-    # 100 - 120 + (-10) + (-30) = -60
-    assert summary["account_value"] == -60.0
-    assert summary["net_profit"] == -30.0
-    # 体验金按带符号合计，不做 max(0, …) 截断
-    assert summary["total_experience"] == -10.0
+    # 净投入 = 200（失效赠金 -50 不扣），再加净盈亏 -200 = 0
+    assert summary["account_value"] == 0.0
+    assert summary["net_profit"] == -200.0
+    # 展示用的体验金合计仍是带符号全量统计（含失效赠金）
+    assert summary["total_experience"] == -50.0
+
+
+def test_experience_loss_still_deducted_from_capital(db_session):
+    """体验金亏损（bns806）仍从本金扣减，只有失效赠金不扣。"""
+    db_session.add_all([
+        _fund("deposit", 200.0),
+        _fund("experience", -50.0, note="bns806 体验金亏损"),
+        _trade(pnl=-100.0),
+    ])
+    db_session.flush()
+
+    # 净投入 = 200 - 50 = 150，再加净盈亏 -100 = 50
+    assert _stats(db_session)["summary"]["account_value"] == 50.0
 
 
 def test_experience_bonus_not_double_counted(db_session):
-    """体验金只计一次：入金 100 + 赠金 20 + 盈亏 10 = 130（旧实现会重复计成 150）。"""
+    """赠金只计一次：入金 100 + 赠金 20 + 盈亏 10 = 130（旧实现会重复计成 150）。"""
     db_session.add_all([
         _fund("deposit", 100.0),
         _fund("experience", 20.0),
@@ -108,6 +125,16 @@ def test_drawdown_pct_is_none_when_capital_too_small(db_session):
     db_session.flush()
 
     assert _stats(db_session)["analysis"]["max_drawdown_pct"] is None
+
+
+def test_drawdown_pct_is_none_when_net_capital_is_zero(db_session):
+    """没有任何资金记录（累计净投入 = 0）时，回撤百分比返回 None。"""
+    db_session.add(_trade(pnl=-10.0))
+    db_session.flush()
+
+    analysis = _stats(db_session)["analysis"]
+    assert analysis["max_drawdown"] == 10.0
+    assert analysis["max_drawdown_pct"] is None
 
 
 def test_days_filters_summary_symbol_analysis_and_funds(db_session):
