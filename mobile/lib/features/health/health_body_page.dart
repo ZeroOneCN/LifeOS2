@@ -274,12 +274,15 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
   Widget build(BuildContext context) {
     return DetailPageScaffold(
       title: '体重记录',
-      // 主操作放底栏：底栏独立占位，列表滚动到底时最后一行不会被按钮压住。
-      bottomBar: AppPrimaryButton(
-        label: '新增体重',
-        icon: Icons.add,
-        onPressed: _status == LoadStatus.loading ? null : _openCreate,
-      ),
+      // 新增入口移到右上角：页面里的体重趋势与历史列表是主要浏览内容，
+      // 底部整条按钮会压缩可视区域；同时避免与健康中心其他页的悬浮按钮叠加。
+      actions: <Widget>[
+        IconButton(
+          tooltip: '新增体重',
+          onPressed: _status == LoadStatus.loading ? null : _openCreate,
+          icon: const Icon(Icons.add),
+        ),
+      ],
       child: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[

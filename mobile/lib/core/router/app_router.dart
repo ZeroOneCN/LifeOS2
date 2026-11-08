@@ -26,6 +26,7 @@ import '../../features/finance/finance_transactions_page.dart';
 import '../../features/health/health_body_ble_page.dart';
 import '../../features/health/health_body_form_page.dart';
 import '../../features/health/health_body_page.dart';
+import '../../features/health/health_checkup_bulk_page.dart';
 import '../../features/health/health_checkup_form_page.dart';
 import '../../features/health/health_checkup_page.dart';
 import '../../features/health/health_diet_form_page.dart';
@@ -328,7 +329,7 @@ GoRouter createAppRouter() {
                     routes: <RouteBase>[
                       GoRoute(
                         path: 'new',
-                        builder: (_, _) => const HealthCheckupFormPage(),
+                        builder: (_, _) => const HealthCheckupBulkPage(),
                       ),
                       GoRoute(
                         path: ':id',

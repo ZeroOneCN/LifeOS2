@@ -8,6 +8,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/queue/outbox_controller.dart';
 import '../../core/queue/outbox_entry.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -529,10 +530,9 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
     return DetailPageScaffold(
       title: '用药跟踪',
-      // 主操作放底栏：底栏独立占位，购药记录与库存行不会被悬浮按钮压住。
-      bottomBar: AppPrimaryButton(
-        label: '新增用药',
-        icon: Icons.add,
+      // 主操作改为右下角圆形悬浮按钮（与体检 / 睡眠 / 步数一致）。
+      floatingActionButton: AddEntryFab(
+        tooltip: '新增用药',
         onPressed: _openCreate,
       ),
       child: ListView(

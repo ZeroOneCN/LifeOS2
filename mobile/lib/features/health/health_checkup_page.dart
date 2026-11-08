@@ -7,7 +7,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -161,9 +161,8 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
 
     return DetailPageScaffold(
       title: '体检指标',
-      bottomBar: AppPrimaryButton(
-        label: '新增体检记录',
-        icon: Icons.add,
+      floatingActionButton: AddEntryFab(
+        tooltip: '新增体检记录',
         onPressed: () => _openForm(),
       ),
       child: ListView(

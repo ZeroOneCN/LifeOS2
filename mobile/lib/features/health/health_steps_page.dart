@@ -6,6 +6,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -174,10 +175,9 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
           icon: const Icon(Icons.straighten_outlined),
         ),
       ],
-      // 主操作放底栏：底栏独立占位，走势图与明细不会被悬浮按钮压住。
-      bottomBar: AppPrimaryButton(
-        label: '新增步数',
-        icon: Icons.add,
+      // 主操作改为右下角圆形悬浮按钮（与体检 / 睡眠 / 用药一致）。
+      floatingActionButton: AddEntryFab(
+        tooltip: '新增步数',
         onPressed: _openCreate,
       ),
       child: ListView(
@@ -364,14 +364,19 @@ class _TrendBars extends StatelessWidget {
                       ),
                       // X 轴默认只显示日；跨月或第一天补「月/日」，
                       // 否则 30 天区间里看不出这几天属于哪个月。
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          _axisLabel(points, i),
-                          maxLines: 1,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 10,
+                      // 标签必须固定高度：`FittedBox` 会把「10/1」等比缩小，
+                      // 若高度随内容变化，各柱基线就会高低错位。
+                      SizedBox(
+                        height: 14,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _axisLabel(points, i),
+                            maxLines: 1,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),

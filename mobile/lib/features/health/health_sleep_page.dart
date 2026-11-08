@@ -6,7 +6,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -197,9 +197,8 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
 
     return DetailPageScaffold(
       title: '睡眠体征',
-      bottomBar: AppPrimaryButton(
-        label: '新增睡眠',
-        icon: Icons.add,
+      floatingActionButton: AddEntryFab(
+        tooltip: '新增睡眠记录',
         onPressed: () => _openForm(),
       ),
       child: ListView(
