@@ -311,6 +311,17 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
     }
   }
 
+  /// 编辑购药记录：带快照进入表单，保存后重拉库存与购药列表。
+  Future<void> _openPurchaseEdit(MedPurchase purchase) async {
+    final bool? changed = await context.push<bool>(
+      '/health/medication/purchases/${purchase.id}',
+      extra: purchase,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   /// 删除购药记录：确认后删除，并重拉购药列表与库存提醒。
   Future<void> _deletePurchase(MedPurchase purchase) async {
     final bool? confirmed = await showDialog<bool>(
@@ -718,6 +729,7 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
                         for (final MedPurchase purchase in _purchases)
                           _PurchaseRow(
                             purchase: purchase,
+                            onEdit: () => _openPurchaseEdit(purchase),
                             onDelete: () => _deletePurchase(purchase),
                           ),
                       Align(
@@ -865,11 +877,16 @@ class _StockRow extends StatelessWidget {
   }
 }
 
-/// 购药记录行：日期 / 药品 / 数量 / 总价 + 删除入口。
+/// 购药记录行：日期 / 药品 / 数量 / 总价 + 编辑 / 删除入口。
 class _PurchaseRow extends StatelessWidget {
-  const _PurchaseRow({required this.purchase, required this.onDelete});
+  const _PurchaseRow({
+    required this.purchase,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final MedPurchase purchase;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
@@ -911,6 +928,12 @@ class _PurchaseRow extends StatelessWidget {
                 fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
             ),
+          IconButton(
+            tooltip: '编辑购药记录',
+            onPressed: onEdit,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.edit_outlined, size: 20),
+          ),
           IconButton(
             tooltip: '删除购药记录',
             onPressed: onDelete,

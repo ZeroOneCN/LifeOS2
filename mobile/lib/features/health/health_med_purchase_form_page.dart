@@ -1,19 +1,29 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
-/// 新增购药记录：购买日期、药品名称、渠道、数量、单位、每包装粒数、
+/// 新增 / 编辑购药记录：购买日期、药品名称、渠道、数量、单位、每包装粒数、
 /// 单价、总价、备注。
 ///
-/// 后端 `POST /health/medication/purchases`（`MedPurchaseCreate`）：
+/// 后端 `POST /health/medication/purchases`（`MedPurchaseCreate`）与
+/// `PUT /health/medication/purchases/{id}`：
 /// `quantity > 0`、`unit_price >= 0`；`total_price` 留空时后端按
 /// `quantity × unit_price` 自动计算。保存后后端会自动同步库存与低库存提醒。
 class HealthMedPurchaseFormPage extends StatefulWidget {
-  const HealthMedPurchaseFormPage({super.key});
+  const HealthMedPurchaseFormPage({super.key, this.purchaseId, this.initial});
+
+  /// 非空表示编辑模式。
+  final int? purchaseId;
+
+  /// 列表页带来的快照：可直接预填，缺失时按 id 拉取。
+  final MedPurchase? initial;
+
+  bool get isEditing => purchaseId != null;
 
   @override
   State<HealthMedPurchaseFormPage> createState() =>
@@ -35,6 +45,65 @@ class _HealthMedPurchaseFormPageState
   DateTime _date = DateTime.now();
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final MedPurchase? initial = widget.initial;
+    if (initial != null) {
+      _apply(initial);
+    } else if (widget.isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadRecord();
+        }
+      });
+    }
+  }
+
+  /// 用列表快照预填表单；空值保持空白，不写 0。
+  void _apply(MedPurchase purchase) {
+    _date = DateTime.tryParse(purchase.buyDate) ?? DateTime.now();
+    _name.text = purchase.medicineName;
+    _channel.text = purchase.channel ?? '';
+    _quantity.text = _numberText(purchase.quantity);
+    _unit.text = purchase.unit ?? '';
+    _pillsPerUnit.text = purchase.pillsPerUnit == null
+        ? ''
+        : _numberText(purchase.pillsPerUnit!);
+    _unitPrice.text = _numberText(purchase.unitPrice);
+    _totalPrice.text =
+        purchase.totalPrice == null ? '' : _numberText(purchase.totalPrice!);
+    _note.text = purchase.note ?? '';
+  }
+
+  /// 数字转输入框文本：去掉无意义的小数尾零。
+  String _numberText(double value) {
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toString();
+  }
+
+  /// 深链进入且无快照时按 id 拉取，失败时提示但仍可编辑。
+  Future<void> _loadRecord() async {
+    final AppScope scope = AppScope.of(context);
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/medication/purchases/${widget.purchaseId}',
+              ))
+          .data;
+      if (!mounted || json == null) {
+        return;
+      }
+      setState(() => _apply(MedPurchase.fromJson(json)));
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.message);
+    }
+  }
 
   @override
   void dispose() {
@@ -78,7 +147,11 @@ class _HealthMedPurchaseFormPageState
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     if (!scope.outbox.isOnline) {
-      setState(() => _error = '当前无网络：新增购药记录需要联网，请恢复网络后重试');
+      setState(
+        () => _error = widget.isEditing
+            ? '当前无网络：编辑购药记录需要联网，请恢复网络后重试'
+            : '当前无网络：新增购药记录需要联网，请恢复网络后重试',
+      );
       return;
     }
     final double quantity = double.parse(_quantity.text.trim());
@@ -93,28 +166,41 @@ class _HealthMedPurchaseFormPageState
       _saving = true;
       _error = null;
     });
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'buy_date': _dateText,
+      'medicine_name': _name.text.trim(),
+      'channel': _channel.text.trim().isEmpty ? null : _channel.text.trim(),
+      'unit': _unit.text.trim().isEmpty ? null : _unit.text.trim(),
+      'quantity': quantity,
+      'pills_per_unit': pillsPerUnit,
+      'unit_price': unitPrice,
+      'total_price': totalPrice,
+      'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
+    };
     try {
-      await scope.apiClient.post<Map<String, dynamic>>(
-        '/health/medication/purchases',
-        data: <String, dynamic>{
-          'buy_date': _dateText,
-          'medicine_name': _name.text.trim(),
-          'channel':
-              _channel.text.trim().isEmpty ? null : _channel.text.trim(),
-          'unit': _unit.text.trim().isEmpty ? null : _unit.text.trim(),
-          'quantity': quantity,
-          'pills_per_unit': pillsPerUnit,
-          'unit_price': unitPrice,
-          'total_price': totalPrice,
-          'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
-        },
-      );
+      if (widget.isEditing) {
+        await scope.apiClient.put<Map<String, dynamic>>(
+          '/health/medication/purchases/${widget.purchaseId}',
+          data: payload,
+        );
+      } else {
+        await scope.apiClient.post<Map<String, dynamic>>(
+          '/health/medication/purchases',
+          data: payload,
+        );
+      }
       if (!mounted) {
         return;
       }
       navigator.pop(true);
       messenger.showSnackBar(
-        SnackBar(content: Text('已记录 ${_name.text.trim()} 的购药')),
+        SnackBar(
+          content: Text(
+            widget.isEditing
+                ? '已更新 ${_name.text.trim()} 的购药记录'
+                : '已记录 ${_name.text.trim()} 的购药',
+          ),
+        ),
       );
     } on ApiException catch (error) {
       if (!mounted) {
@@ -131,7 +217,7 @@ class _HealthMedPurchaseFormPageState
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
-      title: '新增购药记录',
+      title: widget.isEditing ? '编辑购药记录' : '新增购药记录',
       bottomBar: SizedBox(
         height: kAppButtonHeight,
         width: double.infinity,
