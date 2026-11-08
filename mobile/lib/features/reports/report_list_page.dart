@@ -5,11 +5,13 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/report_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import 'report_actions.dart';
 
 /// 报告列表页：财务 / 投资 / 健康 / 生活报告共用，按 [ReportSource] 区分数据源。
 ///
@@ -109,9 +111,8 @@ class _ReportListPageState extends State<ReportListPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _loadingMore = false);
@@ -124,15 +125,14 @@ class _ReportListPageState extends State<ReportListPage> {
     final AppScope scope = AppScope.of(context);
     final List<ReportSummaryItem> items;
     if (widget.source.listPaginated) {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>(
-        widget.source.apiPath,
-        queryParameters: <String, dynamic>{
-          'page': page,
-          'page_size': _pageSize,
-        },
-      ))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            widget.source.apiPath,
+            queryParameters: <String, dynamic>{
+              'page': page,
+              'page_size': _pageSize,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -149,9 +149,9 @@ class _ReportListPageState extends State<ReportListPage> {
           )
           .toList();
     } else {
-      final List<dynamic>? data =
-          (await scope.apiClient.get<List<dynamic>>(widget.source.apiPath))
-              .data;
+      final List<dynamic>? data = (await scope.apiClient.get<List<dynamic>>(
+        widget.source.apiPath,
+      )).data;
       if (data == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -174,10 +174,70 @@ class _ReportListPageState extends State<ReportListPage> {
     if (error.isUnauthorized) {
       return LoadStatus.unauthenticated;
     }
-    final bool offline = scope.auth.hasLocalSession &&
+    final bool offline =
+        scope.auth.hasLocalSession &&
         (error.kind == ApiErrorKind.network ||
             error.kind == ApiErrorKind.timeout);
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
+  }
+
+  /// 生成报告：表单成功返回新报告 id 后刷新列表并直接打开明细。
+  Future<void> _openGenerate() async {
+    final int? id = await context.push<int>(widget.source.generateRoute);
+    if (id == null || !mounted) {
+      return;
+    }
+    await _refresh();
+    if (!mounted) {
+      return;
+    }
+    await context.push<bool>('${widget.source.routeBase}/$id');
+    if (mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 导出单份报告为 PDF（后端生成，客户端只负责下载与分享）。
+  Future<void> _export(ReportSummaryItem item) {
+    return exportReportPdf(
+      context: context,
+      source: widget.source,
+      reportId: item.id,
+      reportTitle: _rowTitle(item),
+    );
+  }
+
+  /// 删除单份报告：二次确认后删除并刷新列表。
+  Future<void> _delete(ReportSummaryItem item) async {
+    final bool deleted = await deleteReport(
+      context: context,
+      source: widget.source,
+      reportId: item.id,
+      reportTitle: _rowTitle(item),
+      rangeText: item.rangeText,
+      total: _total,
+    );
+    if (deleted && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 行标题：优先统计区间，其次报告名，最后编号。
+  String _rowTitle(ReportSummaryItem item) {
+    if (item.rangeText.isNotEmpty) {
+      return item.rangeText;
+    }
+    return item.displayTitle.isNotEmpty ? item.displayTitle : '报告 #${item.id}';
+  }
+
+  /// 打开明细；明细页删除报告后返回 true，需要刷新列表。
+  Future<void> _openDetail(ReportSummaryItem item) async {
+    final bool? changed = await context.push<bool>(
+      '${widget.source.routeBase}/${item.id}',
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
   }
 
   @override
@@ -189,6 +249,11 @@ class _ReportListPageState extends State<ReportListPage> {
 
     return DetailPageScaffold(
       title: widget.source.pageTitle,
+      bottomBar: AppPrimaryButton(
+        label: '生成报告',
+        icon: Icons.auto_awesome_outlined,
+        onPressed: _openGenerate,
+      ),
       child: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
@@ -215,7 +280,12 @@ class _ReportListPageState extends State<ReportListPage> {
                       : Column(
                           children: <Widget>[
                             for (final ReportSummaryItem item in _items)
-                              _ReportRow(source: widget.source, item: item),
+                              _ReportRow(
+                                item: item,
+                                onOpen: () => _openDetail(item),
+                                onExport: () => _export(item),
+                                onDelete: () => _delete(item),
+                              ),
                             if (widget.source.listPaginated)
                               ListLoadMoreFooter(
                                 loading: _loadingMore,
@@ -238,10 +308,17 @@ class _ReportListPageState extends State<ReportListPage> {
 /// 之前标题固定为报告名，同页多份报告标题完全一样，只能靠小字区间猜；
 /// 页面标题已经标明报告类型，行内再重复一次没有信息量。
 class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.source, required this.item});
+  const _ReportRow({
+    required this.item,
+    required this.onOpen,
+    required this.onExport,
+    required this.onDelete,
+  });
 
-  final ReportSource source;
   final ReportSummaryItem item;
+  final VoidCallback onOpen;
+  final VoidCallback onExport;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -253,13 +330,12 @@ class _ReportRow extends StatelessWidget {
     );
     final String title = item.rangeText.isNotEmpty
         ? item.rangeText
-        : (item.displayTitle.isNotEmpty
-            ? item.displayTitle
-            : '报告 #${item.id}');
-    final String meta =
-        item.createdText.isNotEmpty ? item.createdText : '编号 #${item.id}';
+        : (item.displayTitle.isNotEmpty ? item.displayTitle : '报告 #${item.id}');
+    final String meta = item.createdText.isNotEmpty
+        ? item.createdText
+        : '编号 #${item.id}';
     return InkWell(
-      onTap: () => context.push('${source.routeBase}/${item.id}'),
+      onTap: onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
@@ -287,6 +363,33 @@ class _ReportRow extends StatelessWidget {
                   Text(meta, style: metaStyle),
                 ],
               ),
+            ),
+            // 导出 / 删除收进菜单，避免每行堆两个按钮。
+            PopupMenuButton<String>(
+              tooltip: '报告操作',
+              icon: Icon(Icons.more_vert, size: 20, color: muted),
+              onSelected: (String value) {
+                if (value == 'export') {
+                  onExport();
+                } else if (value == 'delete') {
+                  onDelete();
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'export',
+                  child: Text('导出 PDF'),
+                ),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Text(
+                    '删除',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
             Icon(Icons.chevron_right, size: 18, color: muted),
           ],

@@ -4,11 +4,13 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/report_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../theme/app_theme.dart';
+import 'report_actions.dart';
 
 /// 报告明细页：财务报告 / 投资报告共用。
 ///
@@ -34,6 +36,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   ReportDetail? _detail;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
+
+  /// 导出中 / 删除中：同一时间只允许一个动作，避免重复请求。
+  bool _exporting = false;
+  bool _deleting = false;
 
   /// 每个分组的锚点 key，供「目录」跳转使用；按分组序号复用，避免重建失效。
   final Map<int, GlobalKey> _sectionKeys = <int, GlobalKey>{};
@@ -79,11 +85,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       _message = null;
     });
     try {
-      final Map<String, dynamic>? data = (await scope.apiClient
-              .get<Map<String, dynamic>>(
+      final Map<String, dynamic>? data =
+          (await scope.apiClient.get<Map<String, dynamic>>(
             '${widget.source.apiPath}/${widget.reportId}',
-          ))
-          .data;
+          )).data;
       if (data == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -113,10 +118,58 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     if (error.isUnauthorized) {
       return LoadStatus.unauthenticated;
     }
-    final bool offline = scope.auth.hasLocalSession &&
+    final bool offline =
+        scope.auth.hasLocalSession &&
         (error.kind == ApiErrorKind.network ||
             error.kind == ApiErrorKind.timeout);
     return offline ? LoadStatus.connectionFailed : LoadStatus.failed;
+  }
+
+  /// 导出当前报告为 PDF。
+  Future<void> _export() async {
+    final ReportDetail? detail = _detail;
+    if (detail == null || _exporting) {
+      return;
+    }
+    setState(() => _exporting = true);
+    await exportReportPdf(
+      context: context,
+      source: widget.source,
+      reportId: widget.reportId,
+      reportTitle: detail.displayTitle.isEmpty
+          ? widget.source.pageTitle
+          : detail.displayTitle,
+    );
+    if (mounted) {
+      setState(() => _exporting = false);
+    }
+  }
+
+  /// 删除当前报告：二次确认后返回列表并通知刷新。
+  Future<void> _delete() async {
+    final ReportDetail? detail = _detail;
+    if (detail == null || _deleting) {
+      return;
+    }
+    final NavigatorState navigator = Navigator.of(context);
+    final bool deleted = await deleteReport(
+      context: context,
+      source: widget.source,
+      reportId: widget.reportId,
+      reportTitle: detail.displayTitle.isEmpty
+          ? widget.source.pageTitle
+          : detail.displayTitle,
+      rangeText: detail.rangeText,
+      total: null,
+    );
+    if (!deleted) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() => _deleting = true);
+    navigator.pop(true);
   }
 
   @override
@@ -130,15 +183,32 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final List<_ReportSection> sections = detail == null
         ? const <_ReportSection>[]
         : _collectSections(context, detail.content, title);
-    final int totalRows =
-        sections.fold<int>(0, (int sum, _ReportSection item) => sum + item.rowCount);
-    final int titledSections =
-        sections.where((_ReportSection item) => item.title != null).length;
+    final int totalRows = sections.fold<int>(
+      0,
+      (int sum, _ReportSection item) => sum + item.rowCount,
+    );
+    final int titledSections = sections
+        .where((_ReportSection item) => item.title != null)
+        .length;
     // 长报告（如财务报告 104 笔购物明细）提供目录，短报告不额外占位。
     final bool showToc = totalRows >= 20 && titledSections >= 2;
 
     return DetailPageScaffold(
       title: title,
+      bottomBar: detail == null
+          ? null
+          : AppActionRow(
+              first: AppSecondaryButton(
+                label: _exporting ? '导出中…' : '导出 PDF',
+                icon: Icons.picture_as_pdf_outlined,
+                onPressed: (_deleting || _exporting) ? null : _export,
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                loading: _deleting,
+                onPressed: _exporting ? null : _delete,
+              ),
+            ),
       child: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
@@ -161,8 +231,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                         Row(
                           spacing: 6,
                           children: <Widget>[
-                            Icon(Icons.calendar_month_outlined,
-                                size: 16, color: muted),
+                            Icon(
+                              Icons.calendar_month_outlined,
+                              size: 16,
+                              color: muted,
+                            ),
                             Flexible(
                               child: Text(
                                 detail.rangeText,
@@ -257,16 +330,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     bool changed = false;
     final List<String> output = <String>[];
     for (final String part in parts) {
-      final Match? match =
-          RegExp(r'^([+-])?(\d[\d,]*(?:\.\d+)?)$').firstMatch(part.trim());
+      final Match? match = RegExp(r'^([+-])?(\d[\d,]*(?:\.\d+)?)$')
+          .firstMatch(part.trim());
       if (match == null) {
         output.add(part);
         continue;
       }
       changed = true;
       // `-0.00` 这类负零去掉符号，避免投资报告出现「-$0.00」。
-      final double parsed =
-          double.tryParse(match[2]!.replaceAll(',', '')) ?? 0;
+      final double parsed = double.tryParse(match[2]!.replaceAll(',', '')) ?? 0;
       final String sign = parsed == 0 ? '' : (match[1] ?? '');
       // 快照里的大数字可能没带千分位（如 `3770`），展示前统一补齐。
       output.add('$sign\$${_groupDigits(match[2]!)}');
@@ -395,9 +467,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         }
       }
       for (int i = 0; i < cells.length; i++) {
-        final Match? ratio = RegExp(
-          r'^(\d+)\s*/\s*(\d+)\s*(张|件|台|个)$',
-        ).firstMatch(cells[i].trim());
+        final Match? ratio = RegExp(r'^(\d+)\s*/\s*(\d+)\s*(张|件|台|个)$')
+            .firstMatch(cells[i].trim());
         if (ratio != null) {
           cells[i] = ratio[1] == ratio[2]
               ? '${ratio[1]} ${ratio[3]}'
@@ -410,8 +481,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   /// 只给明确的金额列 / 金额行补 `$`，笔数、胜率、手数等保持原样。
   List<List<String>> _usdRows(List<String> header, List<List<String>> rows) {
-    final List<List<String>> prepareRows =
-        _lifeRows(header, _healthRows(rows));
+    final List<List<String>> prepareRows = _lifeRows(header, _healthRows(rows));
     if (!_usd) {
       return prepareRows;
     }
@@ -436,10 +506,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   /// 去掉已完结数据里残留的「（持仓 0）」文案（后端报告正文固定带这个后缀）。
   List<String> _stripPositions(List<String> cells) {
     return cells
-        .map((String cell) => cell.replaceAll(
-              RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
-              '',
-            ))
+        .map(
+          (String cell) =>
+              cell.replaceAll(RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'), ''),
+        )
         .toList();
   }
 
@@ -454,10 +524,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       (Match match) => '${match[1]} ${_usdNumber(match[2]!)}',
     );
     return withUsd
-        .replaceAll(
-          RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'),
-          '',
-        )
+        .replaceAll(RegExp(r'[（(]\s*持仓\s*\d+\s*[)）]'), '')
         .replaceAllMapped(
           RegExp(r'(\d{4,})(?![\d.\-:/%年月日时分秒])'),
           (Match match) => _groupDigits(match[1]!),
@@ -479,14 +546,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final String normalized = _usdProse(text);
     final List<TextSpan> spans = <TextSpan>[];
     int last = 0;
-    for (final Match match in RegExp(r'[+-]?\$[\d,]+\.\d{2}').allMatches(normalized)) {
+    for (final Match match in RegExp(
+      r'[+-]?\$[\d,]+\.\d{2}',
+    ).allMatches(normalized)) {
       if (match.start > last) {
         spans.add(TextSpan(text: normalized.substring(last, match.start)));
       }
-      final double parsed = double.tryParse(
-            match[0]!.replaceAll(RegExp(r'[^\d.\-]'), ''),
-          ) ??
-          0;
+      final double parsed =
+          double.tryParse(match[0]!.replaceAll(RegExp(r'[^\d.\-]'), '')) ?? 0;
       // 金额前面紧邻的词决定语义：出金用危险色，入金用成功色，
       // 「净收益 / 账户净值」等仍按正负着色。
       final String prefix = normalized.substring(
@@ -594,10 +661,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       } else if ((block.text ?? '').isNotEmpty) {
         final String text = block.text!;
         body.add(
-          Text(
-            _bodyText(text),
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          Text(_bodyText(text), style: Theme.of(context).textTheme.bodyMedium),
         );
       }
     }
@@ -621,8 +685,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   /// 单个分组卡片；key 供目录跳转定位。
   Widget _buildSectionCard(_ReportSection section, int index) {
-    final GlobalKey key =
-        _sectionKeys.putIfAbsent(index, () => GlobalKey());
+    final GlobalKey key = _sectionKeys.putIfAbsent(index, () => GlobalKey());
     return SectionCard(
       key: key,
       title: section.title,
@@ -875,6 +938,7 @@ class _GroupedRow extends StatelessWidget {
       }
       return _signColor(cell, colors, colorizePositive: colorizePositive);
     }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -909,8 +973,9 @@ class _GroupedRow extends StatelessWidget {
                               header[i],
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: muted),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: muted,
+                              ),
                             ),
                           Text(
                             i < row.length ? row[i] : '',
@@ -987,9 +1052,8 @@ Color? _signColor(
   }
   // 财务报告的负数写作 `¥-5,703.63`（货币符号在前），
   // 所以既要认 `-$1.00`，也要认 `¥-1.00`。
-  final Match? sign = RegExp(
-    r'^([+＋\-−])?\s*(?:¥|￥|\$)?\s*([+＋\-−])?\s*[\d]',
-  ).firstMatch(text);
+  final Match? sign = RegExp(r'^([+＋\-−])?\s*(?:¥|￥|\$)?\s*([+＋\-−])?\s*[\d]')
+      .firstMatch(text);
   if (sign != null) {
     final String? symbol = sign[1] ?? sign[2];
     if (symbol == '+' || symbol == '＋') {

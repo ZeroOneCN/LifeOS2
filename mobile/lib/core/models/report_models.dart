@@ -35,9 +35,7 @@ String reportTitle(String? title) {
   }
   return title
       .replaceAll(
-        RegExp(
-          r'（\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}）',
-        ),
+        RegExp(r'（\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}）'),
         '',
       )
       .replaceFirst(
@@ -60,20 +58,14 @@ String reportSummaryText(String? summary) {
         '',
       )
       .replaceFirst(
-        RegExp(
-          r'^\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}\s*[，,、]?\s*',
-        ),
+        RegExp(r'^\d{4}-\d{2}-\d{2}\s*(?:~|至)\s*\d{4}-\d{2}-\d{2}\s*[，,、]?\s*'),
         '',
       )
       .trim();
 }
 
 /// 统计区间文案：起止齐全用「起 ~ 止」，否则退回后端 `period_label`。
-String reportRange({
-  String? start,
-  String? end,
-  String? label,
-}) {
+String reportRange({String? start, String? end, String? label}) {
   if (start != null && end != null && start.isNotEmpty && end.isNotEmpty) {
     return '$start ~ $end';
   }
@@ -221,13 +213,12 @@ class ReportBlock {
           : const <String>[],
       rows: rows is List
           ? rows
-              .whereType<List>()
-              .map(
-                (List row) => row
-                    .map((Object? v) => v?.toString() ?? '')
-                    .toList(),
-              )
-              .toList()
+                .whereType<List>()
+                .map(
+                  (List row) =>
+                      row.map((Object? v) => v?.toString() ?? '').toList(),
+                )
+                .toList()
           : const <List<String>>[],
     );
   }
@@ -334,6 +325,9 @@ class ReportSource {
   /// 路由前缀，如 `/finance/reports`。
   final String routeBase;
 
+  /// 生成表单路由（与列表页同一前缀下的静态段）。
+  String get generateRoute => '$routeBase/generate';
+
   /// 列表空态说明。
   final String emptyDescription;
 
@@ -349,14 +343,14 @@ class ReportSource {
     apiPath: '/finance/reports',
     pageTitle: '财务报告',
     routeBase: '/finance/reports',
-    emptyDescription: '暂无财务报告，可在网页端生成',
+    emptyDescription: '暂无财务报告，点底部「生成报告」按区间创建',
   );
 
   static const ReportSource investment = ReportSource(
     apiPath: '/investment/reports',
     pageTitle: '投资报告',
     routeBase: '/invest/reports',
-    emptyDescription: '暂无投资报告，可在网页端生成',
+    emptyDescription: '暂无投资报告，点底部「生成报告」按区间创建',
     usdAmounts: true,
   );
 
@@ -364,7 +358,7 @@ class ReportSource {
     apiPath: '/health/reports',
     pageTitle: '健康报告',
     routeBase: '/health/reports',
-    emptyDescription: '暂无健康报告，可在网页端生成',
+    emptyDescription: '暂无健康报告，点底部「生成报告」按区间创建',
     listPaginated: true,
   );
 
@@ -372,6 +366,6 @@ class ReportSource {
     apiPath: '/lifestyle/reports',
     pageTitle: '生活报告',
     routeBase: '/life/reports',
-    emptyDescription: '暂无生活报告，可在网页端生成',
+    emptyDescription: '暂无生活报告，点底部「生成报告」按区间创建',
   );
 }
