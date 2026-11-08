@@ -344,12 +344,13 @@ class _CardFormPageState extends State<CardFormPage> {
     switch (widget.kind) {
       case CardKind.phone:
         final String number = _phoneNumber.text.trim();
-        final String operator = _operator.text.trim();
+        // 下拉框在未手动选择时显示第一项，提交值必须与显示值一致，
+        // 否则新增号卡会被「请填写运营商」拦住。
+        final String operator = _operator.text.trim().isEmpty
+            ? _operators.first
+            : _operator.text.trim();
         if (number.isEmpty) {
           throw const FormatException('请填写手机号码');
-        }
-        if (operator.isEmpty) {
-          throw const FormatException('请填写运营商');
         }
         return <String, dynamic>{
           'phone_number': number,
