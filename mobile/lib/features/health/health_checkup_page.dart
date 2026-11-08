@@ -1,23 +1,26 @@
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/read_only_notice.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../theme/app_theme.dart';
 import '../finance/finance_status_widgets.dart';
 
-/// 体检指标：概览 + 异常/未判定/正常分组 + 指标历史展开（只读）。
+/// 体检指标：概览 + 异常/未判定/正常分组 + 指标历史展开 + 记录增改删。
 ///
-/// 数据：`GET /health/checkup/stats?days=0`。
-/// 指标最新值、状态、参考范围与历史趋势均来自该接口，不额外造接口。
+/// 数据：
+/// - `GET /health/checkup/stats?days=0`（概览与分组）
+/// - `GET /health/checkup?page=1&page_size=100`（可编辑的记录明细）
+/// - 写操作在体检表单页：POST / PUT / DELETE。
 ///
 /// 未采集/空值一律显示「—」；仅偏高/偏低使用警示色，正常保持中性。
 class HealthCheckupPage extends StatefulWidget {
@@ -31,6 +34,10 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
   CheckupStats? _stats;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
+
+  /// 可编辑的记录明细（与统计接口分开取，写操作后一并刷新）。
+  final List<CheckupRecord> _records = <CheckupRecord>[];
+  int _recordsTotal = 0;
 
   /// 当前展开历史的指标名；同一时间只展开一项，一屏最多一张折线。
   String? _expandedItem;
@@ -66,30 +73,55 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
       _message = null;
     });
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
+      final List<Map<String, dynamic>?> responses = await Future.wait(
+        <Future<Map<String, dynamic>?>>[
+          scope.apiClient
               .get<Map<String, dynamic>>(
                 '/health/checkup/stats',
                 queryParameters: <String, dynamic>{'days': 0},
-              ))
-          .data;
-      if (json == null) {
+              )
+              .then((value) => value.data),
+          scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/checkup',
+                queryParameters: <String, dynamic>{'page': 1, 'page_size': 100},
+              )
+              .then((value) => value.data),
+        ],
+      );
+      final Map<String, dynamic>? json = responses[0];
+      final Map<String, dynamic>? listJson = responses[1];
+      if (json == null || listJson == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
           message: '体检接口返回数据为空',
         );
       }
+      final List<CheckupRecord> records =
+          ((listJson['items'] as List?) ?? const <dynamic>[])
+              .whereType<Map>()
+              .map(
+                (Map item) =>
+                    CheckupRecord.fromJson(item.cast<String, dynamic>()),
+              )
+              .toList();
       if (!mounted) {
         return;
       }
       setState(() {
         _stats = CheckupStats.fromJson(json);
+        _records
+          ..clear()
+          ..addAll(records);
+        _recordsTotal = (listJson['total'] as num?)?.toInt() ?? records.length;
         _status = LoadStatus.ready;
       });
     } on ApiException catch (error) {
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -108,6 +140,19 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
     });
   }
 
+  /// 打开体检表单：`record` 为空是新增，否则带快照预填编辑。
+  ///
+  /// 表单保存/删除成功后返回 true，本页重拉统计与记录明细。
+  Future<void> _openForm([CheckupRecord? record]) async {
+    final String path = record == null
+        ? '/health/checkup/new'
+        : '/health/checkup/${record.id}';
+    final bool? changed = await context.push<bool>(path, extra: record);
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -116,6 +161,11 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
 
     return DetailPageScaffold(
       title: '体检指标',
+      bottomBar: AppPrimaryButton(
+        label: '新增体检记录',
+        icon: Icons.add,
+        onPressed: () => _openForm(),
+      ),
       child: ListView(
         children: <Widget>[
           Column(
@@ -127,7 +177,6 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                 message: _message,
                 onRetry: _refresh,
               ),
-              const ReadOnlyNotice(),
               if (_status == LoadStatus.ready && stats != null) ...<Widget>[
                 SectionCard(
                   title: '体检概览',
@@ -169,11 +218,42 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                         '${stats.statusLabel['high'] ?? '偏高'} ${stats.highCount} · '
                         '${stats.statusLabel['low'] ?? '偏低'} ${stats.lowCount} · '
                         '${stats.statusLabel['normal'] ?? '正常'} ${stats.normalCount}',
-                        style:
-                            theme.textTheme.bodySmall?.copyWith(color: muted),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
                       ),
                     ],
                   ),
+                ),
+                SectionCard(
+                  title: '检查记录',
+                  trailing: Text(
+                    _recordsTotal > _records.length
+                        ? '共 $_recordsTotal 条 · 显示最近 ${_records.length} 条'
+                        : '共 $_recordsTotal 条',
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  ),
+                  child: _records.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.monitor_heart_outlined,
+                          title: '暂无检查记录',
+                          description: '点底部「新增体检记录」录入第一条',
+                          compact: true,
+                        )
+                      : Column(
+                          spacing: 4,
+                          children: <Widget>[
+                            for (final CheckupRecord record in _records)
+                              _CheckupRecordRow(
+                                record: record,
+                                statusLabel: _recordStatusLabel(
+                                  stats,
+                                  record.result,
+                                ),
+                                onTap: () => _openForm(record),
+                              ),
+                          ],
+                        ),
                 ),
                 if (stats.items.isEmpty)
                   SectionCard(
@@ -191,14 +271,16 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                     child: _abnormalItems(stats).isEmpty
                         ? Text(
                             '当前所有指标均在参考范围内',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: muted),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: muted,
+                            ),
                           )
                         : Column(
                             spacing: 4,
                             children: <Widget>[
-                              for (final CheckupItem item
-                                  in _abnormalItems(stats))
+                              for (final CheckupItem item in _abnormalItems(
+                                stats,
+                              ))
                                 _CheckupRow(
                                   item: item,
                                   expanded: _expandedItem == item.itemName,
@@ -235,8 +317,9 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                         ? Column(
                             spacing: 4,
                             children: <Widget>[
-                              for (final CheckupItem item
-                                  in _normalItems(stats))
+                              for (final CheckupItem item in _normalItems(
+                                stats,
+                              ))
                                 _CheckupRow(
                                   item: item,
                                   expanded: _expandedItem == item.itemName,
@@ -247,8 +330,9 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
                           )
                         : Text(
                             '已收起 ${stats.normalCount} 项，点右上角「展开」查看',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: muted),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: muted,
+                            ),
                           ),
                   ),
                 ],
@@ -280,8 +364,10 @@ List<CheckupItem> _abnormalItems(CheckupStats stats) {
 /// 未判定指标（最新值为空或后端未给状态）。
 List<CheckupItem> _unknownItems(CheckupStats stats) {
   return stats.items
-      .where((CheckupItem item) =>
-          item.latestResult == null || item.latestResult == 'unknown')
+      .where(
+        (CheckupItem item) =>
+            item.latestResult == null || item.latestResult == 'unknown',
+      )
       .toList();
 }
 
@@ -290,7 +376,9 @@ List<CheckupItem> _normalItems(CheckupStats stats) {
   final List<CheckupItem> items = stats.items
       .where((CheckupItem item) => item.latestResult == 'normal')
       .toList();
-  items.sort((CheckupItem a, CheckupItem b) => a.itemName.compareTo(b.itemName));
+  items.sort(
+    (CheckupItem a, CheckupItem b) => a.itemName.compareTo(b.itemName),
+  );
   return items;
 }
 
@@ -299,6 +387,20 @@ String _statusLabel(CheckupStats stats, CheckupItem item) {
   final String? result = item.latestResult;
   if (result == null) {
     return '—';
+  }
+  return stats.statusLabel[result] ??
+      switch (result) {
+        'high' => '偏高',
+        'low' => '偏低',
+        'normal' => '正常',
+        _ => result,
+      };
+}
+
+/// 单条记录的状态文案：没有状态时按「未判定」展示，不臆造正常/异常。
+String _recordStatusLabel(CheckupStats stats, String? result) {
+  if (result == null || result.isEmpty) {
+    return '未判定';
   }
   return stats.statusLabel[result] ??
       switch (result) {
@@ -388,10 +490,132 @@ class _Metric extends StatelessWidget {
         ),
         Text(
           label,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// 单条检查记录行：日期 + 指标项、数值 + 单位 + 参考范围、状态；点击编辑。
+class _CheckupRecordRow extends StatelessWidget {
+  const _CheckupRecordRow({
+    required this.record,
+    required this.statusLabel,
+    required this.onTap,
+  });
+
+  final CheckupRecord record;
+  final String statusLabel;
+  final VoidCallback onTap;
+
+  /// 参考范围：后端原值优先原样展示，缺失时才由上下限拼出。
+  String get _reference {
+    final String? raw = record.referenceRange?.trim();
+    if (raw != null && raw.isNotEmpty) {
+      return raw;
+    }
+    final double? low = record.refLow;
+    final double? high = record.refHigh;
+    if (low != null && high != null) {
+      return '${_metricValue(low)}-${_metricValue(high)}';
+    }
+    if (low != null) {
+      return '≥ ${_metricValue(low)}';
+    }
+    if (high != null) {
+      return '≤ ${_metricValue(high)}';
+    }
+    return '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final String unit = (record.unit ?? '').trim();
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 10,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Row(
+                    spacing: 8,
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          record.itemName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        formatListDate(record.checkDate),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        _metricValue(record.value),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: _valueColor(context, record.result),
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                      ),
+                      if (unit.isNotEmpty)
+                        Text(
+                          unit,
+                          softWrap: false,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      Text(
+                        '参考 $_reference',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
+              children: <Widget>[
+                _StatusBadge(result: record.result, label: statusLabel),
+                Icon(Icons.chevron_right, size: 18, color: muted),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -431,8 +655,9 @@ class _CheckupRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     item.itemName,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w500),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -455,8 +680,9 @@ class _CheckupRow extends StatelessWidget {
                     children: <TextSpan>[
                       TextSpan(
                         text: '最新 ',
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: muted),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
                       ),
                       TextSpan(
                         text: _metricValue(item.latestValue),
@@ -477,8 +703,7 @@ class _CheckupRow extends StatelessWidget {
                   Text(
                     unit,
                     softWrap: false,
-                    style:
-                        theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 Text(
                   '参考 ${_referenceText(item)}',
@@ -486,11 +711,7 @@ class _CheckupRow extends StatelessWidget {
                 ),
               ],
             ),
-            if (expanded)
-              _CheckupHistory(
-                item: item,
-                valueColor: valueColor,
-              ),
+            if (expanded) _CheckupHistory(item: item, valueColor: valueColor),
           ],
         ),
       ),
@@ -516,8 +737,9 @@ class _StatusBadge extends StatelessWidget {
       default:
         return Text(
           label,
-          style: theme.textTheme.bodySmall
-              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         );
     }
   }
@@ -538,10 +760,7 @@ Color? _valueColor(BuildContext context, String? result) {
 
 /// 展开的历史：最近 N 次记录（新→旧）+ 单条折线（仅一项展开，最多一张）。
 class _CheckupHistory extends StatelessWidget {
-  const _CheckupHistory({
-    required this.item,
-    required this.valueColor,
-  });
+  const _CheckupHistory({required this.item, required this.valueColor});
 
   final CheckupItem item;
   final Color? valueColor;
@@ -575,7 +794,9 @@ class _CheckupHistory extends StatelessWidget {
                 ),
               ),
               Text(
-                item.count > shown ? '共 ${item.count} 次 · 最近 $shown 次' : '共 ${item.count} 次',
+                item.count > shown
+                    ? '共 ${item.count} 次 · 最近 $shown 次'
+                    : '共 ${item.count} 次',
                 style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
             ],
@@ -612,8 +833,7 @@ class _CheckupHistory extends StatelessWidget {
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          theme.textTheme.bodySmall?.copyWith(color: muted),
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
                     ),
                   ),
                   Text(
@@ -627,8 +847,7 @@ class _CheckupHistory extends StatelessWidget {
                   ),
                   Text(
                     _pointLabel(point.result),
-                    style:
-                        theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 ],
               ),

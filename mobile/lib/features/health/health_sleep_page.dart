@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
-import '../../shared/widgets/read_only_notice.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
 
-/// 睡眠体征：累计概览 + 分阶段均值 + 睡眠记录分页（只读）。
+/// 睡眠体征：累计概览 + 分阶段均值 + 睡眠记录分页与增改删。
 ///
 /// 数据：
 /// - `GET /health/vitals-sleep/stats?days=0`
 /// - `GET /health/vitals-sleep?page=&page_size=20`
+/// - 写操作在睡眠表单页：POST / PUT / DELETE。
 ///
-/// 深睡/浅睡/醒来次数/质量等字段可能未采集，一律显示「—」而不是 0。
+/// 深睡/浅睡/醒来次数/质量等字段可能未采集，一律显示「—」而不是 0；
+/// 分阶段字段后端为 null 时连「深睡/浅睡」行都不展示，避免把缺失读成 0。
 class HealthSleepPage extends StatefulWidget {
   const HealthSleepPage({super.key});
 
@@ -66,21 +69,22 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
       _message = null;
     });
     try {
-      final List<Map<String, dynamic>?> responses =
-          await Future.wait(<Future<Map<String, dynamic>?>>[
-        scope.apiClient
-            .get<Map<String, dynamic>>(
-              '/health/vitals-sleep/stats',
-              queryParameters: <String, dynamic>{'days': 0},
-            )
-            .then((value) => value.data),
-        scope.apiClient
-            .get<Map<String, dynamic>>(
-              '/health/vitals-sleep',
-              queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
-            )
-            .then((value) => value.data),
-      ]);
+      final List<Map<String, dynamic>?> responses = await Future.wait(
+        <Future<Map<String, dynamic>?>>[
+          scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/vitals-sleep/stats',
+                queryParameters: <String, dynamic>{'days': 0},
+              )
+              .then((value) => value.data),
+          scope.apiClient
+              .get<Map<String, dynamic>>(
+                '/health/vitals-sleep',
+                queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
+              )
+              .then((value) => value.data),
+        ],
+      );
       final Map<String, dynamic>? statsJson = responses[0];
       final Map<String, dynamic>? listJson = responses[1];
       if (statsJson == null || listJson == null) {
@@ -107,7 +111,8 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
       if (!mounted) {
         return;
       }
-      final bool offline = scope.auth.hasLocalSession &&
+      final bool offline =
+          scope.auth.hasLocalSession &&
           (error.kind == ApiErrorKind.network ||
               error.kind == ApiErrorKind.timeout);
       setState(() {
@@ -127,13 +132,14 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
     final AppScope scope = AppScope.of(context);
     setState(() => _loadingMore = true);
     try {
-      final Map<String, dynamic>? json = (await scope.apiClient
-              .get<Map<String, dynamic>>('/health/vitals-sleep',
-                  queryParameters: <String, dynamic>{
-            'page': _page + 1,
-            'page_size': 20,
-          }))
-          .data;
+      final Map<String, dynamic>? json =
+          (await scope.apiClient.get<Map<String, dynamic>>(
+            '/health/vitals-sleep',
+            queryParameters: <String, dynamic>{
+              'page': _page + 1,
+              'page_size': 20,
+            },
+          )).data;
       if (json == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -153,9 +159,8 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加载更多失败：${error.message}')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('加载更多失败：${error.message}')));
     } finally {
       if (mounted) {
         setState(() => _loadingMore = false);
@@ -171,6 +176,19 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
         .toList();
   }
 
+  /// 打开睡眠表单：`record` 为空是新增，否则带快照直接预填编辑。
+  ///
+  /// 表单保存/删除成功后返回 true，本页重拉统计与第一页记录。
+  Future<void> _openForm([SleepRecord? record]) async {
+    final String path = record == null
+        ? '/health/vitals-sleep/new'
+        : '/health/vitals-sleep/${record.id}';
+    final bool? changed = await context.push<bool>(path, extra: record);
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
@@ -179,6 +197,11 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
 
     return DetailPageScaffold(
       title: '睡眠体征',
+      bottomBar: AppPrimaryButton(
+        label: '新增睡眠',
+        icon: Icons.add,
+        onPressed: () => _openForm(),
+      ),
       child: ListView(
         children: <Widget>[
           Column(
@@ -190,7 +213,6 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
                 message: _message,
                 onRetry: _refresh,
               ),
-              const ReadOnlyNotice(),
               if (_status == LoadStatus.ready && stats != null) ...<Widget>[
                 // 记录条数只在「睡眠记录」卡头展示一次，概览卡不重复。
                 SectionCard(
@@ -249,14 +271,17 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
                       ? const EmptyState(
                           icon: Icons.bedtime_outlined,
                           title: '暂无睡眠记录',
-                          description: '后端暂无睡眠数据，可在网页端添加',
+                          description: '点底部「新增睡眠」录入第一条',
                           compact: true,
                         )
                       : Column(
                           spacing: 4,
                           children: <Widget>[
                             for (final SleepRecord record in _items)
-                              _SleepRow(record: record),
+                              _SleepRow(
+                                record: record,
+                                onTap: () => _openForm(record),
+                              ),
                           ],
                         ),
                 ),
@@ -301,81 +326,130 @@ class _StageRow extends StatelessWidget {
 }
 
 /// 睡眠记录行：日期 + 时长/质量 + 入睡/起床 + 分阶段与醒来次数。
+///
+/// 分阶段字段为 null 时不渲染对应文字（不显示「深睡 —」），
+/// 其余未采集字段仍按「—」展示。
 class _SleepRow extends StatelessWidget {
-  const _SleepRow({required this.record});
+  const _SleepRow({required this.record, required this.onTap});
 
   final SleepRecord record;
+  final VoidCallback onTap;
+
+  /// 血压 / 心率 / 血氧 / 血糖 / 体温中已采集的部分，全部缺失返回 null。
+  String? get _vitalsText {
+    final List<String> parts = <String>[];
+    if (record.bloodPressureHigh != null || record.bloodPressureLow != null) {
+      parts.add(
+        '血压 ${record.bloodPressureHigh ?? '—'}/${record.bloodPressureLow ?? '—'}',
+      );
+    }
+    if (record.heartRate != null) {
+      parts.add('心率 ${record.heartRate}');
+    }
+    if (record.bloodOxygen != null) {
+      parts.add('血氧 ${formatOneDecimal(record.bloodOxygen)}%');
+    }
+    if (record.bloodGlucose != null) {
+      parts.add('血糖 ${formatOneDecimal(record.bloodGlucose)}');
+    }
+    if (record.bodyTemp != null) {
+      parts.add('体温 ${formatOneDecimal(record.bodyTemp)}℃');
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    final String wakeLabel =
-        record.wakeCount == null ? '—' : '${record.wakeCount} 次';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: <Widget>[
-                Text(formatListDate(record.recordDate),
-                    style: theme.textTheme.bodyMedium),
-                Text(
-                  '入睡 ${record.bedtime ?? '—'} · 起床 ${record.wakeTime ?? '—'}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: <Widget>[
-                    Text(
-                      '深睡 ${formatDuration(record.deepSleepMin)}',
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
-                    Text(
-                      '浅睡 ${formatDuration(record.lightSleepMin)}',
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
-                    Text(
-                      '醒来 $wakeLabel',
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
-                  ],
-                ),
-                if (record.note != null && record.note!.isNotEmpty)
+    final String wakeLabel = record.wakeCount == null
+        ? '—'
+        : '${record.wakeCount} 次';
+    final String? vitals = _vitalsText;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
                   Text(
-                    record.note!,
+                    formatListDate(record.recordDate),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    '入睡 ${record.bedtime ?? '—'} · 起床 ${record.wakeTime ?? '—'}',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
+                  if (vitals != null)
+                    Text(
+                      vitals,
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: <Widget>[
+                      if (record.deepSleepMin != null)
+                        Text(
+                          '深睡 ${formatDuration(record.deepSleepMin)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      if (record.lightSleepMin != null)
+                        Text(
+                          '浅睡 ${formatDuration(record.lightSleepMin)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      Text(
+                        '醒来 $wakeLabel',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (record.note != null && record.note!.isNotEmpty)
+                    Text(
+                      record.note!,
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              spacing: 2,
+              children: <Widget>[
+                Text(
+                  formatDuration(record.durationMin),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
+                ),
+                Text(
+                  record.sleepQuality == null
+                      ? '质量 —'
+                      : '质量 ${record.sleepQuality}/10',
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: muted),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 2,
-            children: <Widget>[
-              Text(
-                formatDuration(record.durationMin),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-              Text(
-                record.sleepQuality == null
-                    ? '质量 —'
-                    : '质量 ${record.sleepQuality}/10',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

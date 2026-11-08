@@ -487,6 +487,12 @@ class SleepRecord {
     this.wakeCount,
     this.sleepQuality,
     this.note,
+    this.bloodPressureHigh,
+    this.bloodPressureLow,
+    this.heartRate,
+    this.bloodOxygen,
+    this.bloodGlucose,
+    this.bodyTemp,
   });
 
   final int id;
@@ -499,6 +505,12 @@ class SleepRecord {
   final int? wakeCount;
   final int? sleepQuality;
   final String? note;
+  final int? bloodPressureHigh;
+  final int? bloodPressureLow;
+  final int? heartRate;
+  final double? bloodOxygen;
+  final double? bloodGlucose;
+  final double? bodyTemp;
 
   factory SleepRecord.fromJson(Map<String, dynamic> json) {
     return SleepRecord(
@@ -511,6 +523,60 @@ class SleepRecord {
       lightSleepMin: _toIntOrNull(json['light_sleep_min']),
       wakeCount: _toIntOrNull(json['wake_count']),
       sleepQuality: _toIntOrNull(json['sleep_quality']),
+      note: json['note'] as String?,
+      bloodPressureHigh: _toIntOrNull(json['blood_pressure_high']),
+      bloodPressureLow: _toIntOrNull(json['blood_pressure_low']),
+      heartRate: _toIntOrNull(json['heart_rate']),
+      bloodOxygen: _toDoubleOrNull(json['blood_oxygen']),
+      bloodGlucose: _toDoubleOrNull(json['blood_glucose']),
+      bodyTemp: _toDoubleOrNull(json['body_temp']),
+    );
+  }
+}
+
+/// 单条体检记录（`GET /health/checkup` 列表项，字段对齐网页端记录表）。
+///
+/// 数值、参考上下限均可为 null（未采集），展示与提交都不得用 0 兜底；
+/// `reference_range` 与 `result` 由后端在缺失时按上下限自动补算。
+class CheckupRecord {
+  const CheckupRecord({
+    required this.id,
+    required this.checkDate,
+    required this.itemName,
+    this.templateId,
+    this.value,
+    this.unit,
+    this.refLow,
+    this.refHigh,
+    this.referenceRange,
+    this.result,
+    this.note,
+  });
+
+  final int id;
+  final String checkDate;
+  final String itemName;
+  final int? templateId;
+  final double? value;
+  final String? unit;
+  final double? refLow;
+  final double? refHigh;
+  final String? referenceRange;
+  final String? result;
+  final String? note;
+
+  factory CheckupRecord.fromJson(Map<String, dynamic> json) {
+    return CheckupRecord(
+      id: _toInt(json['id']),
+      checkDate: json['check_date'] as String? ?? '',
+      itemName: json['item_name'] as String? ?? '',
+      templateId: _toIntOrNull(json['template_id']),
+      value: _toDoubleOrNull(json['value']),
+      unit: json['unit'] as String?,
+      refLow: _toDoubleOrNull(json['ref_low']),
+      refHigh: _toDoubleOrNull(json['ref_high']),
+      referenceRange: json['reference_range'] as String?,
+      result: json['result'] as String?,
       note: json['note'] as String?,
     );
   }
