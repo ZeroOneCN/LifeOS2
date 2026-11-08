@@ -28,6 +28,9 @@ import '../../features/health/health_body_page.dart';
 import '../../features/health/health_checkup_bulk_page.dart';
 import '../../features/health/health_checkup_form_page.dart';
 import '../../features/health/health_checkup_page.dart';
+import '../../features/health/health_checkup_panel_form_page.dart';
+import '../../features/health/health_checkup_template_form_page.dart';
+import '../../features/health/health_checkup_template_page.dart';
 import '../../features/health/health_diet_form_page.dart';
 import '../../features/health/health_diet_page.dart';
 import '../../features/health/health_fitness_form_page.dart';
@@ -328,6 +331,48 @@ GoRouter createAppRouter() {
                       GoRoute(
                         path: 'new',
                         builder: (_, _) => const HealthCheckupBulkPage(),
+                      ),
+                      // 模板维护：静态段必须先于 `:id`，否则会被当成记录 id。
+                      GoRoute(
+                        path: 'templates',
+                        builder: (_, _) => const HealthCheckupTemplatePage(),
+                      ),
+                      GoRoute(
+                        path: 'templates/new',
+                        builder: (_, _) =>
+                            const HealthCheckupTemplateFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'templates/:tid/edit',
+                        builder: (_, GoRouterState state) =>
+                            HealthCheckupTemplateFormPage(
+                              templateId:
+                                  int.tryParse(
+                                    state.pathParameters['tid'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is Map<String, dynamic>
+                                  ? state.extra as Map<String, dynamic>
+                                  : null,
+                            ),
+                      ),
+                      GoRoute(
+                        path: 'panels/new',
+                        builder: (_, _) => const HealthCheckupPanelFormPage(),
+                      ),
+                      GoRoute(
+                        path: 'panels/:pid/edit',
+                        builder: (_, GoRouterState state) =>
+                            HealthCheckupPanelFormPage(
+                              panelId:
+                                  int.tryParse(
+                                    state.pathParameters['pid'] ?? '',
+                                  ) ??
+                                  0,
+                              initial: state.extra is Map<String, dynamic>
+                                  ? state.extra as Map<String, dynamic>
+                                  : null,
+                            ),
                       ),
                       GoRoute(
                         path: ':id',

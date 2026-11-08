@@ -161,6 +161,13 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
 
     return DetailPageScaffold(
       title: '体检指标',
+      actions: <Widget>[
+        IconButton(
+          tooltip: '模板与组合',
+          icon: const Icon(Icons.dashboard_customize_outlined),
+          onPressed: () => context.push('/health/checkup/templates'),
+        ),
+      ],
       floatingActionButton: AddEntryFab(
         tooltip: '新增体检记录',
         onPressed: () => _openForm(),
