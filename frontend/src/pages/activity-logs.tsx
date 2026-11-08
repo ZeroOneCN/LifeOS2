@@ -43,7 +43,7 @@ import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
-import { formatDateTime, formatInt } from '@/lib/format'
+import { formatDateTime, formatInt, formatUserAgent } from '@/lib/format'
 import { IS_DEMO } from '@/lib/demo-mode'
 
 type ActivityRecord = {
@@ -493,8 +493,11 @@ export function ActivityLogsPage() {
                       )}
                       {row.user_agent && (
                         <Tip label={row.user_agent}>
-                          <span className="max-w-[220px] truncate text-xs text-muted-foreground">
-                            UA: {row.user_agent}
+                          <span
+                            className="max-w-[220px] truncate text-xs text-muted-foreground"
+                            title={row.user_agent}
+                          >
+                            {formatUserAgent(row.user_agent)}
                           </span>
                         </Tip>
                       )}

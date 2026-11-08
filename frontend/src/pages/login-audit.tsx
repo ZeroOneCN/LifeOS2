@@ -43,7 +43,7 @@ import { LineChartCard } from '@/components/health/charts'
 import { Tip } from '@/components/ui/tip'
 import { useRealtime } from '@/hooks/use-realtime'
 import { api, type PageResult } from '@/lib/api'
-import { formatDateTime, formatInt } from '@/lib/format'
+import { formatDateTime, formatInt, formatUserAgent } from '@/lib/format'
 
 type LoginAudit = {
   id: number
@@ -404,7 +404,7 @@ export function LoginAuditPage() {
                         {row.user_agent && (
                           <Tip label={row.user_agent}>
                             <span className="mt-1 block max-w-[40%] truncate text-xs text-muted-foreground" title={row.user_agent}>
-                              UA: {row.user_agent}
+                              {formatUserAgent(row.user_agent)}
                             </span>
                           </Tip>
                         )}

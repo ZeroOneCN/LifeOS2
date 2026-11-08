@@ -225,6 +225,89 @@ export function reportTitle(title?: string | null): string {
 }
 
 /**
+ * 从 User-Agent 中识别浏览器名称与主版本号。
+ * @param ua 原始 User-Agent
+ * @returns 如 `Chrome 131`；无法识别返回 null
+ */
+function detectBrowser(ua: string): string | null {
+  const rules: { pattern: RegExp; name: string }[] = [
+    { pattern: /Edg(?:iOS|A)?\/(\d+)/, name: 'Edge' },
+    { pattern: /OPR\/(\d+)/, name: 'Opera' },
+    { pattern: /Vivaldi\/(\d+)/, name: 'Vivaldi' },
+    { pattern: /Chrome\/(\d+)/, name: 'Chrome' },
+    { pattern: /Firefox\/(\d+)/, name: 'Firefox' },
+    { pattern: /Version\/(\d+)[\d.]*[ ;]*(?:Mobile\/[\d.]+[ ;]*)?Safari\//, name: 'Safari' },
+  ]
+  for (const rule of rules) {
+    const match = ua.match(rule.pattern)
+    if (match?.[1]) return `${rule.name} ${match[1]}`
+  }
+  return null
+}
+
+/**
+ * 从 User-Agent 中识别操作系统。
+ * @param ua 原始 User-Agent
+ * @returns 如 `Windows 10/11`、`macOS`；无法识别返回 null
+ */
+function detectOS(ua: string): string | null {
+  if (/Windows NT 10\.0/.test(ua)) return 'Windows 10/11'
+  if (/Windows NT 6\.3/.test(ua)) return 'Windows 8.1'
+  if (/Windows NT 6\.2/.test(ua)) return 'Windows 8'
+  if (/Windows NT 6\.1/.test(ua)) return 'Windows 7'
+  if (/Windows NT/.test(ua)) return 'Windows'
+  if (/iPhone|iPad|iPod/.test(ua)) return 'iOS'
+  if (/Mac OS X/.test(ua)) return 'macOS'
+  if (/CrOS/.test(ua)) return 'ChromeOS'
+  if (/Android/.test(ua)) return 'Android'
+  if (/Linux/.test(ua)) return 'Linux'
+  return null
+}
+
+/**
+ * 将 User-Agent 转换为可读的客户端描述，用于活动日志 / 登录审计展示。
+ *
+ * 与 `mobile/lib/core/network/client_identity.dart` 的 UA 格式保持一致：
+ * - 移动端 App：`Xiaomi 23127PN0CC / Android 14`；
+ * - 历史 Flutter 默认 UA（`Dart/x.x (dart:io)`）：`移动端（型号未知）`，
+ *   不伪造机型；
+ * - 网页端：`Chrome 131 / Windows 10/11`；
+ * - 自动化任务等内部标记映射为中文说明；
+ * - 完全无法识别时原样返回，避免丢失信息。
+ * @param ua 后端返回的 user_agent 原始值
+ * @returns 可直接展示的客户端描述；空值返回「—」
+ */
+export function formatUserAgent(ua?: string | null): string {
+  const raw = (ua ?? '').trim()
+  if (!raw) return DASH
+  if (raw === 'system-auto') return '自动任务'
+  if (raw === 'ble-scale') return '蓝牙体脂秤采集'
+  if (raw === 'web-bluetooth') return '网页蓝牙称重'
+  // Flutter 默认 UA 无法还原机型：明确标注为型号未知，不猜测品牌
+  if (raw.startsWith('Dart/') || raw.includes('dart:io')) return '移动端（型号未知）'
+
+  const mobile = raw.match(/^LifeOS(?:[/ ]([^\s(]+))?\s*\(([^)]*)\)/i)
+  if (mobile) {
+    const [deviceRaw, osRaw] = (mobile[2] ?? '').split(';').map((s) => s.trim())
+    const device = deviceRaw && deviceRaw !== 'Android Device' ? deviceRaw : 'Android 设备'
+    const os = osRaw || 'Android'
+    // 型号与系统都未知时只显示「Android 设备」，避免重复堆叠
+    if (device === 'Android 设备' && os === 'Android') return device
+    return `${device} / ${os}`
+  }
+
+  if (raw.includes('WindowsPowerShell/')) {
+    const version = raw.match(/WindowsPowerShell\/(\d+\.\d+)/)?.[1]
+    return version ? `PowerShell ${version} / Windows` : 'PowerShell / Windows'
+  }
+
+  const browser = detectBrowser(raw)
+  const os = detectOS(raw)
+  if (browser && os) return `${browser} / ${os}`
+  return browser ?? os ?? raw
+}
+
+/**
  * 报告摘要去重：后端摘要常以「统计区间 YYYY-MM-DD ~ YYYY-MM-DD，」开头，
  * 而报告卡片副标题已经展示同一区间。这里剥离摘要开头的区间前缀，
  * 保证同一日期只出现一次（副标题保留区间，摘要保留内容）。

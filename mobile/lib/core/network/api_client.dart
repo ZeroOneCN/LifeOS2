@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../storage/token_store.dart';
 import 'api_exception.dart';
 import 'auth_interceptor.dart';
+import 'client_identity.dart';
 
 /// 统一 HTTP 入口。
 ///
@@ -17,17 +18,22 @@ class ApiClient {
     required TokenStore tokenStore,
     required String baseUrl,
     VoidCallback? onSessionExpired,
-  })  : _baseUrlNotifier = ValueNotifier<String>(_normalize(baseUrl)),
-        _dio = Dio(_options(_normalize(baseUrl))),
-        _refreshDio = Dio(_options(_normalize(baseUrl))) {
-    _dio.interceptors.add(
+  }) : _baseUrlNotifier = ValueNotifier<String>(_normalize(baseUrl)),
+       _dio = Dio(_options(_normalize(baseUrl))),
+       _refreshDio = Dio(_options(_normalize(baseUrl))) {
+    final _ClientUserAgentInterceptor userAgent = _ClientUserAgentInterceptor();
+    // 两个 Dio 都要带上设备 UA：刷新令牌请求由 AuthInterceptor 直接使用
+    // _refreshDio 发出，不共用 _dio 的拦截器链。
+    _dio.interceptors.addAll(<Interceptor>[
+      userAgent,
       AuthInterceptor(
         tokenStore,
         _refreshDio,
         _dio,
         onSessionExpired: onSessionExpired,
       ),
-    );
+    ]);
+    _refreshDio.interceptors.add(userAgent);
   }
 
   final Dio _dio;
@@ -77,11 +83,8 @@ class ApiClient {
     Options? options,
   }) {
     return _guard(
-      () => _dio.get<T>(
-        path,
-        queryParameters: queryParameters,
-        options: options,
-      ),
+      () =>
+          _dio.get<T>(path, queryParameters: queryParameters, options: options),
     );
   }
 
@@ -171,9 +174,7 @@ class ApiClient {
   }
 
   /// 统一异常归一化：DioException → ApiException。
-  Future<Response<T>> _guard<T>(
-    Future<Response<T>> Function() run,
-  ) async {
+  Future<Response<T>> _guard<T>(Future<Response<T>> Function() run) async {
     try {
       return await run();
     } on DioException catch (error) {
@@ -197,5 +198,25 @@ class ApiClient {
     return trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;
+  }
+}
+
+/// 客户端身份拦截器：为每个请求注入真实设备 User-Agent。
+///
+/// 设备信息读取失败时退回 `LifeOS`，避免把 Flutter 默认的 `Dart/x.x (dart:io)`
+/// 发给后端；读取结果在 [ClientIdentity] 内部缓存，后续请求无额外开销。
+class _ClientUserAgentInterceptor extends Interceptor {
+  @override
+  Future<void> onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    try {
+      options.headers['User-Agent'] = await ClientIdentity.userAgent();
+    } catch (error) {
+      debugPrint('[client] 生成 User-Agent 失败：$error');
+      options.headers['User-Agent'] = 'LifeOS';
+    }
+    handler.next(options);
   }
 }
