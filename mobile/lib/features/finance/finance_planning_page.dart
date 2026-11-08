@@ -7,6 +7,7 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
@@ -166,6 +167,65 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
     }
   }
 
+  /// 编辑规划：带快照进入表单，保存后重拉汇总与列表。
+  Future<void> _openEdit(PlanItem plan) async {
+    final bool? changed = await context.push<bool>(
+      '/finance/planning/${plan.id}',
+      extra: plan,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 删除规划：二次确认写明对目标 / 已存合计与完成率的影响。
+  Future<void> _deletePlan(PlanItem plan) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('删除这条财务规划？'),
+          content: Text(
+            '将删除「${plan.title}」。\n'
+            '删除后目标金额、已存金额合计与整体完成率会同步回退，且无法恢复。',
+          ),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    try {
+      await scope.apiClient.delete<dynamic>('/finance/planning/${plan.id}');
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(const SnackBar(content: Text('已删除该条财务规划')));
+      await _refresh();
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text('删除失败：${error.message}')));
+    }
+  }
+
   /// 分页响应 `items` → [PlanItem]。
   List<PlanItem> _parseItems(Map<String, dynamic> json) {
     return ((json['items'] as List?) ?? const <dynamic>[])
@@ -315,7 +375,11 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
                           spacing: 4,
                           children: <Widget>[
                             for (final PlanItem plan in _items)
-                              _PlanRow(plan: plan),
+                              _PlanRow(
+                                plan: plan,
+                                onEdit: () => _openEdit(plan),
+                                onDelete: () => _deletePlan(plan),
+                              ),
                           ],
                         ),
                 ),
@@ -336,9 +400,15 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
 
 /// 单条规划：标题 + 状态 + 日期/类型 + 已存与目标 + 进度条。
 class _PlanRow extends StatelessWidget {
-  const _PlanRow({required this.plan});
+  const _PlanRow({
+    required this.plan,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final PlanItem plan;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -349,47 +419,78 @@ class _PlanRow extends StatelessWidget {
         ? null
         : formatMoney(plan.targetAmount);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 6,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 8,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  plan.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
+    return InkWell(
+      onTap: onEdit,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 6,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    plan.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ),
-              ),
-              StatusChip(
-                label: planStatusLabel(plan.status),
-                tone: _planTone(plan.status),
-              ),
-            ],
-          ),
-          Text(
-            <String>[
-              plan.planDate,
-              // 「目标」单独出现时会被读成缺值（目标是什么？），补「计划」
-              // 明确它是规划类型。
-              if (plan.planType.isNotEmpty) '${plan.planType}计划',
-            ].join(' · '),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(color: muted),
-          ),
-          Row(
-            spacing: 12,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  '已存 ${formatMoney(plan.savedAmount)}',
+                StatusChip(
+                  label: planStatusLabel(plan.status),
+                  tone: _planTone(plan.status),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: '更多操作',
+                  padding: EdgeInsets.zero,
+                  onSelected: (String value) {
+                    if (value == 'edit') {
+                      onEdit();
+                    } else {
+                      onDelete();
+                    }
+                  },
+                  itemBuilder: (BuildContext context) =>
+                      const <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
+                    PopupMenuItem<String>(value: 'delete', child: Text('删除')),
+                  ],
+                ),
+              ],
+            ),
+            Text(
+              <String>[
+                plan.planDate,
+                // 「目标」单独出现时会被读成缺值（目标是什么？），补「计划」
+                // 明确它是规划类型。
+                if (plan.planType.isNotEmpty) '${plan.planType}计划',
+              ].join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
+            Row(
+              spacing: 12,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '已存 ${formatMoney(plan.savedAmount)}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: muted,
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
+                ),
+                Text(
+                  target == null ? '未设目标' : '目标 $target',
                   maxLines: 1,
                   softWrap: false,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -399,45 +500,34 @@ class _PlanRow extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-              Text(
-                target == null ? '未设目标' : '目标 $target',
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: muted,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
+              ],
+            ),
+            Row(
+              spacing: 8,
+              children: <Widget>[
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: progress ?? 0,
+                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          Row(
-            spacing: 8,
-            children: <Widget>[
-              Expanded(
-                child: LinearProgressIndicator(
-                  value: progress ?? 0,
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(3),
+                // 进度条只有视觉长度，补一个具体百分比，便于精确对照。
+                Text(
+                  formatPercent(progress == null ? null : progress * 100),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: muted,
+                    fontFeatures: const <FontFeature>[
+                      FontFeature.tabularFigures(),
+                    ],
+                  ),
                 ),
-              ),
-              // 进度条只有视觉长度，补一个具体百分比，便于精确对照。
-              Text(
-                formatPercent(progress == null ? null : progress * 100),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: muted,
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

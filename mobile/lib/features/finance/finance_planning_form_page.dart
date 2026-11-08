@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
-/// 新增财务规划：日期 / 类型 / 标题 / 目标金额 / 已存金额 / 备注。
+/// 新增 / 编辑财务规划：日期 / 类型 / 标题 / 目标金额 / 已存金额 / 状态 / 备注。
 ///
-/// 对应后端 `POST /finance/planning`（`PlanCreate`），新建状态固定为 `active`。
+/// 对应后端 `POST /finance/planning` 与 `PUT /finance/planning/{id}`（`PlanCreate`）。
 class FinancePlanningFormPage extends StatefulWidget {
-  const FinancePlanningFormPage({super.key});
+  const FinancePlanningFormPage({super.key, this.recordId, this.initial});
+
+  /// 非空表示编辑模式。
+  final int? recordId;
+  final PlanItem? initial;
+
+  bool get isEditing => recordId != null;
 
   @override
   State<FinancePlanningFormPage> createState() =>
@@ -20,6 +27,7 @@ class FinancePlanningFormPage extends StatefulWidget {
 
 class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
   static const List<String> _planTypes = <String>['储蓄', '预算', '投资', '目标'];
+  static const List<String> _statuses = <String>['active', 'done', 'abandoned'];
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _date = TextEditingController();
@@ -30,13 +38,67 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
 
   DateTime _selectedDate = DateTime.now();
   String _planType = _planTypes.first;
+  String _status = 'active';
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    final PlanItem? initial = widget.initial;
+    if (initial != null) {
+      _apply(initial);
+    } else if (widget.isEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadRecord();
+        }
+      });
+    }
     _date.text = _dateText(_selectedDate);
+  }
+
+  /// 用列表快照预填；空金额保持空白，不写 0。
+  void _apply(PlanItem plan) {
+    _selectedDate = DateTime.tryParse(plan.planDate) ?? DateTime.now();
+    _planType = plan.planType.isEmpty ? _planTypes.first : plan.planType;
+    _status = plan.status.isEmpty ? 'active' : plan.status;
+    _title.text = plan.title;
+    _targetAmount.text = _amountText(plan.targetAmount);
+    _savedAmount.text = _amountText(plan.savedAmount);
+    _note.text = plan.note ?? '';
+  }
+
+  /// 金额转输入框文本；null 保持空串。
+  String _amountText(double? value) {
+    if (value == null) {
+      return '';
+    }
+    return value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toString();
+  }
+
+  /// 深链进入且无快照时按 id 拉取。
+  Future<void> _loadRecord() async {
+    final AppScope scope = AppScope.of(context);
+    try {
+      final Map<String, dynamic>? json = (await scope.apiClient
+              .get<Map<String, dynamic>>('/finance/planning/${widget.recordId}'))
+          .data;
+      if (!mounted || json == null) {
+        return;
+      }
+      setState(() {
+        _apply(PlanItem.fromJson(json));
+        _date.text = _dateText(_selectedDate);
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.message);
+    }
   }
 
   @override
@@ -89,19 +151,28 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
       'title': _title.text.trim(),
       'target_amount': _parseAmount(_targetAmount.text),
       'saved_amount': _parseAmount(_savedAmount.text),
-      'status': 'active',
+      'status': _status,
       'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
     };
     try {
-      await scope.apiClient.post<Map<String, dynamic>>(
-        '/finance/planning',
-        data: payload,
-      );
+      if (widget.isEditing) {
+        await scope.apiClient.put<Map<String, dynamic>>(
+          '/finance/planning/${widget.recordId}',
+          data: payload,
+        );
+      } else {
+        await scope.apiClient.post<Map<String, dynamic>>(
+          '/finance/planning',
+          data: payload,
+        );
+      }
       if (!mounted) {
         return;
       }
       navigator.pop(true);
-      messenger.showSnackBar(const SnackBar(content: Text('已新增财务规划')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(widget.isEditing ? '已更新财务规划' : '已新增财务规划')),
+      );
     } on ApiException catch (error) {
       if (!mounted) {
         return;
@@ -139,7 +210,7 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
-      title: '新增财务规划',
+      title: widget.isEditing ? '编辑财务规划' : '新增财务规划',
       bottomBar: SizedBox(
         width: double.infinity,
         child: AppPrimaryButton(
@@ -197,9 +268,28 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
                         options: <AppSelectOption<String>>[
                           for (final String type in _planTypes)
                             AppSelectOption<String>(value: type, label: type),
+                          // 历史数据可能带自定义类型：保留原值，避免编辑时丢失语义。
+                          if (!_planTypes.contains(_planType))
+                            AppSelectOption<String>(
+                              value: _planType,
+                              label: _planType,
+                            ),
                         ],
                         onChanged: (String value) =>
                             setState(() => _planType = value),
+                      ),
+                      AppSelectField<String>(
+                        label: '状态',
+                        value: _status,
+                        options: <AppSelectOption<String>>[
+                          for (final String status in _statuses)
+                            AppSelectOption<String>(
+                              value: status,
+                              label: planStatusLabel(status),
+                            ),
+                        ],
+                        onChanged: (String value) =>
+                            setState(() => _status = value),
                       ),
                       TextFormField(
                         controller: _date,
