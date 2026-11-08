@@ -181,7 +181,8 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
         onPressed: _openCreate,
       ),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
+        padding: const EdgeInsets.only(bottom: 88),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -390,21 +391,13 @@ class _TrendBars extends StatelessWidget {
     );
   }
 
-  /// 柱状图 X 轴标签：14 根柱子里只有首根与跨月首日显示「月/日」，其余只显示日。
+  /// 柱状图 X 轴标签：天数区间内统一只显示「日」，首根与跨月都不再带月份。
   String _axisLabel(List<StepTrendPoint> points, int index) {
     final String date = points[index].date;
     if (date.length < 10) {
       return date;
     }
-    final String month = date.substring(5, 7);
-    final String day = date.substring(8, 10);
-    final bool firstOfMonth = index == 0 ||
-        (points[index - 1].date.length >= 10 &&
-            points[index - 1].date.substring(5, 7) != month);
-    if (!firstOfMonth) {
-      return day;
-    }
-    return '${int.tryParse(month) ?? month}/${int.tryParse(day) ?? day}';
+    return date.substring(8, 10);
   }
 }
 

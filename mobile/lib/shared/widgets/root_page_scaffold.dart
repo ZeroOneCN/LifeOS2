@@ -78,13 +78,11 @@ class DetailPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 悬浮按钮会盖住内容区最后一行：这里统一预留出按钮高度，
-    // 调用方无需再各自算 bottomPadding。
-    final double fabInset = floatingActionButton == null ? 0 : 88;
-    // 无底栏的页面不再额外留 24dp：这些页面多数嵌在带底部 Tab 的壳里，
-    // 再留一次会在内容与 Tab 栏之间露出一条空白（真机实测 72px = 24dp）。
-    // 有底栏时保留 12dp 作为按钮的下边距。
-    final double contentBottom = (bottomBar == null ? 0 : 12) + fabInset;
+    // 页面底部不再为悬浮按钮预留固定高度：那会在内容与底部 Tab 之间压出一条
+    // 整屏宽的空白（真机实测 88dp = 264px）。按钮由 Scaffold 浮在内容之上，
+    // 需要避让的页面把安全性内边距加在自己的滚动容器 padding 上（随内容滚动）。
+    // 无底栏时不留白；有底栏时保留 12dp 作为按钮的下边距。
+    final double contentBottom = bottomBar == null ? 0 : 12;
     return Scaffold(
       appBar: AppBar(title: Text(title), actions: actions),
       floatingActionButton: floatingActionButton,

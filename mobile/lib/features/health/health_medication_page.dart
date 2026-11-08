@@ -536,7 +536,8 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
         onPressed: _openCreate,
       ),
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
+        padding: const EdgeInsets.only(bottom: 88),
         children: <Widget>[
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
