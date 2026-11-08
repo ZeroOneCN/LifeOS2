@@ -382,6 +382,7 @@ class PhoneCard {
     this.dataPlan,
     this.callPlan,
     this.smsPlan,
+    this.openDate,
     required this.status,
     this.note,
     this.billingType = 'monthly',
@@ -406,6 +407,9 @@ class PhoneCard {
   final String? dataPlan;
   final String? callPlan;
   final String? smsPlan;
+
+  /// 开卡日期（`open_date`，`YYYY-MM-DD`）。
+  final String? openDate;
   final String status;
   final String? note;
 
@@ -503,6 +507,7 @@ class PhoneCard {
       dataPlan: json['data_plan'] as String?,
       callPlan: json['call_plan'] as String?,
       smsPlan: json['sms_plan'] as String?,
+      openDate: json['open_date'] as String?,
       status: json['status'] as String? ?? 'active',
       note: json['note'] as String?,
       billingType: json['billing_type'] as String? ?? 'monthly',
@@ -558,6 +563,72 @@ class PhoneLedgerEntry {
       entryType: json['entry_type'] as String? ?? '',
       entryDate: json['entry_date'] as String? ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 运营商字典（`GET /lifestyle/carriers`）。
+class Carrier {
+  const Carrier({
+    required this.id,
+    required this.name,
+    this.website,
+    this.contact,
+    this.note,
+  });
+
+  final int id;
+  final String name;
+  final String? website;
+  final String? contact;
+  final String? note;
+
+  factory Carrier.fromJson(Map<String, dynamic> json) {
+    return Carrier(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: json['name'] as String? ?? '',
+      website: json['website'] as String?,
+      contact: json['contact'] as String?,
+      note: json['note'] as String?,
+    );
+  }
+}
+
+/// 手机卡扣账账单（`GET /lifestyle/card-bills`）。
+class CardBill {
+  const CardBill({
+    required this.id,
+    required this.phoneCardId,
+    required this.billMonth,
+    required this.amount,
+    this.deductedDate,
+    required this.paid,
+    this.note,
+  });
+
+  final int id;
+  final int phoneCardId;
+
+  /// 账单月份：后端为 date 字段，前端统一按 `YYYY-MM-DD` 解析。
+  final String billMonth;
+  final double amount;
+  final String? deductedDate;
+  final bool paid;
+  final String? note;
+
+  /// 月份展示（`YYYY-MM`）。
+  String get monthText =>
+      billMonth.length >= 7 ? billMonth.substring(0, 7) : billMonth;
+
+  factory CardBill.fromJson(Map<String, dynamic> json) {
+    return CardBill(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      phoneCardId: (json['phone_card_id'] as num?)?.toInt() ?? 0,
+      billMonth: json['bill_month'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      deductedDate: json['deducted_date'] as String?,
+      paid: json['paid'] as bool? ?? false,
       note: json['note'] as String?,
     );
   }

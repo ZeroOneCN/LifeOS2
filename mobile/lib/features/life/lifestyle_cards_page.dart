@@ -9,11 +9,13 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import 'card_form_page.dart';
 
 /// 卡片管理：合计概览 + 手机号卡 / 银行卡双 Tab 列表。
 ///
@@ -34,13 +36,17 @@ class LifestyleCardsPage extends StatefulWidget {
 class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   final List<BankCard> _cards = <BankCard>[];
   final List<PhoneCard> _phones = <PhoneCard>[];
+  final List<Carrier> _carriers = <Carrier>[];
+  final List<CardBill> _cardBills = <CardBill>[];
 
   BankStats? _stats;
   int _phoneTotal = 0;
+  int _carrierTotal = 0;
+  int _cardBillTotal = 0;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
-  /// 当前 Tab：0 = 手机号卡，1 = 银行卡。
+  /// 当前 Tab：0 = 手机号卡，1 = 银行卡，2 = 运营商，3 = 卡账单。
   int _tab = 0;
 
   int _page = 1;
@@ -96,8 +102,25 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
               queryParameters: <String, dynamic>{'page': 1, 'page_size': 100})
           .then((value) => value.data)
           .catchError((Object _) => null);
+      // 运营商 / 卡账单为附属字典：失败时保留空表，不阻塞主列表。
+      final Future<Map<String, dynamic>?> carrierFuture = scope.apiClient
+          .get<Map<String, dynamic>>('/lifestyle/carriers',
+              queryParameters: <String, dynamic>{'page': 1, 'page_size': 100})
+          .then((value) => value.data)
+          .catchError((Object _) => null);
+      final Future<Map<String, dynamic>?> billFuture = scope.apiClient
+          .get<Map<String, dynamic>>('/lifestyle/card-bills',
+              queryParameters: <String, dynamic>{'page': 1, 'page_size': 100})
+          .then((value) => value.data)
+          .catchError((Object _) => null);
       final List<Object?> responses = await Future.wait<Object?>(
-        <Future<Object?>>[statsFuture, listFuture, phoneFuture],
+        <Future<Object?>>[
+          statsFuture,
+          listFuture,
+          phoneFuture,
+          carrierFuture,
+          billFuture,
+        ],
       );
       final Map<String, dynamic>? statsJson =
           responses[0] as Map<String, dynamic>?;
@@ -105,6 +128,10 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
           responses[1] as Map<String, dynamic>?;
       final Map<String, dynamic>? phoneJson =
           responses[2] as Map<String, dynamic>?;
+      final Map<String, dynamic>? carrierJson =
+          responses[3] as Map<String, dynamic>?;
+      final Map<String, dynamic>? billJson =
+          responses[4] as Map<String, dynamic>?;
       if (statsJson == null || listJson == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -117,6 +144,16 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
           .whereType<Map>()
           .map((Map item) => PhoneCard.fromJson(item.cast<String, dynamic>()))
           .toList();
+      final List<Carrier> carriers = ((carrierJson?['items'] as List?) ??
+              const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => Carrier.fromJson(item.cast<String, dynamic>()))
+          .toList();
+      final List<CardBill> bills = ((billJson?['items'] as List?) ??
+              const <dynamic>[])
+          .whereType<Map>()
+          .map((Map item) => CardBill.fromJson(item.cast<String, dynamic>()))
+          .toList();
       if (!mounted) {
         return;
       }
@@ -128,8 +165,18 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _phones
           ..clear()
           ..addAll(phones);
+        _carriers
+          ..clear()
+          ..addAll(carriers);
+        _cardBills
+          ..clear()
+          ..addAll(bills);
         _phoneTotal =
             (phoneJson?['total'] as num?)?.toInt() ?? phones.length;
+        _carrierTotal =
+            (carrierJson?['total'] as num?)?.toInt() ?? carriers.length;
+        _cardBillTotal =
+            (billJson?['total'] as num?)?.toInt() ?? bills.length;
         _page = 1;
         _total = (listJson['total'] as num?)?.toInt() ?? cards.length;
         _hasMore = _cards.length < _total;
@@ -296,6 +343,142 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     if (changed == true && mounted) {
       await _refresh();
     }
+  }
+
+  /// 打开新增 / 编辑表单；保存成功后整体刷新（派生余额可能变化）。
+  Future<void> _openCardForm(
+    CardKind kind, {
+    int? id,
+    PhoneCard? phone,
+    BankCard? bank,
+    Carrier? carrier,
+    CardBill? bill,
+  }) async {
+    final Object? extra = phone ?? bank ?? carrier ?? bill;
+    final bool? changed = await context.push<bool>(
+      id == null
+          ? '/life/cards/form/${kind.name}'
+          : '/life/cards/form/${kind.name}?id=$id',
+      extra: extra,
+    );
+    if (changed == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  /// 删除卡片 / 字典：二次确认写明影响，成功后整体刷新。
+  Future<void> _deleteCard(
+    CardKind kind,
+    int id,
+    String label,
+    String impact,
+  ) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('删除「$label」？'),
+          content: Text('$impact\n删除后无法恢复。'),
+          actions: <Widget>[
+            AppActionRow(
+              first: AppSecondaryButton(
+                label: '取消',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              second: AppDangerButton(
+                label: '删除',
+                compact: true,
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final AppScope scope = AppScope.of(context);
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final String path = switch (kind) {
+      CardKind.phone => '/lifestyle/phone-cards',
+      CardKind.bank => '/lifestyle/bank-cards',
+      CardKind.carrier => '/lifestyle/carriers',
+      CardKind.bill => '/lifestyle/card-bills',
+    };
+    try {
+      await scope.apiClient.delete<dynamic>('$path/$id');
+      if (!mounted) {
+        return;
+      }
+      messenger.showSnackBar(SnackBar(content: Text('已删除「$label」')));
+      await _refresh();
+    } on ApiException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text('删除失败：${error.message}')));
+      }
+    }
+  }
+
+  /// 手机号卡菜单：编辑 / 删除。
+  Future<void> _editPhone(PhoneCard phone) {
+    return _openCardForm(CardKind.phone, id: phone.id, phone: phone);
+  }
+
+  /// 删除手机号卡：后端会级联清理流水与月度扣账账单。
+  Future<void> _deletePhone(PhoneCard phone) {
+    return _deleteCard(
+      CardKind.phone,
+      phone.id,
+      phone.phoneNumber,
+      '该卡的余额流水与月度扣账账单会一并删除，卡片合计余额会同步回退。',
+    );
+  }
+
+  /// 银行卡菜单：编辑。
+  Future<void> _editBank(BankCard card) {
+    return _openCardForm(CardKind.bank, id: card.id, bank: card);
+  }
+
+  /// 删除银行卡：余额与额度不再计入合计。
+  Future<void> _deleteBank(BankCard card) {
+    return _deleteCard(
+      CardKind.bank,
+      card.id,
+      '${card.bank} · ${card.cardName}',
+      '该卡的余额与信用额度会从合计中移除。',
+    );
+  }
+
+  /// 运营商菜单：编辑。
+  Future<void> _editCarrier(Carrier carrier) {
+    return _openCardForm(CardKind.carrier, id: carrier.id, carrier: carrier);
+  }
+
+  /// 删除运营商：已保存号卡的运营商文本不受影响。
+  Future<void> _deleteCarrier(Carrier carrier) {
+    return _deleteCard(
+      CardKind.carrier,
+      carrier.id,
+      carrier.name,
+      '已保存的手机号卡仍保留原运营商文本，仅后续新增时不再出现该选项。',
+    );
+  }
+
+  /// 卡账单菜单：编辑。
+  Future<void> _editBill(CardBill bill) {
+    return _openCardForm(CardKind.bill, id: bill.id, bill: bill);
+  }
+
+  /// 删除卡账单：该月扣账记录移除，余额由后端重新派生。
+  Future<void> _deleteBill(CardBill bill) {
+    return _deleteCard(
+      CardKind.bill,
+      bill.id,
+      '${bill.monthText} · ${formatMoney(bill.amount)}',
+      '该月扣账记录会从账单与余额口径中移除。',
+    );
   }
 
   /// 手动补扣本月：幂等写操作，成功后立即刷新余额。
@@ -494,6 +677,8 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
               labels: <String>[
                 '手机号卡 ${formatInt(_phoneTotal)}',
                 '银行卡 ${formatInt(_total)}',
+                '运营商 ${formatInt(_carrierTotal)}',
+                '卡账单 ${formatInt(_cardBillTotal)}',
               ],
               value: _tab,
               onChanged: (int index) => setState(() => _tab = index),
@@ -511,6 +696,9 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                     onRecharge: _openRecharge,
                     onAdjust: _openAdjust,
                     onDeduct: _deduct,
+                    onCreate: () => _openCardForm(CardKind.phone),
+                    onEdit: _editPhone,
+                    onDelete: _deletePhone,
                     deductingId: _deductingId,
                     expandedIds: _ledgerOpen,
                     ledgers: _ledgers,
@@ -527,6 +715,24 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                       '卡号',
                       card.copyableNumber,
                     ),
+                    onCreate: () => _openCardForm(CardKind.bank),
+                    onEdit: _editBank,
+                    onDelete: _deleteBank,
+                  ),
+                  _CarrierTab(
+                    carriers: _carriers,
+                    total: _carrierTotal,
+                    onCreate: () => _openCardForm(CardKind.carrier),
+                    onEdit: _editCarrier,
+                    onDelete: _deleteCarrier,
+                  ),
+                  _BillTab(
+                    bills: _cardBills,
+                    phones: _phones,
+                    total: _cardBillTotal,
+                    onCreate: () => _openCardForm(CardKind.bill),
+                    onEdit: _editBill,
+                    onDelete: _deleteBill,
                   ),
                 ],
               ),
@@ -546,6 +752,9 @@ class _PhoneTab extends StatelessWidget {
     required this.onRecharge,
     required this.onAdjust,
     required this.onDeduct,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onDelete,
     required this.deductingId,
     required this.expandedIds,
     required this.ledgers,
@@ -558,6 +767,9 @@ class _PhoneTab extends StatelessWidget {
   final ValueChanged<PhoneCard> onRecharge;
   final ValueChanged<PhoneCard> onAdjust;
   final ValueChanged<PhoneCard> onDeduct;
+  final VoidCallback onCreate;
+  final ValueChanged<PhoneCard> onEdit;
+  final ValueChanged<PhoneCard> onDelete;
 
   /// 正在补扣的卡片 id（按钮显示 loading，防止重复点击）。
   final int? deductingId;
@@ -575,11 +787,10 @@ class _PhoneTab extends StatelessWidget {
       children: <Widget>[
         SectionCard(
           title: '手机号卡',
-          trailing: Text(
-            '共 ${formatInt(phones.length)} 张',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          trailing: _CardTabTrailing(
+            text: '共 ${formatInt(phones.length)} 张',
+            onCreate: onCreate,
+            createTooltip: '新增手机号卡',
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -595,7 +806,7 @@ class _PhoneTab extends StatelessWidget {
                 const EmptyState(
                   icon: Icons.sim_card_outlined,
                   title: '暂无手机号卡',
-                  description: '可在网页端录入后再充值 / 扣费 / 校准',
+                  description: '点右上角「+」录入第一张号卡',
                   compact: true,
                 )
               else
@@ -606,6 +817,8 @@ class _PhoneTab extends StatelessWidget {
                     onRecharge: () => onRecharge(phone),
                     onAdjust: () => onAdjust(phone),
                     onDeduct: () => onDeduct(phone),
+                    onEdit: () => onEdit(phone),
+                    onDelete: () => onDelete(phone),
                     deducting: deductingId == phone.id,
                     onToggleLedger: () => onToggleLedger(phone),
                     ledgerExpanded: expandedIds.contains(phone.id),
@@ -629,6 +842,9 @@ class _BankTab extends StatelessWidget {
     required this.hasMore,
     required this.onLoadMore,
     required this.onCopy,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final List<BankCard> cards;
@@ -637,34 +853,40 @@ class _BankTab extends StatelessWidget {
   final bool hasMore;
   final VoidCallback onLoadMore;
   final ValueChanged<BankCard> onCopy;
+  final VoidCallback onCreate;
+  final ValueChanged<BankCard> onEdit;
+  final ValueChanged<BankCard> onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     return ListView(
       key: const PageStorageKey<String>('lifestyle-cards-bank'),
       padding: EdgeInsets.zero,
       children: <Widget>[
         SectionCard(
           title: '银行卡',
-          trailing: Text(
-            '共 ${formatInt(total)} 张',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          trailing: _CardTabTrailing(
+            text: '共 ${formatInt(total)} 张',
+            onCreate: onCreate,
+            createTooltip: '新增银行卡',
           ),
           child: cards.isEmpty
               ? const EmptyState(
                   icon: Icons.credit_card_outlined,
                   title: '暂无银行卡',
-                  description: '可在网页端录入银行卡信息',
+                  description: '点右上角「+」录入第一张银行卡',
                   compact: true,
                 )
               : Column(
                   spacing: 4,
                   children: <Widget>[
                     for (final BankCard card in cards)
-                      _CardRow(card: card, onCopy: () => onCopy(card)),
+                      _CardRow(
+                        card: card,
+                        onCopy: () => onCopy(card),
+                        onEdit: () => onEdit(card),
+                        onDelete: () => onDelete(card),
+                      ),
                   ],
                 ),
         ),
@@ -803,12 +1025,272 @@ class _CopyButton extends StatelessWidget {
   }
 }
 
+/// Tab 标题右侧：数量 + 新增入口。
+class _CardTabTrailing extends StatelessWidget {
+  const _CardTabTrailing({
+    required this.text,
+    required this.onCreate,
+    required this.createTooltip,
+  });
+
+  final String text;
+  final VoidCallback onCreate;
+  final String createTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          text,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        IconButton(
+          tooltip: createTooltip,
+          onPressed: onCreate,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.add, size: 20),
+        ),
+      ],
+    );
+  }
+}
+
+/// 运营商 Tab：名称 + 官网 / 客服 + 编辑 / 删除。
+class _CarrierTab extends StatelessWidget {
+  const _CarrierTab({
+    required this.carriers,
+    required this.total,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<Carrier> carriers;
+  final int total;
+  final VoidCallback onCreate;
+  final ValueChanged<Carrier> onEdit;
+  final ValueChanged<Carrier> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return ListView(
+      key: const PageStorageKey<String>('lifestyle-cards-carrier'),
+      padding: EdgeInsets.zero,
+      children: <Widget>[
+        SectionCard(
+          title: '运营商',
+          trailing: _CardTabTrailing(
+            text: '共 ${formatInt(total)} 家',
+            onCreate: onCreate,
+            createTooltip: '新增运营商',
+          ),
+          child: carriers.isEmpty
+              ? const EmptyState(
+                  icon: Icons.cell_tower_outlined,
+                  title: '暂无运营商',
+                  description: '点右上角「+」录入运营商字典',
+                  compact: true,
+                )
+              : Column(
+                  spacing: 4,
+                  children: <Widget>[
+                    for (final Carrier carrier in carriers)
+                      Row(
+                        spacing: 8,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  carrier.name,
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                if ((carrier.website ?? '').isNotEmpty ||
+                                    (carrier.contact ?? '').isNotEmpty)
+                                  Text(
+                                    <String>[
+                                      if ((carrier.website ?? '').isNotEmpty)
+                                        carrier.website!,
+                                      if ((carrier.contact ?? '').isNotEmpty)
+                                        '客服 ${carrier.contact}',
+                                    ].join(' · '),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: '更多操作',
+                            padding: EdgeInsets.zero,
+                            onSelected: (String value) {
+                              if (value == 'edit') {
+                                onEdit(carrier);
+                              } else {
+                                onDelete(carrier);
+                              }
+                            },
+                            itemBuilder: (BuildContext context) =>
+                                const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Text('编辑'),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'delete',
+                                child: Text('删除'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 卡账单 Tab：月份 + 号卡 + 金额 + 扣账状态。
+class _BillTab extends StatelessWidget {
+  const _BillTab({
+    required this.bills,
+    required this.phones,
+    required this.total,
+    required this.onCreate,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<CardBill> bills;
+  final List<PhoneCard> phones;
+  final int total;
+  final VoidCallback onCreate;
+  final ValueChanged<CardBill> onEdit;
+  final ValueChanged<CardBill> onDelete;
+
+  /// 号卡 id → 号码；找不到时显示「未知号卡」。
+  String _phoneText(int id) {
+    for (final PhoneCard phone in phones) {
+      if (phone.id == id) {
+        return phone.phoneNumber;
+      }
+    }
+    return '未知号卡';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color muted = theme.colorScheme.onSurfaceVariant;
+    return ListView(
+      key: const PageStorageKey<String>('lifestyle-cards-bill'),
+      padding: EdgeInsets.zero,
+      children: <Widget>[
+        SectionCard(
+          title: '卡账单',
+          trailing: _CardTabTrailing(
+            text: '共 ${formatInt(total)} 条',
+            onCreate: onCreate,
+            createTooltip: '新增扣账账单',
+          ),
+          child: bills.isEmpty
+              ? const EmptyState(
+                  icon: Icons.receipt_long_outlined,
+                  title: '暂无卡账单',
+                  description: '点右上角「+」录入一条扣账记录',
+                  compact: true,
+                )
+              : Column(
+                  spacing: 4,
+                  children: <Widget>[
+                    for (final CardBill bill in bills)
+                      Row(
+                        spacing: 8,
+                        children: <Widget>[
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  '${bill.monthText} · ${formatMoney(bill.amount)}',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                Text(
+                                  <String>[
+                                    _phoneText(bill.phoneCardId),
+                                    if ((bill.deductedDate ?? '').isNotEmpty)
+                                      '扣账 ${formatListDate(bill.deductedDate)}',
+                                  ].join(' · '),
+                                  style: theme.textTheme.bodySmall
+                                      ?.copyWith(color: muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            bill.paid ? '已扣' : '未扣',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: bill.paid
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.error,
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: '更多操作',
+                            padding: EdgeInsets.zero,
+                            onSelected: (String value) {
+                              if (value == 'edit') {
+                                onEdit(bill);
+                              } else {
+                                onDelete(bill);
+                              }
+                            },
+                            itemBuilder: (BuildContext context) =>
+                                const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'edit',
+                                child: Text('编辑'),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'delete',
+                                child: Text('删除'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
 /// 单张银行卡：银行 + 卡名 → 卡号（主体）+ 余额（同行配角）→ 元信息。
 class _CardRow extends StatelessWidget {
-  const _CardRow({required this.card, required this.onCopy});
+  const _CardRow({
+    required this.card,
+    required this.onCopy,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final BankCard card;
   final VoidCallback onCopy;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -837,12 +1319,36 @@ class _CardRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 4,
         children: <Widget>[
-          Text(
-            '${card.bank} · ${card.cardName}',
-            maxLines: 2,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 4,
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '${card.bank} · ${card.cardName}',
+                  maxLines: 2,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: '更多操作',
+                padding: EdgeInsets.zero,
+                onSelected: (String value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    const <PopupMenuEntry<String>>[
+                  PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
+                  PopupMenuItem<String>(value: 'delete', child: Text('删除')),
+                ],
+              ),
+            ],
           ),
           _NumberBalanceRow(
             number: card.displayNumber,
@@ -864,7 +1370,7 @@ class _CardRow extends StatelessWidget {
 }
 
 /// 手机号卡卡片上的写操作（收在「操作」菜单里）。
-enum _PhoneCardAction { recharge, deduct, adjust }
+enum _PhoneCardAction { recharge, deduct, adjust, edit, delete }
 
 /// 单张手机号卡：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期 → 一行状态与操作 → 最近流水。
 class _PhoneCardRow extends StatelessWidget {
@@ -874,6 +1380,8 @@ class _PhoneCardRow extends StatelessWidget {
     required this.onRecharge,
     required this.onAdjust,
     required this.onDeduct,
+    required this.onEdit,
+    required this.onDelete,
     required this.deducting,
     required this.onToggleLedger,
     required this.ledgerExpanded,
@@ -886,6 +1394,8 @@ class _PhoneCardRow extends StatelessWidget {
   final VoidCallback onRecharge;
   final VoidCallback onAdjust;
   final VoidCallback onDeduct;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
   final bool deducting;
   final VoidCallback onToggleLedger;
   final bool ledgerExpanded;
@@ -990,6 +1500,10 @@ class _PhoneCardRow extends StatelessWidget {
                       onDeduct();
                     case _PhoneCardAction.adjust:
                       onAdjust();
+                    case _PhoneCardAction.edit:
+                      onEdit();
+                    case _PhoneCardAction.delete:
+                      onDelete();
                   }
                 },
                 itemBuilder: (BuildContext context) =>
@@ -1010,6 +1524,15 @@ class _PhoneCardRow extends StatelessWidget {
                   const PopupMenuItem<_PhoneCardAction>(
                     value: _PhoneCardAction.adjust,
                     child: Text('校准'),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.edit,
+                    child: Text('编辑号卡'),
+                  ),
+                  const PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.delete,
+                    child: Text('删除号卡'),
                   ),
                 ],
                 child: Padding(
