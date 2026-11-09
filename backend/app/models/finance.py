@@ -264,10 +264,15 @@ class FinanceRepayment(TimestampMixin, UserOwned, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     bill_id: Mapped[int | None] = mapped_column(Integer, index=True)  # 关联账单
     repay_date: Mapped[date] = mapped_column(Date)  # 还款日期
-    amount: Mapped[float] = mapped_column(Double)  # 还款金额（实付）
+    amount: Mapped[float] = mapped_column(Double)  # 实付金额（= 本次应付 − 优惠，由接口推导）
     discount: Mapped[float | None] = mapped_column(Double, default=0)  # 优惠金额（券/抵扣）
     method: Mapped[str | None] = mapped_column(String(32))  # 还款方式
     note: Mapped[str | None] = mapped_column(Text)
+
+    @property
+    def payable(self) -> float:
+        """本次应付（含优惠）：实付 + 优惠，仅用于响应与编辑回填。"""
+        return round((self.amount or 0) + (self.discount or 0), 2)
 
 
 class FinancePlan(TimestampMixin, UserOwned, Base):

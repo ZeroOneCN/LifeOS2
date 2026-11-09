@@ -224,15 +224,22 @@ class LoanBillRead(LoanBillCreate, ORMRead):
 class RepaymentCreate(BaseModel):
     bill_id: int | None = None
     repay_date: date
-    amount: float = Field(gt=0)
+    # 请求侧只收「本次应付（含优惠）」与「优惠」，实付由后端推导落库，避免客户端自算口径漂移
+    payable: float = Field(gt=0)
     discount: float | None = Field(None, ge=0)
     method: str | None = None
     note: str | None = None
 
 
-class RepaymentRead(RepaymentCreate, ORMRead):
-    # 响应侧放宽：账单自动结清会写入 0 元还款记录，gt=0 会让整页响应 500；请求侧保持不变
-    amount: float = Field(ge=0)
+class RepaymentRead(ORMRead):
+    bill_id: int | None = None
+    repay_date: date
+    # 响应侧放宽：历史存在 0 元还款记录，gt=0 会让整页响应 500
+    amount: float = Field(ge=0)  # 实付（落库值）
+    payable: float = Field(ge=0)  # 本次应付 = 实付 + 优惠
+    discount: float | None = Field(None, ge=0)
+    method: str | None = None
+    note: str | None = None
 
 
 class PlanCreate(BaseModel):

@@ -54,8 +54,8 @@ _READ_CASES = [
     ),
     (
         RepaymentRead,
-        {"repay_date": date(2023, 1, 1), "amount": 0},
-        {"amount": 0},
+        {"repay_date": date(2023, 1, 1), "amount": 0, "payable": 0},
+        {"amount": 0, "payable": 0},
     ),
     (
         PlanRead,
@@ -102,7 +102,7 @@ _CREATE_CASES = [
         "amount": 100,
         "status": "overdue",
     }),
-    (RepaymentCreate, {"repay_date": date(2026, 11, 7), "amount": 0}),
+    (RepaymentCreate, {"repay_date": date(2026, 11, 7), "payable": 0}),
     (PlanCreate, {
         "plan_date": date(2026, 11, 7),
         "plan_type": "save",
@@ -143,7 +143,7 @@ def test_finance_create_still_rejects_violation(create_schema, payload):
 
 
 def test_finance_create_endpoint_still_returns_422(db_session):
-    """新增还款接口对 amount=0 返回 422。"""
+    """新增还款接口对应付=0 返回 422。"""
     client = make_client(
         db_session,
         prefix="/repayment",
@@ -151,5 +151,5 @@ def test_finance_create_endpoint_still_returns_422(db_session):
         create_schema=RepaymentCreate,
         read_schema=RepaymentRead,
     )
-    resp = client.post("/repayment", json={"repay_date": "2026-11-07", "amount": 0})
+    resp = client.post("/repayment", json={"repay_date": "2026-11-07", "payable": 0})
     assert resp.status_code == 422, resp.text

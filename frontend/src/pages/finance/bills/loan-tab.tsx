@@ -84,7 +84,7 @@ type LoanBillStats = {
   by_month: { month: string; amount: number }[]
   upcoming: { id: number; platform_id?: number; bill_month: string; due_date?: string; amount: number; interest?: number; paid_amount: number; remaining: number; status: string; grace_applied?: boolean; overdue?: boolean }[]
 }
-type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; discount?: number; method?: string; note?: string }
+type Repayment = { id: number; bill_id?: number; repay_date: string; amount: number; payable?: number; discount?: number; method?: string; note?: string }
 
 const billStatusMeta: Record<string, { label: string; className: string }> = {
   pending: { label: '待还', className: 'bg-warning-muted text-warning-muted-foreground' },
@@ -115,6 +115,7 @@ export function LoanTab() {
   const [repayViewDialog, setRepayViewDialog] = useState<number | null>(null)  // 查看还款记录的 bill_id
   const [repayEditDialog, setRepayEditDialog] = useState<Repayment | null>(null)
   const [repayEditForm, setRepayEditForm] = useState<Record<string, string>>({})
+  const [repayEditLegacy, setRepayEditLegacy] = useState(false)
   const [saving, setSaving] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm({ title: '确认删除', description: '确定删除这条记录吗？此操作不可恢复。' })
 
@@ -406,18 +407,28 @@ export function LoanTab() {
   const actualPay = (): number => {
     const amt = Number(repayForm.amount) || 0
     const dsc = Number(repayForm.discount) || 0
-    return Math.max(0, amt - dsc)
+    return Math.max(0, round2(amt - dsc))
   }
   const submitRepay = async () => {
     if (!repayDialog) return
-    const actual = actualPay()
-    if (actual <= 0) {
-      toast.error('实付金额必须大于 0')
+    const payable = Number(repayForm.amount) || 0
+    const discount = Number(repayForm.discount) || 0
+    if (payable <= 0) {
+      toast.error('本次应付必须大于 0')
+      return
+    }
+    if (discount < 0 || discount > payable + 1e-6) {
+      toast.error('优惠不能为负，也不能大于本次应付')
+      return
+    }
+    const remaining = remainingOf(repayDialog.amount, repayDialog.paid_amount)
+    if (payable > remaining + 1e-2) {
+      toast.error(`本次应付不能超过剩余 ${fmt(remaining)}`)
       return
     }
     const payload = {
       bill_id: repayDialog.id, repay_date: repayForm.repay_date,
-      amount: actual, discount: repayForm.discount ? Number(repayForm.discount) : 0,
+      payable: round2(payable), discount: round2(discount),
       method: repayForm.method || null, note: repayForm.note || null,
     }
     setSaving(true)
@@ -446,19 +457,28 @@ export function LoanTab() {
       })
     }
   }
+  const repayPayable = (r: Repayment): number => r.payable ?? round2(r.amount + (r.discount ?? 0))
   const openEditRepay = (r: Repayment) => {
-    setRepayEditForm({ repay_date: r.repay_date, amount: String(r.amount), discount: String(r.discount ?? 0), method: r.method ?? '', note: r.note ?? '' })
+    const payable = repayPayable(r)
+    setRepayEditForm({ repay_date: r.repay_date, payable: String(payable), discount: String(r.discount ?? 0), method: r.method ?? '', note: r.note ?? '' })
+    // 旧口径记录：应付 − 优惠 与库中实付对不上时不静默改数，交由用户确认后重算保存
+    setRepayEditLegacy(Math.abs(round2(payable - (r.discount ?? 0)) - r.amount) > 0.005)
     setRepayEditDialog(r)
   }
   const submitEditRepay = async () => {
     if (!repayEditDialog) return
-    const amt = Number(repayEditForm.amount)
-    if (amt <= 0) { toast.error('金额必须大于 0'); return }
+    const payable = Number(repayEditForm.payable) || 0
+    const discount = Number(repayEditForm.discount) || 0
+    if (payable <= 0) { toast.error('本次应付必须大于 0'); return }
+    if (discount < 0 || discount > payable + 1e-6) {
+      toast.error('优惠不能为负，也不能大于本次应付')
+      return
+    }
     const payload = {
       bill_id: repayEditDialog.bill_id!,
       repay_date: repayEditForm.repay_date,
-      amount: amt,
-      discount: Number(repayEditForm.discount) || 0,
+      payable: round2(payable),
+      discount: round2(discount),
       method: repayEditForm.method || null,
       note: repayEditForm.note || null,
     }
@@ -795,9 +815,19 @@ export function LoanTab() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>修改还款记录</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {repayEditLegacy && (
+              <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-muted px-3 py-2 text-xs text-warning-muted-foreground">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>这条是旧口径数据：「实付 = 应付 − 优惠」对不上库中原值。请核对下方金额，确认后按新口径重新计算并保存。</span>
+              </div>
+            )}
             <div className="space-y-2"><Label>还款日期</Label><Input type="date" value={repayEditForm.repay_date ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, repay_date: e.target.value })} /></div>
-            <div className="space-y-2"><Label>实付金额</Label><Input type="number" min={0} step="0.01" value={repayEditForm.amount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, amount: e.target.value })} /></div>
+            <div className="space-y-2"><Label>本次应付（含优惠）</Label><Input type="number" min={0.01} step="0.01" value={repayEditForm.payable ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, payable: e.target.value })} /></div>
             <div className="space-y-2"><Label>优惠</Label><Input type="number" min={0} step="0.01" value={repayEditForm.discount ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, discount: e.target.value })} /></div>
+            <div className="space-y-2">
+              <Label>实际支付（只读，= 应付 - 优惠）</Label>
+              <div className="rounded-lg border px-3 py-2 text-sm font-medium">{fmt(Math.max(0, (Number(repayEditForm.payable) || 0) - (Number(repayEditForm.discount) || 0)))}</div>
+            </div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayEditForm.method ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, method: e.target.value })} placeholder="如：支付宝、微信" /></div>
             <div className="space-y-2"><Label>备注</Label><Input value={repayEditForm.note ?? ''} onChange={(e) => setRepayEditForm({ ...repayEditForm, note: e.target.value })} /></div>
             <div className="flex justify-end gap-2 pt-2">
@@ -893,13 +923,13 @@ export function LoanTab() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2"><Label>还款日期 <span className="text-destructive">*</span></Label><DatePicker value={repayForm.repay_date} onChange={(v) => setRepayForm({ ...repayForm, repay_date: v })} /></div>
             <div className="space-y-2">
-              <Label>应还金额 <span className="text-destructive">*</span></Label>
-              <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="含优惠的欠款部分" />
+              <Label>本次应付（含优惠） <span className="text-destructive">*</span></Label>
+              <Input type="number" min={0.01} step="0.01" value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} placeholder="本次要清账的欠款额" />
             </div>
-            <div className="space-y-2"><Label>优惠(券/抵扣)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
+            <div className="space-y-2"><Label>优惠(券/抵扣/减免)</Label><Input type="number" min={0} step="0.01" value={repayForm.discount} onChange={(e) => setRepayForm({ ...repayForm, discount: e.target.value })} placeholder="0" /></div>
             <div className="space-y-2"><Label>还款方式</Label><Input value={repayForm.method} onChange={(e) => setRepayForm({ ...repayForm, method: e.target.value })} placeholder="银行卡/支付宝等" /></div>
             <div className="col-span-2 space-y-1">
-              <Label>实际支付（= 应还 - 优惠）</Label>
+              <Label>实际支付（= 应付 - 优惠）</Label>
               <div className="rounded-lg border px-3 py-2 text-sm font-medium">
                 {fmt(actualPay())}
                 {(Number(repayForm.discount) || 0) > 0 && (

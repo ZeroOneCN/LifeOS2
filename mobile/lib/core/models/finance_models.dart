@@ -150,6 +150,7 @@ class BillRepayment {
     required this.id,
     required this.repayDate,
     required this.amount,
+    required this.payable,
     required this.discount,
     this.method,
     this.note,
@@ -157,7 +158,12 @@ class BillRepayment {
 
   final int id;
   final String repayDate;
+
+  /// 实付金额（= 本次应付 − 优惠，后端落库值）。
   final double amount;
+
+  /// 本次应付（含优惠）：实付 + 优惠，用于编辑回填。
+  final double payable;
   final double discount;
   final String? method;
   final String? note;
@@ -170,6 +176,9 @@ class BillRepayment {
       id: _toInt(json['id']),
       repayDate: json['repay_date'] as String? ?? '',
       amount: _toDouble(json['amount']),
+      payable: json['payable'] == null
+          ? _toDouble(json['amount']) + _toDouble(json['discount'])
+          : _toDouble(json['payable']),
       discount: _toDouble(json['discount']),
       method: json['method'] as String?,
       note: json['note'] as String?,

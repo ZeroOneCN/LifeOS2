@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.api.routes.finance.loans import router as loans_router
 from app.core.database import get_db
@@ -179,3 +180,115 @@ def test_update_other_fields_keeps_paid_amount(db_session):
     body = resp.json()
     assert body["paid_amount"] == 30
     assert body["status"] == "partial"
+
+
+def _repay_payload(bill_id: int, payable: float, discount: float = 0.0) -> dict:
+    """构造还款写入请求体：只传应付与优惠，实付由后端推导。
+
+    Args:
+        bill_id: 关联账单 id。
+        payable: 本次应付（含优惠）。
+        discount: 优惠金额。
+
+    Returns:
+        可直接作为 POST/PUT 请求体的字段字典。
+    """
+    return {
+        "bill_id": bill_id,
+        "repay_date": date(2026, 11, 7).isoformat(),
+        "payable": payable,
+        "discount": discount,
+        "method": "微信",
+        "note": None,
+    }
+
+
+def test_create_repayment_derives_actual_from_payable(db_session):
+    """新增还款：后端按「应付 − 优惠」落库实付，并按应付冲减账单。"""
+    bill = _seed_bill(db_session, amount=100, paid_amount=0, status="pending", repay=0)
+    client = _make_client(db_session)
+
+    resp = client.post(
+        "/finance/repayments",
+        json=_repay_payload(bill.id, payable=100, discount=10),
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["amount"] == 90  # 实付
+    assert body["payable"] == 100
+    assert body["discount"] == 10
+    db_session.refresh(bill)
+    assert bill.paid_amount == 100  # Σ(实付 + 优惠)
+    assert bill.status == "cleared"
+
+    listed = client.get(f"/finance/repayments?bill_id={bill.id}")
+    assert listed.status_code == 200, listed.text
+    assert listed.json()[0]["payable"] == 100
+
+
+def test_create_repayment_rejects_discount_above_payable(db_session):
+    """优惠大于应付时拒绝写入，账单不被冲减。"""
+    bill = _seed_bill(db_session, amount=100, paid_amount=0, status="pending", repay=0)
+    client = _make_client(db_session)
+
+    resp = client.post(
+        "/finance/repayments",
+        json=_repay_payload(bill.id, payable=100, discount=101),
+    )
+
+    assert resp.status_code == 400
+    db_session.refresh(bill)
+    assert bill.paid_amount == 0
+    assert bill.status == "pending"
+
+
+def test_update_repayment_recomputes_actual_and_bill(db_session):
+    """编辑还款：改应付与优惠后重算实付与账单已还额。"""
+    bill = _seed_bill(
+        db_session, amount=100, paid_amount=100, status="cleared", repay=90, discount=10
+    )
+    repayment = db_session.scalars(
+        select(FinanceRepayment).where(FinanceRepayment.bill_id == bill.id)
+    ).all()[0]
+    client = _make_client(db_session)
+
+    resp = client.put(
+        f"/finance/repayments/{repayment.id}",
+        json=_repay_payload(bill.id, payable=95, discount=20),
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["amount"] == 75
+    assert body["payable"] == 95
+    db_session.refresh(bill)
+    assert bill.paid_amount == 95
+    assert bill.status == "partial"
+
+
+def test_update_repayment_switches_bill_and_resyncs_both(db_session):
+    """编辑时换绑账单：新旧账单的已还额都要重算，旧账单不能残留。"""
+    old_bill = _seed_bill(
+        db_session, amount=100, paid_amount=100, status="cleared", repay=90, discount=10
+    )
+    new_bill = _seed_bill(
+        db_session, amount=200, paid_amount=0, status="pending", repay=0
+    )
+    repayment = db_session.scalars(
+        select(FinanceRepayment).where(FinanceRepayment.bill_id == old_bill.id)
+    ).all()[0]
+    client = _make_client(db_session)
+
+    resp = client.put(
+        f"/finance/repayments/{repayment.id}",
+        json=_repay_payload(new_bill.id, payable=50),
+    )
+
+    assert resp.status_code == 200, resp.text
+    db_session.refresh(old_bill)
+    db_session.refresh(new_bill)
+    assert old_bill.paid_amount == 0
+    assert old_bill.status == "pending"
+    assert new_bill.paid_amount == 50
+    assert new_bill.status == "partial"

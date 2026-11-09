@@ -356,10 +356,10 @@ class _DebtRepaySheetState extends State<DebtRepaySheet> {
 
 /// 网贷账单还款弹层。
 ///
-/// 金额语义（与债务相反，文案必须写清）：
-/// - `amount` = 本次实付（不含优惠）；
-/// - `discount` = 优惠（券/抵扣）；
-/// - 后端清账 = amount + discount，`paid_amount = Σ(amount + discount)`；
+/// 金额语义（与债务一致，文案必须写清）：
+/// - 用户只填「本次应付（含优惠）」与「优惠」；
+/// - 实付 = 应付 − 优惠，由后端推导落库，不允许直接手填；
+/// - 后端清账 = 应付，`paid_amount = Σ(实付 + 优惠)`；
 /// - 状态由后端重算：待还 / 部分已还 / 已结清。
 ///
 /// 编辑模式提交 `PUT /finance/repayments/{id}`，删除走二次确认后 DELETE。
@@ -388,11 +388,17 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
 
   bool get _isEdit => widget.repayment != null;
 
-  /// 可用清账额度：编辑时把旧记录的实付 + 优惠加回剩余。
+  /// 可用清账额度：编辑时把旧记录的应付（实付 + 优惠）加回剩余。
   double get _limit {
     final BillRepayment? repayment = widget.repayment;
-    return widget.bill.remaining +
-        (repayment == null ? 0 : repayment.amount + repayment.discount);
+    return widget.bill.remaining + (repayment == null ? 0 : repayment.payable);
+  }
+
+  /// 旧口径记录：应付 − 优惠 与库中实付对不上时，编辑页需显式提示，不能静默改数。
+  bool get _legacy {
+    final BillRepayment? repayment = widget.repayment;
+    return repayment != null &&
+        (repayment.payable - repayment.discount - repayment.amount).abs() > 0.005;
   }
 
   @override
@@ -401,7 +407,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
     final BillRepayment? repayment = widget.repayment;
     _amount = TextEditingController(
       text: repayment != null
-          ? _plain(repayment.amount)
+          ? _plain(repayment.payable)
           : (widget.bill.remaining > 0
               ? widget.bill.remaining.toStringAsFixed(2)
               : ''),
@@ -453,33 +459,36 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
     return text.isEmpty ? null : double.tryParse(text);
   }
 
-  /// 当前输入的实付、优惠、清账额与清账后剩余（仅用于预览）。
-  ({double actual, double discount, double applied, double remaining})
+  /// 当前输入的应付、优惠、实付与清账后剩余（仅用于预览）。
+  ({double payable, double discount, double actual, double remaining})
       get _preview {
-    final double actual = _parse(_amount) ?? 0;
+    final double payable = _parse(_amount) ?? 0;
     final double discount = _parse(_discount) ?? 0;
-    final double applied = actual + discount;
-    final double remaining = widget.bill.remaining - applied;
+    final double actual = payable - discount < 0 ? 0 : payable - discount;
+    final double remaining = widget.bill.remaining - payable;
     return (
-      actual: actual,
+      payable: payable,
       discount: discount,
-      applied: applied,
+      actual: actual,
       remaining: remaining < 0 ? 0 : remaining,
     );
   }
 
-  /// 提交前校验：实付>0、优惠≥0、实付+优惠≤可用剩余。
+  /// 提交前校验：应付>0、优惠≥0、优惠≤应付、应付≤可用剩余。
   String? _validate() {
-    final double? actual = _parse(_amount);
-    if (actual == null || actual <= 0) {
-      return '实付金额必须大于 0';
+    final double? payable = _parse(_amount);
+    if (payable == null || payable <= 0) {
+      return '本次应付必须大于 0';
     }
     final double discount = _parse(_discount) ?? 0;
     if (discount < 0) {
       return '优惠金额不能为负';
     }
-    if (actual + discount > _limit + 1e-2) {
-      return '实付 + 优惠不能超过剩余 ${formatMoney(_limit)}';
+    if (discount > payable + 1e-6) {
+      return '优惠金额不能大于本次应付';
+    }
+    if (payable > _limit + 1e-2) {
+      return '本次应付不能超过剩余 ${formatMoney(_limit)}';
     }
     return null;
   }
@@ -494,7 +503,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
     final AppScope scope = AppScope.of(context);
     final NavigatorState navigator = Navigator.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    final double actual = _parse(_amount)!;
+    final double payable = _parse(_amount)!;
     final double discount = _parse(_discount) ?? 0;
     setState(() {
       _saving = true;
@@ -504,7 +513,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
       final Map<String, dynamic> payload = <String, dynamic>{
         'bill_id': widget.bill.id,
         'repay_date': _dateText(_date),
-        'amount': double.parse(actual.toStringAsFixed(2)),
+        'payable': double.parse(payable.toStringAsFixed(2)),
         'discount': double.parse(discount.toStringAsFixed(2)),
         'method': _method.text.trim().isEmpty ? null : _method.text.trim(),
         'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
@@ -599,7 +608,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Color muted = theme.colorScheme.onSurfaceVariant;
-    final ({double actual, double discount, double applied, double remaining})
+    final ({double payable, double discount, double actual, double remaining})
         preview = _preview;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -626,6 +635,22 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                   '剩余 ${formatMoney(widget.bill.remaining)}',
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
+                if (_legacy)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.colorScheme.error),
+                    ),
+                    child: Text(
+                      '这条是旧口径数据：「实付 = 应付 − 优惠」对不上库中原值。'
+                      '请核对下方金额，确认后按新口径重新计算并保存。',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
                 _DateField(
                   label: '还款日期',
                   value: _dateText(_date),
@@ -633,13 +658,13 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                 ),
                 _MoneyField(
                   controller: _amount,
-                  label: '本次实付（优惠另填）',
+                  label: '本次应付（含优惠）',
                   helper: '默认填剩余应还，可改小做部分还款',
                 ),
                 _MoneyField(
                   controller: _discount,
-                  label: '优惠（券/抵扣）',
-                  helper: '清账 = 实付 + 优惠，优惠不会额外多还',
+                  label: '优惠（券/抵扣/减免）',
+                  helper: '实付 = 应付 − 优惠，优惠不会额外多还',
                 ),
                 TextField(
                   controller: _method,
@@ -662,8 +687,8 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                   title: '本次还款预览',
                   lines: <String>[
                     '实付 ${formatMoney(preview.actual)}'
-                        ' + 优惠 ${formatMoney(preview.discount)}'
-                        ' = 清账 ${formatMoney(preview.applied)}',
+                        ' = 应付 ${formatMoney(preview.payable)}'
+                        ' − 优惠 ${formatMoney(preview.discount)}',
                     '清账后剩余 ${formatMoney(preview.remaining)}',
                   ],
                 ),

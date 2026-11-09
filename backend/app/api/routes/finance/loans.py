@@ -136,9 +136,10 @@ router.include_router(loan_platforms_router)
 def _recalc_bill_totals(db: Session, bill: FinanceLoanBill) -> None:
     """按账单的全部还款明细重算已还额与状态。
 
-    口径与 `POST /finance/repayments` 一致（注意与债务侧相反）：
+    口径与 `POST /finance/repayments` 一致（注意与债务侧的落库口径相反）：
     账单 `amount` 是实付、`discount` 另计，故
     `paid_amount = Σ repayments(amount + discount)`；
+    写入接口收的是 payable（本次应付），落库前由 `_derive_amounts` 推导实付。
     状态规则：`amount − paid_amount ≤ 1e-2` → cleared，`paid_amount > 0` → partial，
     否则 pending。容时/逾期属展示层派生，不写入账务。
     """
@@ -197,7 +198,27 @@ router.include_router(loan_bills_router)
 repayments_router = APIRouter(prefix="/finance/repayments", tags=["finance-repayments"])
 
 
-@repayments_router.get("")
+def _derive_amounts(payable: float, discount: float | None) -> tuple[float, float, float]:
+    """按「应付 − 优惠 = 实付」推导落库金额。
+
+    Args:
+        payable: 本次应付（含优惠）。
+        discount: 优惠金额（券/抵扣/减免）。
+
+    Returns:
+        (应付, 优惠, 实付)，三者均取整到分。
+
+    Raises:
+        HTTPException: 优惠大于应付时返回 400。
+    """
+    due = round(payable, 2)
+    dsc = round(discount or 0, 2)
+    if dsc > due + 1e-6:
+        raise HTTPException(status_code=400, detail="优惠不能大于本次应付")
+    return due, dsc, max(0.0, round(due - dsc, 2))
+
+
+@repayments_router.get("", response_model=list[RepaymentRead])
 def list_repayments(
     bill_id: int | None = None,
     db: Session = Depends(get_db),
@@ -224,11 +245,19 @@ def create_repayment(
     bill = db.get(FinanceLoanBill, payload.bill_id)
     if not bill or bill.user_id != user.id:
         raise HTTPException(status_code=404, detail="账单不存在")
-    remaining = bill.amount - bill.paid_amount
-    applied = (payload.amount or 0) + (payload.discount or 0)
-    if applied > remaining + 1e-2:
-        raise HTTPException(status_code=400, detail=f"实付+优惠不能超过剩余欠款 {remaining:.2f}")
-    obj = FinanceRepayment(**payload.model_dump(), user_id=user.id)
+    payable, discount, actual = _derive_amounts(payload.payable, payload.discount)
+    remaining = round(bill.amount - bill.paid_amount, 2)
+    if payable > remaining + 1e-2:
+        raise HTTPException(status_code=400, detail=f"本次应付不能超过剩余欠款 {remaining:.2f}")
+    obj = FinanceRepayment(
+        user_id=user.id,
+        bill_id=payload.bill_id,
+        repay_date=payload.repay_date,
+        amount=actual,
+        discount=discount,
+        method=payload.method,
+        note=payload.note,
+    )
     db.add(obj)
     db.flush()  # 先刷新到数据库，_sync_bill 查询时才能看到新记录
     _sync_bill(db, payload.bill_id, user.id)
@@ -285,20 +314,28 @@ def update_repayment(
     bill = db.get(FinanceLoanBill, payload.bill_id)
     if not bill or bill.user_id != user.id:
         raise HTTPException(status_code=404, detail="账单不存在")
+    old_bill_id = obj.bill_id
+    payable, discount, actual = _derive_amounts(payload.payable, payload.discount)
+    # 可用额度按「目标账单」的其余明细计算；切换账单时不能沿用旧账单的明细
     others = db.scalars(
         select(FinanceRepayment).where(
-            FinanceRepayment.bill_id == obj.bill_id,
+            FinanceRepayment.bill_id == payload.bill_id,
             FinanceRepayment.id != item_id,
             FinanceRepayment.user_id == user.id,
         )
     ).all()
     other_sum = sum((o.amount or 0) + (o.discount or 0) for o in others)
-    applied = (payload.amount or 0) + (payload.discount or 0)
-    if applied > bill.amount - other_sum + 1e-2:
-        raise HTTPException(status_code=400, detail="实付+优惠不能超过剩余欠款")
-    for key, value in payload.model_dump().items():
-        setattr(obj, key, value)
+    if payable > bill.amount - other_sum + 1e-2:
+        raise HTTPException(status_code=400, detail="本次应付不能超过剩余欠款")
+    obj.bill_id = payload.bill_id
+    obj.repay_date = payload.repay_date
+    obj.amount = actual
+    obj.discount = discount
+    obj.method = payload.method
+    obj.note = payload.note
     db.flush()  # 先刷新到数据库，_sync_bill 查询时才能看到更新后的值
+    # 换账单时旧账单也要重算，否则旧账单的已还额会残留
+    _sync_bill(db, old_bill_id, user.id)
     _sync_bill(db, obj.bill_id, user.id)
     db.commit()
     db.refresh(obj)
