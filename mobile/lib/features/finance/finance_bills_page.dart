@@ -401,22 +401,26 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   Future<void> _showBillDetail({
     required BillKind kind,
     required int id,
-    required Widget sheet,
+    required Widget Function(VoidCallback onMutated) sheetBuilder,
   }) async {
+    // 详情层被返回键或下滑关闭时 pop 不带结果，用回调兜底记住「发生过变更」
+    bool mutated = false;
     final BillDetailAction? action =
         await showModalBottomSheet<BillDetailAction>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (BuildContext _) => sheet,
+      builder: (BuildContext _) => sheetBuilder(() => mutated = true),
     );
-    if (!mounted || action == null) {
+    if (!mounted) {
       return;
     }
     if (action == BillDetailAction.edit) {
       await _openForm(kind, id: id);
-    } else {
+      return;
+    }
+    if (mutated || action != null) {
       await _refresh();
     }
   }
@@ -881,10 +885,11 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     _showBillDetail(
       kind: BillKind.loan,
       id: bill.id,
-      sheet: FinanceBillDetailSheet(
+      sheetBuilder: (VoidCallback onMutated) => FinanceBillDetailSheet(
         kind: BillKind.loan,
         bill: bill,
         platformName: _platformName(bill.platformId),
+        onMutated: onMutated,
       ),
     );
   }
@@ -894,9 +899,10 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     _showBillDetail(
       kind: BillKind.housing,
       id: item.id,
-      sheet: FinanceBillDetailSheet(
+      sheetBuilder: (VoidCallback onMutated) => FinanceBillDetailSheet(
         kind: BillKind.housing,
         housing: item,
+        onMutated: onMutated,
       ),
     );
   }
@@ -906,10 +912,11 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     _showBillDetail(
       kind: BillKind.utility,
       id: item.id,
-      sheet: FinanceBillDetailSheet(
+      sheetBuilder: (VoidCallback onMutated) => FinanceBillDetailSheet(
         kind: BillKind.utility,
         utility: item,
         housingName: _housingName(item.housingId),
+        onMutated: onMutated,
       ),
     );
   }
@@ -919,9 +926,10 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     _showBillDetail(
       kind: BillKind.subscription,
       id: item.id,
-      sheet: FinanceBillDetailSheet(
+      sheetBuilder: (VoidCallback onMutated) => FinanceBillDetailSheet(
         kind: BillKind.subscription,
         subscription: item,
+        onMutated: onMutated,
       ),
     );
   }

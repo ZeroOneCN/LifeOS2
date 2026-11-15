@@ -26,6 +26,7 @@ class FinanceBillDetailSheet extends StatefulWidget {
     this.subscription,
     this.platformName,
     this.housingName,
+    this.onMutated,
   });
 
   final BillKind kind;
@@ -48,6 +49,12 @@ class FinanceBillDetailSheet extends StatefulWidget {
   /// 水电记录所属住房名称（仅展示用）。
   final String? housingName;
 
+  /// 本层内发生写操作时回调。
+  ///
+  /// 弹层被返回键或下滑手势关闭时 `pop` 不带结果，列表页拿不到变更标记，
+  /// 只能靠这个回调让上层记住「需要刷新」。
+  final VoidCallback? onMutated;
+
   @override
   State<FinanceBillDetailSheet> createState() => _FinanceBillDetailSheetState();
 }
@@ -63,6 +70,12 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
 
   /// 本层内是否发生过还款相关变更；关闭时回传，让列表页刷新汇总。
   bool _mutated = false;
+
+  /// 标记本层发生过写操作：既用于关闭时回传，也立即通知上层（兼容返回键/下滑关闭）。
+  void _markMutated() {
+    _mutated = true;
+    widget.onMutated?.call();
+  }
 
   /// 房租期次：仅住房详情需要，进入后按 housing_id 拉取。
   List<RentTerm> _terms = const <RentTerm>[];
@@ -155,7 +168,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       if (!mounted) {
         return;
       }
-      _mutated = true;
+      _markMutated();
       messenger.showSnackBar(const SnackBar(content: Text('已新增一期房租')));
       await _loadTerms();
     } on ApiException catch (error) {
@@ -209,7 +222,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       if (!mounted) {
         return;
       }
-      _mutated = true;
+      _markMutated();
       messenger.showSnackBar(SnackBar(content: Text(successText)));
       await _loadTerms();
     } on ApiException catch (error) {
@@ -259,7 +272,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       if (!mounted) {
         return;
       }
-      _mutated = true;
+      _markMutated();
       messenger.showSnackBar(const SnackBar(content: Text('已删除该期房租')));
       await _loadTerms();
     } on ApiException catch (error) {
@@ -445,7 +458,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
           LoanRepaySheet(bill: bill, repayment: repayment),
     );
     if (changed == true && mounted) {
-      _mutated = true;
+      _markMutated();
       await Future.wait(<Future<void>>[_reloadBill(), _loadRepayments()]);
     }
   }

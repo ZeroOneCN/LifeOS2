@@ -48,13 +48,24 @@ class FinancePage extends StatelessWidget {
                     icon: Icons.receipt_outlined,
                     title: '账单管理',
                     summary: '待还 ${formatMoney(data?.unpaidBills)}',
-                    onTap: () => context.push('/finance/bills'),
+                    // 还款会改变待还，返回根页时重拉概览，避免概览卡停留在旧数字
+                    onTap: () async {
+                      await context.push('/finance/bills');
+                      if (context.mounted) {
+                        scope.overview.refreshFinance();
+                      }
+                    },
                   ),
                   PrimaryFeatureCard(
                     icon: Icons.handshake_outlined,
                     title: '债务管理',
                     summary: '待还 ${formatMoney(data?.outstandingDebt)}',
-                    onTap: () => context.push('/finance/debts'),
+                    onTap: () async {
+                      await context.push('/finance/debts');
+                      if (context.mounted) {
+                        scope.overview.refreshFinance();
+                      }
+                    },
                   ),
                 ],
               ),
