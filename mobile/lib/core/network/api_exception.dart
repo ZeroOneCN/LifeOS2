@@ -124,11 +124,33 @@ class ApiException implements Exception {
   }
 
   /// FastAPI 的错误体通常是 `{"detail": "..."}`，也兼容 `{"message": "..."}`。
+  /// 422 校验失败时 `detail` 是数组（每项含 loc/msg），取首条并带出字段名，
+  /// 避免退化成「请求失败，请稍后重试」把真实原因盖住。
   static String? _extractMessage(dynamic data) {
-    if (data is Map) {
-      final dynamic detail = data['detail'] ?? data['message'];
-      if (detail is String && detail.trim().isNotEmpty) {
-        return detail;
+    if (data is! Map) {
+      return null;
+    }
+    final dynamic detail = data['detail'] ?? data['message'];
+    if (detail is String && detail.trim().isNotEmpty) {
+      return detail;
+    }
+    if (detail is List && detail.isNotEmpty) {
+      final dynamic first = detail.first;
+      if (first is Map) {
+        final String msg = first['msg'] is String ? (first['msg'] as String).trim() : '';
+        final List<String> fieldParts = <String>[];
+        final dynamic loc = first['loc'];
+        if (loc is List) {
+          for (final dynamic seg in loc) {
+            if (seg is String && seg.isNotEmpty && seg != 'body') {
+              fieldParts.add(seg);
+            }
+          }
+        }
+        if (msg.isNotEmpty) {
+          final String field = fieldParts.join('.');
+          return field.isEmpty ? '参数校验失败：$msg' : '参数校验失败：$field $msg';
+        }
       }
     }
     return null;
