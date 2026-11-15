@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_scope.dart';
@@ -7,10 +8,10 @@ import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 
 /// 关于页：应用名、版本号（来自安装包信息，即构建时的 `pubspec.yaml`）、
-/// 包名与当前后端地址。
+/// 包名、当前后端地址与「检查更新」入口。
 ///
-/// 后端没有版本 / 更新检查接口，因此不提供「检查更新」按钮，
-/// 避免放了按钮却永远提示「已是最新」的假功能。
+/// 「检查更新」只做局域网自用版：启动时静默检查一次，发现新版才在这里和
+/// 设置页显示标记；不弹窗、不强制。
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
@@ -54,16 +55,10 @@ class _AboutPageState extends State<AboutPage> {
                   children: <Widget>[
                     _InfoRow(label: '应用名', value: AppConfig.appName),
                     const Divider(height: 16),
-                    _InfoRow(
-                      label: '版本号',
-                      value: version,
-                    ),
+                    _InfoRow(label: '版本号', value: version),
                     const Divider(height: 16),
                     // 包名较长，独占一行避免在 375/1.3x 下从中间折断。
-                    _InfoBlock(
-                      label: '包名',
-                      value: info?.packageName ?? '读取中…',
-                    ),
+                    _InfoBlock(label: '包名', value: info?.packageName ?? '读取中…'),
                   ],
                 ),
               ),
@@ -75,6 +70,34 @@ class _AboutPageState extends State<AboutPage> {
                     return _InfoBlock(label: '当前地址', value: baseUrl);
                   },
                 ),
+              ),
+              ListenableBuilder(
+                listenable: scope.update,
+                builder: (BuildContext context, _) {
+                  final bool hasUpdate = scope.update.hasUpdate;
+                  final String latest = scope.update.latest?.versionName ?? '';
+                  return SectionCard(
+                    title: '版本更新',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _InfoRow(
+                          label: '当前版本',
+                          value: scope.update.currentVersionCode > 0
+                              ? '$version（${scope.update.currentVersionCode}）'
+                              : version,
+                        ),
+                        const Divider(height: 16),
+                        _LinkRow(
+                          icon: Icons.system_update_alt,
+                          label: '检查更新',
+                          badge: hasUpdate ? '有新版本 $latest' : null,
+                          onTap: () => context.push('/settings/update'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               SectionCard(
                 title: '条款与许可',
@@ -100,8 +123,8 @@ class _AboutPageState extends State<AboutPage> {
                 ),
               ),
               Text(
-                '暂不提供「检查更新」：后端尚未提供版本或更新检查接口，'
-                '安装包由局域网侧分发。',
+                '安装包由局域网服务器 /api/v1/downloads 分发；'
+                '下载完成后会校验 SHA-256，安装由系统安装器完成。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -157,21 +180,26 @@ Future<void> _showPrivacyPolicy(BuildContext context) {
   );
 }
 
-/// 可点击的设置行：左侧图标 + 文案 + 右侧箭头。
+/// 可点击的设置行：左侧图标 + 文案（+ 可选更新标记）+ 右侧箭头。
 class _LinkRow extends StatelessWidget {
   const _LinkRow({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badge,
   });
 
   final IconData icon;
   final String label;
+
+  /// 右侧标记文案（如「有新版本 1.0.1」）；为空时不显示。
+  final String? badge;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final String? badge = this.badge;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -182,6 +210,22 @@ class _LinkRow extends StatelessWidget {
           children: <Widget>[
             Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
             Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  badge,
+                  maxLines: 1,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             Icon(
               Icons.chevron_right,
               size: 18,

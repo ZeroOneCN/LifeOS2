@@ -66,6 +66,7 @@ import '../../features/settings/account_settings_page.dart';
 import '../../features/settings/device_sessions_page.dart';
 import '../../features/settings/server_config_page.dart';
 import '../../features/settings/settings_page.dart';
+import '../../features/settings/update_page.dart';
 import '../../features/shell/app_shell.dart';
 
 /// 路由表：`StatefulShellRoute.indexedStack` + 5 个独立分支。
@@ -813,6 +814,7 @@ GoRouter createAppRouter() {
                     builder: (_, _) => const AccountSettingsPage(),
                   ),
                   GoRoute(path: 'about', builder: (_, _) => const AboutPage()),
+                  GoRoute(path: 'update', builder: (_, _) => const UpdatePage()),
                   GoRoute(
                     path: 'devices',
                     builder: (_, _) => const DeviceSessionsPage(),

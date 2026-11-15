@@ -8,6 +8,7 @@ import 'network/connectivity_service.dart';
 import 'profile/profile_service.dart';
 import 'storage/preferences_service.dart';
 import 'storage/token_store.dart';
+import 'update/update_controller.dart';
 
 /// 轻量依赖注入：P2 仍不引入 Provider / Riverpod，
 /// 用一个 InheritedWidget 把「偏好 + 令牌 + ApiClient + 登录态 + 总览 + 连通性」传给整棵树。
@@ -22,6 +23,7 @@ class AppScope extends InheritedWidget {
     required this.notifications,
     required this.profile,
     required this.connectivity,
+    required this.update,
     required super.child,
   });
 
@@ -44,6 +46,9 @@ class AppScope extends InheritedWidget {
   /// 连通性：保存前用于给出「无网络」提示，不承担重试与排队。
   final ConnectivityService connectivity;
 
+  /// 检查更新：当前/最新版本与「有新版本」标记，启动时静默检查一次。
+  final UpdateController update;
+
   static AppScope of(BuildContext context) {
     final AppScope? scope = context
         .dependOnInheritedWidgetOfExactType<AppScope>();
@@ -60,6 +65,7 @@ class AppScope extends InheritedWidget {
         overview != oldWidget.overview ||
         notifications != oldWidget.notifications ||
         profile != oldWidget.profile ||
-        connectivity != oldWidget.connectivity;
+        connectivity != oldWidget.connectivity ||
+        update != oldWidget.update;
   }
 }

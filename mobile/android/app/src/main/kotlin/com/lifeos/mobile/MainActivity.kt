@@ -1,6 +1,7 @@
 package com.lifeos.mobile
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -9,6 +10,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -58,6 +60,92 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canRequestInstall" -> result.success(canRequestPackageInstalls())
+                    "openInstallSettings" -> openInstallSettings(result)
+                    "installApk" -> {
+                        val path = call.argument<String>("path")
+                        if (path.isNullOrBlank()) {
+                            result.error("file_unavailable", "安装包路径为空", null)
+                        } else {
+                            installApk(path, result)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * 是否允许本应用安装 APK。
+     *
+     * Android 8.0+ 起「安装未知来源」按应用授权，必须每次安装前查询，
+     * 不能假设用户开过一次就一直有效（系统升级或安全软件会重置）。
+     */
+    private fun canRequestPackageInstalls(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    }
+
+    /** 跳转「安装未知应用」授权页，直接定位到本应用。 */
+    private fun openInstallSettings(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            result.success(false)
+            return
+        }
+        try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                ),
+            )
+            result.success(true)
+        } catch (error: ActivityNotFoundException) {
+            result.success(false)
+        }
+    }
+
+    /**
+     * 用 FileProvider 的 content:// 地址拉起系统安装器。
+     *
+     * 失败按原因分码返回，界面据此给出「去授权 / 换手动安装」的不同提示：
+     * - permission_denied：未授权「安装未知应用」
+     * - file_unavailable：路径不在 FileProvider 声明范围内
+     * - installer_missing：设备没有能处理 APK 的 Activity
+     */
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        if (!canRequestPackageInstalls()) {
+            result.error("permission_denied", "未授予「安装未知应用」权限", null)
+            return
+        }
+        val file = File(path)
+        if (!file.isFile) {
+            result.error("file_unavailable", "安装包不存在：$path", null)
+            return
+        }
+        val uri = try {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        } catch (error: IllegalArgumentException) {
+            result.error("file_unavailable", "安装包路径不在共享范围内：$path", null)
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            startActivity(intent)
+            result.success(true)
+        } catch (error: ActivityNotFoundException) {
+            result.error("installer_missing", "系统没有可用的安装器", null)
+        }
     }
 
     /**
@@ -190,6 +278,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "com.lifeos.mobile/media"
         private const val BLE_CHANNEL = "com.lifeos.mobile/ble"
+        private const val UPDATER_CHANNEL = "com.lifeos.mobile/updater"
         private const val REQUEST_WRITE_STORAGE = 4101
         private const val REQUEST_BLE_PERMISSIONS = 4102
     }

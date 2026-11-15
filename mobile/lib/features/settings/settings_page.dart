@@ -8,6 +8,7 @@ import '../../core/app_scope.dart';
 import '../../core/models/app_user.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/profile/profile_service.dart';
+import '../../core/update/release_info.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
@@ -205,6 +206,28 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
+            ),
+            ListenableBuilder(
+              listenable: scope.update,
+              builder: (BuildContext context, _) {
+                final bool hasUpdate = scope.update.hasUpdate;
+                final String subtitle;
+                if (hasUpdate) {
+                  subtitle =
+                      '有新版本 ${scope.update.latest!.versionName}'
+                      '（${formatBytes(scope.update.latest!.size)}）';
+                } else if (scope.update.currentVersionName.isEmpty) {
+                  subtitle = '查看当前版本';
+                } else {
+                  subtitle = '当前 ${scope.update.currentVersionName}';
+                }
+                return EntryTile(
+                  icon: Icons.system_update_alt,
+                  title: '检查更新',
+                  subtitle: subtitle,
+                  onTap: () => context.push('/settings/update'),
+                );
+              },
             ),
             EntryTile(
               icon: Icons.info_outline,

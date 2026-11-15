@@ -11,6 +11,7 @@ class PreferencesService {
   final SharedPreferences _prefs;
 
   static const String _baseUrlKey = 'server.base_url';
+  static const String _updateBaseUrlKey = 'update.base_url';
   static const String _themeModeKey = 'ui.theme_mode';
   static const String _fontScaleKey = 'ui.font_scale_ratio';
 
@@ -30,8 +31,9 @@ class PreferencesService {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final PreferencesService service = PreferencesService._(prefs);
     service.themeMode.value = _parseThemeMode(prefs.getString(_themeModeKey));
-    service.fontScaleRatio.value =
-        _parseFontScaleRatio(prefs.getString(_fontScaleKey));
+    service.fontScaleRatio.value = _parseFontScaleRatio(
+      prefs.getString(_fontScaleKey),
+    );
     return service;
   }
 
@@ -48,11 +50,33 @@ class PreferencesService {
   }
 
   /// 当前服务器地址（含 `/api/v1` 前缀），未设置时回退默认值。
-  String get baseUrl => _prefs.getString(_baseUrlKey) ?? AppConfig.defaultBaseUrl;
+  String get baseUrl =>
+      _prefs.getString(_baseUrlKey) ?? AppConfig.defaultBaseUrl;
 
   /// 持久化服务器地址（由设置页校验、规范化后调用）。
   Future<void> setBaseUrl(String value) async {
     await _prefs.setString(_baseUrlKey, value);
+  }
+
+  /// 检查更新用的服务器根地址（形如 `http://192.168.8.103:9515`，不含 `/api/v1`）。
+  ///
+  /// 返回 null 表示「跟随当前 API 地址的 host」——局域网 IP 变了只改一处即可。
+  String? get updateBaseUrl {
+    final String? value = _prefs.getString(_updateBaseUrlKey);
+    return (value == null || value.trim().isEmpty) ? null : value.trim();
+  }
+
+  /// 持久化更新服务器地址；传 null 或空串表示恢复跟随 API 地址。
+  Future<void> setUpdateBaseUrl(String? value) async {
+    final String normalized = (value ?? '').trim().replaceFirst(
+      RegExp(r'/+$'),
+      '',
+    );
+    if (normalized.isEmpty) {
+      await _prefs.remove(_updateBaseUrlKey);
+    } else {
+      await _prefs.setString(_updateBaseUrlKey, normalized);
+    }
   }
 
   /// 切换深浅色：先更新内存（界面立刻生效），再落盘供下次冷启动读取。

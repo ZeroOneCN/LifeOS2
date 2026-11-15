@@ -47,6 +47,8 @@ dependencies:
   flutter_blue_plus: 1.34.5
   file_picker: ^13.3.2
   device_info_plus: ^13.3.0
+  # 检查更新：下载后的 APK 按清单里的 SHA-256 校验
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

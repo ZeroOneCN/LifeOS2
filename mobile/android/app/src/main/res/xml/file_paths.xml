@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 可见路径：检查更新下载的 APK 放在 getExternalFilesDir()/updates/，
+     只暴露这一个子目录，不放开整个应用私有目录。 -->
+<paths>
+    <external-files-path name="updates" path="updates/" />
+</paths>

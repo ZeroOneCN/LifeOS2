@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     AVATAR_UPLOAD_DIR: str = "uploads/avatars"
     # 头像图片大小上限（字节），默认 2 MB
     AVATAR_MAX_BYTES: int = 2 * 1024 * 1024
+    # App 发布目录（相对 backend 根目录或绝对路径）：android.json 与 APK 静态托管
+    APP_RELEASE_DIR: str = "downloads"
+    # 对外访问基地址：配置后清单里的相对 download_url 会补成绝对地址；
+    # 留空则原样返回相对路径，由客户端按自己的「更新服务器地址」拼全
+    PUBLIC_BASE_URL: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

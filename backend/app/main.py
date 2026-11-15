@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import mimetypes
 import os
 import sys
 
@@ -10,6 +11,7 @@ from sqlalchemy.engine import make_url
 from app import models  # noqa: F401  确保所有模型注册到 Base.metadata
 from app.api.routes import (
     activity_log,
+    app_release,
     auth,
     backup,
     finance,
@@ -188,6 +190,7 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(login_audit.router, prefix=settings.API_V1_PREFIX)
 app.include_router(backup.router, prefix=settings.API_V1_PREFIX)
 app.include_router(site_config.router, prefix=settings.API_V1_PREFIX)
+app.include_router(app_release.router, prefix=settings.API_V1_PREFIX)
 
 # 头像静态资源：挂在 API 前缀下，保证生产 Nginx 只反代 /api/ 时网站与手机都能直接访问。
 # 使用 check_dir=False，目录在启动/首次上传时按需创建。
@@ -195,6 +198,17 @@ app.mount(
     f"{settings.API_V1_PREFIX}/uploads/avatars",
     StaticFiles(directory=str(avatar_upload_dir()), check_dir=False),
     name="avatars",
+)
+
+# APK 与版本清单静态目录：同样挂在 API 前缀下，生产 Nginx 只反代 /api/ 时也能下载。
+# check_dir=False：未发布过版本时目录可能不存在，不能因此阻止启动。
+# 显式注册 APK 的 MIME：系统 mimetypes 不认识 .apk 时会退回 text/plain，
+# 浏览器与下载器都可能把它当文本处理。
+mimetypes.add_type("application/vnd.android.package-archive", ".apk")
+app.mount(
+    f"{settings.API_V1_PREFIX}/downloads",
+    StaticFiles(directory=str(app_release.release_dir()), check_dir=False),
+    name="downloads",
 )
 
 

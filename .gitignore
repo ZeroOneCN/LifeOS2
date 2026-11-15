@@ -7,6 +7,9 @@ backend/backups/
 # 用户上传文件（头像等，不入库）
 backend/uploads/
 
+# App 发布产物（APK 与版本清单由 scripts/build_release_apk.ps1 生成，不入库）
+backend/downloads/
+
 # 用户业务数据/导入备份（不入库）
 *.xlsx
 
