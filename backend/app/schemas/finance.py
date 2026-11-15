@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
 
@@ -224,11 +224,30 @@ class LoanBillRead(LoanBillCreate, ORMRead):
 class RepaymentCreate(BaseModel):
     bill_id: int | None = None
     repay_date: date
-    # 请求侧只收「本次应付（含优惠）」与「优惠」，实付由后端推导落库，避免客户端自算口径漂移
-    payable: float = Field(gt=0)
+    # 新口径：只收「本次应付（含优惠）」与「优惠」，实付由后端推导落库，避免客户端自算口径漂移
+    payable: float | None = Field(None, gt=0)
+    # 旧口径兼容：1.0.0 及更早的客户端只传 amount（含义是实付），
+    # 收到时按 payable = amount + discount 还原本次应付，再走同一套推导与校验。
+    amount: float | None = Field(None, ge=0)
     discount: float | None = Field(None, ge=0)
     method: str | None = None
     note: str | None = None
+
+    @model_validator(mode="after")
+    def _resolve_payable(self) -> "RepaymentCreate":
+        """统一出「本次应付」：新客户端传 payable，旧客户端传 amount + discount。
+
+        Raises:
+            ValueError: 两者都没传，或旧口径下 amount 为 0。
+        """
+        if self.payable is None:
+            if self.amount is None:
+                raise ValueError("payable 必填（本次应付）")
+            legacy_payable = round(self.amount + (self.discount or 0), 2)
+            if legacy_payable <= 0:
+                raise ValueError("payable 必须大于 0")
+            self.payable = legacy_payable
+        return self
 
 
 class RepaymentRead(ORMRead):

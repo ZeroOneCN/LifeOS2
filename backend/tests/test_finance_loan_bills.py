@@ -243,6 +243,75 @@ def test_create_repayment_rejects_discount_above_payable(db_session):
     assert bill.status == "pending"
 
 
+def test_create_repayment_accepts_legacy_amount_payload(db_session):
+    """旧版客户端只传 amount（实付）：按 payable = amount + discount 兼容，落库实付不变。"""
+    bill = _seed_bill(db_session, amount=100, paid_amount=0, status="pending", repay=0)
+    client = _make_client(db_session)
+
+    resp = client.post(
+        "/finance/repayments",
+        json={
+            "bill_id": bill.id,
+            "repay_date": date(2026, 11, 7).isoformat(),
+            "amount": 90,
+            "discount": 10,
+            "method": "微信",
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["amount"] == 90
+    assert body["payable"] == 100
+    db_session.refresh(bill)
+    assert bill.paid_amount == 100
+    assert bill.status == "cleared"
+
+
+def test_update_repayment_accepts_legacy_amount_payload(db_session):
+    """旧版客户端编辑还款只传 amount：同样按 payable 还原后重算。"""
+    bill = _seed_bill(
+        db_session, amount=100, paid_amount=100, status="cleared", repay=90, discount=10
+    )
+    repayment = db_session.scalars(
+        select(FinanceRepayment).where(FinanceRepayment.bill_id == bill.id)
+    ).all()[0]
+    client = _make_client(db_session)
+
+    resp = client.put(
+        f"/finance/repayments/{repayment.id}",
+        json={
+            "bill_id": bill.id,
+            "repay_date": date(2026, 11, 7).isoformat(),
+            "amount": 75,
+            "discount": 20,
+        },
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["amount"] == 75
+    assert body["payable"] == 95
+    db_session.refresh(bill)
+    assert bill.paid_amount == 95
+    assert bill.status == "partial"
+
+
+def test_create_repayment_without_any_payable_field_is_rejected(db_session):
+    """新旧字段都不传时报 422，不落库。"""
+    bill = _seed_bill(db_session, amount=100, paid_amount=0, status="pending", repay=0)
+    client = _make_client(db_session)
+
+    resp = client.post(
+        "/finance/repayments",
+        json={"bill_id": bill.id, "repay_date": date(2026, 11, 7).isoformat()},
+    )
+
+    assert resp.status_code == 422
+    db_session.refresh(bill)
+    assert bill.paid_amount == 0
+
+
 def test_update_repayment_recomputes_actual_and_bill(db_session):
     """编辑还款：改应付与优惠后重算实付与账单已还额。"""
     bill = _seed_bill(
