@@ -257,7 +257,7 @@ export function RecordManager<T extends { id: number }>({
   /** 导出当前筛选条件下的全部记录为 CSV 文件（上限 10000 条，超限提示）。 */
   const exportCsv = async () => {
     try {
-      const params: Parameters<typeof api.list>[1] = { page: 1, page_size: 10000 }
+      const params: Parameters<typeof api.list>[1] = { page: 1, page_size: 100 }
       if (monthMode) {
         const [yy, mm] = month.split('-').map(Number)
         const last = new Date(yy, mm, 0).getDate()
@@ -270,20 +270,34 @@ export function RecordManager<T extends { id: number }>({
       if (Object.keys(filterParams).length) {
         params.extra = { ...params.extra, ...filterParams }
       }
-      const res = await api.list<T>(apiPath, params)
-      if (!res.items.length) {
+      // 后端 page_size 上限为 100，分页循环拉取全量（上限 10000 条）
+      const maxRows = 10000
+      const pageSize = 100
+      const allItems: T[] = []
+      let page = 1
+      let total = 0
+      while (allItems.length < maxRows) {
+        const res = await api.list<T>(apiPath, { ...params, page, page_size: pageSize })
+        total = res.total
+        if (!res.items.length) break
+        allItems.push(...res.items)
+        if (allItems.length >= total || res.items.length < pageSize) break
+        page += 1
+      }
+      const items = allItems.slice(0, maxRows)
+      if (!items.length) {
         toast.info('没有可导出的数据')
         return
       }
       // 数据量超 10000 条时提示用户仅导出了前 10000 条
-      if (res.total > 10000) {
-        toast.warning(`数据共 ${res.total} 条，仅导出前 10000 条`, {
+      if (total > maxRows) {
+        toast.warning(`数据共 ${total} 条，仅导出前 ${maxRows} 条`, {
           description: '请缩小筛选范围后分批导出',
         })
       }
       const headers = visibleColumns.map((c) => c.key)
       const headerLabel = visibleColumns.map((c) => c.label)
-      const rows = res.items.map((item) =>
+      const rows = items.map((item) =>
         headers.map((h) => {
           const val = (item as Record<string, unknown>)[h]
           const s = val === null || val === undefined ? '' : String(val)
@@ -299,7 +313,7 @@ export function RecordManager<T extends { id: number }>({
       a.download = `${title}_${new Date().toISOString().slice(0, 10)}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success(`已导出 ${res.items.length} 条记录`)
+      toast.success(`已导出 ${items.length} 条记录`)
     } catch (e) {
       toast.error('导出失败', {
         description: e instanceof Error ? e.message : '请稍后重试',
