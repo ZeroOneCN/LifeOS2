@@ -5,6 +5,7 @@ from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -822,6 +823,102 @@ def parse_fund_rows(rows, seen_keys: set | None = None) -> tuple[list[Investment
         seen.add(key)
         records.append(rec)
     return records, skipped
+
+
+@router.get("/export")
+def export_xlsx(
+    start: date | None = None,
+    end: date | None = None,
+    symbol: str | None = None,
+    order_type: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """导出为 xlsx：Sheet1「交易记录」、Sheet2「资金动态」。
+
+    导出仅包含当前用户数据；start/end 同时作用于交易日期与资金记录日期。
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        from urllib.parse import quote
+    except ImportError:
+        raise HTTPException(status_code=500, detail="服务端缺少 openpyxl 依赖")
+
+    trade_stmt = select(InvestmentForex).where(InvestmentForex.user_id == current_user.id)
+    fund_stmt = select(InvestmentFundRecord).where(InvestmentFundRecord.user_id == current_user.id)
+    if start:
+        trade_stmt = trade_stmt.where(InvestmentForex.trade_date >= start)
+        fund_stmt = fund_stmt.where(InvestmentFundRecord.record_date >= start)
+    if end:
+        trade_stmt = trade_stmt.where(InvestmentForex.trade_date <= end)
+        fund_stmt = fund_stmt.where(InvestmentFundRecord.record_date <= end)
+    if symbol:
+        trade_stmt = trade_stmt.where(InvestmentForex.symbol == symbol)
+    if order_type:
+        trade_stmt = trade_stmt.where(InvestmentForex.order_type == order_type)
+
+    trades = db.scalars(
+        trade_stmt.order_by(InvestmentForex.trade_date.desc(), InvestmentForex.id.desc())
+    ).all()
+    funds = db.scalars(
+        fund_stmt.order_by(InvestmentFundRecord.record_date.asc(), InvestmentFundRecord.id.asc())
+    ).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "交易记录"
+    trade_headers = [
+        "日期时间", "交易品种", "订单类型", "开仓价格", "手数", "手续费",
+        "平仓价格", "盈亏金额", "隔夜费", "开仓时间", "平仓时间", "持仓时间(分钟)", "备注",
+    ]
+    ws.append(trade_headers)
+    for t in trades:
+        ws.append([
+            t.trade_date,
+            t.symbol,
+            "做多 Buy" if t.order_type == "buy" else "做空 Sell",
+            t.open_price,
+            t.lot_size,
+            t.commission,
+            t.close_price,
+            t.pnl,
+            t.overnight_fee,
+            t.open_time,
+            t.close_time,
+            t.holding,
+            t.note,
+        ])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for row in ws.iter_rows(min_row=2):
+        row[0].number_format = "yyyy-mm-dd"
+        row[9].number_format = "yyyy-mm-dd hh:mm"
+        row[10].number_format = "yyyy-mm-dd hh:mm"
+    for col, width in zip("ABCDEFGHIJKLM", (12, 12, 10, 10, 8, 10, 10, 12, 10, 17, 17, 14, 28)):
+        ws.column_dimensions[col].width = width
+
+    ws2 = wb.create_sheet("资金动态")
+    fund_headers = ["日期", "类型", "金额", "备注"]
+    ws2.append(fund_headers)
+    type_labels = {"deposit": "入金", "withdraw": "出金", "experience": "体验金"}
+    for f in funds:
+        ws2.append([f.record_date, type_labels.get(f.record_type, f.record_type), f.amount, f.note])
+    for cell in ws2[1]:
+        cell.font = Font(bold=True)
+    for row in ws2.iter_rows(min_row=2):
+        row[0].number_format = "yyyy-mm-dd"
+    for col, width in zip("ABCD", (12, 10, 12, 32)):
+        ws2.column_dimensions[col].width = width
+
+    buf = BytesIO()
+    wb.save(buf)
+    filename = f"外汇交易_{date.today().isoformat()}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.post("/import")

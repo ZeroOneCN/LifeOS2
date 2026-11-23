@@ -1077,6 +1077,7 @@ export function ForexPage() {
           description="MT5 导出并清洗后导入交易明细，自动计算持仓时间，追踪盈亏与交易表现。"
           hideHeader
           apiPath="/investment/forex"
+          exportPath="/investment/forex/export"
           fields={tradeFields}
           columns={tradeColumns}
           refreshKey={refresh}

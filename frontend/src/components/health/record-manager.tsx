@@ -102,6 +102,8 @@ type RecordManagerProps<T extends { id: number }> = {
   searchPlaceholder?: string
   /** 列表筛选下拉框，选中值作为查询参数随请求发送（需后端 filter_columns 支持） */
   filters?: FilterDef[]
+  /** 可选：后端 xlsx 导出接口；提供后导出按钮改为下载该接口生成的多 sheet 工作簿 */
+  exportPath?: string
 }
 
 /** 列表筛选下拉框定义 */
@@ -158,6 +160,7 @@ export function RecordManager<T extends { id: number }>({
   searchable = false,
   searchPlaceholder = '搜索…',
   filters,
+  exportPath,
 }: RecordManagerProps<T>) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<T | null>(null)
@@ -257,6 +260,23 @@ export function RecordManager<T extends { id: number }>({
   /** 导出当前筛选条件下的全部记录为 CSV 文件（上限 10000 条，超限提示）。 */
   const exportCsv = async () => {
     try {
+      // 后端多 sheet 导出：直接下载生成的工作簿（如外汇含「资金动态」Sheet2）
+      if (exportPath) {
+        const qs = new URLSearchParams()
+        if (monthMode) {
+          const [yy, mm] = month.split('-').map(Number)
+          const last = new Date(yy, mm, 0).getDate()
+          qs.set('start', `${month}-01`)
+          qs.set('end', `${month}-${String(last).padStart(2, '0')}`)
+        }
+        const query = qs.toString()
+        await api.download(
+          `${exportPath}${query ? `?${query}` : ''}`,
+          `${title}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        )
+        toast.success('已导出')
+        return
+      }
       const params: Parameters<typeof api.list>[1] = { page: 1, page_size: 100 }
       if (monthMode) {
         const [yy, mm] = month.split('-').map(Number)
