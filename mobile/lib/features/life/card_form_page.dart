@@ -493,7 +493,7 @@ class _CardFormPageState extends State<CardFormPage> {
               if (_error != null) V2ErrorBanner(message: _error!),
               ..._groups(),
               Text(
-                '余额、本月扣费等派生值由后端按流水计算，表单只填写基础信息。',
+                '余额、本月扣费由流水自动计算，这里只填写基础信息。',
                 textAlign: TextAlign.center,
                 style: AppType.rowMeta.copyWith(color: tokens.text3),
               ),

@@ -37,8 +37,13 @@ class FundRecordDetailPage extends StatelessWidget {
       );
     }
 
-    // 金额色沿用原有语义：非负用强调色，负数用危险色。
-    final Color amountColor = item.amount >= 0 ? tokens.accent : tokens.red;
+    // 金额颜色跟随资金类型语义：出金不是收益，即使金额为正也用危险色；
+    // 入金用成功色，体验金用琥珀色，与资金列表行保持一致。
+    final Color amountColor = switch (item.recordType) {
+      'withdraw' => tokens.red,
+      'deposit' => tokens.green,
+      _ => tokens.orange,
+    };
     return DetailPageScaffold(
       title: '资金记录详情',
       child: ListPageBody(
@@ -64,7 +69,7 @@ class FundRecordDetailPage extends StatelessWidget {
               _DetailRow(label: '编号', value: '#${item.id}'),
               _DetailRow(label: '类型', value: item.typeLabel),
               _DetailRow(label: '金额', value: formatUsdSigned(item.amount)),
-              _DetailRow(label: '日期', value: item.recordDate),
+              _DetailRow(label: '日期', value: formatListDate(item.recordDate)),
               _DetailRow(
                 label: '备注',
                 value: (item.note ?? '').trim().isEmpty

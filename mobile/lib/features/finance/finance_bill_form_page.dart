@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../core/app_scope.dart';
 import '../../../core/network/api_exception.dart';
@@ -607,7 +607,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
             onChanged: (int? value) => setState(() => _platformId = value),
           ),
           _dateField(
-            label: '账单月份 *',
+            label: '账单月份（必填）',
             text: _billMonth == null ? '请选择' : _monthText(_billMonth!),
             onTap: () => _pickMonth((DateTime value) {
               setState(() => _billMonth = DateTime(value.year, value.month, 1));
@@ -651,7 +651,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
           _textField('channel', '租房渠道'),
           _textField('orientation', '房屋朝向'),
           _dateField(
-            label: '入住日期 *',
+            label: '入住日期（必填）',
             text: _moveInDate == null ? '请选择' : _dateText(_moveInDate!),
             onTap: () => _pickDate((DateTime value) {
               setState(() => _moveInDate = value);
@@ -772,7 +772,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
           ),
           _textField('amount', '每期金额', numeric: true, required: true),
           _dateField(
-            label: '开通日期 *',
+            label: '开通日期（必填）',
             text: _startDate == null ? '请选择' : _dateText(_startDate!),
             onTap: () => _pickDate((DateTime value) {
               setState(() => _startDate = value);
@@ -831,7 +831,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
       controller: _ctl(key),
       keyboardType:
           numeric ? const TextInputType.numberWithOptions(decimal: true) : null,
-      decoration: InputDecoration(labelText: required ? '$label *' : label),
+      decoration: InputDecoration(labelText: required ? '$label（必填）' : label),
       validator: numeric
           ? (String? value) => _numberValidator(value, required: required)
           : (required ? _requiredText : null),

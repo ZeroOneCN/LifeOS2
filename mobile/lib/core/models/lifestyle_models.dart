@@ -467,10 +467,20 @@ class PhoneCard {
       return number == null || number > 0;
     }
 
+    /// 历史数据只填了裸数字（如「30」「100」），补上对应单位再展示；
+    /// 已经带单位的（如「210GB/月」）保持原样。
+    String withUnit(String raw, String unit) {
+      final String value = raw.trim();
+      if (RegExp(r'^\d+(?:\.\d+)?$').hasMatch(value)) {
+        return '$value$unit';
+      }
+      return value;
+    }
+
     final List<String> parts = <String>[
-      if (meaningful(dataPlan)) dataPlan!.trim(),
-      if (meaningful(callPlan)) callPlan!.trim(),
-      if (meaningful(smsPlan)) smsPlan!.trim(),
+      if (meaningful(dataPlan)) withUnit(dataPlan!, 'GB'),
+      if (meaningful(callPlan)) withUnit(callPlan!, '分钟'),
+      if (meaningful(smsPlan)) withUnit(smsPlan!, '条'),
     ];
     return parts.isEmpty ? '未设置套餐' : parts.join(' · ');
   }

@@ -4,6 +4,7 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/notification_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
@@ -505,7 +506,7 @@ class _NotificationTile extends StatelessWidget {
                     style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
                 Text(
-                  item.notifyDate,
+                  formatListDate(item.notifyDate),
                   style: AppType.rowMeta.copyWith(color: tokens.text2),
                 ),
               ],

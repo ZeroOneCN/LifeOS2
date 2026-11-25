@@ -801,7 +801,7 @@ class _PhoneTab extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          '充值 / 扣费 / 校准直接操作，余额由后端流水自动更新。',
+          '充值 / 扣费 / 校准直接操作，余额由流水自动更新。',
           textAlign: TextAlign.center,
           style: AppType.rowMeta.copyWith(color: tokens.text3),
         ),

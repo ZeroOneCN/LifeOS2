@@ -279,7 +279,7 @@ class _DebtRow extends StatelessWidget {
       debtDirectionLabel(item.direction),
       if (item.counterparty != null && item.counterparty!.isNotEmpty)
         item.counterparty!,
-      item.debtDate,
+      formatListDate(item.debtDate),
       if (item.channel != null && item.channel!.isNotEmpty) item.channel!,
     ].join(' · ');
     return InkWell(

@@ -340,7 +340,7 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
     final String range = _rangeText(stats) ?? '';
     return <String>[
       date.isEmpty ? '还没有体重记录' : '最近记录 ${_shortDate(date)}',
-      '共 ${formatInt(stats.recordCount)} 条',
+      // 条数统一放在「历史记录」标题，概览只保留日期与区间。
       if (range.isNotEmpty) range,
     ].join(' · ');
   }
@@ -394,7 +394,8 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
       status: LoadStatus.ready,
       onRetry: _refresh,
       blocks: <Widget>[
-        SectionHeader(title: '体重趋势 · ${formatInt(points.length)} 个体重点'),
+        // 记录条数已在概览句与下方「历史记录」出现，这里不再重复计数。
+        const SectionHeader(title: '体重趋势'),
         GroupCard(
           children: <Widget>[
             Padding(

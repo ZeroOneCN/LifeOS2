@@ -41,6 +41,26 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   bool _savingProfile = false;
   bool _savingPassword = false;
 
+  /// 密码可见性：默认隐藏，点眼睛图标临时显示，便于核对输入。
+  bool _showCurrent = false;
+  bool _showNew = false;
+  bool _showConfirm = false;
+
+  /// 密码输入框右侧的可见性开关。
+  Widget _visibilityToggle({
+    required bool visible,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(
+        visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+        size: 18,
+      ),
+      tooltip: visible ? '隐藏密码' : '显示密码',
+      onPressed: onPressed,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -306,9 +326,14 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 if (_hasPassword)
                   TextFormField(
                     controller: _currentPassword,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: !_showCurrent,
+                    decoration: InputDecoration(
                       labelText: '当前密码',
+                      suffixIcon: _visibilityToggle(
+                        visible: _showCurrent,
+                        onPressed: () =>
+                            setState(() => _showCurrent = !_showCurrent),
+                      ),
                     ),
                   )
                 else
@@ -318,17 +343,26 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                   ),
                 TextFormField(
                   controller: _newPassword,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: !_showNew,
+                  decoration: InputDecoration(
                     labelText: '新密码',
                     hintText: '至少 6 位',
+                    suffixIcon: _visibilityToggle(
+                      visible: _showNew,
+                      onPressed: () => setState(() => _showNew = !_showNew),
+                    ),
                   ),
                 ),
                 TextFormField(
                   controller: _confirmPassword,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: !_showConfirm,
+                  decoration: InputDecoration(
                     labelText: '确认新密码',
+                    suffixIcon: _visibilityToggle(
+                      visible: _showConfirm,
+                      onPressed: () =>
+                          setState(() => _showConfirm = !_showConfirm),
+                    ),
                   ),
                 ),
                 AppSecondaryButton(

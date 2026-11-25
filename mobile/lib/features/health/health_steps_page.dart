@@ -441,11 +441,23 @@ class _TrendBars extends StatelessWidget {
     );
   }
 
-  /// 柱状图 X 轴标签：天数区间内统一只显示「日」，首根与跨月都不再带月份。
+  /// 柱状图 X 轴标签：默认只显示「日」；首根与跨月的那根补「月/日」。
+  ///
+  /// 只显示日号时，跨月（如 `31 → 01`）无法判断属于哪个月；在月份切换处
+  /// 标出月份即可，其余标签保持简短，14 根柱子也不会挤在一起。
   String _axisLabel(List<StepTrendPoint> points, int index) {
     final String date = points[index].date;
     if (date.length < 10) {
       return date;
+    }
+    final bool first = index == 0;
+    final String previous = first ? '' : points[index - 1].date;
+    final bool monthChanged = previous.length >= 7 &&
+        previous.substring(0, 7) != date.substring(0, 7);
+    if (first || monthChanged) {
+      final int month = int.tryParse(date.substring(5, 7)) ?? 0;
+      final int day = int.tryParse(date.substring(8, 10)) ?? 0;
+      return '$month/$day';
     }
     return date.substring(8, 10);
   }

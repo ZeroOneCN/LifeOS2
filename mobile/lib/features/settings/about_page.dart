@@ -77,7 +77,7 @@ class _AboutPageState extends State<AboutPage> {
               _InfoBlock(label: '包名', value: info?.packageName ?? '读取中…'),
             ],
           ),
-          const SectionHeader(title: '后端地址'),
+          const SectionHeader(title: '服务器地址'),
           GroupCard(
             children: <Widget>[
               ValueListenableBuilder<String>(
@@ -122,8 +122,8 @@ class _AboutPageState extends State<AboutPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              '安装包由局域网服务器 /api/v1/downloads 分发；'
-              '下载完成后会校验 SHA-256，安装由系统安装器完成。',
+              '安装包由局域网服务器分发；下载完成后会自动校验完整性，'
+              '安装由系统完成。',
               style: AppType.rowMeta.copyWith(color: tokens.text3),
             ),
           ),
@@ -133,7 +133,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 }
 
-/// 标签在上、值独占一行的展示块：用于包名、后端地址这类长字符串。
+/// 标签在上、值独占一行的展示块：用于包名、服务器地址这类长字符串。
 class _InfoBlock extends StatelessWidget {
   const _InfoBlock({required this.label, required this.value});
 

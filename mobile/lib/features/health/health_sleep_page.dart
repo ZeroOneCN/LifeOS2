@@ -204,8 +204,8 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
         blocks: <Widget>[
           if (stats != null) ...<Widget>[
             SummaryStrip(
-              caption: '共 ${formatInt(stats.recordCount)} 条睡眠记录 · '
-                  '日均时长 ${formatDuration(stats.avgDurationMin)}',
+              // 均值已经在下方数值格里，标题只说明统计范围，避免重复数值。
+              caption: '统计全部睡眠记录',
               items: <StatRailItem>[
                 StatRailItem(
                   label: '平均时长',
@@ -216,11 +216,6 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
                   value: stats.avgQuality == null
                       ? '—'
                       : '${formatOneDecimal(stats.avgQuality)} / 10',
-                ),
-                StatRailItem(
-                  label: '记录条数',
-                  value: formatInt(stats.recordCount),
-                  unit: '条',
                 ),
               ],
             ),

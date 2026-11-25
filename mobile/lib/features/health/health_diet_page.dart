@@ -415,7 +415,9 @@ class _DateHeader extends StatelessWidget {
             children: <Widget>[
               Expanded(
                 child: Text(
-                  isToday ? '$date · 今天' : date,
+                  isToday
+                      ? '${formatListDate(date)} · 今天'
+                      : formatListDate(date),
                   style: AppType.rowMeta.copyWith(
                     color: tokens.text2,
                     fontWeight: FontWeight.w600,

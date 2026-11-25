@@ -281,7 +281,7 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
         ),
         if (_recordsTotal > _records.length)
           Text(
-            '接口仅返回最近 ${formatInt(_records.length)} 条，更早记录请在网页端查看。',
+            '列表最多显示最近 ${formatInt(_records.length)} 条，更早记录请在网页端查看。',
             style: AppType.rowMeta.copyWith(color: tokens.text3),
           ),
         Text(

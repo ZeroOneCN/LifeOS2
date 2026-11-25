@@ -156,14 +156,15 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
             ),
             if (trade.note != null && trade.note!.trim().isNotEmpty) ...<Widget>[
               const SectionHeader(title: '备注'),
-              // 后端已按库内原文返回（字段名保留，不翻译、不重排），
-              // 这里只展示一次原文，不再做可读化解析或追加释义行。
+              // 导入数据的备注是 `ID:169476058 | TP:4672.0` 这类机器串：
+              // 只把已知字段名换成中文（订单号 / 止盈 / 止损），
+              // 未知字段与用户手写内容保持原样，不做猜测性改写。
               GroupCard(
                 children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.all(16),
                     child: Text(
-                      trade.note!,
+                      _displayNote(trade.note!),
                       style: AppType.rowMeta.copyWith(color: tokens.text),
                     ),
                   ),
@@ -178,6 +179,36 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
         ],
       ),
     );
+  }
+
+  /// 备注可读化：`ID:169476058 | TP:4672.0` → `订单号 169476058 · 止盈 4672`。
+  ///
+  /// 只替换已知的导入字段名；未知字段与自由文本原样保留，避免误改用户内容。
+  String _displayNote(String raw) {
+    const Map<String, String> labels = <String, String>{
+      'ID': '订单号',
+      'TP': '止盈',
+      'SL': '止损',
+    };
+    final List<String> parts = <String>[];
+    for (final String segment in raw.split('|')) {
+      final String part = segment.trim();
+      if (part.isEmpty) {
+        continue;
+      }
+      final int colon = part.indexOf(':');
+      if (colon > 0) {
+        final String key = part.substring(0, colon).trim().toUpperCase();
+        final String value = part.substring(colon + 1).trim();
+        final String? label = labels[key];
+        if (label != null) {
+          parts.add('$label $value');
+          continue;
+        }
+      }
+      parts.add(part);
+    }
+    return parts.isEmpty ? raw.trim() : parts.join(' · ');
   }
 
   /// 数字去尾零：`0.1000` → `0.1`，`12.00` → `12`。

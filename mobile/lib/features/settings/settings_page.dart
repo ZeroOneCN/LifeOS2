@@ -166,7 +166,7 @@ class SettingsPage extends StatelessWidget {
                               ),
                               V2EntryRow(
                                 title: '关于',
-                                subtitle: '应用名、版本与后端地址',
+                                subtitle: '应用名、版本与服务器地址',
                                 icon: Icons.info_outline,
                                 onTap: () => context.push('/settings/about'),
                               ),
@@ -551,7 +551,7 @@ class _AvatarSheetState extends State<_AvatarSheet> {
   /// 404 时提示后端版本，其余沿用服务端文案。
   String _hint(ApiException error) {
     if (error.kind == ApiErrorKind.notFound) {
-      return '当前后端不支持头像接口（404），请确认后端已更新';
+      return '服务器暂不支持更换头像，请稍后再试';
     }
     return error.message;
   }
@@ -611,8 +611,7 @@ class _AvatarSheetState extends State<_AvatarSheet> {
               ),
             const SizedBox(height: 4),
             Text(
-              '客户端会先按长边 1024、JPEG 质量 85 压缩再上传；'
-              '不做裁剪（后端不处理裁剪）。',
+              '上传前会先压缩图片；不会自动裁剪，请自行调整好画面。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

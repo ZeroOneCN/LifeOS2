@@ -530,10 +530,18 @@ class _TravelRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                formatMoney(detail.actualPrice),
+                // 实付 0 且原价大于 0：是真实免费（如积分兑换），
+                // 直接写「免费」比 ¥0.00 更不容易被误读成没填金额。
+                detail.actualPrice == 0 && detail.originalPrice > 0
+                    ? '免费'
+                    : formatMoney(detail.actualPrice),
                 maxLines: 1,
                 softWrap: false,
-                style: AppType.rowValue.copyWith(color: tokens.text),
+                style: AppType.rowValue.copyWith(
+                  color: detail.actualPrice == 0 && detail.originalPrice > 0
+                      ? tokens.green
+                      : tokens.text,
+                ),
               ),
               PopupMenuButton<String>(
                 tooltip: '更多操作',

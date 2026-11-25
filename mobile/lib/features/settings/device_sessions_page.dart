@@ -446,7 +446,7 @@ class _SessionRow extends StatelessWidget {
                   children: <Widget>[
                     Text('最近活跃：${_displayTime(session.lastUsedAt)}', style: metaStyle),
                     Text('登录于：${_displayTime(session.createdAt)}', style: metaStyle),
-                    Text('IP：${session.ip ?? '—'}', style: metaStyle),
+                    Text('IP：${_maskIp(session.ip)}', style: metaStyle),
                     Text('会话 #${session.id}', style: metaStyle),
                   ],
                 ),
@@ -467,6 +467,22 @@ class _SessionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// IP 脱敏展示：列表不直接暴露完整地址。
+///
+/// IPv4 保留前两段（`192.168.1.23` → `192.168.*.*`）；其他格式只留前 8 位。
+/// 搜索仍按完整 IP 匹配，脱敏只影响展示。
+String _maskIp(String? raw) {
+  final String value = (raw ?? '').trim();
+  if (value.isEmpty) {
+    return '—';
+  }
+  final List<String> parts = value.split('.');
+  if (parts.length == 4) {
+    return '${parts[0]}.${parts[1]}.*.*';
+  }
+  return value.length > 8 ? '${value.substring(0, 8)}…' : value;
 }
 
 /// 后端会话记录：`created_at` / `last_used_at` 原样保留为字符串。

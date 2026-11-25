@@ -496,6 +496,32 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   /// 去掉已完结数据里残留的「（持仓 0）」文案（后端报告正文固定带这个后缀）。
+  /// 占比兜底：金额非零但占比不足 0.05% 时，旧快照会写成 `0.0%`，
+  /// 看起来像「没有占比」。展示层统一改成 `<0.1%`，不改历史报告内容。
+  List<List<String>> _fixTinyShare(List<List<String>> rows) {
+    return rows.map((List<String> row) {
+      if (row.length < 2) {
+        return row;
+      }
+      final List<String> cells = List<String>.of(row);
+      for (int i = 1; i < cells.length; i++) {
+        if (cells[i].trim() != '0.0%') {
+          continue;
+        }
+        final String previous = cells[i - 1]
+            .replaceAll(',', '')
+            .replaceAll('¥', '')
+            .replaceAll(r'$', '')
+            .trim();
+        final double? amount = double.tryParse(previous);
+        if (amount != null && amount > 0) {
+          cells[i] = '<0.1%';
+        }
+      }
+      return cells;
+    }).toList(growable: false);
+  }
+
   List<String> _stripPositions(List<String> cells) {
     return cells
         .map(
@@ -634,7 +660,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         body.add(
           _ReportTable(
             header: header,
-            rows: _usdRows(header, block.rows.map(_rowText).toList()),
+            rows: _fixTinyShare(
+              _usdRows(header, block.rows.map(_rowText).toList()),
+            ),
             caption: _cellText(block.caption),
             colorizePositive: _usd,
           ),
