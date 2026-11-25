@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+
+import '../../../theme/app_tokens.dart';
+
+/// 指标轨中的单项。
+class StatRailItem {
+  const StatRailItem({
+    required this.label,
+    required this.value,
+    this.unit,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final String? unit;
+
+  /// 数值颜色；为空时使用主文字色。
+  final Color? color;
+}
+
+/// 2.0 三格指标轨：白底分组卡 + 发丝线分隔，数字等宽右对齐。
+class StatRail extends StatelessWidget {
+  const StatRail({super.key, required this.items})
+    : assert(items.length == 3, '指标轨固定 3 项');
+
+  final List<StatRailItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(AppTokens.cardRadius),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: <Widget>[
+            for (int i = 0; i < items.length; i++) ...<Widget>[
+              if (i > 0)
+                Container(
+                  width: AppTokens.hairline,
+                  color: tokens.line,
+                  margin: const EdgeInsets.symmetric(vertical: 11),
+                ),
+              Expanded(child: _StatCell(item: items[i])),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  const _StatCell({required this.item});
+
+  final StatRailItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    final String? unit = item.unit;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.statLabel.copyWith(color: tokens.text2),
+          ),
+          const SizedBox(height: 4),
+          Text.rich(
+            TextSpan(
+              children: <InlineSpan>[
+                TextSpan(text: item.value),
+                if (unit != null && unit.isNotEmpty)
+                  TextSpan(
+                    text: ' $unit',
+                    style: AppType.statUnit.copyWith(color: tokens.text2),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.statValue.copyWith(color: item.color ?? tokens.text),
+          ),
+        ],
+      ),
+    );
+  }
+}

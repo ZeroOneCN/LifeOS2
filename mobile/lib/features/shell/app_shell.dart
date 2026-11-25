@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
+import '../../theme/app_tokens.dart';
 
 /// 五 Tab 外壳：唯一一级导航。
 ///
@@ -25,36 +26,36 @@ class _AppShellState extends State<AppShell> {
   /// 图标 + 两字短标签常驻；`tooltip` 提供全称，长按仍可看到完整定义。
   static const List<NavigationDestination> _destinations =
       <NavigationDestination>[
-    NavigationDestination(
-      icon: Icon(Icons.favorite_border),
-      selectedIcon: Icon(Icons.favorite),
-      label: '健康',
-      tooltip: '健康中心',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.account_balance_wallet_outlined),
-      selectedIcon: Icon(Icons.account_balance_wallet),
-      label: '财务',
-      tooltip: '财务中心',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home),
-      label: '生活',
-      tooltip: '生活中心',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.trending_up),
-      label: '投资',
-      tooltip: '投资中心',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.settings_outlined),
-      selectedIcon: Icon(Icons.settings),
-      label: '设置',
-      tooltip: '设置',
-    ),
-  ];
+        NavigationDestination(
+          icon: Icon(Icons.favorite_border),
+          selectedIcon: Icon(Icons.favorite),
+          label: '健康',
+          tooltip: '健康中心',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: Icon(Icons.account_balance_wallet),
+          label: '财务',
+          tooltip: '财务中心',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: '生活',
+          tooltip: '生活中心',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.trending_up),
+          label: '投资',
+          tooltip: '投资中心',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.settings_outlined),
+          selectedIcon: Icon(Icons.settings),
+          label: '设置',
+          tooltip: '设置',
+        ),
+      ];
 
   /// 切 Tab 时刷新该域总览（根页常驻 IndexedStack，不会自动重建）。
   void _refreshOverview(int index) {
@@ -75,16 +76,16 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    // 底栏与内容同底色、无阴影无描边：层级只靠图标/文字选中态表达，
-    // 避免 Tab 上沿出现一条分割线或渐变的“两条”视觉。
-    final ThemeData theme = Theme.of(context);
+    // 底栏使用 2.0 的 surface（浅色白 / 深色 #1C1C1E），与页面分组底色分开；
+    // 不画顶部分割线，层级只靠 System Blue 选中态表达。
+    final AppTokens tokens = AppTokens.of(context);
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: tokens.background,
       body: widget.navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: tokens.surface,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         elevation: 0,

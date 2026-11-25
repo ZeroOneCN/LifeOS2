@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_tokens.dart';
 import 'app_typography.dart';
 
 /// 语义色扩展（success / warning / danger / info）。
@@ -130,19 +131,36 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     return AppSemanticColors(
       success: Color.lerp(success, other.success, t)!,
       onSuccess: Color.lerp(onSuccess, other.onSuccess, t)!,
-      successContainer: Color.lerp(successContainer, other.successContainer, t)!,
-      onSuccessContainer:
-          Color.lerp(onSuccessContainer, other.onSuccessContainer, t)!,
+      successContainer: Color.lerp(
+        successContainer,
+        other.successContainer,
+        t,
+      )!,
+      onSuccessContainer: Color.lerp(
+        onSuccessContainer,
+        other.onSuccessContainer,
+        t,
+      )!,
       warning: Color.lerp(warning, other.warning, t)!,
       onWarning: Color.lerp(onWarning, other.onWarning, t)!,
-      warningContainer: Color.lerp(warningContainer, other.warningContainer, t)!,
-      onWarningContainer:
-          Color.lerp(onWarningContainer, other.onWarningContainer, t)!,
+      warningContainer: Color.lerp(
+        warningContainer,
+        other.warningContainer,
+        t,
+      )!,
+      onWarningContainer: Color.lerp(
+        onWarningContainer,
+        other.onWarningContainer,
+        t,
+      )!,
       danger: Color.lerp(danger, other.danger, t)!,
       onDanger: Color.lerp(onDanger, other.onDanger, t)!,
       dangerContainer: Color.lerp(dangerContainer, other.dangerContainer, t)!,
-      onDangerContainer:
-          Color.lerp(onDangerContainer, other.onDangerContainer, t)!,
+      onDangerContainer: Color.lerp(
+        onDangerContainer,
+        other.onDangerContainer,
+        t,
+      )!,
       info: Color.lerp(info, other.info, t)!,
       onInfo: Color.lerp(onInfo, other.onInfo, t)!,
       infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
@@ -173,15 +191,19 @@ abstract final class AppTheme {
   static ThemeData _build(Brightness brightness) {
     final bool isDark = brightness == Brightness.dark;
     final ColorScheme scheme = _colorScheme(brightness);
-    final AppSemanticColors semantic =
-        isDark ? AppSemanticColors.dark : AppSemanticColors.light;
+    final AppSemanticColors semantic = isDark
+        ? AppSemanticColors.dark
+        : AppSemanticColors.light;
     final Color cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+    // 2.0 视觉令牌：只替换底色、顶栏、底栏与 FAB 等「框架级」颜色，
+    // 旧页面的卡片 / 表单 / 语义色保持原样，避免一次性改色造成回归。
+    final AppTokens tokens = isDark ? AppTokens.dark : AppTokens.light;
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: tokens.background,
       fontFamilyFallback: AppTypography.fontFallback,
       textTheme: AppTypography.textTheme.apply(
         bodyColor: scheme.onSurface,
@@ -189,42 +211,37 @@ abstract final class AppTheme {
       ),
       extensions: <ThemeExtension<dynamic>>[semantic],
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.onSurface,
+        // 旧页面仍用 AppBar，但底色与页面统一，避免灰底页面顶出一条白栏。
+        backgroundColor: tokens.background,
+        foregroundColor: tokens.text,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle:
-            AppTypography.titleLarge.copyWith(color: scheme.onSurface),
+        titleTextStyle: AppTypography.titleLarge.copyWith(color: tokens.text),
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 80,
-        backgroundColor: scheme.surface,
+        backgroundColor: tokens.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        // 深色模式下 primary 接近白色，靠颜色深浅区分选中太弱，
-        // 因此叠加更明显的选中胶囊 + 图标放大 + 未选态降透明度。
-        indicatorColor: scheme.primary.withValues(alpha: isDark ? 0.22 : 0.10),
-        // 选中指示器只做小圆角，不用 Material 默认的大胶囊。
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.control),
-        ),
+        // iOS Tab Bar 没有选中胶囊：只靠 System Blue 着色与字重区分。
+        indicatorColor: Colors.transparent,
+        indicatorShape: const StadiumBorder(),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle?>((states) {
           final bool selected = states.contains(WidgetState.selected);
           return AppTypography.labelMedium.copyWith(
-            color: selected ? scheme.onSurface : scheme.onSurfaceVariant,
+            fontSize: 10.5,
+            color: selected ? tokens.accent : tokens.text2,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           );
         }),
         iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>((states) {
           final bool selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            size: selected ? 28 : 24,
-            color: selected
-                ? scheme.primary
-                : scheme.onSurfaceVariant.withValues(alpha: isDark ? 0.72 : 0.9),
+            size: 24,
+            color: selected ? tokens.accent : tokens.text2,
           );
         }),
       ),
@@ -317,16 +334,16 @@ abstract final class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.onPrimary,
+        backgroundColor: tokens.accent,
+        foregroundColor: Colors.white,
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.control),
-        ),
+        shape: const CircleBorder(),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? AppColors.cardDark : AppColors.foregroundLight,
+        backgroundColor: isDark
+            ? AppColors.cardDark
+            : AppColors.foregroundLight,
         contentTextStyle: AppTypography.bodyMedium.copyWith(
           color: isDark ? AppColors.foregroundDark : AppColors.onPrimaryLight,
         ),
@@ -347,23 +364,32 @@ abstract final class AppTheme {
       seedColor: isDark ? AppColors.primaryDark : AppColors.primaryLight,
       brightness: brightness,
     );
-    final Color primary = isDark ? AppColors.primaryDark : AppColors.primaryLight;
-    final Color onPrimary =
-        isDark ? AppColors.onPrimaryDark : AppColors.onPrimaryLight;
-    final Color surface = isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
-    final Color onSurface =
-        isDark ? AppColors.foregroundDark : AppColors.foregroundLight;
+    final Color primary = isDark
+        ? AppColors.primaryDark
+        : AppColors.primaryLight;
+    final Color onPrimary = isDark
+        ? AppColors.onPrimaryDark
+        : AppColors.onPrimaryLight;
+    final Color surface = isDark
+        ? AppColors.backgroundDark
+        : AppColors.backgroundLight;
+    final Color onSurface = isDark
+        ? AppColors.foregroundDark
+        : AppColors.foregroundLight;
     final Color container = isDark ? AppColors.mutedDark : AppColors.mutedLight;
     final Color onContainer = onSurface;
-    final Color neutral =
-        isDark ? AppColors.mutedForegroundDark : AppColors.mutedForegroundLight;
+    final Color neutral = isDark
+        ? AppColors.mutedForegroundDark
+        : AppColors.mutedForegroundLight;
     return base.copyWith(
       primary: primary,
       onPrimary: onPrimary,
       primaryContainer: container,
       onPrimaryContainer: onContainer,
       secondary: neutral,
-      onSecondary: isDark ? AppColors.foregroundDark : AppColors.backgroundLight,
+      onSecondary: isDark
+          ? AppColors.foregroundDark
+          : AppColors.backgroundLight,
       secondaryContainer: container,
       onSecondaryContainer: onContainer,
       tertiary: neutral,
@@ -391,14 +417,15 @@ abstract final class AppTheme {
       surfaceBright: isDark ? AppColors.cardDark : AppColors.cardLight,
       surfaceDim: surface,
       error: isDark ? AppColors.dangerDark : AppColors.dangerLight,
-      onError:
-          isDark ? AppColors.onSemanticDark : AppColors.onSemanticLight,
+      onError: isDark ? AppColors.onSemanticDark : AppColors.onSemanticLight,
       outline: isDark ? AppColors.borderDark : AppColors.borderLight,
       outlineVariant: isDark ? AppColors.borderDark : AppColors.borderLight,
-      surfaceContainerLowest:
-          isDark ? AppColors.backgroundDark : AppColors.cardLight,
-      surfaceContainerLow:
-          isDark ? AppColors.cardDark : AppColors.backgroundLight,
+      surfaceContainerLowest: isDark
+          ? AppColors.backgroundDark
+          : AppColors.cardLight,
+      surfaceContainerLow: isDark
+          ? AppColors.cardDark
+          : AppColors.backgroundLight,
       surfaceContainer: container,
       surfaceContainerHigh: container,
       surfaceContainerHighest: container,
