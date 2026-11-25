@@ -5,17 +5,22 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/investment_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
-/// 交易日历：月份切换 + 月汇总 + 日历网格（每日盈亏）。
+/// 交易日历：月份切换 + 月汇总 + 日历网格（每日盈亏）/ 每日明细。
 ///
 /// 数据来源（与网页端 `pages/investment/forex.tsx` 的交易日历一致）：
 /// - `GET /investment/forex/calendar?month=YYYY-MM`。
 ///
 /// 颜色口径：盈利绿、亏损红、无交易中性；负数一律红、正数一律绿。
+/// 月份与「日历 / 明细」都在页内用分段控件就地切换，不跳转路由。
 class InvestCalendarPage extends StatefulWidget {
   const InvestCalendarPage({super.key});
 
@@ -30,8 +35,11 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
-  /// 选中日期（用于下方明细）；切换月份后清空。
+  /// 选中日期（用于日历下方明细）；切换月份后清空。
   int? _selectedDay;
+
+  /// 当前栏目：0 日历、1 明细。
+  int _tab = 0;
 
   /// 明细区域 key：选中日期后用它把明细滚动到可视区。
   final GlobalKey _detailKey = GlobalKey();
@@ -113,8 +121,7 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
   }
 
   /// `YYYY-MM` 请求参数。
-  String _monthKey(DateTime month) =>
-      '${month.year}-${_two(month.month)}';
+  String _monthKey(DateTime month) => '${month.year}-${_two(month.month)}';
 
   /// 按月切换；不限制未来月份（与网页端一致，空月显示无交易）。
   void _shiftMonth(int delta) {
@@ -141,127 +148,241 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final ForexCalendar? calendar = _calendar;
-    final bool isCurrentMonth = _isCurrentMonth();
+    final bool ready = _status == LoadStatus.ready || _status == LoadStatus.idle;
 
     return DetailPageScaffold(
       title: '交易日历',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '刷新',
-          onPressed: _refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              // 时间控件紧贴标题下方：左移一月 / 当前月份 / 右移一月。
-              Row(
-                children: <Widget>[
-                  IconButton(
-                    tooltip: '上个月',
-                    onPressed: () => _shiftMonth(-1),
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: <Widget>[
-                        Text(
-                          '${_month.year} 年 ${_month.month} 月',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (!isCurrentMonth)
-                          TextButton(
-                            onPressed: _goCurrentMonth,
-                            style: TextButton.styleFrom(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
-                            ),
-                            child: const Text('回到本月', maxLines: 1),
-                          ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '下个月',
-                    onPressed: () => _shiftMonth(1),
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
-              ListStatusView(
+          if (!ready || calendar == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && calendar != null) ...<Widget>[
-                SectionCard(
-                  title: '本月汇总',
-                  child: _MonthSummary(summary: calendar.summary),
-                ),
-                SectionCard(
-                  title: '每日盈亏',
-                  trailing: Text(
-                    calendar.days.where((ForexCalendarDay d) => d.active).isEmpty
-                        ? '本月无交易'
-                        : '点日期看明细',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 10,
-                    children: <Widget>[
-                      // 空月也渲染完整日历：日期格结构一致，点任意一天可看到
-                      // 「当日无交易」，不会因为某月没交易就丢掉整块日历。
-                      if (calendar.days.every(
-                        (ForexCalendarDay d) => !d.active,
-                      ))
-                        Text(
-                          '本月没有交易记录，可用上方箭头切换到有交易的月份。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      _CalendarGrid(
-                        year: calendar.year,
-                        month: calendar.month,
-                        days: calendar.days,
-                        selectedDay: _selectedDay,
-                        onSelect: _selectDay,
-                      ),
-                      _Legend(),
-                      if (_selectedDay != null)
-                        _DayDetail(
-                          // 选中后把明细滚进可视区，避免在 375dp 上点完日期
-                          // 还要手动下滑才知道明细出现在哪儿。
-                          key: _detailKey,
-                          day: calendar.days.firstWhere(
-                            (ForexCalendarDay d) => d.day == _selectedDay,
-                          ),
-                          year: calendar.year,
-                          month: calendar.month,
-                        ),
-                    ],
-                  ),
-                ),
+            )
+          else ...<Widget>[
+            SummaryStrip(
+              caption: _monthCaption(calendar),
+              items: _summaryItems(calendar),
+            ),
+            // 月份分段：上一月 / 当前展示月 / 下一月，点两侧就地按月切换。
+            V2Segmented<int>(
+              options: _monthOptions,
+              selected: 0,
+              compact: true,
+              onChanged: (int delta) {
+                if (delta != 0) {
+                  _shiftMonth(delta);
+                }
+              },
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '日历', value: 0),
+                V2SegmentedOption<int>(label: '明细', value: 1),
               ],
-            ],
-          ),
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _calendarTab(calendar),
+                  _daysTab(calendar),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// 月份分段选项：以当前展示月居中，左右各一个月，标签精确到年。
+  List<V2SegmentedOption<int>> get _monthOptions {
+    final DateTime prev = DateTime(_month.year, _month.month - 1);
+    final DateTime next = DateTime(_month.year, _month.month + 1);
+    return <V2SegmentedOption<int>>[
+      V2SegmentedOption<int>(label: _monthLabel(prev), value: -1),
+      V2SegmentedOption<int>(label: _monthLabel(_month), value: 0),
+      V2SegmentedOption<int>(label: _monthLabel(next), value: 1),
+    ];
+  }
+
+  /// 月份标签：`11月`（年份在概览句里给出，避免窄屏格子被截断）。
+  String _monthLabel(DateTime month) => '${month.month}月';
+
+  /// 概览句：年月 + 盈利 / 亏损天数。
+  String _monthCaption(ForexCalendar calendar) {
+    final ForexCalendarSummary summary = calendar.summary;
+    return '${calendar.year} 年 ${calendar.month} 月 · '
+        '盈利 ${formatInt(summary.winDays)} 天 · '
+        '亏损 ${formatInt(summary.lossDays)} 天';
+  }
+
+  /// 概览指标轨：月盈亏 / 月收益率 / 交易日。
+  List<StatRailItem> _summaryItems(ForexCalendar calendar) {
+    final ForexCalendarSummary summary = calendar.summary;
+    // 本月没有任何交易日时，盈亏与收益率按空值展示，不冒充 $0.00 / 0.0%。
+    final bool empty = summary.tradingDays == 0;
+    return <StatRailItem>[
+      StatRailItem(
+        label: '月盈亏',
+        value: empty ? '—' : _usdCompact(summary.monthPnl, signed: true),
+        color: empty ? null : _pnlColor(summary.monthPnl),
+      ),
+      StatRailItem(
+        label: '月收益率',
+        value: empty ? '—' : formatPercent(summary.returnRate),
+        color: empty ? null : _pnlColor(summary.returnRate),
+      ),
+      StatRailItem(
+        label: '交易日',
+        value: formatInt(summary.tradingDays),
+        unit: '天',
+      ),
+    ];
+  }
+
+  /// 盈亏分色：正 success、负 danger、0 保持中性。
+  Color? _pnlColor(double value) {
+    final AppSemanticColors colors = context.semanticColors;
+    if (value > 0) {
+      return colors.success;
+    }
+    if (value < 0) {
+      return colors.danger;
+    }
+    return null;
+  }
+
+  /// 日历栏目：日历网格 + 图例 + 选中日明细。
+  Widget _calendarTab(ForexCalendar calendar) {
+    final AppTokens tokens = AppTokens.of(context);
+    final int activeDays = calendar.days
+        .where((ForexCalendarDay day) => day.active)
+        .length;
+    final bool isCurrentMonth = _isCurrentMonth();
+    return ListPageBody(
+      // 数据状态由外层统一处理，栏目内始终渲染已就绪的内容。
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '每日盈亏 · ${formatInt(activeDays)} 天交易',
+          actionLabel: isCurrentMonth ? null : '回到本月',
+          onAction: isCurrentMonth ? null : _goCurrentMonth,
+        ),
+        GroupCard(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 10,
+                children: <Widget>[
+                  // 空月也渲染完整日历：日期格结构一致，点任意一天可看到
+                  // 「当日无交易」，不会因为某月没交易就丢掉整块日历。
+                  if (activeDays == 0)
+                    Text(
+                      '本月没有交易记录，可用上方月份切换查看其他月份。',
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  _CalendarGrid(
+                    year: calendar.year,
+                    month: calendar.month,
+                    days: calendar.days,
+                    selectedDay: _selectedDay,
+                    onSelect: _selectDay,
+                  ),
+                  const _Legend(),
+                  if (_selectedDay != null)
+                    _DayDetail(
+                      // 选中后把明细滚进可视区，避免在 375dp 上点完日期
+                      // 还要手动下滑才知道明细出现在哪儿。
+                      key: _detailKey,
+                      day: calendar.days.firstWhere(
+                        (ForexCalendarDay day) => day.day == _selectedDay,
+                      ),
+                      year: calendar.year,
+                      month: calendar.month,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        Text(
+          '点日期查看当日明细；盈利绿、亏损红、无交易中性。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 明细栏目：当月有交易的日期逐条列出，点按回到日历并定位当天。
+  Widget _daysTab(ForexCalendar calendar) {
+    final AppTokens tokens = AppTokens.of(context);
+    final List<ForexCalendarDay> active = calendar.days
+        .where((ForexCalendarDay day) => day.active)
+        .toList(growable: false);
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(title: '每日明细 · ${formatInt(active.length)} 天'),
+        GroupCard(
+          children: active.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.event_busy_outlined,
+                    title: '本月没有交易记录',
+                    description: '可用上方月份切换查看其他月份',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final ForexCalendarDay day in active)
+                    _DayRow(
+                      day: day,
+                      month: calendar.month,
+                      onTap: () => _showDay(day.day),
+                    ),
+                ],
+        ),
+        Text(
+          '仅列出有交易的日期；金额为当日已平仓交易的净额。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 从「明细」点某一天：切回「日历」并选中该日。
+  void _showDay(int day) {
+    setState(() {
+      _tab = 0;
+      _selectedDay = day;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final BuildContext? detail = _detailKey.currentContext;
+      if (detail == null) {
+        return;
+      }
+      Scrollable.ensureVisible(
+        detail,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        // 0.9 让明细底部贴近可视区下沿、上方留一点上下文（日历最后一行）。
+        alignment: 0.9,
+      );
+    });
   }
 
   /// 点选 / 取消某一天；选中后把明细滚动到可视区内。
@@ -280,7 +401,6 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
         detail,
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOutCubic,
-        // 0.9 让明细底部贴近可视区下沿、上方留一点上下文（日历最后一行）。
         alignment: 0.9,
       );
     });
@@ -293,102 +413,89 @@ class _InvestCalendarPageState extends State<InvestCalendarPage> {
   }
 }
 
-/// 月汇总：月盈亏 / 交易日 / 盈利天 / 亏损天 / 月收益率。
-class _MonthSummary extends StatelessWidget {
-  const _MonthSummary({required this.summary});
+/// 指标轨用的紧凑美元金额：`+$1,284`，只保留整数，避免格子被小数撑破。
+String _usdCompact(num? value, {bool signed = false}) {
+  if (value == null) {
+    return '—';
+  }
+  final String sign = value < 0 ? '-' : (value > 0 && signed ? '+' : '');
+  return '$sign\$${formatInt(value.abs())}';
+}
 
-  final ForexCalendarSummary summary;
+/// 单日明细行：日期 + 盈亏徽标在上，笔数说明 + 当日盈亏在下。
+class _DayRow extends StatelessWidget {
+  const _DayRow({
+    required this.day,
+    required this.month,
+    required this.onTap,
+  });
+
+  final ForexCalendarDay day;
+  final int month;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final AppSemanticColors colors = context.semanticColors;
-    // 本月没有任何交易日时，盈亏与收益率按空值展示，不冒充 $0.00 / 0.0%。
-    final bool empty = summary.tradingDays == 0;
-    final Color pnlColor = summary.monthPnl > 0
+    final Color pnlColor = day.pnl > 0
         ? colors.success
-        : (summary.monthPnl < 0 ? colors.danger : theme.colorScheme.onSurfaceVariant);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final List<({String label, String value, Color color})> items =
-        <({String label, String value, Color color})>[
-          (
-            label: '月盈亏',
-            value: empty ? '—' : formatUsdSigned(summary.monthPnl),
-            color: empty ? muted : pnlColor,
-          ),
-          (
-            label: '月收益率',
-            value: empty ? '—' : formatPercent(summary.returnRate),
-            color: empty
-                ? muted
-                : (summary.returnRate > 0
-                    ? colors.success
-                    : (summary.returnRate < 0
-                        ? colors.danger
-                        : theme.colorScheme.onSurfaceVariant)),
-          ),
-          (
-            label: '交易日',
-            value: '${summary.tradingDays} 天',
-            color: theme.colorScheme.onSurface,
-          ),
-          (
-            label: '盈利天',
-            value: '${summary.winDays} 天',
-            color: empty ? muted : colors.success,
-          ),
-          (
-            label: '亏损天',
-            value: '${summary.lossDays} 天',
-            color: empty ? muted : colors.danger,
-          ),
-        ];
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        const double gap = 8;
-        final double width = (constraints.maxWidth - gap * 2) / 3;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: <Widget>[
-            for (final ({String label, String value, Color color}) item
-                in items)
-              SizedBox(
-                width: width,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: <Widget>[
-                    Text(
-                      item.label,
+        : (day.pnl < 0 ? colors.danger : tokens.text2);
+    final V2BadgeTone tone = day.pnl > 0
+        ? V2BadgeTone.green
+        : (day.pnl < 0 ? V2BadgeTone.danger : V2BadgeTone.gray);
+    final String badge = day.pnl > 0 ? '盈利' : (day.pnl < 0 ? '亏损' : '持平');
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
+            children: <Widget>[
+              // 徽标跟随日期放在上一行，金额固定在下一行右侧，行高保持齐整。
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '$month月${day.day}日',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        item.value,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: item.color,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 8),
+                  V2Badge(badge, tone: tone),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+                ],
               ),
-          ],
-        );
-      },
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '交易 ${formatInt(day.count)} 笔 · '
+                      '盈 ${formatInt(day.win)} · 亏 ${formatInt(day.loss)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    formatUsdSigned(day.pnl),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(color: pnlColor),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

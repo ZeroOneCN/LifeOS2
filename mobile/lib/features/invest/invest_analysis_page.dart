@@ -7,9 +7,12 @@ import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 /// 投资分析：账户指标 + 回撤/连胜 + 品种盈亏 + 时段分布。
 ///
@@ -18,7 +21,8 @@ import '../../theme/app_theme.dart';
 ///
 /// 口径说明：后端 `stats` 的 `days` 是统一统计窗口（含今天），传入 3650
 /// 即近十年，等同「全部已平仓交易」；汇总、品种盈亏、回撤、时段分布与
-/// 收益曲线因此同口径，本页不提供区间切换。
+/// 收益曲线因此同口径，本页不提供区间切换，只按「账户 / 风险 / 分布」
+/// 三个信息维度就地切换栏目（不跳转路由、不改数据请求）。
 class InvestAnalysisPage extends StatefulWidget {
   const InvestAnalysisPage({super.key});
 
@@ -31,6 +35,9 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
+  /// 当前栏目：0 账户、1 风险、2 分布。
+  int _tab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -41,7 +48,7 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
     });
   }
 
-  /// 拉取统计；切换区间时保留旧数据避免页面闪空。
+  /// 拉取统计；已有数据时保留旧数据避免页面闪空。
   Future<void> _refresh() async {
     final AppScope scope = AppScope.of(context);
     if (!scope.auth.isLoggedIn) {
@@ -106,201 +113,272 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final ForexStats? stats = _stats;
+    final bool ready = _status == LoadStatus.ready || _status == LoadStatus.idle;
 
     return DetailPageScaffold(
       title: '投资分析',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '刷新',
-          onPressed: _refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
+          if (!ready || stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '账户概览',
-                  // 后端汇总不按区间过滤，明确标注口径，避免和收益曲线的区间混淆。
-                  trailing: Text(
-                    '全部已平仓交易',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _MetricGrid(
-                    items: <({String label, String value, Color? color})>[
-                      (
-                        label: '账户净值',
-                        // 业务规则：净值不可能为负，展示下限 $0.00。
-                        value: formatUsd(
-                          stats.summary.accountValue < 0
-                              ? 0
-                              : stats.summary.accountValue,
-                        ),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '净盈亏',
-                        value: formatUsdSigned(stats.summary.netProfit),
-                        color: _pnlColor(context, stats.summary.netProfit),
-                      ),
-                      (
-                        label: '交易笔数',
-                        value: formatInt(stats.summary.tradeCount),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '持仓中',
-                        value: formatInt(stats.summary.openCount),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '胜率',
-                        value: formatPercent(stats.summary.winRate),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '盈亏比',
-                        // 与投资报告一致保留两位小数（报告显示 0.83，这里曾显示 0.8）。
-                        value: formatTwoDecimals(stats.summary.profitLossRatio),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '盈利因子',
-                        value: formatTwoDecimals(stats.summary.profitFactor),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '交易品种',
-                        value: formatInt(stats.summary.symbolCount),
-                        color: theme.colorScheme.onSurface,
-                      ),
-                      (
-                        label: '平均持仓',
-                        value: stats.analysis.avgHoldingText,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ],
-                  ),
-                ),
-                SectionCard(
-                  title: '回撤与连胜',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      _MetricGrid(
-                        items: <({String label, String value, Color? color})>[
-                          (
-                            label: '最大回撤',
-                            value: formatUsd(stats.analysis.maxDrawdown),
-                            color: _pnlColor(
-                              context,
-                              -stats.analysis.maxDrawdown,
-                            ),
-                          ),
-                          (
-                            label: '最大回撤率',
-                            // 分母过小时后端返回 null：显示「—」而不是 0%。
-                            value: stats.analysis.maxDrawdownPct == null
-                                ? '—'
-                                : formatPercent(stats.analysis.maxDrawdownPct),
-                            color: stats.analysis.maxDrawdownPct == null
-                                ? theme.colorScheme.onSurfaceVariant
-                                : _pnlColor(
-                                    context,
-                                    -stats.analysis.maxDrawdownPct!,
-                                  ),
-                          ),
-                          (
-                            label: '最长连赢',
-                            value: '${stats.analysis.longestWinStreak} 笔',
-                            color: _pnlColor(context, 1),
-                          ),
-                          (
-                            label: '最长连亏',
-                            value: '${stats.analysis.longestLossStreak} 笔',
-                            color: _pnlColor(context, -1),
-                          ),
-                          (
-                            label: '平均盈利',
-                            value: stats.analysis.avgWin == null
-                                ? '—'
-                                : formatUsd(stats.analysis.avgWin),
-                            color: _pnlColor(context, 1),
-                          ),
-                          (
-                            label: '平均亏损',
-                            value: stats.analysis.avgLoss == null
-                                ? '—'
-                                : formatUsd(stats.analysis.avgLoss),
-                            color: _pnlColor(context, -1),
-                          ),
-                        ],
-                      ),
-                      if (stats.analysis.maxDrawdownPct == null) ...<Widget>[
-                        const SizedBox(height: 10),
-                        Text(
-                          '累计净投入不超过 \$1，回撤率没有有效基准，显示为「—」。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                SectionCard(
-                  title: '品种盈亏',
-                  trailing: Text(
-                    '按 |盈亏| 取前 12',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: stats.bySymbol.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.bar_chart_outlined,
-                          title: '区间内暂无平仓交易',
-                          description: '换一个更长的统计区间试试',
-                          compact: true,
-                        )
-                      : _PnlBars(items: _topSymbols(stats.bySymbol)),
-                ),
-                SectionCard(
-                  title: '时段分布',
-                  trailing: Text(
-                    '按交易笔数取前 6',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _hourBars(stats.analysis.hourDist).isEmpty
-                      ? const EmptyState(
-                          icon: Icons.schedule_outlined,
-                          title: '区间内暂无交易时段数据',
-                          description: '录入带开仓时间的交易后会在此汇总',
-                          compact: true,
-                        )
-                      : _CountBars(items: _hourBars(stats.analysis.hourDist)),
-                ),
+            )
+          else ...<Widget>[
+            SummaryStrip(
+              caption: _overviewCaption(stats),
+              items: _summaryItems(stats),
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '账户', value: 0),
+                V2SegmentedOption<int>(label: '风险', value: 1),
+                V2SegmentedOption<int>(label: '分布', value: 2),
               ],
-            ],
-          ),
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _accountTab(stats),
+                  _riskTab(stats),
+                  _distributionTab(stats),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  /// 概览句：已平仓笔数、持仓与品种数。
+  String _overviewCaption(ForexStats stats) {
+    final ForexSummary summary = stats.summary;
+    return '全部已平仓 ${formatInt(summary.tradeCount)} 笔 · '
+        '持仓中 ${formatInt(summary.openCount)} 笔 · '
+        '品种 ${formatInt(summary.symbolCount)} 个';
+  }
+
+  /// 概览指标轨：账户净值 / 净盈亏 / 胜率（笔数与品种在概览句中）。
+  List<StatRailItem> _summaryItems(ForexStats stats) {
+    final ForexSummary summary = stats.summary;
+    return <StatRailItem>[
+      StatRailItem(
+        label: '账户净值',
+        // 业务规则：净值不可能为负，展示下限 $0.00。
+        value: formatUsd(
+          summary.accountValue < 0 ? 0 : summary.accountValue,
+        ),
+      ),
+      StatRailItem(
+        label: '净盈亏',
+        value: _usdCompact(summary.netProfit, signed: true),
+        color: _pnlColor(context, summary.netProfit),
+      ),
+      StatRailItem(
+        label: '胜率',
+        value: formatPercent(summary.winRate),
+      ),
+    ];
+  }
+
+  /// 账户栏目：账户净值、盈亏与交易质量指标（全部已平仓交易口径）。
+  Widget _accountTab(ForexStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    final ForexSummary summary = stats.summary;
+    return ListPageBody(
+      // 数据状态由外层统一处理，栏目内始终渲染已就绪的内容。
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '账户概览 · ${formatInt(summary.tradeCount)} 笔已平仓',
+          actionLabel: '刷新',
+          onAction: _refresh,
+        ),
+        GroupCard(
+          children: <Widget>[
+            RecordRow(
+              title: '账户净值',
+              value: formatUsd(
+                summary.accountValue < 0 ? 0 : summary.accountValue,
+              ),
+            ),
+            RecordRow(
+              title: '净盈亏',
+              value: formatUsdSigned(summary.netProfit),
+              valueColor: _pnlColor(context, summary.netProfit),
+            ),
+            RecordRow(
+              title: '交易笔数',
+              value: '${formatInt(summary.tradeCount)} 笔',
+            ),
+            RecordRow(
+              title: '持仓中',
+              value: '${formatInt(summary.openCount)} 笔',
+            ),
+            RecordRow(title: '胜率', value: formatPercent(summary.winRate)),
+            RecordRow(
+              title: '盈亏比',
+              // 与投资报告一致保留两位小数（报告显示 0.83，这里曾显示 0.8）。
+              value: formatTwoDecimals(summary.profitLossRatio),
+            ),
+            RecordRow(
+              title: '盈利因子',
+              value: formatTwoDecimals(summary.profitFactor),
+            ),
+            RecordRow(
+              title: '交易品种',
+              value: '${formatInt(summary.symbolCount)} 个',
+            ),
+            RecordRow(title: '平均持仓', value: stats.analysis.avgHoldingText),
+          ],
+        ),
+        Text(
+          '账户概览为全部已平仓交易口径，不随统计区间变化。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 风险栏目：最大回撤、连胜连亏与平均盈亏。
+  Widget _riskTab(ForexStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    final ForexAnalysis analysis = stats.analysis;
+    final bool noDrawdownBase = analysis.maxDrawdownPct == null;
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '回撤与连胜 · 最长连赢 ${formatInt(analysis.longestWinStreak)} 笔',
+          actionLabel: '刷新',
+          onAction: _refresh,
+        ),
+        GroupCard(
+          children: <Widget>[
+            RecordRow(
+              title: '最大回撤',
+              value: formatUsd(analysis.maxDrawdown),
+              valueColor: _pnlColor(context, -analysis.maxDrawdown),
+            ),
+            RecordRow(
+              title: '最大回撤率',
+              // 分母过小时后端返回 null：显示「—」而不是 0%。
+              value: noDrawdownBase
+                  ? '—'
+                  : formatPercent(analysis.maxDrawdownPct),
+              valueColor: noDrawdownBase
+                  ? null
+                  : _pnlColor(context, -analysis.maxDrawdownPct!),
+            ),
+            RecordRow(
+              title: '最长连赢',
+              value: '${formatInt(analysis.longestWinStreak)} 笔',
+              valueColor: _pnlColor(context, 1),
+            ),
+            RecordRow(
+              title: '最长连亏',
+              value: '${formatInt(analysis.longestLossStreak)} 笔',
+              valueColor: _pnlColor(context, -1),
+            ),
+            RecordRow(
+              title: '平均盈利',
+              value: analysis.avgWin == null
+                  ? '—'
+                  : formatUsd(analysis.avgWin),
+              valueColor: analysis.avgWin == null
+                  ? null
+                  : _pnlColor(context, 1),
+            ),
+            RecordRow(
+              title: '平均亏损',
+              value: analysis.avgLoss == null
+                  ? '—'
+                  : formatUsd(analysis.avgLoss),
+              valueColor: analysis.avgLoss == null
+                  ? null
+                  : _pnlColor(context, -1),
+            ),
+          ],
+        ),
+        Text(
+          noDrawdownBase
+              ? '累计净投入不超过 \$1，回撤率没有有效基准，显示为「—」；'
+                  '回撤与连胜取全部已平仓交易。'
+              : '回撤与连胜取全部已平仓交易，口径与网页端一致。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 分布栏目：品种盈亏与时段分布两张图表。
+  Widget _distributionTab(ForexStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    final List<ForexSymbolStat> symbols = _topSymbols(stats.bySymbol);
+    final List<ForexHourStat> hours = _hourBars(stats.analysis.hourDist);
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '品种盈亏 · 取 |盈亏| 前 ${formatInt(symbols.length)} 个',
+          actionLabel: '刷新',
+          onAction: _refresh,
+        ),
+        GroupCard(
+          children: symbols.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.bar_chart_outlined,
+                    title: '区间内暂无平仓交易',
+                    description: '换一个更长的统计区间试试',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: _PnlBars(items: symbols),
+                  ),
+                ],
+        ),
+        SectionHeader(
+          title: '时段分布 · 取前 ${formatInt(hours.length)} 个时段',
+        ),
+        GroupCard(
+          children: hours.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.schedule_outlined,
+                    title: '区间内暂无交易时段数据',
+                    description: '录入带开仓时间的交易后会在此汇总',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: _CountBars(items: hours),
+                  ),
+                ],
+        ),
+        Text(
+          '品种与时段分布取全部已平仓交易，柱长按最大值归一。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
     );
   }
 
@@ -332,63 +410,13 @@ class _InvestAnalysisPageState extends State<InvestAnalysisPage> {
   }
 }
 
-/// 指标网格：两列、标签在上、数值在下，数值单行缩放。
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.items});
-
-  final List<({String label, String value, Color? color})> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        const double gap = 8;
-        final double width = (constraints.maxWidth - gap) / 2;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: <Widget>[
-            for (final ({String label, String value, Color? color}) item
-                in items)
-              SizedBox(
-                width: width,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: <Widget>[
-                    Text(
-                      item.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        item.value,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: item.color,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        );
-      },
-    );
+/// 指标轨用的紧凑美元金额：`+$1,284`，只保留整数，避免格子被小数撑破。
+String _usdCompact(num? value, {bool signed = false}) {
+  if (value == null) {
+    return '—';
   }
+  final String sign = value < 0 ? '-' : (value > 0 && signed ? '+' : '');
+  return '$sign\$${formatInt(value.abs())}';
 }
 
 /// 品种盈亏横条：柱长按最大 |pnl| 归一，正绿负红，右侧显示金额。

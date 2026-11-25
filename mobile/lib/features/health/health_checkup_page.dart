@@ -593,52 +593,54 @@ class _CheckupRecordRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 52),
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
+              // 状态徽标紧跟指标名，不再压在数值下方：所有行都保持
+              // 「标题 + 数值 / 说明」两行节奏，列表不会高低错落。
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
                       record.itemName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
+                  ),
+                  const SizedBox(width: 8),
+                  _StatusBadge(result: record.result, label: statusLabel),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+                ],
+              ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
                       '${formatListDate(record.checkDate)} · 参考 $_reference',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.rowMeta.copyWith(color: tokens.text2),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    Text(
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
                       value,
-                      maxLines: 2,
-                      textAlign: TextAlign.right,
+                      maxLines: 1,
+                      softWrap: false,
                       overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
                       style: AppType.rowValue.copyWith(color: valueColor),
                     ),
-                    const SizedBox(height: 4),
-                    _StatusBadge(result: record.result, label: statusLabel),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
             ],
           ),
         ),
@@ -677,58 +679,49 @@ class _CheckupRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 4,
           children: <Widget>[
+            // 与「记录」栏同一两行节奏：标题 + 状态在上，说明 + 数值在下。
             Row(
               children: <Widget>[
                 Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        item.itemName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.rowTitle.copyWith(color: tokens.text),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '参考 ${_referenceText(item)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.rowMeta.copyWith(color: tokens.text2),
-                      ),
-                    ],
+                  child: Text(
+                    item.itemName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowTitle.copyWith(color: tokens.text),
                   ),
                 ),
-                const SizedBox(width: 12),
-                // 单位跟随数值整体右对齐；长单位用省略而不是换行拆断。
-                Flexible(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      Text(
-                        latest,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.rowValue.copyWith(
-                          color: valueColor ?? tokens.text,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _StatusBadge(
-                        result: item.latestResult,
-                        label: statusLabel,
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(width: 8),
+                _StatusBadge(result: item.latestResult, label: statusLabel),
                 const SizedBox(width: 2),
                 Icon(
                   expanded ? Icons.expand_less : Icons.expand_more,
                   size: 18,
                   color: tokens.text3,
+                ),
+              ],
+            ),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '参考 ${_referenceText(item)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    latest,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: AppType.rowValue.copyWith(
+                      color: valueColor ?? tokens.text,
+                    ),
+                  ),
                 ),
               ],
             ),

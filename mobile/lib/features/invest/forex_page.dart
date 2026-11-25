@@ -7,21 +7,24 @@ import '../../core/models/investment_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/app_typography.dart';
-import '../finance/finance_status_widgets.dart';
+import '../../theme/app_tokens.dart';
 
-/// 外汇交易：资金动态（四卡 + 明细）+ 交易记录（分页 + 净盈亏正负色）。
+/// 外汇交易：资金动态（摘要 + 柱图 + 明细）与交易记录（分页 + 净盈亏正负色）。
 ///
 /// 数据（与网页端 `pages/investment/forex.tsx` 调用一致）：
 /// - `GET /investment/funds/stats?start=&end=`：入金 / 出金 / 体验金 / 净投入 + 按日聚合；
 /// - `GET /investment/funds?page=&page_size=20`：资金明细（接口不支持日期参数，区间内本地筛选）；
 /// - `GET /investment/forex?page=&page_size=20&start=&end=`：交易记录。
 ///
-/// 页内「统计区间」是唯一时间口径：资金四卡、三色柱图、资金明细与交易记录
+/// 页内「统计区间」是唯一时间口径：资金摘要、三色柱图、资金明细与交易记录
 /// 全部由同一个 `_rangeDays` 推导出的 `start` / `end` 拉取，避免两处区间不一致。
 ///
 /// 行情与交易数据统一由网页端导入，移动端只读：本页不提供新增 / 编辑入口。
@@ -44,6 +47,9 @@ class _ForexPageState extends State<ForexPage> {
 
   /// 统计区间天数：0 = 全部，30 / 90 为近 N 天（含今天）。
   int _rangeDays = 0;
+
+  /// 当前栏目：0 = 资金动态，1 = 交易记录；分段切换只换内容，不压栈。
+  int _tab = 0;
 
   int _fundPage = 1;
   int _fundTotal = 0;
@@ -179,7 +185,7 @@ class _ForexPageState extends State<ForexPage> {
   ///
   /// 资金明细接口只支持 `page` / `page_size` / `record_type`，没有日期参数，
   /// 因此「全部」沿用服务端分页；选了区间时取满前 5 页（≤500 条）后本地按
-  /// 发生日期筛选，保证明细与四卡、柱图口径一致。
+  /// 发生日期筛选，保证明细与摘要、柱图口径一致。
   Future<({List<FundRecord> items, int total, bool hasMore})> _loadFunds(
     AppScope scope,
   ) async {
@@ -230,7 +236,7 @@ class _ForexPageState extends State<ForexPage> {
     return (items: filtered, total: filtered.length, hasMore: false);
   }
 
-  /// 切换统计区间：四卡、柱图、明细与交易记录使用同一组 `start` / `end` 重拉。
+  /// 切换统计区间：摘要、柱图、明细与交易记录使用同一组 `start` / `end` 重拉。
   void _setRange(int days) {
     if (days == _rangeDays) {
       return;
@@ -371,350 +377,323 @@ class _ForexPageState extends State<ForexPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final TextStyle? trailingStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: '外汇交易',
       // 行情与资金数据统一由网页端导入：移动端不提供新增入口，
       // 因此页面没有底栏，也没有悬浮按钮。
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready) ...<Widget>[
-                SectionCard(
-                  title: '资金动态',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 8,
-                    children: <Widget>[
-                      // 时间范围紧贴标题下方：唯一的统计口径，
-                      // 四卡、柱图、明细与交易记录都按它重拉。
-                      SegmentedButton<int>(
-                        segments: const <ButtonSegment<int>>[
-                          ButtonSegment<int>(
-                            value: 30,
-                            label: Text('近 30 天', maxLines: 1),
-                          ),
-                          ButtonSegment<int>(
-                            value: 90,
-                            label: Text('近 90 天', maxLines: 1),
-                          ),
-                          ButtonSegment<int>(
-                            value: 0,
-                            label: Text('全部', maxLines: 1),
-                          ),
-                        ],
-                        selected: <int>{_rangeDays},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (Set<int> selection) =>
-                            _setRange(selection.first),
-                      ),
-                      Text(
-                        '$_rangeLabel · 四卡、柱图、明细与交易记录同口径',
-                        style: trailingStyle,
-                      ),
-                      Text('共 $_fundTotal 笔 · 按发生日期倒序', style: trailingStyle),
-                      _FundMetrics(stats: _fundStats),
-                      _FundByDateChart(
-                        days: _fundStats?.byDate ?? const <FundDayStat>[],
-                      ),
-                      if (_funds.isEmpty)
-                        EmptyState(
-                          icon: Icons.account_balance_wallet_outlined,
-                          title: _rangeDays == 0 ? '暂无资金记录' : '该区间没有资金记录',
-                          description: _rangeDays == 0
-                              ? '资金记录由网页端导入，移动端仅支持查看'
-                              : '可切换上方「全部」查看历史记录',
-                          compact: true,
-                        )
-                      else
-                        Column(
-                          children: <Widget>[
-                            for (final FundRecord record in _funds)
-                              _FundRow(
-                                record: record,
-                                onTap: () => _openFundDetail(record),
-                              ),
-                          ],
-                        ),
-                      if (_funds.isNotEmpty)
-                        ListLoadMoreFooter(
-                          loading: _fundLoadingMore,
-                          hasMore: _fundHasMore,
-                          onPressed: _loadMoreFunds,
-                        ),
-                    ],
-                  ),
-                ),
-                SectionCard(
-                  title: '交易记录',
-                  trailing: Text(
-                    '$_rangeLabel · 共 $_tradeTotal 笔',
-                    style: trailingStyle,
-                  ),
-                  child: _trades.isEmpty
-                      ? EmptyState(
-                          icon: Icons.show_chart_outlined,
-                          title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
-                          description: _rangeDays == 0
-                              ? '交易数据由网页端导入，移动端仅支持查看'
-                              : '可切换上方「全部」查看历史记录',
-                          compact: true,
-                        )
-                      : Column(
-                          children: <Widget>[
-                            for (final ForexTrade trade in _trades)
-                              _TradeRow(
-                                trade: trade,
-                                onTap: () => _openTradeDetail(trade),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_trades.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _tradeLoadingMore,
-                    hasMore: _tradeHasMore,
-                    onPressed: _loadMoreTrades,
-                  ),
-              ],
+          // 资金与交易是并列栏目：分段切换只换内容，不压栈、不跳转。
+          V2Segmented<int>(
+            options: const <V2SegmentedOption<int>>[
+              V2SegmentedOption<int>(label: '资金动态', value: 0),
+              V2SegmentedOption<int>(label: '交易记录', value: 1),
             ],
+            selected: _tab,
+            onChanged: (int value) => setState(() => _tab = value),
+          ),
+          _rangeBar(tokens),
+          Expanded(
+            child: IndexedStack(
+              index: _tab,
+              children: <Widget>[
+                _fundTab(tokens),
+                _tradeTab(tokens),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-/// 资金四卡：累计出金 / 累计入金 / 体验金 / 净投入。
-///
-/// 数值用正文级大字（24 / 等宽数字），不用标签或徽章载体；
-/// 375 + 1.3x 下由 [FittedBox] 等比缩放，不换行、不横向滚动。
-class _FundMetrics extends StatelessWidget {
-  const _FundMetrics({required this.stats});
+  /// 统计区间控件：资金与交易共用同一口径，切换后统一重拉。
+  Widget _rangeBar(AppTokens tokens) {
+    return Row(
+      children: <Widget>[
+        Text('统计区间', style: AppType.rowMeta.copyWith(color: tokens.text2)),
+        const Spacer(),
+        SizedBox(
+          width: 186,
+          child: V2Segmented<int>(
+            compact: true,
+            options: const <V2SegmentedOption<int>>[
+              V2SegmentedOption<int>(label: '近 30 天', value: 30),
+              V2SegmentedOption<int>(label: '近 90 天', value: 90),
+              V2SegmentedOption<int>(label: '全部', value: 0),
+            ],
+            selected: _rangeDays,
+            onChanged: _setRange,
+          ),
+        ),
+      ],
+    );
+  }
 
-  final FundStats? stats;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppSemanticColors colors = context.semanticColors;
+  /// 资金栏目：摘要 + 按日柱图 + 资金明细（分页）。
+  Widget _fundTab(AppTokens tokens) {
+    final FundStats? stats = _fundStats;
     // 业务规则：净值不可能为负，0 即代表账户已无余额。
     // 后端在区间口径下会给出负数（区间净投入 + 区间盈亏），展示层一律取 0 下限。
     final double? net = stats?.net;
     final double? netFloor = net == null ? null : (net < 0 ? 0 : net);
-    return Column(
-      spacing: 12,
-      children: <Widget>[
-        Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: _FundMetric(
-                label: '累计出金',
-                value: formatUsd(stats?.withdraw),
-                color: colors.danger,
-              ),
-            ),
-            Expanded(
-              child: _FundMetric(
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        if (stats != null) ...<Widget>[
+          SummaryStrip(
+            caption: '$_rangeLabel · 共 ${formatInt(_fundTotal)} 笔资金 · '
+                '体验金 ${_usdCompact(stats.experience)}',
+            items: <StatRailItem>[
+              StatRailItem(
                 label: '累计入金',
-                value: formatUsd(stats?.deposit),
-                color: colors.success,
+                value: _usdCompact(stats.deposit),
+                color: tokens.green,
               ),
-            ),
-          ],
-        ),
-        Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: _FundMetric(
-                label: '体验金',
-                value: formatUsd(stats?.experience),
-                color: colors.warning,
+              StatRailItem(
+                label: '累计出金',
+                value: _usdCompact(stats.withdraw),
+                color: tokens.red,
               ),
-            ),
-            Expanded(
-              child: _FundMetric(
+              StatRailItem(
                 label: '净投入',
-                value: formatUsd(netFloor),
-                color: colors.info,
+                value: _usdCompact(netFloor),
+                color: tokens.accent,
               ),
+            ],
+          ),
+          if (stats.byDate.isNotEmpty) ...<Widget>[
+            const SectionHeader(title: '资金动态'),
+            // 图表卡继续用 SectionCard，交互与旧版保持一致。
+            SectionCard(
+              title: '按日资金',
+              child: _FundByDateChart(days: stats.byDate),
             ),
           ],
-        ),
-        Text(
-          '口径：区间入金 − 出金（含体验金）。展示下限为 \$0.00，'
-          '这是「区间净投入 + 区间盈亏」口径，不是账户余额。',
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
+          SectionHeader(title: '资金明细 · 共 ${formatInt(_fundTotal)} 笔'),
+          GroupCard(
+            children: _funds.isEmpty
+                ? <Widget>[
+                    EmptyState(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: _rangeDays == 0 ? '暂无资金记录' : '该区间没有资金记录',
+                      description: _rangeDays == 0
+                          ? '资金记录由网页端导入，移动端仅支持查看'
+                          : '可切换上方「全部」查看历史记录',
+                      compact: true,
+                    ),
+                  ]
+                : <Widget>[
+                    for (final FundRecord record in _funds)
+                      _FundRow(
+                        record: record,
+                        onTap: () => _openFundDetail(record),
+                      ),
+                  ],
+          ),
+          Text(
+            '口径：区间入金 − 出金（含体验金），展示下限为 \$0.00，'
+            '这是「区间净投入 + 区间盈亏」口径，不是账户余额；'
+            '摘要、柱图、明细与交易记录同口径，按发生日期倒序。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
+          ),
+        ],
       ],
+      footer: _funds.isNotEmpty
+          ? ListLoadMoreFooter(
+              loading: _fundLoadingMore,
+              hasMore: _fundHasMore,
+              onPressed: _loadMoreFunds,
+            )
+          : null,
     );
   }
-}
 
-/// 单个资金指标：大号数值 + 小号标签。
-class _FundMetric extends StatelessWidget {
-  const _FundMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 2,
-      children: <Widget>[
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            softWrap: false,
-            style: AppTypography.titleLarge.copyWith(
-              color: color,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+  /// 交易栏目：交易笔数摘要 + 交易记录（分页，净盈亏正负分色）。
+  Widget _tradeTab(AppTokens tokens) {
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SummaryStrip(
+          caption: '$_rangeLabel · 按时间倒序 · 共 ${formatInt(_tradeTotal)} 笔交易',
+          items: <StatRailItem>[
+            StatRailItem(
+              label: '交易笔数',
+              value: formatInt(_tradeTotal),
+              unit: '笔',
             ),
-          ),
+            StatRailItem(label: '统计区间', value: _rangeLabel),
+          ],
+        ),
+        SectionHeader(title: '交易记录 · 共 ${formatInt(_tradeTotal)} 笔'),
+        GroupCard(
+          children: _trades.isEmpty
+              ? <Widget>[
+                  EmptyState(
+                    icon: Icons.show_chart_outlined,
+                    title: _rangeDays == 0 ? '暂无交易记录' : '该区间没有交易记录',
+                    description: _rangeDays == 0
+                        ? '交易数据由网页端导入，移动端仅支持查看'
+                        : '可切换上方「全部」查看历史记录',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final ForexTrade trade in _trades)
+                    _TradeRow(
+                      trade: trade,
+                      onTap: () => _openTradeDetail(trade),
+                    ),
+                ],
         ),
         Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          '交易数据由网页端导入，移动端仅支持查看；'
+          '净盈亏已包含手续费与隔夜费。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
         ),
       ],
+      footer: _trades.isNotEmpty
+          ? ListLoadMoreFooter(
+              loading: _tradeLoadingMore,
+              hasMore: _tradeHasMore,
+              onPressed: _loadMoreTrades,
+            )
+          : null,
     );
   }
 }
 
-/// 单条资金明细：出金/入金/体验金 · 金额 · 日期 · 单号（四段一行）。
+/// 指标轨用的紧凑美元金额：`$1,284`（只保留整数），避免小数把格子撑破。
 ///
-/// 金额右对齐、日期定宽、单号占剩余宽度并截断；完整单号通过 [Tooltip] 给出。
+/// 明细行与图表读数仍用 [formatUsd] 保留两位小数，不丢精度。
+String _usdCompact(num? value) {
+  if (value == null) {
+    return '—';
+  }
+  final String sign = value < 0 ? '-' : '';
+  return '$sign\$${formatInt(value.abs())}';
+}
+
+/// 单条资金明细：日期 + 类型徽标在上，单号 + 金额在下。
+///
+/// 金额颜色跟随记录类型语义：入金绿、出金红、体验金琥珀；
+/// 出金不是收益，不能因为金额为正就染绿。
 class _FundRow extends StatelessWidget {
   const _FundRow({required this.record, required this.onTap});
 
   final FundRecord record;
 
-  /// 点击进入编辑页（左保存右删除）。
+  /// 点击进入只读详情。
   final VoidCallback onTap;
+
+  /// 记录类型 → 徽标色调。
+  static V2BadgeTone _tone(String type) {
+    switch (type) {
+      case 'deposit':
+        return V2BadgeTone.green;
+      case 'withdraw':
+        return V2BadgeTone.danger;
+      case 'experience':
+        return V2BadgeTone.warn;
+      default:
+        return V2BadgeTone.gray;
+    }
+  }
+
+  /// 记录类型 → 金额颜色（与徽标同一语义，出金不用绿色）。
+  static Color _amountColor(AppTokens tokens, String type) {
+    switch (type) {
+      case 'deposit':
+        return tokens.green;
+      case 'withdraw':
+        return tokens.red;
+      case 'experience':
+        return tokens.orange;
+      default:
+        return tokens.text2;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final AppSemanticColors colors = context.semanticColors;
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final Color typeColor;
-    switch (record.recordType) {
-      case 'deposit':
-        typeColor = colors.success;
-      case 'withdraw':
-        typeColor = colors.danger;
-      case 'experience':
-        typeColor = colors.warning;
-      default:
-        typeColor = muted;
-    }
-    // 金额颜色跟随记录类型语义：入金绿、出金红、体验金琥珀，
-    // 与左侧标签一致（出金不是收益，不能因为金额为正就染绿）。
-    final Color amountColor;
-    switch (record.recordType) {
-      case 'deposit':
-        amountColor = colors.success;
-      case 'withdraw':
-        amountColor = colors.danger;
-      case 'experience':
-        amountColor = colors.warning;
-      default:
-        amountColor = record.amount > 0
-            ? colors.success
-            : (record.amount < 0 ? colors.danger : muted);
-    }
-
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 2,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
+            children: <Widget>[
+              // 标题 + 类型徽标固定在上一行，数值放在下一行，行高整齐不抖动。
+              Row(
                 children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Text(
-                        record.typeLabel,
-                        maxLines: 1,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: typeColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        formatUsd(record.amount),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: amountColor,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: Text(
+                      formatListDate(record.recordDate),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
                   ),
-                  // 单号与备注独占一行，避免在 375dp 上把备注挤成 `#209 · …`。
-                  Text(
-                    '${formatListDate(record.recordDate)} · ${record.orderNo}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  const SizedBox(width: 8),
+                  V2Badge(record.typeLabel, tone: _tone(record.recordType)),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+                ],
+              ),
+              Row(
+                children: <Widget>[
+                  // 单号与备注独占下一行左侧，避免把备注挤成 `#209 · …`。
+                  Expanded(
+                    child: Text(
+                      record.orderNo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      formatUsd(record.amount),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppType.rowValue.copyWith(
+                        color: _amountColor(tokens, record.recordType),
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 单笔交易：品种 + 方向 + 时间/手数/开平仓价，右侧净盈亏（正负分色）。
+/// 单笔交易：品种 + 方向徽标在上，时间/手数/开平仓价 + 净盈亏在下。
 ///
-/// 负收益固定用 danger，绝不复用 success 色；点击进入编辑页（左保存右删除）。
+/// 负收益固定用红色，绝不复用绿色；点击进入只读详情。
 class _TradeRow extends StatelessWidget {
   const _TradeRow({required this.trade, required this.onTap});
 
   final ForexTrade trade;
 
-  /// 点击进入编辑页。
+  /// 点击进入只读详情。
   final VoidCallback onTap;
 
   /// 价格文案：百元以下保留 4 位，避免外汇报价失真。
@@ -732,94 +711,75 @@ class _TradeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final AppSemanticColors colors = context.semanticColors;
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
-      color: muted,
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
-    final Color directionColor = trade.orderType == 'sell'
-        ? colors.warning
-        : colors.info;
+    final AppTokens tokens = AppTokens.of(context);
     final Color amountColor = trade.netPnl > 0
-        ? colors.success
-        : (trade.netPnl < 0 ? colors.danger : muted);
+        ? tokens.green
+        : (trade.netPnl < 0 ? tokens.red : tokens.text2);
+    // 元信息合并成一行副信息，窄屏 / 1.3x 下最多两行，不横向滚动。
+    final String meta = <String>[
+      trade.timeText,
+      '${_lots(trade.lotSize)} 手',
+      '开 ${_price(trade.openPrice)}',
+      if (trade.closePrice != null) '平 ${_price(trade.closePrice!)}',
+    ].join(' · ');
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
+            children: <Widget>[
+              // 品种 + 方向徽标固定在上一行，净盈亏放在下一行右侧。
+              Row(
                 children: <Widget>[
-                  Row(
-                    spacing: 6,
-                    children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          trade.symbol,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        trade.orderTypeLabel,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: directionColor,
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: Text(
+                      trade.symbol,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
                   ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是截断。
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: <Widget>[
-                      Text(trade.timeText, style: metaStyle),
-                      Text('${_lots(trade.lotSize)} 手', style: metaStyle),
-                      Text('开 ${_price(trade.openPrice)}', style: metaStyle),
-                      if (trade.closePrice != null)
-                        Text(
-                          '平 ${_price(trade.closePrice!)}',
-                          style: metaStyle,
-                        ),
-                    ],
+                  const SizedBox(width: 8),
+                  V2Badge(
+                    trade.orderTypeLabel,
+                    tone: trade.orderType == 'sell'
+                        ? V2BadgeTone.warn
+                        : V2BadgeTone.info,
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+                ],
+              ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      meta,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      formatUsdSigned(trade.netPnl),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppType.rowValue.copyWith(color: amountColor),
+                    ),
                   ),
                 ],
               ),
-            ),
-            SizedBox(
-              width: 92,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  formatUsdSigned(trade.netPnl),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: amountColor,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+            ],
+          ),
         ),
       ),
     );

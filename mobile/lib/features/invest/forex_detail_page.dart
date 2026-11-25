@@ -6,9 +6,10 @@ import '../../core/models/investment_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../../theme/app_typography.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 外汇交易详情（**只读**）。
 ///
@@ -88,110 +89,92 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final ForexTrade? trade = _trade;
+    final double? pnl = trade?.pnl;
+    final Color pnlColor = pnl == null
+        ? tokens.text2
+        : (pnl >= 0 ? tokens.green : tokens.red);
 
     return DetailPageScaffold(
       title: '交易详情',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _load,
-              ),
-              if (_status == LoadStatus.ready && trade != null) ...<Widget>[
-                SectionCard(
-                  title: trade.symbol,
-                  trailing: Text(
-                    trade.isOpen ? '持仓中' : '已平仓',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: trade.isOpen
-                          ? theme.colorScheme.tertiary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 6,
-                    children: <Widget>[
-                      Text(
-                        trade.pnl == null ? '—' : formatUsdSigned(trade.pnl),
-                        style: AppTypography.amountLarge.copyWith(
-                          color: trade.pnl == null
-                              ? theme.colorScheme.onSurfaceVariant
-                              : (trade.pnl! >= 0
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.error),
-                        ),
-                      ),
-                      Text(
-                        '${trade.orderTypeLabel} · ${_plain(trade.lotSize)} 手 · 盈亏金额',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _load,
+        blocks: <Widget>[
+          if (trade != null) ...<Widget>[
+            SummaryStrip(
+              caption: '${trade.isOpen ? '持仓中' : '已平仓'} · '
+                  '${trade.orderTypeLabel} · ${_plain(trade.lotSize)} 手',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '盈亏金额',
+                  // 与旧版口径一致：详情主指标仍用盈亏（不含手续费 / 隔夜费），
+                  // 净盈亏口径在列表行展示。
+                  value: _usdSignedCompact(trade.pnl),
+                  color: pnlColor,
                 ),
-                SectionCard(
-                  title: '交易明细',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 10,
-                    children: <Widget>[
-                      _DetailRow(label: '交易日期', value: trade.tradeDate),
-                      _DetailRow(label: '品种', value: trade.symbol),
-                      _DetailRow(label: '方向', value: trade.orderTypeLabel),
-                      _DetailRow(label: '手数', value: _plain(trade.lotSize)),
-                      _DetailRow(label: '开仓价', value: _plain(trade.openPrice)),
-                      _DetailRow(
-                        label: '平仓价',
-                        value: trade.closePrice == null
-                            ? '—'
-                            : _plain(trade.closePrice!),
-                      ),
-                      _DetailRow(label: '开仓时间', value: _time(trade.openTime)),
-                      _DetailRow(label: '平仓时间', value: _time(trade.closeTime)),
-                      _DetailRow(
-                        label: '持仓时长',
-                        value: formatDuration(trade.holding),
-                      ),
-                      _DetailRow(
-                        label: '手续费',
-                        value: formatUsd(trade.commission),
-                      ),
-                      _DetailRow(
-                        label: '隔夜费',
-                        value: formatUsd(trade.overnightFee),
-                      ),
-                      _DetailRow(
-                        label: '状态',
-                        value: trade.isOpen ? '持仓中' : '已平仓',
-                      ),
-                    ],
-                  ),
+                StatRailItem(
+                  label: '手数',
+                  value: _plain(trade.lotSize),
+                  unit: '手',
                 ),
-                if (trade.note != null && trade.note!.trim().isNotEmpty)
-                  SectionCard(
-                    title: '备注',
-                    // 后端已按库内原文返回（字段名保留，不翻译、不重排），
-                    // 这里只展示一次原文，不再做可读化解析或追加释义行。
-                    child: Text(trade.note!, style: theme.textTheme.bodyMedium),
-                  ),
-                Text(
-                  '行情数据由网页端导入，移动端仅支持查看。',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                StatRailItem(
+                  label: '持仓时长',
+                  value: formatDuration(trade.holding),
                 ),
               ],
+            ),
+            const SectionHeader(title: '交易明细'),
+            GroupCard(
+              children: <Widget>[
+                _DetailRow(label: '交易日期', value: trade.tradeDate),
+                _DetailRow(label: '品种', value: trade.symbol),
+                _DetailRow(label: '方向', value: trade.orderTypeLabel),
+                _DetailRow(label: '手数', value: _plain(trade.lotSize)),
+                _DetailRow(label: '开仓价', value: _plain(trade.openPrice)),
+                _DetailRow(
+                  label: '平仓价',
+                  value: trade.closePrice == null
+                      ? '—'
+                      : _plain(trade.closePrice!),
+                ),
+                _DetailRow(label: '开仓时间', value: _time(trade.openTime)),
+                _DetailRow(label: '平仓时间', value: _time(trade.closeTime)),
+                _DetailRow(
+                  label: '持仓时长',
+                  value: formatDuration(trade.holding),
+                ),
+                _DetailRow(label: '手续费', value: formatUsd(trade.commission)),
+                _DetailRow(label: '隔夜费', value: formatUsd(trade.overnightFee)),
+                _DetailRow(
+                  label: '状态',
+                  value: trade.isOpen ? '持仓中' : '已平仓',
+                ),
+              ],
+            ),
+            if (trade.note != null && trade.note!.trim().isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '备注'),
+              // 后端已按库内原文返回（字段名保留，不翻译、不重排），
+              // 这里只展示一次原文，不再做可读化解析或追加释义行。
+              GroupCard(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      trade.note!,
+                      style: AppType.rowMeta.copyWith(color: tokens.text),
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ),
+            Text(
+              '行情数据由网页端导入，移动端仅支持查看。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
       ),
     );
@@ -218,7 +201,18 @@ class _ForexDetailPageState extends State<ForexDetailPage> {
   }
 }
 
-/// 只读字段行：左标签右值。
+/// 指标轨用的紧凑美元盈亏：`+$1,284` / `-$62`，整数避免小数把格子撑破。
+///
+/// 明细行的手续费 / 隔夜费仍用 [formatUsd] 保留两位小数，不丢精度。
+String _usdSignedCompact(num? value) {
+  if (value == null) {
+    return '—';
+  }
+  final String sign = value > 0 ? '+' : (value < 0 ? '-' : '');
+  return '$sign\$${formatInt(value.abs())}';
+}
+
+/// 只读字段行：左标签右值，数值统一等宽字阶保证右边界稳定。
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
 
@@ -227,25 +221,23 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      spacing: 12,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    final AppTokens tokens = AppTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: AppType.rowMeta.copyWith(color: tokens.text2)),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppType.rowValue.copyWith(color: tokens.text),
+            ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: theme.textTheme.bodyMedium,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
