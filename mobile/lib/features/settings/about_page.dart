@@ -119,25 +119,6 @@ class _AboutPageState extends State<AboutPage> {
               );
             },
           ),
-          const SectionHeader(title: '条款与许可'),
-          GroupCard(
-            children: <Widget>[
-              V2EntryRow(
-                icon: Icons.privacy_tip_outlined,
-                title: '隐私政策',
-                onTap: () => _showPrivacyPolicy(context),
-              ),
-              V2EntryRow(
-                icon: Icons.code_outlined,
-                title: '开源许可',
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: AppConfig.appName,
-                  applicationVersion: version,
-                ),
-              ),
-            ],
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
@@ -150,49 +131,6 @@ class _AboutPageState extends State<AboutPage> {
       ),
     );
   }
-}
-
-/// 隐私政策：说明数据去向与本地存储范围。
-///
-/// 没有后端页面可跳，内容按 App 实际行为写（自建服务端、令牌安全存储、
-/// 本地只存界面偏好、无第三方统计 SDK），避免放一个空链接。
-Future<void> _showPrivacyPolicy(BuildContext context) {
-  return showDialog<void>(
-    context: context,
-    builder: (BuildContext dialogContext) {
-      final ThemeData theme = Theme.of(dialogContext);
-      return AlertDialog(
-        title: const Text('隐私政策'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Text(
-              '1. 数据存放\n'
-              '全部业务数据保存在你自己的 LifeOS 服务端，App 只通过你配置的地址'
-              '读写，不上传任何第三方服务器。\n\n'
-              '2. 本地存储\n'
-              '登录令牌保存在系统安全存储；离线待提交的记录暂存在本机，'
-              '提交成功后即清除。\n\n'
-              '3. 设备权限\n'
-              '蓝牙权限仅用于同步体重秤读数；通知权限用于本地提醒。'
-              '两项都可随时在系统设置里关闭，不影响其它功能。\n\n'
-              '4. 统计与广告\n'
-              'App 不包含第三方广告或行为统计 SDK。\n\n'
-              '5. 删除数据\n'
-              '可在「设置 → 登录设备」下线其它设备；业务数据请在服务端删除。',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('知道了'),
-          ),
-        ],
-      );
-    },
-  );
 }
 
 /// 标签在上、值独占一行的展示块：用于包名、后端地址这类长字符串。

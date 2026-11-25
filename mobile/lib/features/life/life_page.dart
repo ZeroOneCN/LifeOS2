@@ -151,15 +151,7 @@ class _LifePageState extends State<LifePage> {
         final LifestyleOverview? data = state.data;
         final bool loading = data == null && state.status == LoadStatus.loading;
 
-        return PopScope(
-          // 根页始终不退出：栏目内按返回键先回到概览，再按一次留在概览。
-          canPop: false,
-          onPopInvokedWithResult: (bool didPop, Object? result) {
-            if (!didPop && _activeTab != 0) {
-              _openTab(0);
-            }
-          },
-          child: AnnotatedRegion<SystemUiOverlayStyle>(
+        return AnnotatedRegion<SystemUiOverlayStyle>(
             value: isDark
                 ? SystemUiOverlayStyle.light.copyWith(
                     statusBarColor: Colors.transparent,
@@ -299,8 +291,7 @@ class _LifePageState extends State<LifePage> {
                     )
                   : null,
             ),
-          ),
-        );
+          );
       },
     );
   }

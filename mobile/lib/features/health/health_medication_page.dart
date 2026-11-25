@@ -844,12 +844,14 @@ class _StockRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
+    // 余量与预警放一行；预计用完单独一行，避免长文案在行尾被拆成单个字。
     final String meta = <String>[
       '余量 ${_trim(stock.quantity)} ${stock.unit}',
       if (stock.threshold > 0) '预警 ${_trim(stock.threshold)} ${stock.unit}',
-      if (stock.predictedDate != null)
-        '预计 ${formatListDate(stock.predictedDate)} 用完',
     ].join(' · ');
+    final String? predicted = stock.predictedDate == null
+        ? null
+        : '预计 ${formatListDate(stock.predictedDate)} 用完';
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -887,10 +889,19 @@ class _StockRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       meta,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.rowMeta.copyWith(color: tokens.text2),
                     ),
+                    if (predicted != null) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        predicted,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ],
                   ],
                 ),
               ),

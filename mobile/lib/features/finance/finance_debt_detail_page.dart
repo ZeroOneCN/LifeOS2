@@ -253,14 +253,18 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
     );
   }
 
-  /// 概览句：方向 · 状态 · 对方（对方缺失时明确「未填写」）。
+  /// 概览句只补时间线：借入日期与到期日，避免与下方信息卡重复方向/对方。
   String _summaryCaption(DebtItem debt) {
-    final String counterparty = (debt.counterparty ?? '').trim();
-    return <String>[
-      debtDirectionLabel(debt.direction),
-      debtStatusLabel(debt.status),
-      counterparty.isEmpty ? '对方未填写' : counterparty,
-    ].join(' · ');
+    final String date = debt.debtDate.isEmpty
+        ? '日期未知'
+        : formatListDate(debt.debtDate);
+    final String due;
+    if (debt.dueDate == null || debt.dueDate!.isEmpty) {
+      due = debt.outstanding <= 0 ? '已结清' : '未设到期日';
+    } else {
+      due = '到期 ${formatListDate(debt.dueDate!)}';
+    }
+    return '$date · $due';
   }
 }
 
@@ -394,7 +398,7 @@ class _PaymentRow extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      item.repayDate,
+                      formatListDate(item.repayDate),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.rowTitle.copyWith(color: tokens.text),

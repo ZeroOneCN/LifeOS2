@@ -321,8 +321,9 @@ class _HealthPageState extends State<HealthPage> {
         final bool loading = data == null && state.status == LoadStatus.loading;
 
         return PopScope(
-          // 根页始终不退出：栏目内按返回键先回到概览，再按一次留在概览。
-          canPop: false,
+          // 健康页内：非「概览」栏目先回概览；已在概览则放行，
+          // 由 AppShell 统一决定「退出应用」，保证二次返回才退出。
+          canPop: _activeTab == 0,
           onPopInvokedWithResult: (bool didPop, Object? result) {
             if (!didPop && _activeTab != 0) {
               _openTab(0);

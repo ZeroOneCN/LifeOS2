@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
@@ -74,29 +75,70 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// 各分支根路由：用于区分「Tab 根页」与「分支内推入的详情页」。
+  static const Set<String> _branchRoots = <String>{
+    '/health',
+    '/finance',
+    '/life',
+    '/invest',
+    '/settings',
+  };
+
+  /// 系统返回键统一出口。
+  ///
+  /// 顺序：先退分支内详情页 → 再回健康首页 → 最后才退出应用。
+  /// 这样在任何非健康 Tab 的根页按返回都不会直接退出程序。
+  void _handleSystemBack() {
+    final GoRouter router = GoRouter.of(context);
+    final String path = GoRouterState.of(context).uri.path;
+    if (!_branchRoots.contains(path)) {
+      // 分支内还有详情 / 表单页：正常回退一级（go_router 会弹出当前分支栈顶）。
+      router.pop();
+      return;
+    }
+    if (widget.navigationShell.currentIndex != 0) {
+      // 任何 Tab 根页按返回：回到健康首页，而不是退出应用。
+      widget.navigationShell.goBranch(0, initialLocation: true);
+      _refreshOverview(0);
+      return;
+    }
+    // 已在健康首页：再按一次返回才真正退出。
+    SystemNavigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     // 底栏使用 2.0 的 surface（浅色白 / 深色 #1C1C1E），与页面分组底色分开；
     // 不画顶部分割线，层级只靠 System Blue 选中态表达。
     final AppTokens tokens = AppTokens.of(context);
-    return Scaffold(
-      backgroundColor: tokens.background,
-      body: widget.navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: widget.navigationShell.currentIndex,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        backgroundColor: tokens.surface,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        destinations: _destinations,
-        onDestinationSelected: (int index) {
-          widget.navigationShell.goBranch(
-            index,
-            initialLocation: index == widget.navigationShell.currentIndex,
-          );
-          _refreshOverview(index);
-        },
+    return PopScope(
+      // 返回键完全由 [_handleSystemBack] 接管，避免根路由直接退出应用。
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) {
+          return;
+        }
+        _handleSystemBack();
+      },
+      child: Scaffold(
+        backgroundColor: tokens.background,
+        body: widget.navigationShell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: widget.navigationShell.currentIndex,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          backgroundColor: tokens.surface,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          destinations: _destinations,
+          onDestinationSelected: (int index) {
+            widget.navigationShell.goBranch(
+              index,
+              initialLocation: index == widget.navigationShell.currentIndex,
+            );
+            _refreshOverview(index);
+          },
+        ),
       ),
     );
   }

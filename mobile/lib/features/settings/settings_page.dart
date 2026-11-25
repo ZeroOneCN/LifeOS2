@@ -39,9 +39,7 @@ class SettingsPage extends StatelessWidget {
       builder: (BuildContext context, _) {
         final AppUser? user = scope.auth.user;
         final bool offline = scope.auth.connectionFailed;
-        return PopScope(
-          canPop: false,
-          child: AnnotatedRegion<SystemUiOverlayStyle>(
+        return AnnotatedRegion<SystemUiOverlayStyle>(
             value: isDark
                 ? SystemUiOverlayStyle.light.copyWith(
                     statusBarColor: Colors.transparent,
@@ -193,8 +191,7 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        );
+          );
       },
     );
   }
