@@ -130,6 +130,16 @@ def build_pdf(*, title: str, summary: str, content) -> bytes:
 # --------------------------------------------------------------------------
 # 旅行报告内容构建
 # --------------------------------------------------------------------------
+def _format_share(amount: float, total: float) -> str:
+    """分类占比文案：非零但不足 0.1% 时写 `<0.1%`，避免显示成 0.0%。"""
+    if not total:
+        return "—"
+    share = amount / total * 100
+    if 0 < share < 0.1:
+        return "<0.1%"
+    return f"{share:.1f}%"
+
+
 def _duration_hours(begin: time | None, end: time | None) -> float:
     if not begin or not end:
         return 0.0
@@ -416,7 +426,7 @@ def build_finance_report(
                 [
                     c,
                     f"¥{a:,.2f}",
-                    f"{a / total_expense * 100:.1f}%" if total_expense else "—",
+                    _format_share(a, total_expense),
                 ]
                 for c, a in cat_expense
             ]
