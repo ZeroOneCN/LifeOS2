@@ -97,6 +97,41 @@ class SummaryStrip extends StatelessWidget {
   }
 }
 
+/// 2.0 表单错误提示条：浅色底 + 红色图标，与全局状态条同一口径。
+///
+/// 用于表单提交失败（校验 / 接口错误）时在字段上方就地提示，不弹全屏提示。
+class V2ErrorBanner extends StatelessWidget {
+  const V2ErrorBanner({super.key, required this.message});
+
+  /// 错误文案（校验提示或接口返回信息）。
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: <Widget>[
+          Icon(Icons.error_outline, size: 18, color: tokens.red),
+          Expanded(
+            child: Text(
+              message,
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// 2.0 搜索框：单行输入 + 搜索图标 + 有内容时可一键清空。
 ///
 /// 输入框本身的底色、圆角、聚焦描边由全局 `inputDecorationTheme` 统一提供，

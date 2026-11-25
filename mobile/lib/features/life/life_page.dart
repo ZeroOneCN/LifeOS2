@@ -213,8 +213,11 @@ class _LifePageState extends State<LifePage> {
                           ),
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: <Widget>[
+                            // 首次加载由 Hero 的「…」与副标题表达，不再叠加状态条；
+                            // 只有失败 / 未登录 / 连接失败才需要显性提示与重试。
                             if (state.status != LoadStatus.idle &&
-                                state.status != LoadStatus.ready) ...<Widget>[
+                                state.status != LoadStatus.ready &&
+                                state.status != LoadStatus.loading) ...<Widget>[
                               OverviewStatusBanner(
                                 status: state.status,
                                 message: state.message,

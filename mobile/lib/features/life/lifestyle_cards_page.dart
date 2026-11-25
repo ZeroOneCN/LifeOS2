@@ -10,22 +10,26 @@ import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
-import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 import 'card_form_page.dart';
 
-/// 卡片管理：合计概览 + 手机号卡 / 银行卡双 Tab 列表。
+/// 卡片管理：概览摘要 + 手机号卡 / 银行卡 / 运营商 / 卡账单四个内嵌栏目。
 ///
 /// 数据（与网页端 `pages/lifestyle/cards.tsx` 一致）：
 /// - `GET /lifestyle/bank-cards?page=&page_size=20`
 /// - `GET /lifestyle/bank-cards/stats?days=30`
 /// - `GET /lifestyle/phone-cards?page=&page_size=100`（只读，一次性加载）
 ///
-/// 两个 Tab 使用独立 `ListView`（`IndexedStack` 常驻），切换时各自保留滚动位置。
-/// Tab 组件与财务中心账单页共用 [AppTabSelector]，圆角、选中态完全一致。
+/// 四个栏目使用独立 `ListView`（`IndexedStack` 常驻），切换时不跳转、各自保留
+/// 滚动位置；新增入口放在各栏目标题右侧，避免四个栏目共用一个悬浮按钮。
 class LifestyleCardsPage extends StatefulWidget {
   const LifestyleCardsPage({super.key});
 
@@ -45,7 +49,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
-  /// 当前 Tab：0 = 手机号卡，1 = 银行卡，2 = 运营商，3 = 卡账单。
+  /// 当前栏目：0 = 手机号卡，1 = 银行卡，2 = 运营商，3 = 卡账单。
   int _tab = 0;
 
   int _page = 1;
@@ -192,7 +196,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     }
   }
 
-  /// 加载更多：追加下一页银行卡（只影响银行卡 Tab）。
+  /// 加载更多：追加下一页银行卡（只影响银行卡栏目）。
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) {
       return;
@@ -561,35 +565,56 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   @override
   Widget build(BuildContext context) {
     final BankStats? stats = _stats;
-    final bool ready = _status == LoadStatus.ready && stats != null;
-
     return DetailPageScaffold(
       title: '卡片管理',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 12,
         children: <Widget>[
-          if (!ready)
+          if (stats == null)
             Expanded(
-              child: ListView(
-                children: <Widget>[
-                  ListStatusView(
-                    status: _status,
-                    message: _message,
-                    onRetry: _refresh,
-                  ),
-                ],
+              child: ListPageBody(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
               ),
             )
           else ...<Widget>[
-            AppTabSelector(
-              labels: const <String>[
-                '手机号',
-                '银行卡',
-                '运营商',
-                '卡账单',
+            // 刷新失败但仍有旧数据：保留内容，顶部提示可重试。
+            if (_status != LoadStatus.ready && _status != LoadStatus.idle)
+              OverviewStatusBanner(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+            SummaryStrip(
+              caption: '手机号 ${formatInt(_phones.length)} 张 · '
+                  '运营商 ${formatInt(_carrierTotal)} 家 · '
+                  '卡账单 ${formatInt(_cardBillTotal)} 条',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '银行卡',
+                  value: formatInt(stats.total),
+                  unit: '张',
+                ),
+                StatRailItem(
+                  label: '卡内余额',
+                  value: formatMoney(stats.balanceTotal),
+                ),
+                StatRailItem(
+                  label: '信用额度',
+                  value: formatMoney(stats.creditTotal),
+                ),
               ],
-              value: _tab,
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '手机号', value: 0),
+                V2SegmentedOption<int>(label: '银行卡', value: 1),
+                V2SegmentedOption<int>(label: '运营商', value: 2),
+                V2SegmentedOption<int>(label: '卡账单', value: 3),
+              ],
+              selected: _tab,
               onChanged: (int index) => setState(() => _tab = index),
             ),
             Expanded(
@@ -653,7 +678,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   }
 }
 
-/// 手机号卡 Tab：独立滚动，切换不重置位置；每张卡提供充值 / 扣费 / 校准与最近流水。
+/// 手机号卡栏目：独立滚动，切换不重置位置；每张卡提供充值 / 扣费 / 校准与最近流水。
 class _PhoneTab extends StatelessWidget {
   const _PhoneTab({
     required this.phones,
@@ -680,7 +705,7 @@ class _PhoneTab extends StatelessWidget {
   final ValueChanged<PhoneCard> onEdit;
   final ValueChanged<PhoneCard> onDelete;
 
-  /// 正在补扣的卡片 id（按钮显示 loading，防止重复点击）。
+  /// 正在补扣的卡片 id（菜单显示「扣费中…」，防止重复点击）。
   final int? deductingId;
   final Set<int> expandedIds;
   final Map<int, List<PhoneLedgerEntry>> ledgers;
@@ -689,60 +714,55 @@ class _PhoneTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return ListView(
       key: const PageStorageKey<String>('lifestyle-cards-phone'),
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 16),
       children: <Widget>[
-        SectionCard(
-          title: '手机号卡',
-          trailing: _CardTabTrailing(
-            text: '共 ${formatInt(phones.length)} 张',
-            onCreate: onCreate,
-            createTooltip: '新增手机号卡',
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 4,
-            children: <Widget>[
-              Text(
-                '充值 / 扣费 / 校准直接操作，余额由后端流水自动更新。',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+        SectionHeader(
+          title: '手机号卡 · 共 ${formatInt(phones.length)} 张',
+          actionLabel: '新增',
+          onAction: onCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (phones.isEmpty)
+              const EmptyState(
+                icon: Icons.sim_card_outlined,
+                title: '暂无手机号卡',
+                description: '点「新增」录入第一张号卡',
+                compact: true,
+              )
+            else
+              for (final PhoneCard phone in phones)
+                _PhoneCardRow(
+                  card: phone,
+                  onCopy: () => onCopy(phone),
+                  onRecharge: () => onRecharge(phone),
+                  onAdjust: () => onAdjust(phone),
+                  onDeduct: () => onDeduct(phone),
+                  onEdit: () => onEdit(phone),
+                  onDelete: () => onDelete(phone),
+                  deducting: deductingId == phone.id,
+                  onToggleLedger: () => onToggleLedger(phone),
+                  ledgerExpanded: expandedIds.contains(phone.id),
+                  ledgerLoading: loadingLedgerId == phone.id,
+                  ledger: ledgers[phone.id],
                 ),
-              ),
-              if (phones.isEmpty)
-                const EmptyState(
-                  icon: Icons.sim_card_outlined,
-                  title: '暂无手机号卡',
-                  description: '点右上角「+」录入第一张号卡',
-                  compact: true,
-                )
-              else
-                for (final PhoneCard phone in phones)
-                  _PhoneCardRow(
-                    card: phone,
-                    onCopy: () => onCopy(phone),
-                    onRecharge: () => onRecharge(phone),
-                    onAdjust: () => onAdjust(phone),
-                    onDeduct: () => onDeduct(phone),
-                    onEdit: () => onEdit(phone),
-                    onDelete: () => onDelete(phone),
-                    deducting: deductingId == phone.id,
-                    onToggleLedger: () => onToggleLedger(phone),
-                    ledgerExpanded: expandedIds.contains(phone.id),
-                    ledgerLoading: loadingLedgerId == phone.id,
-                    ledger: ledgers[phone.id],
-                  ),
-            ],
-          ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '充值 / 扣费 / 校准直接操作，余额由后端流水自动更新。',
+          textAlign: TextAlign.center,
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
         ),
       ],
     );
   }
 }
 
-/// 银行卡 Tab：独立滚动 + 分页页脚。
+/// 银行卡栏目：独立滚动 + 分页页脚。
 class _BankTab extends StatelessWidget {
   const _BankTab({
     required this.cards,
@@ -770,37 +790,34 @@ class _BankTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       key: const PageStorageKey<String>('lifestyle-cards-bank'),
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 16),
       children: <Widget>[
-        SectionCard(
-          title: '银行卡',
-          trailing: _CardTabTrailing(
-            text: '共 ${formatInt(total)} 张',
-            onCreate: onCreate,
-            createTooltip: '新增银行卡',
-          ),
-          child: cards.isEmpty
-              ? const EmptyState(
-                  icon: Icons.credit_card_outlined,
-                  title: '暂无银行卡',
-                  description: '点右上角「+」录入第一张银行卡',
-                  compact: true,
-                )
-              : Column(
-                  spacing: 4,
-                  children: <Widget>[
-                    for (final BankCard card in cards)
-                      _CardRow(
-                        card: card,
-                        onCopy: () => onCopy(card),
-                        onEdit: () => onEdit(card),
-                        onDelete: () => onDelete(card),
-                      ),
-                  ],
+        SectionHeader(
+          title: '银行卡 · 共 ${formatInt(total)} 张',
+          actionLabel: '新增',
+          onAction: onCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (cards.isEmpty)
+              const EmptyState(
+                icon: Icons.credit_card_outlined,
+                title: '暂无银行卡',
+                description: '点「新增」录入第一张银行卡',
+                compact: true,
+              )
+            else
+              for (final BankCard card in cards)
+                _CardRow(
+                  card: card,
+                  onCopy: () => onCopy(card),
+                  onEdit: () => onEdit(card),
+                  onDelete: () => onDelete(card),
                 ),
+          ],
         ),
         if (cards.isNotEmpty)
-          _LoadMoreFooter(
+          ListLoadMoreFooter(
             loading: loadingMore,
             hasMore: hasMore,
             onPressed: onLoadMore,
@@ -813,7 +830,7 @@ class _BankTab extends StatelessWidget {
 /// 号码 + 余额 + 复制按钮的同一行布局。
 ///
 /// - 宽度够：一行展示「号码 · 余额 复制」，文本底部对齐（数字无降部，等同基线）。
-/// - 宽度不够（1.3x / 长号码）：余额换到第二行右对齐，号码与复制按钮留在第一行，
+/// - 宽度不够（长号码）：余额换到第二行右对齐，号码与复制按钮留在第一行，
 ///   复制按钮始终固定在行尾同一列（宽 40dp），不随号码长短漂移。
 /// - 号码永不截断成省略号，必要时按 4 位分组换行。
 class _NumberBalanceRow extends StatelessWidget {
@@ -837,6 +854,9 @@ class _NumberBalanceRow extends StatelessWidget {
   static const double _copySize = 40;
   static const double _gap = 8;
 
+  /// 用 [TextPainter] 预量单行宽度，判断号码与余额能否排在同一行。
+  ///
+  /// [text] 为待测文本，[style] 为对应字阶；返回单行渲染宽度。
   double _measure(String text, TextStyle? style) {
     final TextPainter painter = TextPainter(
       text: TextSpan(text: text, style: style),
@@ -920,6 +940,7 @@ class _CopyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     return SizedBox(
       width: 40,
       height: 40,
@@ -928,48 +949,17 @@ class _CopyButton extends StatelessWidget {
         tooltip: tooltip,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-        icon: const Icon(Icons.copy_all_outlined, size: 18),
+        icon: Icon(
+          Icons.copy_all_outlined,
+          size: 18,
+          color: tokens.text2,
+        ),
       ),
     );
   }
 }
 
-/// Tab 标题右侧：数量 + 新增入口。
-class _CardTabTrailing extends StatelessWidget {
-  const _CardTabTrailing({
-    required this.text,
-    required this.onCreate,
-    required this.createTooltip,
-  });
-
-  final String text;
-  final VoidCallback onCreate;
-  final String createTooltip;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          text,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        IconButton(
-          tooltip: createTooltip,
-          onPressed: onCreate,
-          visualDensity: VisualDensity.compact,
-          icon: const Icon(Icons.add, size: 20),
-        ),
-      ],
-    );
-  }
-}
-
-/// 运营商 Tab：名称 + 官网 / 客服 + 编辑 / 删除。
+/// 运营商栏目：名称 + 官网 / 客服 + 编辑 / 删除。
 class _CarrierTab extends StatelessWidget {
   const _CarrierTab({
     required this.carriers,
@@ -987,90 +977,73 @@ class _CarrierTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return ListView(
       key: const PageStorageKey<String>('lifestyle-cards-carrier'),
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 16),
       children: <Widget>[
-        SectionCard(
-          title: '运营商',
-          trailing: _CardTabTrailing(
-            text: '共 ${formatInt(total)} 家',
-            onCreate: onCreate,
-            createTooltip: '新增运营商',
-          ),
-          child: carriers.isEmpty
-              ? const EmptyState(
-                  icon: Icons.cell_tower_outlined,
-                  title: '暂无运营商',
-                  description: '点右上角「+」录入运营商字典',
-                  compact: true,
-                )
-              : Column(
-                  spacing: 4,
-                  children: <Widget>[
-                    for (final Carrier carrier in carriers)
-                      Row(
-                        spacing: 8,
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  carrier.name,
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                if ((carrier.website ?? '').isNotEmpty ||
-                                    (carrier.contact ?? '').isNotEmpty)
-                                  Text(
-                                    <String>[
-                                      if ((carrier.website ?? '').isNotEmpty)
-                                        carrier.website!,
-                                      if ((carrier.contact ?? '').isNotEmpty)
-                                        '客服 ${carrier.contact}',
-                                    ].join(' · '),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          PopupMenuButton<String>(
-                            tooltip: '更多操作',
-                            padding: EdgeInsets.zero,
-                            onSelected: (String value) {
-                              if (value == 'edit') {
-                                onEdit(carrier);
-                              } else {
-                                onDelete(carrier);
-                              }
-                            },
-                            itemBuilder: (BuildContext context) =>
-                                const <PopupMenuEntry<String>>[
-                              PopupMenuItem<String>(
-                                value: 'edit',
-                                child: Text('编辑'),
-                              ),
-                              PopupMenuItem<String>(
-                                value: 'delete',
-                                child: Text('删除'),
-                              ),
-                            ],
-                          ),
-                        ],
+        SectionHeader(
+          title: '运营商 · 共 ${formatInt(total)} 家',
+          actionLabel: '新增',
+          onAction: onCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (carriers.isEmpty)
+              const EmptyState(
+                icon: Icons.cell_tower_outlined,
+                title: '暂无运营商',
+                description: '点「新增」录入运营商字典',
+                compact: true,
+              )
+            else
+              for (final Carrier carrier in carriers)
+                TaskRow(
+                  title: carrier.name,
+                  subtitle: <String>[
+                    if ((carrier.website ?? '').isNotEmpty) carrier.website!,
+                    if ((carrier.contact ?? '').isNotEmpty)
+                      '客服 ${carrier.contact}',
+                  ].join(' · '),
+                  trailing: PopupMenuButton<String>(
+                    tooltip: '更多操作',
+                    icon: Icon(
+                      Icons.more_vert,
+                      size: 18,
+                      color: tokens.text3,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onSelected: (String value) {
+                      if (value == 'edit') {
+                        onEdit(carrier);
+                      } else {
+                        onDelete(carrier);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) =>
+                        <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Text('编辑'),
                       ),
-                  ],
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Text(
+                          '删除',
+                          style: TextStyle(color: tokens.red),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+          ],
         ),
       ],
     );
   }
 }
 
-/// 卡账单 Tab：月份 + 号卡 + 金额 + 扣账状态。
+/// 卡账单栏目：月份 + 金额 + 号卡 + 扣账状态。
 class _BillTab extends StatelessWidget {
   const _BillTab({
     required this.bills,
@@ -1100,87 +1073,78 @@ class _BillTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return ListView(
       key: const PageStorageKey<String>('lifestyle-cards-bill'),
-      padding: EdgeInsets.zero,
+      padding: const EdgeInsets.only(bottom: 16),
       children: <Widget>[
-        SectionCard(
-          title: '卡账单',
-          trailing: _CardTabTrailing(
-            text: '共 ${formatInt(total)} 条',
-            onCreate: onCreate,
-            createTooltip: '新增扣账账单',
-          ),
-          child: bills.isEmpty
-              ? const EmptyState(
-                  icon: Icons.receipt_long_outlined,
-                  title: '暂无卡账单',
-                  description: '点右上角「+」录入一条扣账记录',
-                  compact: true,
-                )
-              : Column(
-                  spacing: 4,
-                  children: <Widget>[
-                    for (final CardBill bill in bills)
-                      Row(
-                        spacing: 8,
-                        children: <Widget>[
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  '${bill.monthText} · ${formatMoney(bill.amount)}',
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                Text(
-                                  <String>[
-                                    _phoneText(bill.phoneCardId),
-                                    if ((bill.deductedDate ?? '').isNotEmpty)
-                                      '扣账 ${formatListDate(bill.deductedDate)}',
-                                  ].join(' · '),
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(color: muted),
-                                ),
-                              ],
-                            ),
+        SectionHeader(
+          title: '卡账单 · 共 ${formatInt(total)} 条',
+          actionLabel: '新增',
+          onAction: onCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (bills.isEmpty)
+              const EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: '暂无卡账单',
+                description: '点「新增」录入一条扣账记录',
+                compact: true,
+              )
+            else
+              for (final CardBill bill in bills)
+                TaskRow(
+                  title: '${bill.monthText} · ${formatMoney(bill.amount)}',
+                  subtitle: <String>[
+                    _phoneText(bill.phoneCardId),
+                    if ((bill.deductedDate ?? '').isNotEmpty)
+                      '扣账 ${formatListDate(bill.deductedDate)}',
+                  ].join(' · '),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 4,
+                    children: <Widget>[
+                      V2Badge(
+                        bill.paid ? '已扣' : '未扣',
+                        tone: bill.paid
+                            ? V2BadgeTone.green
+                            : V2BadgeTone.danger,
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: '更多操作',
+                        icon: Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: tokens.text3,
+                        ),
+                        padding: EdgeInsets.zero,
+                        onSelected: (String value) {
+                          if (value == 'edit') {
+                            onEdit(bill);
+                          } else {
+                            onDelete(bill);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) =>
+                            <PopupMenuEntry<String>>[
+                          const PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Text('编辑'),
                           ),
-                          Text(
-                            bill.paid ? '已扣' : '未扣',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: bill.paid
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.error,
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text(
+                              '删除',
+                              style: TextStyle(color: tokens.red),
                             ),
-                          ),
-                          PopupMenuButton<String>(
-                            tooltip: '更多操作',
-                            padding: EdgeInsets.zero,
-                            onSelected: (String value) {
-                              if (value == 'edit') {
-                                onEdit(bill);
-                              } else {
-                                onDelete(bill);
-                              }
-                            },
-                            itemBuilder: (BuildContext context) =>
-                                const <PopupMenuEntry<String>>[
-                              PopupMenuItem<String>(
-                                value: 'edit',
-                                child: Text('编辑'),
-                              ),
-                              PopupMenuItem<String>(
-                                value: 'delete',
-                                child: Text('删除'),
-                              ),
-                            ],
                           ),
                         ],
                       ),
-                  ],
+                    ],
+                  ),
                 ),
+          ],
         ),
       ],
     );
@@ -1203,46 +1167,41 @@ class _CardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
-    final TextStyle? balanceStyle = metaStyle?.copyWith(
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
-    final List<Widget> meta = <Widget>[
-      Text(cardCategoryLabel(card.cardCategory), style: metaStyle),
-      Text(cardFormLabel(card.cardForm), style: metaStyle),
-      if (card.status != 'active')
-        Text(cardStatusLabel(card.status), style: metaStyle),
-      if (card.expireDate != null && card.expireDate!.isNotEmpty)
-        Text('到期 ${formatListDate(card.expireDate)}', style: metaStyle),
-      if (card.billingText != null) Text(card.billingText!, style: metaStyle),
-    ];
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      cardCategoryLabel(card.cardCategory),
+      cardFormLabel(card.cardForm),
+      if (card.status != 'active') cardStatusLabel(card.status),
+      if ((card.expireDate ?? '').isNotEmpty)
+        '到期 ${formatListDate(card.expireDate)}',
+      if (card.billingText != null) card.billingText!,
+    ].join(' · ');
     final String balanceLabel = card.isCredit ? '额度' : '余额';
     final num? amount = card.isCredit ? card.creditLimit : card.balance;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 4,
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 4,
             children: <Widget>[
               Expanded(
                 child: Text(
                   '${card.bank} · ${card.cardName}',
                   maxLines: 2,
-                  style: theme.textTheme.titleSmall?.copyWith(
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowTitle.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: tokens.text,
                   ),
                 ),
               ),
               PopupMenuButton<String>(
                 tooltip: '更多操作',
+                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
                 padding: EdgeInsets.zero,
                 onSelected: (String value) {
                   if (value == 'edit') {
@@ -1252,26 +1211,45 @@ class _CardRow extends StatelessWidget {
                   }
                 },
                 itemBuilder: (BuildContext context) =>
-                    const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
-                  PopupMenuItem<String>(value: 'delete', child: Text('删除')),
+                    <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'edit',
+                    child: Text('编辑'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text(
+                      '删除',
+                      style: TextStyle(color: tokens.red),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
           _NumberBalanceRow(
             number: card.displayNumber,
-            numberStyle: theme.textTheme.bodyMedium?.copyWith(
+            numberStyle: AppType.rowTitle.copyWith(
               fontWeight: FontWeight.w500,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               letterSpacing: 0.4,
+              color: tokens.text,
             ),
             balanceText: '$balanceLabel ${formatMoney(amount)}',
-            balanceStyle: balanceStyle,
+            balanceStyle: AppType.rowMeta.copyWith(
+              color: tokens.text2,
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            ),
             copyTooltip: '复制卡号',
             onCopy: onCopy,
           ),
-          Wrap(spacing: 8, runSpacing: 2, children: meta),
+          if (meta.isNotEmpty)
+            Text(
+              meta,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
+            ),
         ],
       ),
     );
@@ -1281,7 +1259,7 @@ class _CardRow extends StatelessWidget {
 /// 手机号卡卡片上的写操作（收在「操作」菜单里）。
 enum _PhoneCardAction { recharge, deduct, adjust, edit, delete }
 
-/// 单张手机号卡：号码（主体）+ 余额同行 → 运营商 / 套餐 / 账期 → 一行状态与操作 → 最近流水。
+/// 单张手机号卡：号码 + 余额 → 运营商 / 套餐 / 账期 → 状态与操作 → 最近流水。
 class _PhoneCardRow extends StatelessWidget {
   const _PhoneCardRow({
     required this.card,
@@ -1336,50 +1314,56 @@ class _PhoneCardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
-    final TextStyle? balanceStyle = metaStyle?.copyWith(
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
-    final List<Widget> meta = <Widget>[
-      Text(card.operator, style: metaStyle),
-      Text(card.planText, style: metaStyle),
-      Text(_billingText, style: metaStyle),
-      if (card.status != 'active') Text(_statusText, style: metaStyle),
-      if (card.note != null && card.note!.trim().isNotEmpty)
-        Text(card.note!, style: metaStyle),
-    ];
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      card.operator,
+      card.planText,
+      _billingText,
+      if (card.status != 'active') _statusText,
+      if ((card.note ?? '').trim().isNotEmpty) card.note!.trim(),
+    ].join(' · ');
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 6,
         children: <Widget>[
           _NumberBalanceRow(
             number: card.displayNumber,
-            numberStyle: theme.textTheme.titleSmall?.copyWith(
+            numberStyle: AppType.rowTitle.copyWith(
               fontWeight: FontWeight.w700,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               letterSpacing: 0.3,
+              color: tokens.text,
             ),
             balanceText: '余额 ${card.balanceText}',
-            balanceStyle: balanceStyle,
+            balanceStyle: AppType.rowMeta.copyWith(
+              color: tokens.text2,
+              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            ),
             copyTooltip: '复制手机号',
             onCopy: onCopy,
           ),
-          Wrap(spacing: 8, runSpacing: 2, children: meta),
+          Text(
+            meta,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
+          ),
           Row(
             children: <Widget>[
               if (card.monthBillText != null)
                 Expanded(
                   child: Text(
                     card.monthBillText!,
-                    style: metaStyle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: AppType.rowMeta.copyWith(
+                      color: card.billPaidThisMonth
+                          ? tokens.text2
+                          : tokens.orange,
+                    ),
                   ),
                 )
               else
@@ -1387,8 +1371,11 @@ class _PhoneCardRow extends StatelessWidget {
               TextButton(
                 onPressed: onToggleLedger,
                 style: TextButton.styleFrom(
+                  foregroundColor: tokens.accent,
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: AppType.action.copyWith(fontSize: 13),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
                   ledgerExpanded ? '收起流水' : '最近流水',
@@ -1396,10 +1383,10 @@ class _PhoneCardRow extends StatelessWidget {
                   softWrap: false,
                 ),
               ),
-              // 三张操作按钮每卡重复一次太吵；收进「操作」菜单，
-              // 卡片只留一行状态 + 流水入口 + 一个菜单按钮。
+              // 充值 / 扣费 / 校准 / 编辑 / 删除收进「操作」菜单，卡片只留流水入口。
               PopupMenuButton<_PhoneCardAction>(
                 tooltip: '充值 / 扣费 / 校准',
+                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
                 padding: EdgeInsets.zero,
                 onSelected: (_PhoneCardAction action) {
                   switch (action) {
@@ -1439,31 +1426,22 @@ class _PhoneCardRow extends StatelessWidget {
                     value: _PhoneCardAction.edit,
                     child: Text('编辑号卡'),
                   ),
-                  const PopupMenuItem<_PhoneCardAction>(
+                  PopupMenuItem<_PhoneCardAction>(
                     value: _PhoneCardAction.delete,
-                    child: Text('删除号卡'),
+                    child: Text(
+                      '删除号卡',
+                      style: TextStyle(color: tokens.red),
+                    ),
                   ),
                 ],
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 4,
-                    children: <Widget>[
-                      const Icon(Icons.more_horiz, size: 18),
-                      Text('操作', style: theme.textTheme.bodySmall),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),
-          if (ledgerExpanded) _LedgerPanel(
-            loading: ledgerLoading,
-            entries: ledger,
-            theme: theme,
-          ),
+          if (ledgerExpanded)
+            _LedgerPanel(
+              loading: ledgerLoading,
+              entries: ledger,
+            ),
         ],
       ),
     );
@@ -1472,35 +1450,32 @@ class _PhoneCardRow extends StatelessWidget {
 
 /// 最近流水面板：最多 5 条，日期 + 类型 + 带符号金额，备注另起一行。
 class _LedgerPanel extends StatelessWidget {
-  const _LedgerPanel({
-    required this.loading,
-    required this.entries,
-    required this.theme,
-  });
+  const _LedgerPanel({required this.loading, required this.entries});
 
   final bool loading;
   final List<PhoneLedgerEntry>? entries;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final AppTokens tokens = AppTokens.of(context);
+    final TextStyle metaStyle = AppType.rowMeta.copyWith(color: tokens.text2);
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       ),
       child: loading
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Center(
                 child: SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: tokens.text2,
+                  ),
                 ),
               ),
             )
@@ -1533,68 +1508,34 @@ class _LedgerPanel extends StatelessWidget {
                                 entry.amountText,
                                 maxLines: 1,
                                 softWrap: false,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface,
+                                style: AppType.rowValue.copyWith(
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
-                                  fontFeatures: const <FontFeature>[
-                                    FontFeature.tabularFigures(),
-                                  ],
+                                  color: entry.amount > 0
+                                      ? tokens.green
+                                      : (entry.amount < 0
+                                          ? tokens.red
+                                          : tokens.text),
                                 ),
                               ),
                             ],
                           ),
-                          if (entry.note != null && entry.note!.trim().isNotEmpty)
+                          if ((entry.note ?? '').trim().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(left: 86),
-                              child: Text(entry.note!, style: metaStyle),
+                              child: Text(
+                                entry.note!.trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppType.rowMeta.copyWith(
+                                  color: tokens.text3,
+                                ),
+                              ),
                             ),
                         ],
                       ),
                   ],
                 ),
     );
-  }
-}
-
-/// 列表页「加载更多 / 已全部加载」页脚（与 B3 列表一致的交互）。
-class _LoadMoreFooter extends StatelessWidget {
-  const _LoadMoreFooter({
-    required this.loading,
-    required this.hasMore,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final bool hasMore;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (!hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          '已加载全部',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
   }
 }

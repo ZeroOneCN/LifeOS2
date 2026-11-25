@@ -7,6 +7,8 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 
 /// 物品新增 / 编辑页的路由参数：[item] 为列表快照，[categories] 为统计里的分类可选值。
 class LifestyleItemFormArgs {
@@ -322,7 +324,7 @@ class _LifestyleItemFormPageState extends State<LifestyleItemFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final bool busy = _saving || _deleting;
     final List<AppSelectOption<String>> statusOptions =
         <AppSelectOption<String>>[
@@ -377,20 +379,7 @@ class _LifestyleItemFormPageState extends State<LifestyleItemFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       SectionCard(
                         title: '基本信息',
                         child: Column(
@@ -515,9 +504,7 @@ class _LifestyleItemFormPageState extends State<LifestyleItemFormPage> {
                       Text(
                         '到期日期留空时，列表不会显示临期或过期标记。',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppType.rowMeta.copyWith(color: tokens.text3),
                       ),
                     ],
                   ),
@@ -557,11 +544,10 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       child: InputDecorator(
         decoration: InputDecoration(labelText: label),
         child: Row(
@@ -569,9 +555,9 @@ class _DateField extends StatelessWidget {
             Expanded(
               child: Text(
                 value ?? '未设置',
-                style: value == null
-                    ? theme.textTheme.bodyMedium?.copyWith(color: muted)
-                    : null,
+                style: AppType.rowTitle.copyWith(
+                  color: value == null ? tokens.text3 : tokens.text,
+                ),
               ),
             ),
             if (value != null)
@@ -580,10 +566,14 @@ class _DateField extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: Icon(Icons.close, size: 18, color: muted),
+                  child: Icon(Icons.close, size: 18, color: tokens.text2),
                 ),
               ),
-            Icon(Icons.calendar_today_outlined, size: 18, color: muted),
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 18,
+              color: tokens.text2,
+            ),
           ],
         ),
       ),

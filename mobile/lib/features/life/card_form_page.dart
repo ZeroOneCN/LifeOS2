@@ -7,6 +7,8 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 
 /// 卡片管理支持的四种对象。
 enum CardKind { phone, bank, carrier, bill }
@@ -473,7 +475,7 @@ class _CardFormPageState extends State<CardFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: widget.isEditing ? '编辑$_kindTitle' : '新增$_kindTitle',
       bottomBar: AppPrimaryButton(
@@ -484,333 +486,395 @@ class _CardFormPageState extends State<CardFormPage> {
         // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
         padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
-          SectionCard(
-            title: _kindTitle,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
-              children: <Widget>[
-                ..._fields(theme),
-                if (_error != null)
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '余额、本月扣费等派生值由后端按流水计算，表单只填写基础信息。',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: <Widget>[
+              if (_error != null) V2ErrorBanner(message: _error!),
+              ..._groups(),
+              Text(
+                '余额、本月扣费等派生值由后端按流水计算，表单只填写基础信息。',
+                textAlign: TextAlign.center,
+                style: AppType.rowMeta.copyWith(color: tokens.text3),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  /// 按类型渲染字段。
-  List<Widget> _fields(ThemeData theme) {
+  /// 按类型把字段拆成 2~4 个信息分组，逐组用 [SectionCard] 承载。
+  List<Widget> _groups() {
     switch (widget.kind) {
       case CardKind.phone:
         return <Widget>[
-          TextField(
-            controller: _phoneNumber,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: '号码'),
-          ),
-          AppSelectField<String>(
-            label: '运营商',
-            value: _operator.text.isEmpty ? _operators.first : _operator.text,
-            options: <AppSelectOption<String>>[
-              for (final String operator in _operators)
-                AppSelectOption<String>(value: operator, label: operator),
-              if (_operator.text.isNotEmpty &&
-                  !_operators.contains(_operator.text))
-                AppSelectOption<String>(
-                  value: _operator.text,
-                  label: _operator.text,
-                ),
-            ],
-            onChanged: (String value) => setState(() => _operator.text = value),
-          ),
-          TextField(
-            controller: _region,
-            decoration: const InputDecoration(
-              labelText: '归属地（可选）',
-              hintText: '如 广东-深圳',
-            ),
-          ),
-          TextField(
-            controller: _openingBalance,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: '初始余额（可选）',
-              hintText: '余额起点；日常增减请用充值 / 校准',
-            ),
-          ),
-          TextField(
-            controller: _monthlyFee,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: '月租（可选）'),
-          ),
-          TextField(
-            controller: _billDay,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '账单日（可选）',
-              hintText: '1-31',
-            ),
-          ),
-          AppSelectField<String>(
-            label: '扣费方式',
-            value: _chargeMode,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'monthly', label: '整月一次性'),
-              AppSelectOption<String>(
-                value: 'daily',
-                label: '按天摊销（扣满月租为止）',
+          SectionCard(
+            title: '号码与运营商',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _phoneNumber,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: '号码'),
               ),
-            ],
-            onChanged: (String value) => setState(() => _chargeMode = value),
+              AppSelectField<String>(
+                label: '运营商',
+                value:
+                    _operator.text.isEmpty ? _operators.first : _operator.text,
+                options: <AppSelectOption<String>>[
+                  for (final String operator in _operators)
+                    AppSelectOption<String>(value: operator, label: operator),
+                  if (_operator.text.isNotEmpty &&
+                      !_operators.contains(_operator.text))
+                    AppSelectOption<String>(
+                      value: _operator.text,
+                      label: _operator.text,
+                    ),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _operator.text = value),
+              ),
+              TextField(
+                controller: _region,
+                decoration: const InputDecoration(
+                  labelText: '归属地（可选）',
+                  hintText: '如 广东-深圳',
+                ),
+              ),
+            ]),
           ),
-          AppSelectField<String>(
-            label: '自动扣费',
-            value: _autoCharge ? 'auto' : 'manual',
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'auto', label: '每日自动结算'),
-              AppSelectOption<String>(value: 'manual', label: '仅手动补扣'),
-            ],
-            onChanged: (String value) =>
-                setState(() => _autoCharge = value == 'auto'),
+          SectionCard(
+            title: '资费与扣费',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _openingBalance,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: '初始余额（可选）',
+                  hintText: '余额起点；日常增减请用充值 / 校准',
+                ),
+              ),
+              TextField(
+                controller: _monthlyFee,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: '月租（可选）'),
+              ),
+              TextField(
+                controller: _billDay,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '账单日（可选）',
+                  hintText: '1-31',
+                ),
+              ),
+              AppSelectField<String>(
+                label: '扣费方式',
+                value: _chargeMode,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'monthly', label: '整月一次性'),
+                  AppSelectOption<String>(
+                    value: 'daily',
+                    label: '按天摊销（扣满月租为止）',
+                  ),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _chargeMode = value),
+              ),
+              AppSelectField<String>(
+                label: '自动扣费',
+                value: _autoCharge ? 'auto' : 'manual',
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'auto', label: '每日自动结算'),
+                  AppSelectOption<String>(value: 'manual', label: '仅手动补扣'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _autoCharge = value == 'auto'),
+              ),
+            ]),
           ),
-          TextField(
-            controller: _dataPlan,
-            decoration: const InputDecoration(
-              labelText: '流量套餐（可选）',
-              hintText: '如 30GB',
-            ),
+          SectionCard(
+            title: '套餐',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _dataPlan,
+                decoration: const InputDecoration(
+                  labelText: '流量套餐（可选）',
+                  hintText: '如 30GB',
+                ),
+              ),
+              TextField(
+                controller: _callPlan,
+                decoration: const InputDecoration(
+                  labelText: '通话（可选）',
+                  hintText: '如 100分钟',
+                ),
+              ),
+              TextField(
+                controller: _smsPlan,
+                decoration: const InputDecoration(
+                  labelText: '短信（可选）',
+                  hintText: '如 50条',
+                ),
+              ),
+            ]),
           ),
-          TextField(
-            controller: _callPlan,
-            decoration: const InputDecoration(
-              labelText: '通话（可选）',
-              hintText: '如 100分钟',
-            ),
-          ),
-          TextField(
-            controller: _smsPlan,
-            decoration: const InputDecoration(
-              labelText: '短信（可选）',
-              hintText: '如 50条',
-            ),
-          ),
-          _DateField(
-            label: '开卡时间（可选）',
-            value: _openDate,
-            onTap: () => _pickDate(
-              (String value) => _openDate = value,
-              _openDate,
-            ),
-          ),
-          AppSelectField<String>(
-            label: '付费方式',
-            value: _billingType,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'monthly', label: '按月'),
-              AppSelectOption<String>(value: 'one_time', label: '一次性'),
-              AppSelectOption<String>(value: 'yearly', label: '按年保号'),
-            ],
-            onChanged: (String value) => setState(() => _billingType = value),
-          ),
-          AppSelectField<String>(
-            label: '状态',
-            value: _phoneStatus,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'active', label: '正常'),
-              AppSelectOption<String>(value: 'frozen', label: '冻结'),
-              AppSelectOption<String>(value: 'expired', label: '已过期'),
-              AppSelectOption<String>(value: 'disabled', label: '已销户'),
-            ],
-            onChanged: (String value) => setState(() => _phoneStatus = value),
-          ),
-          TextField(
-            controller: _phoneNote,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: '备注（可选）'),
+          SectionCard(
+            title: '时间与状态',
+            child: _fieldColumn(<Widget>[
+              _DateField(
+                label: '开卡时间（可选）',
+                value: _openDate,
+                onTap: () => _pickDate(
+                  (String value) => _openDate = value,
+                  _openDate,
+                ),
+              ),
+              AppSelectField<String>(
+                label: '付费方式',
+                value: _billingType,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'monthly', label: '按月'),
+                  AppSelectOption<String>(value: 'one_time', label: '一次性'),
+                  AppSelectOption<String>(value: 'yearly', label: '按年保号'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _billingType = value),
+              ),
+              AppSelectField<String>(
+                label: '状态',
+                value: _phoneStatus,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'active', label: '正常'),
+                  AppSelectOption<String>(value: 'frozen', label: '冻结'),
+                  AppSelectOption<String>(value: 'expired', label: '已过期'),
+                  AppSelectOption<String>(value: 'disabled', label: '已销户'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _phoneStatus = value),
+              ),
+              TextField(
+                controller: _phoneNote,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: '备注（可选）'),
+              ),
+            ]),
           ),
         ];
       case CardKind.bank:
         return <Widget>[
-          TextField(
-            controller: _cardName,
-            decoration: const InputDecoration(
-              labelText: '卡片别名',
-              hintText: '如 招行工资卡、中信i白金',
-            ),
+          SectionCard(
+            title: '卡片信息',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _cardName,
+                decoration: const InputDecoration(
+                  labelText: '卡片别名',
+                  hintText: '如 招行工资卡、中信i白金',
+                ),
+              ),
+              TextField(
+                controller: _cardHolder,
+                decoration: const InputDecoration(labelText: '持卡人（可选）'),
+              ),
+              TextField(
+                controller: _bank,
+                decoration: const InputDecoration(
+                  labelText: '银行',
+                  hintText: '发卡银行，如 招商银行',
+                ),
+              ),
+              AppSelectField<String>(
+                label: '卡类型',
+                value: _cardCategory,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'debit', label: '储蓄卡'),
+                  AppSelectOption<String>(value: 'credit', label: '信用卡'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _cardCategory = value),
+              ),
+              AppSelectField<String>(
+                label: '卡形态',
+                value: _cardForm,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'physical', label: '实体卡'),
+                  AppSelectOption<String>(value: 'virtual', label: '虚拟卡'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _cardForm = value),
+              ),
+              TextField(
+                controller: _cardNumber,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: '卡号（可选）'),
+              ),
+            ]),
           ),
-          TextField(
-            controller: _cardHolder,
-            decoration: const InputDecoration(labelText: '持卡人（可选）'),
+          SectionCard(
+            title: '余额与额度',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _cardBalance,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: '余额（可选）'),
+              ),
+              TextField(
+                controller: _creditLimit,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: '信用额度（可选）'),
+              ),
+            ]),
           ),
-          TextField(
-            controller: _bank,
-            decoration: const InputDecoration(
-              labelText: '银行',
-              hintText: '发卡银行，如 招商银行',
-            ),
+          SectionCard(
+            title: '账单与有效期',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _billingDay,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '账单日（可选）',
+                  hintText: '1-31',
+                ),
+              ),
+              TextField(
+                controller: _dueDay,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: '还款日（可选）',
+                  hintText: '1-31',
+                ),
+              ),
+              _DateField(
+                label: '有效期（可选）',
+                value: _expireDate,
+                onTap: () => _pickDate(
+                  (String value) => _expireDate = value,
+                  _expireDate,
+                ),
+              ),
+            ]),
           ),
-          AppSelectField<String>(
-            label: '卡类型',
-            value: _cardCategory,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'debit', label: '储蓄卡'),
-              AppSelectOption<String>(value: 'credit', label: '信用卡'),
-            ],
-            onChanged: (String value) => setState(() => _cardCategory = value),
-          ),
-          AppSelectField<String>(
-            label: '卡形态',
-            value: _cardForm,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'physical', label: '实体卡'),
-              AppSelectOption<String>(value: 'virtual', label: '虚拟卡'),
-            ],
-            onChanged: (String value) => setState(() => _cardForm = value),
-          ),
-          TextField(
-            controller: _cardNumber,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '卡号（可选）'),
-          ),
-          TextField(
-            controller: _cardBalance,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: '余额（可选）'),
-          ),
-          TextField(
-            controller: _creditLimit,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: '信用额度（可选）'),
-          ),
-          TextField(
-            controller: _billingDay,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '账单日（可选）',
-              hintText: '1-31',
-            ),
-          ),
-          TextField(
-            controller: _dueDay,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: '还款日（可选）',
-              hintText: '1-31',
-            ),
-          ),
-          _DateField(
-            label: '有效期（可选）',
-            value: _expireDate,
-            onTap: () => _pickDate(
-              (String value) => _expireDate = value,
-              _expireDate,
-            ),
-          ),
-          AppSelectField<String>(
-            label: '状态',
-            value: _bankStatus,
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'active', label: '正常'),
-              AppSelectOption<String>(value: 'frozen', label: '冻结'),
-              AppSelectOption<String>(value: 'expired', label: '已过期'),
-              AppSelectOption<String>(value: 'closed', label: '已注销'),
-            ],
-            onChanged: (String value) => setState(() => _bankStatus = value),
-          ),
-          TextField(
-            controller: _bankNote,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: '备注（可选）'),
+          SectionCard(
+            title: '状态与备注',
+            child: _fieldColumn(<Widget>[
+              AppSelectField<String>(
+                label: '状态',
+                value: _bankStatus,
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'active', label: '正常'),
+                  AppSelectOption<String>(value: 'frozen', label: '冻结'),
+                  AppSelectOption<String>(value: 'expired', label: '已过期'),
+                  AppSelectOption<String>(value: 'closed', label: '已注销'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _bankStatus = value),
+              ),
+              TextField(
+                controller: _bankNote,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: '备注（可选）'),
+              ),
+            ]),
           ),
         ];
       case CardKind.carrier:
         return <Widget>[
-          TextField(
-            controller: _carrierName,
-            decoration: const InputDecoration(labelText: '平台名称'),
-          ),
-          TextField(
-            controller: _carrierWebsite,
-            decoration: const InputDecoration(labelText: '官网/链接（可选）'),
-          ),
-          TextField(
-            controller: _carrierContact,
-            decoration: const InputDecoration(labelText: '客服电话（可选）'),
-          ),
-          TextField(
-            controller: _carrierNote,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: '备注（可选）'),
+          SectionCard(
+            title: '平台信息',
+            child: _fieldColumn(<Widget>[
+              TextField(
+                controller: _carrierName,
+                decoration: const InputDecoration(labelText: '平台名称'),
+              ),
+              TextField(
+                controller: _carrierWebsite,
+                decoration: const InputDecoration(labelText: '官网/链接（可选）'),
+              ),
+              TextField(
+                controller: _carrierContact,
+                decoration: const InputDecoration(labelText: '客服电话（可选）'),
+              ),
+              TextField(
+                controller: _carrierNote,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: '备注（可选）'),
+              ),
+            ]),
           ),
         ];
       case CardKind.bill:
         return <Widget>[
-          AppSelectField<String>(
-            label: '手机号',
-            value: _billPhoneId,
-            options: <AppSelectOption<String>>[
-              const AppSelectOption<String>(value: '', label: '请选择手机号卡'),
-              for (final PhoneCard phone in _phoneOptions)
-                AppSelectOption<String>(
-                  value: '${phone.id}',
-                  label: phone.phoneNumber,
+          SectionCard(
+            title: '账单信息',
+            child: _fieldColumn(<Widget>[
+              AppSelectField<String>(
+                label: '手机号',
+                value: _billPhoneId,
+                options: <AppSelectOption<String>>[
+                  const AppSelectOption<String>(value: '', label: '请选择手机号卡'),
+                  for (final PhoneCard phone in _phoneOptions)
+                    AppSelectOption<String>(
+                      value: '${phone.id}',
+                      label: phone.phoneNumber,
+                    ),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _billPhoneId = value),
+              ),
+              _DateField(
+                label: '账单月份',
+                value: _billMonth,
+                onTap: () => _pickDate(
+                  (String value) => _billMonth = value,
+                  _billMonth,
                 ),
-            ],
-            onChanged: (String value) => setState(() => _billPhoneId = value),
-          ),
-          _DateField(
-            label: '账单月份',
-            value: _billMonth,
-            onTap: () => _pickDate(
-              (String value) => _billMonth = value,
-              _billMonth,
-            ),
-          ),
-          TextField(
-            controller: _billAmount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: '扣账金额'),
-          ),
-          _DateField(
-            label: '扣账日期（可选）',
-            value: _deductedDate,
-            onTap: () => _pickDate(
-              (String value) => _deductedDate = value,
-              _deductedDate,
-            ),
-          ),
-          AppSelectField<String>(
-            label: '是否扣账成功',
-            value: _billPaid ? 'true' : 'false',
-            options: const <AppSelectOption<String>>[
-              AppSelectOption<String>(value: 'true', label: '成功'),
-              AppSelectOption<String>(value: 'false', label: '失败/待扣'),
-            ],
-            onChanged: (String value) =>
-                setState(() => _billPaid = value == 'true'),
-          ),
-          TextField(
-            controller: _billNote,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: '备注（可选）'),
+              ),
+              TextField(
+                controller: _billAmount,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: '扣账金额'),
+              ),
+              _DateField(
+                label: '扣账日期（可选）',
+                value: _deductedDate,
+                onTap: () => _pickDate(
+                  (String value) => _deductedDate = value,
+                  _deductedDate,
+                ),
+              ),
+              AppSelectField<String>(
+                label: '是否扣账成功',
+                value: _billPaid ? 'true' : 'false',
+                options: const <AppSelectOption<String>>[
+                  AppSelectOption<String>(value: 'true', label: '成功'),
+                  AppSelectOption<String>(value: 'false', label: '失败/待扣'),
+                ],
+                onChanged: (String value) =>
+                    setState(() => _billPaid = value == 'true'),
+              ),
+              TextField(
+                controller: _billNote,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: '备注（可选）'),
+              ),
+            ]),
           ),
         ];
     }
+  }
+
+  /// 分组内的字段纵向排列，统一 12dp 间距。
+  Widget _fieldColumn(List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: children,
+    );
   }
 }
 
@@ -828,19 +892,23 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+          suffixIcon: Icon(
+            Icons.calendar_today_outlined,
+            size: 18,
+            color: tokens.text2,
+          ),
         ),
         child: Text(
           value ?? '未选择',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: value == null ? theme.colorScheme.onSurfaceVariant : null,
+          style: AppType.rowTitle.copyWith(
+            color: value == null ? tokens.text3 : tokens.text,
           ),
         ),
       ),

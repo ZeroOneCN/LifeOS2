@@ -6,12 +6,13 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/lifestyle_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../../theme/app_theme.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'lifestyle_item_form_page.dart';
 
 /// 物品追踪：汇总（数量 / 价值 / 临期 / 过期）+ 状态分布 + 物品分页。
@@ -207,177 +208,111 @@ class _LifestyleItemsPageState extends State<LifestyleItemsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final ItemStats? stats = _stats;
 
     return DetailPageScaffold(
       title: '物品追踪',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '近 30 天临期口径',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '物品总数',
-                              value: formatInt(stats.total),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '使用中',
-                              value: formatInt(stats.inUse),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '总价值',
-                              value: formatMoney(stats.totalValue),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '日均成本',
-                              value: formatMoney(stats.avgDailyCost),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '临期',
-                              value: formatInt(stats.expiring),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '已过期',
-                              value: formatInt(stats.expired),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (stats != null) ...<Widget>[
+            SummaryStrip(
+              caption: '使用中 ${formatInt(stats.inUse)} 件 · '
+                  '日均成本 ${formatMoney(stats.avgDailyCost)} · '
+                  '总价值 ${formatMoney(stats.totalValue)}',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '物品总数',
+                  value: formatInt(stats.total),
+                  unit: '件',
                 ),
-                if (stats.byStatus.isNotEmpty)
-                  SectionCard(
-                    title: '状态分布',
+                StatRailItem(
+                  label: '临期',
+                  value: formatInt(stats.expiring),
+                  unit: '件',
+                  color: tokens.orange,
+                ),
+                StatRailItem(
+                  label: '已过期',
+                  value: formatInt(stats.expired),
+                  unit: '件',
+                  color: tokens.red,
+                ),
+              ],
+            ),
+            if (stats.byStatus.isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '状态分布'),
+              GroupCard(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.all(14),
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: <Widget>[
-                        for (final LabelCount item in stats.byStatus)
-                          _CountChip(
-                            label: itemStatusLabel(item.label),
-                            count: item.count,
+                        for (final LabelCount entry in stats.byStatus)
+                          V2Badge(
+                            '${itemStatusLabel(entry.label)} '
+                            '${formatInt(entry.count)}',
+                            tone: _statusTone(entry.label),
                           ),
                       ],
                     ),
                   ),
-                SectionCard(
-                  title: '全部物品',
-                  trailing: AppPrimaryAction(
-                    label: '新增物品',
-                    onPressed: _openCreate,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      if (_total > 0)
-                        Text(
-                          '共 $_total 条 · 按购买日期倒序',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      if (_items.isEmpty)
-                        const EmptyState(
-                          icon: Icons.inventory_2_outlined,
-                          title: '暂无物品',
-                          description: '点右上角「新增物品」录入第一件',
-                          compact: true,
-                        )
-                      else
-                        Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final LifestyleItem item in _items)
-                              _ItemRow(
-                                item: item,
-                                onTap: () => _openEdit(item),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-                if (_items.isNotEmpty)
-                  _LoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+                ],
+              ),
             ],
-          ),
+            SectionHeader(
+              title: '全部物品 · 共 ${formatInt(_total)} 件',
+              actionLabel: '新增物品',
+              onAction: _openCreate,
+            ),
+            GroupCard(
+              children: <Widget>[
+                if (_items.isEmpty)
+                  const EmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: '暂无物品',
+                    description: '点「新增物品」录入第一件',
+                    compact: true,
+                  )
+                else
+                  for (final LifestyleItem item in _items)
+                    _ItemRow(item: item, onTap: () => _openEdit(item)),
+              ],
+            ),
+          ],
         ],
+        footer: _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
 }
 
-/// 状态分布小标签：`使用中 374`。
-class _CountChip extends StatelessWidget {
-  const _CountChip({required this.label, required this.count});
-
-  final String label;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        '$label ${formatInt(count)}',
-        maxLines: 1,
-        style: theme.textTheme.bodySmall,
-      ),
-    );
+/// 物品状态 → 徽标色调：使用中绿色、借出橙色、丢失红色、回收灰色。
+V2BadgeTone _statusTone(String status) {
+  switch (status) {
+    case 'in_use':
+      return V2BadgeTone.green;
+    case 'loaned':
+      return V2BadgeTone.warn;
+    case 'lost':
+      return V2BadgeTone.danger;
+    default:
+      return V2BadgeTone.gray;
   }
 }
 
-/// 单件物品：名称 + 购买日期/分类/位置 + 价格与到期提示。
+/// 单件物品：名称 + 购买日期/分类/位置 → 价格与到期徽标。
 ///
 /// 到期日为空的物品不显示任何临期/过期标记，避免把「未填」误判为过期。
 class _ItemRow extends StatelessWidget {
@@ -388,145 +323,92 @@ class _ItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
+    final AppTokens tokens = AppTokens.of(context);
     final ItemExpiry? expiry = item.expiryInfo();
-    final List<Widget> meta = <Widget>[
-      if (item.purchaseDate != null && item.purchaseDate!.isNotEmpty)
-        Text('购入 ${formatListDate(item.purchaseDate)}', style: metaStyle),
-      if (item.category.isNotEmpty) Text(item.category, style: metaStyle),
-      if (item.location != null && item.location!.isNotEmpty)
-        Text(item.location!, style: metaStyle),
-      if (item.status != 'in_use')
-        Text(itemStatusLabel(item.status), style: metaStyle),
-      if (item.expireDate != null && item.expireDate!.isNotEmpty)
-        Text('到期 ${formatListDate(item.expireDate)}', style: metaStyle),
-    ];
+    final String meta = <String>[
+      if ((item.purchaseDate ?? '').isNotEmpty)
+        '购入 ${formatListDate(item.purchaseDate)}',
+      if (item.category.trim().isNotEmpty) item.category.trim(),
+      if ((item.location ?? '').trim().isNotEmpty) item.location!.trim(),
+      if (item.status != 'in_use') itemStatusLabel(item.status),
+      if ((item.expireDate ?? '').isNotEmpty)
+        '到期 ${formatListDate(item.expireDate)}',
+    ].join(' · ');
+    final bool showExpiry = expiry != null && expiry.daysLeft <= 30;
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.itemName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    if (meta.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   Text(
-                    item.itemName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
+                    formatMoney(item.price),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(
+                      color:
+                          item.price == null ? tokens.text3 : tokens.text,
+                    ),
                   ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                  Wrap(spacing: 8, runSpacing: 2, children: meta),
+                  if (showExpiry) ...<Widget>[
+                    const SizedBox(height: 4),
+                    V2Badge(
+                      _expiryLabel(expiry),
+                      tone: expiry.isExpired
+                          ? V2BadgeTone.danger
+                          : V2BadgeTone.warn,
+                    ),
+                  ],
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                Text(
-                  formatMoney(item.price),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                if (expiry != null)
-                  _ExpiryLabel(expiry: expiry, style: metaStyle),
-              ],
-            ),
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-/// 到期提示：已过期为红色、30 天内临期为橙色，更远则不显示。
-class _ExpiryLabel extends StatelessWidget {
-  const _ExpiryLabel({required this.expiry, this.style});
-
-  final ItemExpiry expiry;
-  final TextStyle? style;
-
-  @override
-  Widget build(BuildContext context) {
-    final int left = expiry.daysLeft;
-    if (left > 30) {
-      return const SizedBox.shrink();
+  /// 到期文案：过期 / 今天 / 剩余天数。
+  static String _expiryLabel(ItemExpiry expiry) {
+    if (expiry.isExpired) {
+      return '已过期 ${-expiry.daysLeft} 天';
     }
-    final Color color = expiry.isExpired
-        ? context.semanticColors.danger
-        : context.semanticColors.warning;
-    final String text = expiry.isExpired
-        ? '已过期 ${-left} 天'
-        : (left == 0 ? '今天到期' : '还剩 $left 天');
-    return Text(
-      text,
-      maxLines: 1,
-      softWrap: false,
-      style: style?.copyWith(color: color),
-    );
-  }
-}
-
-/// 列表页「加载更多 / 已全部加载」页脚（与 B3 列表一致的交互）。
-class _LoadMoreFooter extends StatelessWidget {
-  const _LoadMoreFooter({
-    required this.loading,
-    required this.hasMore,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final bool hasMore;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
+    if (expiry.daysLeft == 0) {
+      return '今天到期';
     }
-    if (!hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          '已加载全部',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
+    return '剩 ${expiry.daysLeft} 天';
   }
 }

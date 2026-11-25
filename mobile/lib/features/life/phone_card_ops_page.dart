@@ -7,6 +7,7 @@ import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 import '../../theme/app_tokens.dart';
 
 /// 手机号卡充值与校准的共用地基：取卡信息、日期选择、金额输入与提交。
@@ -179,8 +180,7 @@ class _PhoneRechargePageState extends State<PhoneRechargePage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        _ErrorBanner(message: _error!),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       if (card != null)
                         SectionCard(
                           title: '当前卡片',
@@ -409,8 +409,7 @@ class _PhoneAdjustPageState extends State<PhoneAdjustPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        _ErrorBanner(message: _error!),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       if (card != null)
                         SectionCard(
                           title: '当前卡片',
@@ -559,34 +558,3 @@ class _DateField extends StatelessWidget {
   }
 }
 
-/// 顶部错误提示条：浅色底 + 红色图标，与全局状态条同一口径。
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppTokens tokens = AppTokens.of(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: tokens.fill2,
-        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 8,
-        children: <Widget>[
-          Icon(Icons.error_outline, size: 18, color: tokens.red),
-          Expanded(
-            child: Text(
-              message,
-              style: AppType.rowMeta.copyWith(color: tokens.text2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
