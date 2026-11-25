@@ -19,10 +19,12 @@ class StatRailItem {
   final Color? color;
 }
 
-/// 2.0 三格指标轨：白底分组卡 + 发丝线分隔，数字等宽右对齐。
+/// 2.0 指标轨：白底分组卡 + 发丝线分隔，数字等宽右对齐。
+///
+/// 常见为 3 项；信息较少时允许 2 项，最多 4 项，等宽分配避免数字被挤压。
 class StatRail extends StatelessWidget {
   const StatRail({super.key, required this.items})
-    : assert(items.length == 3, '指标轨固定 3 项');
+    : assert(items.length >= 2 && items.length <= 4, '指标轨支持 2~4 项');
 
   final List<StatRailItem> items;
 

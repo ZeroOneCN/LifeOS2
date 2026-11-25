@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../theme/app_typography.dart';
+import '../../shared/widgets/section_card.dart';
+import '../../theme/app_tokens.dart';
 
 /// 服务器地址设置页：编辑 + 校验 + 持久化 + 立即更新 ApiClient。
 class ServerConfigPage extends StatefulWidget {
@@ -97,62 +99,55 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: '服务器地址',
+      bottomBar: AppPrimaryButton(label: '保存', onPressed: _save),
       child: Form(
         key: _formKey,
         autovalidateMode: AutovalidateMode.onUserInteraction,
         child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
           children: <Widget>[
-            Text(
-              '请求前缀',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            SectionCard(
+              title: '接口地址',
+              child: TextFormField(
+                controller: _controller,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: const InputDecoration(
+                  hintText: 'http://192.168.1.10:9015/api/v1',
+                  helperText: '需包含 /api/v1；真机不能用 127.0.0.1',
+                  helperMaxLines: 2,
+                ),
+                validator: _validate,
               ),
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _controller,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              enableSuggestions: false,
-              style: AppTypography.amountMedium,
-              decoration: const InputDecoration(
-                hintText: 'http://192.168.1.10:9015/api/v1',
-                helperText: '需包含 /api/v1；真机不能用 127.0.0.1',
-              ),
-              validator: _validate,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '更新服务器地址（可选）',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            SectionCard(
+              title: '更新服务器',
+              child: TextFormField(
+                controller: _updateController,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(
+                  hintText: _derivedUpdateBase,
+                  helperText: '留空 = 跟随上面的服务器地址；只填 http(s)://host:port',
+                  helperMaxLines: 2,
+                ),
+                validator: _validateUpdate,
               ),
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _updateController,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              enableSuggestions: false,
-              style: AppTypography.amountMedium,
-              decoration: InputDecoration(
-                hintText: _derivedUpdateBase,
-                helperText: '留空 = 跟随上面的服务器地址；只填 http(s)://host:port',
-              ),
-              validator: _validateUpdate,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _save, child: const Text('保存')),
-            const SizedBox(height: 16),
-            Text(
-              '保存后立即生效并持久化；鉴权、401 自动刷新与令牌轮换'
-              '由 ApiClient 统一处理。检查更新使用更新服务器地址下载 APK，'
-              '局域网 IP 变化后在这里单独改即可。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                '保存后立即生效并持久化；鉴权、401 自动刷新与令牌轮换'
+                '由 ApiClient 统一处理。检查更新使用更新服务器地址下载 APK，'
+                '局域网 IP 变化后在这里单独改即可。',
+                style: AppType.rowMeta.copyWith(color: tokens.text3),
               ),
             ),
           ],

@@ -8,9 +8,10 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../finance/finance_status_widgets.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 登录设备：列出当前账号的活跃会话，支持下线其他设备（只读列表 + 单台下线）。
 ///
@@ -273,8 +274,7 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final List<_LoginSession> all = _sessions ?? const <_LoginSession>[];
     final String query = _query.trim().toLowerCase();
     final List<_LoginSession> sessions = query.isEmpty
@@ -288,93 +288,79 @@ class _DeviceSessionsPageState extends State<DeviceSessionsPage> {
             ].join(' ').toLowerCase();
             return haystack.contains(query);
           }).toList();
+    final int others =
+        all.where((_LoginSession session) => !session.isCurrent).length;
 
     return DetailPageScaffold(
       title: '登录设备',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          SummaryStrip(
+            items: <StatRailItem>[
+              StatRailItem(label: '登录会话', value: '${all.length}'),
+              StatRailItem(label: '当前设备', value: '${all.length - others}'),
+              StatRailItem(
+                label: '其他设备',
+                value: '$others',
+                color: others > 0 ? tokens.orange : null,
               ),
-              if (_status == LoadStatus.ready) ...<Widget>[
-                // 会话多时（实测 29 台）没有搜索只能逐条翻；按设备名 / IP /
-                // 最近活跃时间过滤。
-                TextField(
-                  controller: _search,
-                  onChanged: (String value) => setState(() => _query = value),
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: '搜索设备名、IP 或时间',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: '清空搜索',
-                            icon: const Icon(Icons.close, size: 18),
-                            onPressed: () {
-                              _search.clear();
-                              setState(() => _query = '');
-                            },
-                          ),
-                  ),
-                ),
-                SectionCard(
-                  title: query.isEmpty
-                      ? '活跃会话（${all.length}）'
-                      : '活跃会话（${sessions.length} / ${all.length}）',
-                  trailing: TextButton(
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(64, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    onPressed: _refresh,
-                    child: const Text('刷新'),
-                  ),
-                  child: sessions.isEmpty
-                      ? EmptyState(
-                          icon: Icons.devices_other,
-                          title: query.isEmpty ? '暂无活跃会话' : '没有匹配的设备',
-                          description: query.isEmpty
-                              ? '当前账号没有可显示的登录会话'
-                              : '换个关键字，或点搜索框右侧清空',
-                          compact: true,
-                        )
-                      : Column(
-                          children: <Widget>[
-                            for (int i = 0; i < sessions.length; i++) ...<Widget>[
-                              if (i > 0) const Divider(height: 16),
-                              _SessionRow(
-                                session: sessions[i],
-                                revoking: _revokingId == sessions[i].id,
-                                onRevoke: _revokingId == null
-                                    ? () => _revoke(sessions[i])
-                                    : null,
-                              ),
-                            ],
-                          ],
-                        ),
-                ),
-                // 会话多时逐条下线成本高：后端 `revoke-others` 以当前 refresh_token
-                // 识别本机会话，只清理其余设备，不会把本机踢下线。
-                if (all.any((_LoginSession s) => !s.isCurrent))
-                  AppSecondaryButton(
-                    label: '下线其他所有设备（${all.where((_LoginSession s) => !s.isCurrent).length}）',
-                    icon: Icons.phonelink_erase,
-                    onPressed: _revokingId == null ? _revokeOthers : null,
-                  ),
-                Text(
-                  '当前设备不能在这里下线，如需退出请到设置页点「退出」。'
-                  '时间以服务器记录为准。',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ],
+          ),
+          // 会话多时（实测 29 台）没有搜索只能逐条翻；按设备名 / IP /
+          // 最近活跃时间过滤。
+          V2SearchField(
+            controller: _search,
+            hint: '搜索设备名、IP 或时间',
+            onChanged: (String value) => setState(() => _query = value),
+          ),
+          SectionHeader(
+            title: query.isEmpty
+                ? '活跃会话（${all.length}）'
+                : '活跃会话（${sessions.length} / ${all.length}）',
+            actionLabel: '刷新',
+            onAction: _refresh,
+          ),
+          if (sessions.isEmpty)
+            GroupCard(
+              children: <Widget>[
+                EmptyState(
+                  icon: Icons.devices_other,
+                  title: query.isEmpty ? '暂无活跃会话' : '没有匹配的设备',
+                  description: query.isEmpty
+                      ? '当前账号没有可显示的登录会话'
+                      : '换个关键字，或点搜索框右侧清空',
+                  compact: true,
                 ),
               ],
-            ],
+            )
+          else
+            GroupCard(
+              children: <Widget>[
+                for (final _LoginSession session in sessions)
+                  _SessionRow(
+                    session: session,
+                    revoking: _revokingId == session.id,
+                    onRevoke: _revokingId == null
+                        ? () => _revoke(session)
+                        : null,
+                  ),
+              ],
+            ),
+          // 会话多时逐条下线成本高：后端 `revoke-others` 以当前 refresh_token
+          // 识别本机会话，只清理其余设备，不会把本机踢下线。
+          if (others > 0)
+            AppSecondaryButton(
+              label: '下线其他所有设备（$others）',
+              icon: Icons.phonelink_erase,
+              onPressed: _revokingId == null ? _revokeOthers : null,
+            ),
+          Text(
+            '当前设备不能在这里下线，如需退出请到设置页点「退出」。'
+            '时间以服务器记录为准。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
           ),
         ],
       ),
@@ -396,89 +382,89 @@ class _SessionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final String label = _deviceLabel(session.device);
     // 原始 UA 很长，1.3x 下只能显示半截；改展示解析后的「浏览器 · 系统」摘要，
     // 完整 UA 仍保留在下线确认弹窗里，需要核对时可以看全。
     final String? detail = _deviceDetail(session.device);
+    final Color markColor = session.isCurrent ? tokens.accent : tokens.text2;
+    final TextStyle metaStyle = AppType.statLabel.copyWith(color: tokens.text3);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 10,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(
-            session.isCurrent ? Icons.smartphone : Icons.devices_other,
-            size: 20,
-            color: session.isCurrent ? theme.colorScheme.primary : muted,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: markColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              session.isCurrent ? Icons.smartphone : Icons.devices_other,
+              size: 17,
+              color: markColor,
+            ),
           ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 3,
-            children: <Widget>[
-              Row(
-                spacing: 6,
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: theme.textTheme.bodyMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 3,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowTitle.copyWith(color: tokens.text),
+                      ),
                     ),
-                  ),
-                  if (session.isCurrent)
-                    const StatusChip(label: '当前设备', tone: StatusTone.info),
-                ],
-              ),
-              if (detail != null)
-                Text(
-                  detail,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    fontSize: 11,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    if (session.isCurrent) ...<Widget>[
+                      const SizedBox(width: 6),
+                      const V2Badge('当前设备', tone: V2BadgeTone.info),
+                    ],
+                  ],
                 ),
-              Wrap(
-                spacing: 10,
-                runSpacing: 2,
-                children: <Widget>[
+                if (detail != null)
                   Text(
-                    '最近活跃：${_displayTime(session.lastUsedAt)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    detail,
+                    style: AppType.rowMeta.copyWith(
+                      color: tokens.text2,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    '登录于：${_displayTime(session.createdAt)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  Text(
-                    'IP：${session.ip ?? '—'}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  Text(
-                    '会话 #${session.id}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                ],
-              ),
-            ],
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 2,
+                  children: <Widget>[
+                    Text('最近活跃：${_displayTime(session.lastUsedAt)}', style: metaStyle),
+                    Text('登录于：${_displayTime(session.createdAt)}', style: metaStyle),
+                    Text('IP：${session.ip ?? '—'}', style: metaStyle),
+                    Text('会话 #${session.id}', style: metaStyle),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-        if (!session.isCurrent)
-          AppDangerButton(
-            label: revoking ? '下线中…' : '下线',
-            icon: Icons.logout,
-            compact: true,
-            loading: revoking,
-            onPressed: onRevoke,
-          ),
-      ],
+          if (!session.isCurrent) ...<Widget>[
+            const SizedBox(width: 8),
+            AppDangerButton(
+              label: revoking ? '下线中…' : '下线',
+              icon: Icons.logout,
+              compact: true,
+              loading: revoking,
+              onPressed: onRevoke,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -102,12 +102,14 @@ class AppSecondaryButton extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.loading = false,
     this.compact = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final bool loading;
   final bool compact;
 
   @override
@@ -121,18 +123,26 @@ class AppSecondaryButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(kAppButtonRadius),
       ),
     );
-    return icon == null
-        ? OutlinedButton(
-            onPressed: onPressed,
-            style: style,
-            child: _ButtonLabel(label),
-          )
-        : OutlinedButton.icon(
-            onPressed: onPressed,
-            style: style,
-            icon: Icon(icon, size: 18),
-            label: _ButtonLabel(label),
-          );
+    final IconData? glyph = icon;
+    if (glyph == null && !loading) {
+      return OutlinedButton(
+        onPressed: onPressed,
+        style: style,
+        child: _ButtonLabel(label),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: loading ? null : onPressed,
+      style: style,
+      icon: loading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(glyph, size: 18),
+      label: _ButtonLabel(label),
+    );
   }
 }
 

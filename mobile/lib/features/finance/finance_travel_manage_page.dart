@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 旅行字典维护：行程账本（名称 / 起止日期 / 备注）与支付方式（名称）。
 ///
@@ -249,86 +253,91 @@ class _FinanceTravelManagePageState extends State<FinanceTravelManagePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: '行程与支付方式',
       child: ListView(
-          // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
-          padding: const EdgeInsets.only(bottom: 24),
-          children: <Widget>[
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              Column(
-                spacing: 8,
+        // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
+        padding: const EdgeInsets.only(bottom: 24),
+        children: <Widget>[
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null)
+            OverviewStatusBanner(
+              status: LoadStatus.failed,
+              message: _error,
+              onRetry: _refresh,
+            )
+          else ...<Widget>[
+            SectionHeader(
+              title: '行程账本（${_ledgers.length}）',
+              actionLabel: '新增',
+              onAction: () => _openLedgerForm(),
+            ),
+            if (_ledgers.isEmpty)
+              GroupCard(
                 children: <Widget>[
-                  Text(
-                    '加载失败：$_error',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium,
+                  EmptyState(
+                    icon: Icons.luggage_outlined,
+                    title: '暂无行程',
+                    description: '新增行程后可把旅行消费归到对应账本',
+                    compact: true,
+                    actionLabel: '新增行程',
+                    onAction: () => _openLedgerForm(),
                   ),
-                  TextButton(onPressed: _refresh, child: const Text('重试')),
                 ],
               )
-            else ...<Widget>[
-              SectionCard(
-                title: '行程账本',
-                trailing: TextButton.icon(
-                  onPressed: () => _openLedgerForm(),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新增'),
-                ),
-                child: _ledgers.isEmpty
-                    ? Text(
-                        '暂无行程，点右上角「新增」创建',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : Column(
-                        children: <Widget>[
-                          for (final _Ledger ledger in _ledgers)
-                            _DictionaryRow(
-                              title: ledger.name,
-                              subtitle: ledger.rangeText,
-                              onEdit: () => _openLedgerForm(ledger),
-                              onDelete: () => _deleteLedger(ledger),
-                            ),
-                        ],
-                      ),
+            else
+              GroupCard(
+                children: <Widget>[
+                  for (final _Ledger ledger in _ledgers)
+                    _DictionaryRow(
+                      title: ledger.name,
+                      subtitle: ledger.rangeText,
+                      onEdit: () => _openLedgerForm(ledger),
+                      onDelete: () => _deleteLedger(ledger),
+                    ),
+                ],
               ),
-              const SizedBox(height: 12),
-              SectionCard(
-                title: '支付方式',
-                trailing: TextButton.icon(
-                  onPressed: () => _openChannelForm(),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新增'),
-                ),
-                child: _channels.isEmpty
-                    ? Text(
-                        '暂无支付方式，点右上角「新增」创建',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : Column(
-                        children: <Widget>[
-                          for (final _Channel channel in _channels)
-                            _DictionaryRow(
-                              title: channel.name,
-                              onEdit: () => _openChannelForm(channel),
-                              onDelete: () => _deleteChannel(channel),
-                            ),
-                        ],
-                      ),
+            SectionHeader(
+              title: '支付方式（${_channels.length}）',
+              actionLabel: '新增',
+              onAction: () => _openChannelForm(),
+            ),
+            if (_channels.isEmpty)
+              GroupCard(
+                children: <Widget>[
+                  EmptyState(
+                    icon: Icons.credit_card_outlined,
+                    title: '暂无支付方式',
+                    description: '新增后记账时可直接选择',
+                    compact: true,
+                    actionLabel: '新增支付方式',
+                    onAction: () => _openChannelForm(),
+                  ),
+                ],
+              )
+            else
+              GroupCard(
+                children: <Widget>[
+                  for (final _Channel channel in _channels)
+                    _DictionaryRow(
+                      title: channel.name,
+                      onEdit: () => _openChannelForm(channel),
+                      onDelete: () => _deleteChannel(channel),
+                    ),
+                ],
               ),
-            ],
+            Text(
+              '删除行程不会删除其下明细，明细会显示为「未归属行程」。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
           ],
-        ),
+        ],
+      ),
     );
   }
 }
@@ -414,43 +423,65 @@ class _DictionaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        spacing: 8,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(title, style: theme.textTheme.bodyMedium),
-                if (subtitle != null && subtitle!.isNotEmpty)
-                  Text(
-                    subtitle!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+    final AppTokens tokens = AppTokens.of(context);
+    final String? sub = subtitle;
+    return InkWell(
+      onTap: onEdit,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
+                    if (sub != null && sub.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: '更多操作',
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+                onSelected: (String value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'edit',
+                    child: Text('编辑'),
                   ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: '更多操作',
-            padding: EdgeInsets.zero,
-            onSelected: (String value) {
-              if (value == 'edit') {
-                onEdit();
-              } else {
-                onDelete();
-              }
-            },
-            itemBuilder: (BuildContext context) => const <PopupMenuEntry<String>>[
-              PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
-              PopupMenuItem<String>(value: 'delete', child: Text('删除')),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('删除', style: TextStyle(color: tokens.red)),
+                  ),
+                ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 
 /// 账户设置：基本资料编辑（昵称 / 邮箱 / 手机 / 签名）+ 登录密码修改。
 ///
@@ -214,168 +216,132 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final bool ready = _status == LoadStatus.ready;
+    final AppTokens tokens = AppTokens.of(context);
 
     return DetailPageScaffold(
       title: '账户设置',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _load,
-              ),
-              if (ready) ...<Widget>[
-                SectionCard(
-                  title: '基本资料',
-                  child: Form(
-                    key: _profileForm,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 12,
-                      children: <Widget>[
-                        TextFormField(
-                          controller: _nickname,
-                          maxLength: 20,
-                          decoration: const InputDecoration(
-                            labelText: '昵称',
-                            counterText: '',
-                          ),
-                          validator: (String? value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return '昵称不能为空';
-                            }
-                            return null;
-                          },
-                        ),
-                        TextFormField(
-                          controller: _email,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: '邮箱',
-                            hintText: '可选',
-                          ),
-                          validator: (String? value) {
-                            final String text = (value ?? '').trim();
-                            if (text.isEmpty) {
-                              return null;
-                            }
-                            final bool valid = RegExp(
-                              r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                            ).hasMatch(text);
-                            return valid ? null : '邮箱格式不正确';
-                          },
-                        ),
-                        TextFormField(
-                          controller: _phone,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: '手机号',
-                            hintText: '可选',
-                          ),
-                        ),
-                        TextFormField(
-                          controller: _signature,
-                          maxLength: 60,
-                          decoration: const InputDecoration(
-                            labelText: '个性签名',
-                            hintText: '可选，展示在个人资料中',
-                            counterText: '',
-                          ),
-                        ),
-                        SizedBox(
-                          height: 48,
-                          child: FilledButton(
-                            onPressed: _savingProfile ? null : _saveProfile,
-                            child: _savingProfile
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('保存资料'),
-                          ),
-                        ),
-                      ],
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _load,
+        blocks: <Widget>[
+          SectionCard(
+            title: '基本资料',
+            child: Form(
+              key: _profileForm,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: <Widget>[
+                  TextFormField(
+                    controller: _nickname,
+                    maxLength: 20,
+                    decoration: const InputDecoration(
+                      labelText: '昵称',
+                      counterText: '',
+                    ),
+                    validator: (String? value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return '昵称不能为空';
+                      }
+                      return null;
+                    },
+                  ),
+                  TextFormField(
+                    controller: _email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: '邮箱',
+                      hintText: '可选',
+                    ),
+                    validator: (String? value) {
+                      final String text = (value ?? '').trim();
+                      if (text.isEmpty) {
+                        return null;
+                      }
+                      final bool valid = RegExp(
+                        r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                      ).hasMatch(text);
+                      return valid ? null : '邮箱格式不正确';
+                    },
+                  ),
+                  TextFormField(
+                    controller: _phone,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: '手机号',
+                      hintText: '可选',
                     ),
                   ),
-                ),
-                SectionCard(
-                  title: '登录密码',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: <Widget>[
-                      if (_account.isNotEmpty)
-                        Text(
-                          '账号：$_account',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      if (_hasPassword)
-                        TextFormField(
-                          controller: _currentPassword,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: '当前密码',
-                          ),
-                        )
-                      else
-                        Text(
-                          '当前账号尚未设置密码；填写新密码即可设置。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      TextFormField(
-                        controller: _newPassword,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: '新密码',
-                          hintText: '至少 6 位',
-                        ),
-                      ),
-                      TextFormField(
-                        controller: _confirmPassword,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: '确认新密码',
-                        ),
-                      ),
-                      SizedBox(
-                        height: 48,
-                        child: FilledButton.tonal(
-                          onPressed: _savingPassword ? null : _savePassword,
-                          child: _savingPassword
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('修改密码'),
-                        ),
-                      ),
-                      Text(
-                        '密码修改成功后立即生效，其他设备上的登录状态不受影响。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                  TextFormField(
+                    controller: _signature,
+                    maxLength: 60,
+                    decoration: const InputDecoration(
+                      labelText: '个性签名',
+                      hintText: '可选，展示在个人资料中',
+                      counterText: '',
+                    ),
+                  ),
+                  AppPrimaryButton(
+                    label: '保存资料',
+                    icon: null,
+                    loading: _savingProfile,
+                    onPressed: _saveProfile,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SectionCard(
+            title: '登录密码',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: <Widget>[
+                if (_account.isNotEmpty)
+                  Text(
+                    '账号：$_account',
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                if (_hasPassword)
+                  TextFormField(
+                    controller: _currentPassword,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: '当前密码',
+                    ),
+                  )
+                else
+                  Text(
+                    '当前账号尚未设置密码；填写新密码即可设置。',
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                TextFormField(
+                  controller: _newPassword,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '新密码',
+                    hintText: '至少 6 位',
                   ),
                 ),
+                TextFormField(
+                  controller: _confirmPassword,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '确认新密码',
+                  ),
+                ),
+                AppSecondaryButton(
+                  label: '修改密码',
+                  loading: _savingPassword,
+                  onPressed: _savePassword,
+                ),
+                Text(
+                  '密码修改成功后立即生效，其他设备上的登录状态不受影响。',
+                  style: AppType.rowMeta.copyWith(color: tokens.text3),
+                ),
               ],
-            ],
+            ),
           ),
         ],
       ),

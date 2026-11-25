@@ -9,8 +9,10 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'report_actions.dart';
 
 /// 报告列表页：财务 / 投资 / 健康 / 生活报告共用，按 [ReportSource] 区分数据源。
@@ -242,10 +244,11 @@ class _ReportListPageState extends State<ReportListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final TextStyle? trailingStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final ReportSummaryItem? latest = _items.isEmpty ? null : _items.first;
+    // 指标格宽度有限，只放「月-日」；完整生成时间仍在行内副标题里。
+    final Match? match = RegExp(
+      r'\d{4}-(\d{2}-\d{2})',
+    ).firstMatch(latest?.createdAt ?? '');
 
     return DetailPageScaffold(
       title: widget.source.pageTitle,
@@ -254,50 +257,54 @@ class _ReportListPageState extends State<ReportListPage> {
         icon: Icons.auto_awesome_outlined,
         onPressed: _openGenerate,
       ),
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          SummaryStrip(
+            items: <StatRailItem>[
+              StatRailItem(label: '报告总数', value: '$_total', unit: '份'),
+              StatRailItem(
+                label: '最近生成',
+                value: match == null ? '—' : match[1]!,
               ),
-              if (_status == LoadStatus.ready)
-                SectionCard(
-                  title: '历史报告',
-                  trailing: Text('共 $_total 份', style: trailingStyle),
-                  child: _items.isEmpty
-                      ? EmptyState(
-                          icon: Icons.description_outlined,
-                          title: '暂无报告',
-                          description: widget.source.emptyDescription,
-                          compact: true,
-                        )
-                      : Column(
-                          children: <Widget>[
-                            for (final ReportSummaryItem item in _items)
-                              _ReportRow(
-                                item: item,
-                                onOpen: () => _openDetail(item),
-                                onExport: () => _export(item),
-                                onDelete: () => _delete(item),
-                              ),
-                            if (widget.source.listPaginated)
-                              ListLoadMoreFooter(
-                                loading: _loadingMore,
-                                hasMore: _hasMore,
-                                onPressed: _loadMore,
-                              ),
-                          ],
-                        ),
-                ),
             ],
           ),
+          const SectionHeader(title: '历史报告'),
+          if (_items.isEmpty)
+            GroupCard(
+              children: <Widget>[
+                EmptyState(
+                  icon: Icons.description_outlined,
+                  title: '暂无报告',
+                  description: widget.source.emptyDescription,
+                  compact: true,
+                  actionLabel: '生成报告',
+                  onAction: _openGenerate,
+                ),
+              ],
+            )
+          else
+            GroupCard(
+              children: <Widget>[
+                for (final ReportSummaryItem item in _items)
+                  _ReportRow(
+                    item: item,
+                    onOpen: () => _openDetail(item),
+                    onExport: () => _export(item),
+                    onDelete: () => _delete(item),
+                  ),
+              ],
+            ),
         ],
+        footer: widget.source.listPaginated && _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
@@ -322,12 +329,7 @@ class _ReportRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle = theme.textTheme.bodySmall?.copyWith(
-      color: muted,
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
+    final AppTokens tokens = AppTokens.of(context);
     final String title = item.rangeText.isNotEmpty
         ? item.rangeText
         : (item.displayTitle.isNotEmpty ? item.displayTitle : '报告 #${item.id}');
@@ -336,63 +338,76 @@ class _ReportRow extends StatelessWidget {
         : '编号 #${item.id}';
     return InkWell(
       onTap: onOpen,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-        child: Row(
-          spacing: 10,
-          children: <Widget>[
-            Icon(Icons.description_outlined, size: 20, color: muted),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: const <FontFeature>[
-                        FontFeature.tabularFigures(),
-                      ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: tokens.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.description_outlined,
+                  size: 17,
+                  color: tokens.accent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
+              ),
+              // 导出 / 删除收进菜单，避免每行堆两个按钮。
+              PopupMenuButton<String>(
+                tooltip: '报告操作',
+                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+                onSelected: (String value) {
+                  if (value == 'export') {
+                    onExport();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'export',
+                    child: Text('导出 PDF'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text(
+                      '删除',
+                      style: TextStyle(color: tokens.red),
                     ),
                   ),
-                  // 生成时间单独一行，1.3x 下也不会被挤掉。
-                  Text(meta, style: metaStyle),
                 ],
               ),
-            ),
-            // 导出 / 删除收进菜单，避免每行堆两个按钮。
-            PopupMenuButton<String>(
-              tooltip: '报告操作',
-              icon: Icon(Icons.more_vert, size: 20, color: muted),
-              onSelected: (String value) {
-                if (value == 'export') {
-                  onExport();
-                } else if (value == 'delete') {
-                  onDelete();
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
-                  value: 'export',
-                  child: Text('导出 PDF'),
-                ),
-                PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Text(
-                    '删除',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );

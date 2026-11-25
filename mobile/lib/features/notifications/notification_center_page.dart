@@ -8,8 +8,11 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 通知中心：未读/总数概览 + 分页列表 + 全部标记已读。
 ///
@@ -326,115 +329,78 @@ class _NotificationCenterPageState extends State<NotificationCenterPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final TextStyle? muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final AppTokens tokens = AppTokens.of(context);
     final List<AppNotification> visible = _onlyUnread
         ? _items.where((AppNotification item) => !item.read).toList()
         : _items;
 
     return DetailPageScaffold(
       title: '通知中心',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          SummaryStrip(
+            items: <StatRailItem>[
+              StatRailItem(
+                label: '未读',
+                value: '$_unread',
+                color: _unread > 0 ? tokens.orange : null,
               ),
-              if (_status == LoadStatus.ready) ...<Widget>[
-                // 分页之外补一个轻量筛选：只看未读（对已加载页生效）。
-                Row(
-                  spacing: 8,
-                  children: <Widget>[
-                    FilterChip(
-                      label: const Text('全部'),
-                      selected: !_onlyUnread,
-                      onSelected: (_) => setState(() => _onlyUnread = false),
-                    ),
-                    FilterChip(
-                      label: Text('未读 $_unread'),
-                      selected: _onlyUnread,
-                      onSelected: (_) => setState(() => _onlyUnread = true),
-                    ),
-                  ],
-                ),
-                SectionCard(
-                  title: '全部通知',
-                  trailing: Text(
-                    _onlyUnread
-                        ? '未读 ${visible.length} / 共 $_total 条'
-                        : '共 $_total 条',
-                    style: muted,
-                  ),
-                  child: visible.isEmpty
-                      ? EmptyState(
-                          icon: Icons.notifications_none,
-                          title: _onlyUnread ? '没有未读通知' : '暂无通知',
-                          description: _onlyUnread
-                              ? (_items.isEmpty
-                                  ? '系统与业务提醒会出现在这里'
-                                  : '已加载的通知都已读，可切回「全部」')
-                              : '系统与业务提醒会出现在这里',
-                          compact: true,
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          spacing: 0,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    '未读 $_unread 条',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: muted,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: _unread == 0 || _markingAll
-                                      ? null
-                                      : _markAllRead,
-                                  child: _markingAll
-                                      ? const SizedBox(
-                                          width: 14,
-                                          height: 14,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Text('全部标记已读'),
-                                ),
-                              ],
-                            ),
-                            for (final AppNotification item in visible) ...<Widget>[
-                              const Divider(height: 1),
-                              _NotificationTile(
-                                item: item,
-                                expanded: _expanded.contains(item.id),
-                                marking: _markingId == item.id,
-                                onTap: () => _onTap(item),
-                              ),
-                            ],
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+              StatRailItem(label: '已读', value: '${_total - _unread}'),
+              StatRailItem(label: '全部', value: '$_total'),
             ],
           ),
+          // 分页之外补一个轻量筛选：只看未读（对已加载页生效）。
+          V2Segmented<bool>(
+            options: <V2SegmentedOption<bool>>[
+              const V2SegmentedOption<bool>(label: '全部', value: false),
+              V2SegmentedOption<bool>(label: '未读 $_unread', value: true),
+            ],
+            selected: _onlyUnread,
+            onChanged: (bool value) => setState(() => _onlyUnread = value),
+          ),
+          SectionHeader(
+            title: _onlyUnread ? '未读 ${visible.length} 条' : '全部通知',
+            actionLabel: _markingAll ? '处理中…' : '全部标记已读',
+            onAction: _unread == 0 || _markingAll ? null : _markAllRead,
+          ),
+          if (visible.isEmpty)
+            GroupCard(
+              children: <Widget>[
+                EmptyState(
+                  icon: Icons.notifications_none,
+                  title: _onlyUnread ? '没有未读通知' : '暂无通知',
+                  description: _onlyUnread
+                      ? (_items.isEmpty
+                          ? '系统与业务提醒会出现在这里'
+                          : '已加载的通知都已读，可切回「全部」')
+                      : '系统与业务提醒会出现在这里',
+                  compact: true,
+                ),
+              ],
+            )
+          else
+            GroupCard(
+              children: <Widget>[
+                for (final AppNotification item in visible)
+                  _NotificationTile(
+                    item: item,
+                    expanded: _expanded.contains(item.id),
+                    marking: _markingId == item.id,
+                    onTap: () => _onTap(item),
+                  ),
+              ],
+            ),
         ],
+        footer: _items.isEmpty
+            ? null
+            : ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              ),
       ),
     );
   }
@@ -456,10 +422,7 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
+    final AppTokens tokens = AppTokens.of(context);
     // 标题里已经带了日期（如「花呗2 2026-11-08 应还」），正文/摘要再写一遍
     // 「应还日期 2026-11-08」就是重复；同一日期只保留在正文与来源行里。
     final String body = _formatText(item.content ?? '');
@@ -470,25 +433,22 @@ class _NotificationTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 6,
           children: <Widget>[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.only(top: 7),
+                  padding: const EdgeInsets.only(top: 7, right: 8),
                   child: Container(
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: item.read
-                          ? Colors.transparent
-                          : theme.colorScheme.primary,
+                      color: item.read ? Colors.transparent : tokens.accent,
                     ),
                   ),
                 ),
@@ -500,20 +460,25 @@ class _NotificationTile extends StatelessWidget {
                       // 标题里带「平台 + 期次 + 日期」，1 行必被截断，给到 2 行。
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      style: AppType.rowTitle.copyWith(
+                        color: tokens.text,
                         fontWeight:
                             item.read ? FontWeight.w400 : FontWeight.w600,
                       ),
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 if (marking)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 2),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
                     child: SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: tokens.text2,
+                      ),
                     ),
                   )
                 else
@@ -522,7 +487,7 @@ class _NotificationTile extends StatelessWidget {
                     child: Icon(
                       expanded ? Icons.expand_less : Icons.expand_more,
                       size: 18,
-                      color: muted,
+                      color: tokens.text3,
                     ),
                   ),
               ],
@@ -533,34 +498,35 @@ class _NotificationTile extends StatelessWidget {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(item.category, style: metaStyle),
-                ),
+                V2Badge(item.category),
                 if (item.sourceLabel != null)
-                  Text('来源 ${item.sourceLabel}', style: metaStyle),
-                Text(item.notifyDate, style: metaStyle),
+                  Text(
+                    '来源 ${item.sourceLabel}',
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                Text(
+                  item.notifyDate,
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
+                ),
               ],
             ),
             if (expanded) ...<Widget>[
               if (content.trim().isNotEmpty)
-                Text(content, style: theme.textTheme.bodySmall),
+                Text(
+                  content,
+                  style: AppType.rowMeta.copyWith(color: tokens.text),
+                ),
               if (item.note != null && item.note!.trim().isNotEmpty)
                 Text(
                   '备注：${_formatText(item.note!)}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
                 ),
             ] else if (summary.isNotEmpty)
               Text(
                 summary,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                style: AppType.rowMeta.copyWith(color: tokens.text2),
               ),
           ],
         ),

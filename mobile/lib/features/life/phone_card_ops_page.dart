@@ -7,6 +7,7 @@ import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../theme/app_tokens.dart';
 
 /// 手机号卡充值与校准的共用地基：取卡信息、日期选择、金额输入与提交。
 ///
@@ -158,7 +159,7 @@ class _PhoneRechargePageState extends State<PhoneRechargePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final PhoneCard? card = _card;
     return DetailPageScaffold(
       title: '手机号卡充值',
@@ -179,7 +180,7 @@ class _PhoneRechargePageState extends State<PhoneRechargePage> {
                     spacing: 12,
                     children: <Widget>[
                       if (_error != null)
-                        _ErrorBanner(message: _error!, theme: theme),
+                        _ErrorBanner(message: _error!),
                       if (card != null)
                         SectionCard(
                           title: '当前卡片',
@@ -232,9 +233,7 @@ class _PhoneRechargePageState extends State<PhoneRechargePage> {
                       Text(
                         '充值后余额由后端流水重新求和，返回列表会自动刷新。',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppType.rowMeta.copyWith(color: tokens.text3),
                       ),
                     ],
                   ),
@@ -390,7 +389,7 @@ class _PhoneAdjustPageState extends State<PhoneAdjustPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final PhoneCard? card = _card;
     return DetailPageScaffold(
       title: '手机号卡校准',
@@ -411,7 +410,7 @@ class _PhoneAdjustPageState extends State<PhoneAdjustPage> {
                     spacing: 12,
                     children: <Widget>[
                       if (_error != null)
-                        _ErrorBanner(message: _error!, theme: theme),
+                        _ErrorBanner(message: _error!),
                       if (card != null)
                         SectionCard(
                           title: '当前卡片',
@@ -467,9 +466,7 @@ class _PhoneAdjustPageState extends State<PhoneAdjustPage> {
                       Text(
                         '后端按「真实余额 − 账面余额」生成一条差额流水；差额为 0 不会落账。',
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        style: AppType.rowMeta.copyWith(color: tokens.text3),
                       ),
                     ],
                   ),
@@ -488,8 +485,7 @@ class _CardSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 4,
@@ -497,9 +493,11 @@ class _CardSummary extends StatelessWidget {
         Text(
           card.displayNumber,
           maxLines: 2,
-          style: theme.textTheme.titleSmall?.copyWith(
+          overflow: TextOverflow.ellipsis,
+          style: AppType.rowTitle.copyWith(
+            fontSize: 17,
             fontWeight: FontWeight.w600,
-            fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            color: tokens.text,
           ),
         ),
         Wrap(
@@ -508,11 +506,11 @@ class _CardSummary extends StatelessWidget {
           children: <Widget>[
             Text(
               card.operator,
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
             ),
             Text(
               '余额 ${card.balanceText}',
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
             ),
           ],
         ),
@@ -535,19 +533,24 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       child: InputDecorator(
         decoration: InputDecoration(labelText: label),
         child: Row(
           children: <Widget>[
-            Expanded(child: Text(value)),
+            Expanded(
+              child: Text(
+                value,
+                style: AppType.rowTitle.copyWith(color: tokens.text),
+              ),
+            ),
             Icon(
               Icons.calendar_today_outlined,
               size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: tokens.text2,
             ),
           ],
         ),
@@ -556,26 +559,33 @@ class _DateField extends StatelessWidget {
   }
 }
 
-/// 顶部错误提示条。
+/// 顶部错误提示条：浅色底 + 红色图标，与全局状态条同一口径。
 class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message, required this.theme});
+  const _ErrorBanner({required this.message});
 
   final String message;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       ),
-      child: Text(
-        message,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onErrorContainer,
-        ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: <Widget>[
+          Icon(Icons.error_outline, size: 18, color: tokens.red),
+          Expanded(
+            child: Text(
+              message,
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
+            ),
+          ),
+        ],
       ),
     );
   }

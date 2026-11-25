@@ -12,6 +12,9 @@ import '../../core/update/update_service.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 
 /// 检查更新页：展示当前/最新版本，下载带进度，校验 SHA-256 后拉起系统安装器。
 ///
@@ -236,7 +239,7 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final AppScope scope = AppScope.of(context);
     return ListenableBuilder(
       listenable: scope.update,
@@ -244,14 +247,65 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
         final UpdateController update = scope.update;
         final ReleaseInfo? release = update.latest;
         final bool available = update.hasUpdate && release != null;
+        final String? status = _statusText(update);
+
+        // 主操作常驻底栏：有更新时是「下载并安装」，下载中是「取消下载」，
+        // 无更新时退回「重新检查」，三种状态位置不变。
+        final Widget bottomBar;
+        if (_downloading) {
+          bottomBar = AppSecondaryButton(
+            label: '取消下载',
+            icon: Icons.close,
+            onPressed: () => _cancelToken?.cancel(),
+          );
+        } else if (available) {
+          bottomBar = AppPrimaryButton(
+            label: _readyFile == null ? '下载并安装' : '重新安装',
+            icon: Icons.system_update_alt,
+            onPressed: _readyFile == null
+                ? _download
+                : () => _install(_readyFile),
+          );
+        } else {
+          bottomBar = AppSecondaryButton(
+            label: '重新检查',
+            icon: Icons.refresh,
+            onPressed: _check,
+          );
+        }
+
         return DetailPageScaffold(
           title: '检查更新',
+          bottomBar: bottomBar,
           child: ListView(
+            padding: const EdgeInsets.only(bottom: 24),
             children: <Widget>[
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 12,
                 children: <Widget>[
+                  SummaryStrip(
+                    items: <StatRailItem>[
+                      StatRailItem(
+                        label: '当前版本',
+                        value: update.currentVersionName.isEmpty
+                            ? '—'
+                            : update.currentVersionName,
+                      ),
+                      StatRailItem(
+                        label: '最新版本',
+                        value: release?.versionName ?? '—',
+                      ),
+                    ],
+                  ),
+                  if (status != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        status,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ),
                   SectionCard(
                     title: '版本信息',
                     child: Column(
@@ -282,7 +336,10 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
                           ),
                           if (release.publishedAt.isNotEmpty) ...<Widget>[
                             const Divider(height: 16),
-                            _InfoRow(label: '发布时间', value: release.publishedAt),
+                            _InfoRow(
+                              label: '发布时间',
+                              value: _dateText(release.publishedAt),
+                            ),
                           ],
                         ],
                         const Divider(height: 16),
@@ -299,39 +356,18 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
                   if (available && release.releaseNotes.isNotEmpty)
                     SectionCard(
                       title: '更新说明',
-                      child: Text(release.releaseNotes),
+                      child: Text(
+                        release.releaseNotes,
+                        style: AppType.rowMeta.copyWith(color: tokens.text),
+                      ),
                     ),
-                  if (_statusText(update) != null)
-                    SectionCard(title: '状态', child: Text(_statusText(update)!)),
                   if (_failure != null) _FailureCard(failure: _failure!),
-                  if (_downloading) _progressCard(theme),
-                  if (available && !_downloading)
-                    AppPrimaryButton(
-                      label: _readyFile == null ? '下载并安装' : '重新安装',
-                      icon: Icons.system_update_alt,
-                      onPressed: _readyFile == null
-                          ? _download
-                          : () => _install(_readyFile),
-                    ),
-                  if (_downloading)
-                    AppSecondaryButton(
-                      label: '取消下载',
-                      icon: Icons.close,
-                      onPressed: () => _cancelToken?.cancel(),
-                    )
-                  else
-                    AppSecondaryButton(
-                      label: '重新检查',
-                      icon: Icons.refresh,
-                      onPressed: _check,
-                    ),
+                  if (_downloading) _progressCard(),
                   Text(
                     '安装由系统安装器完成：需要手动点「安装」，部分手机会额外提示'
                     '「风险应用」或要求关闭纯净模式；安装过程中当前 App 会退出，'
                     '不会自动回到本页。',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                    style: AppType.rowMeta.copyWith(color: tokens.text3),
                   ),
                 ],
               ),
@@ -342,8 +378,15 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
     );
   }
 
+  /// ISO 时间 → `yyyy-MM-dd HH:mm`，去掉秒与时区，避免一行挤满数字。
+  String _dateText(String value) {
+    final String text = value.replaceFirst('T', ' ');
+    return text.length >= 16 ? text.substring(0, 16) : text;
+  }
+
   /// 下载进度卡：百分比 + 已传/总量。
-  Widget _progressCard(ThemeData theme) {
+  Widget _progressCard() {
+    final AppTokens tokens = AppTokens.of(context);
     final double ratio = _total > 0 ? (_received / _total).clamp(0.0, 1.0) : 0;
     return SectionCard(
       title: '下载中',
@@ -355,9 +398,7 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
           Text(
             '${(ratio * 100).toStringAsFixed(0)}%  '
             '${formatBytes(_received)} / ${formatBytes(_total)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
         ],
       ),
@@ -395,44 +436,42 @@ class _FailureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Card(
-      color: colors.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 6,
-          children: <Widget>[
-            Row(
-              spacing: 8,
-              children: <Widget>[
-                Icon(
-                  _iconFor(failure.kind),
-                  size: 18,
-                  color: colors.onErrorContainer,
-                ),
-                Expanded(
-                  child: Text(
-                    failure.message,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onErrorContainer,
-                      fontWeight: FontWeight.w600,
-                    ),
+    final AppTokens tokens = AppTokens.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 6,
+        children: <Widget>[
+          Row(
+            spacing: 8,
+            children: <Widget>[
+              Icon(
+                _iconFor(failure.kind),
+                size: 18,
+                color: tokens.red,
+              ),
+              Expanded(
+                child: Text(
+                  failure.message,
+                  style: AppType.rowMeta.copyWith(
+                    color: tokens.text,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
-            if (failure.hint.isNotEmpty)
-              Text(
-                failure.hint,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onErrorContainer,
-                ),
               ),
-          ],
-        ),
+            ],
+          ),
+          if (failure.hint.isNotEmpty)
+            Text(
+              failure.hint,
+              style: AppType.rowMeta.copyWith(color: tokens.text2),
+            ),
+        ],
       ),
     );
   }
@@ -477,7 +516,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -485,9 +524,7 @@ class _InfoRow extends StatelessWidget {
           width: 88,
           child: Text(
             label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
         ),
         Expanded(
@@ -495,8 +532,8 @@ class _InfoRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             style: small
-                ? theme.textTheme.bodySmall
-                : theme.textTheme.bodyMedium,
+                ? AppType.statLabel.copyWith(color: tokens.text3)
+                : AppType.rowTitle.copyWith(color: tokens.text),
           ),
         ),
       ],

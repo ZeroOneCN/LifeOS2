@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 账单字典维护的三种类型。
 enum BillManageKind { loanPlatform, rentChannel, subscriptionCategory }
@@ -256,7 +260,7 @@ class _FinanceBillManagePageState extends State<FinanceBillManagePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: _title,
       child: ListView(
@@ -269,84 +273,132 @@ class _FinanceBillManagePageState extends State<FinanceBillManagePage> {
               child: Center(child: CircularProgressIndicator()),
             )
           else if (_error != null)
-            Column(
-              spacing: 8,
-              children: <Widget>[
-                Text('加载失败：$_error', textAlign: TextAlign.center),
-                TextButton(onPressed: _refresh, child: const Text('重试')),
-              ],
+            OverviewStatusBanner(
+              status: LoadStatus.failed,
+              message: _error,
+              onRetry: _refresh,
             )
-          else
-            SectionCard(
-              title: _title,
-              trailing: AppPrimaryAction(
-                label: _addLabel,
-                onPressed: () => _openForm(),
-              ),
-              child: _items.isEmpty
-                  ? Text(
-                      '暂无$_title，点右上角「$_addLabel」创建',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    )
-                  : Column(
-                      spacing: 4,
-                      children: <Widget>[
-                        for (final Map<String, dynamic> item in _items)
-                          Row(
-                            spacing: 8,
-                            children: <Widget>[
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      item['name'] as String? ?? '未命名',
-                                      style: theme.textTheme.bodyMedium,
-                                    ),
-                                    if (widget.kind ==
-                                            BillManageKind.loanPlatform &&
-                                        _platformSubtitle(item).isNotEmpty)
-                                      Text(
-                                        _platformSubtitle(item),
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: theme
-                                                  .colorScheme.onSurfaceVariant,
-                                            ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                tooltip: '更多操作',
-                                padding: EdgeInsets.zero,
-                                onSelected: (String value) {
-                                  if (value == 'edit') {
-                                    _openForm(item);
-                                  } else {
-                                    _delete(item);
-                                  }
-                                },
-                                itemBuilder: (BuildContext context) =>
-                                    const <PopupMenuEntry<String>>[
-                                  PopupMenuItem<String>(
-                                    value: 'edit',
-                                    child: Text('编辑'),
-                                  ),
-                                  PopupMenuItem<String>(
-                                    value: 'delete',
-                                    child: Text('删除'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
+          else ...<Widget>[
+            SectionHeader(
+              title: '$_title（${_items.length}）',
+              actionLabel: _addLabel,
+              onAction: () => _openForm(),
             ),
+            if (_items.isEmpty)
+              GroupCard(
+                children: <Widget>[
+                  EmptyState(
+                    icon: Icons.list_alt_outlined,
+                    title: '暂无$_title',
+                    description: '新增后可在此维护名称与规则，删除不影响历史账单',
+                    compact: true,
+                    actionLabel: _addLabel,
+                    onAction: () => _openForm(),
+                  ),
+                ],
+              )
+            else
+              GroupCard(
+                children: <Widget>[
+                  for (final Map<String, dynamic> item in _items)
+                    _DictionaryRow(
+                      title: item['name'] as String? ?? '未命名',
+                      subtitle: widget.kind == BillManageKind.loanPlatform
+                          ? _platformSubtitle(item)
+                          : '',
+                      onTap: () => _openForm(item),
+                      onEdit: () => _openForm(item),
+                      onDelete: () => _delete(item),
+                    ),
+                ],
+              ),
+            Text(
+              _deleteImpact,
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// 单条字典记录：名称 / 规则摘要 + 右侧「编辑 / 删除」菜单。
+class _DictionaryRow extends StatelessWidget {
+  const _DictionaryRow({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    if (subtitle.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: '更多操作',
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+                onSelected: (String value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'edit',
+                    child: Text('编辑'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Text('删除', style: TextStyle(color: tokens.red)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

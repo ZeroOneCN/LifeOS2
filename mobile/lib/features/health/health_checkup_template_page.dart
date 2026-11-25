@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
+import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 体检模板与组合维护。
 ///
@@ -232,120 +237,127 @@ class _HealthCheckupTemplatePageState extends State<HealthCheckupTemplatePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: '模板与组合',
       child: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              if (_error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _error!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onErrorContainer,
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (_error != null)
+            OverviewStatusBanner(
+              status: LoadStatus.failed,
+              message: _error,
+              onRetry: _refresh,
+            ),
+          if (!_loading && _error == null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: <Widget>[
+                SummaryStrip(
+                  items: <StatRailItem>[
+                    StatRailItem(
+                      label: '组合模板',
+                      value: '${_panels.length}',
+                      unit: '个',
                     ),
-                  ),
+                    StatRailItem(
+                      label: '单指标模板',
+                      value: '${_templates.length}',
+                      unit: '个',
+                    ),
+                  ],
                 ),
-              SectionCard(
-                title: '组合模板（套餐）',
-                trailing: AppPrimaryAction(
-                  label: '新建组合',
-                  onPressed: _loading ? () {} : () => _openPanelForm(),
+                SectionHeader(
+                  title: '组合模板（套餐）',
+                  actionLabel: '新建组合',
+                  onAction: () => _openPanelForm(),
                 ),
-                child: _panels.isEmpty
-                    ? const EmptyState(
+                if (_panels.isEmpty)
+                  GroupCard(
+                    children: <Widget>[
+                      EmptyState(
                         icon: Icons.dashboard_customize_outlined,
                         title: '暂无组合模板',
                         description: '把常一起检查的指标组合成套餐，录入时一键带入',
                         compact: true,
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          for (final Map<String, dynamic> panel in _panels)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                panel['panel_name'] as String? ?? '未命名组合',
-                              ),
-                              subtitle: Text(
-                                _panelSubtitle(panel),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () => _openPanelForm(panel),
-                              trailing: IconButton(
-                                tooltip: '删除组合',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _deletePanel(panel),
-                              ),
-                            ),
-                        ],
+                        actionLabel: '新建组合',
+                        onAction: () => _openPanelForm(),
                       ),
-              ),
-              SectionCard(
-                title: '单指标模板',
-                trailing: AppPrimaryAction(
-                  label: '新增指标',
-                  onPressed: _loading ? () {} : () => _openTemplateForm(),
+                    ],
+                  )
+                else
+                  GroupCard(
+                    children: <Widget>[
+                      for (final Map<String, dynamic> panel in _panels)
+                        V2EntryRow(
+                          title: panel['panel_name'] as String? ?? '未命名组合',
+                          subtitle: _panelSubtitle(panel),
+                          onTap: () => _openPanelForm(panel),
+                          trailing: IconButton(
+                            tooltip: '删除组合',
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: tokens.text3,
+                            ),
+                            onPressed: () => _deletePanel(panel),
+                          ),
+                        ),
+                    ],
+                  ),
+                SectionHeader(
+                  title: '单指标模板',
+                  actionLabel: '新增指标',
+                  onAction: () => _openTemplateForm(),
                 ),
-                child: _templates.isEmpty
-                    ? const EmptyState(
+                if (_templates.isEmpty)
+                  GroupCard(
+                    children: <Widget>[
+                      EmptyState(
                         icon: Icons.rule_outlined,
                         title: '暂无指标模板',
                         description: '新增模板后，录入时可一键带入指标名与参考范围',
                         compact: true,
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          for (final Map<String, dynamic> template
-                              in _templates)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                template['item_name'] as String? ?? '未命名指标',
-                              ),
-                              subtitle: Text(
-                                _templateSubtitle(template),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onTap: () => _openTemplateForm(template),
-                              trailing: IconButton(
-                                tooltip: '删除模板',
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => _deleteTemplate(template),
-                              ),
-                            ),
-                        ],
+                        actionLabel: '新增指标',
+                        onAction: () => _openTemplateForm(),
                       ),
-              ),
-              Text(
-                '排序口径：单指标模板按名称倒序、组合与组合内指标按名称升序，'
-                '均由后端排序，不支持手工拖动。\n'
-                '删除影响：仅影响「按模板录入」的可选项，已保存的体检记录不受影响。',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                    ],
+                  )
+                else
+                  GroupCard(
+                    children: <Widget>[
+                      for (final Map<String, dynamic> template in _templates)
+                        V2EntryRow(
+                          title:
+                              template['item_name'] as String? ?? '未命名指标',
+                          subtitle: _templateSubtitle(template),
+                          onTap: () => _openTemplateForm(template),
+                          trailing: IconButton(
+                            tooltip: '删除模板',
+                            icon: Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: tokens.text3,
+                            ),
+                            onPressed: () => _deleteTemplate(template),
+                          ),
+                        ),
+                    ],
+                  ),
+                Text(
+                  '排序口径：单指标模板按名称倒序、组合与组合内指标按名称升序，'
+                  '均由后端排序，不支持手工拖动。\n'
+                  '删除影响：仅影响「按模板录入」的可选项，已保存的体检记录不受影响。',
+                  style: AppType.rowMeta.copyWith(color: tokens.text3),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );

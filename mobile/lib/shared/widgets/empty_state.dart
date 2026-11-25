@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_tokens.dart';
 
-/// 空态：图标 + 标题 + 说明，居中（2.0 字号与灰阶）。
+/// 空态：图标 + 标题 + 说明（+ 可选操作），居中（2.0 字号与灰阶）。
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -10,6 +10,8 @@ class EmptyState extends StatelessWidget {
     required this.title,
     required this.description,
     this.compact = false,
+    this.actionLabel,
+    this.onAction,
   });
 
   final IconData icon;
@@ -17,9 +19,14 @@ class EmptyState extends StatelessWidget {
   final String description;
   final bool compact;
 
+  /// 可选操作文案（如「去新增」）；为空时不显示按钮。
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
   @override
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
+    final String? action = actionLabel;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: compact ? 12 : 32),
       child: Column(
@@ -37,6 +44,18 @@ class EmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
+          if (action != null && action.isNotEmpty)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                foregroundColor: tokens.accent,
+                textStyle: AppType.action,
+                minimumSize: const Size(44, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(action),
+            ),
         ],
       ),
     );
