@@ -8,8 +8,9 @@ import '../../../theme/app_tokens.dart';
 ///
 /// 规则（与效果稿一致）：
 /// - 所有栏目统一 2 个汉字，不多不少；
-/// - 一屏严格 6 等分：每项占 1/6 宽，只露出 6 个完整栏目，不出现半个字；
-/// - 超过 6 项时横滑并吸附到栏目边界，右侧 6% 渐隐提示「还有更多」；
+/// - 一屏严格 6 等分：每项等宽，只露出 6 个完整栏目，不出现半个字；
+/// - 超过 6 项时横滑并吸附到栏目边界；右侧保留 16dp 提示位，
+///   在未滑到末尾时显示一个淡淡的「›」，避免只靠不可见的渐隐提示；
 /// - 不足 6 项时等分铺满；
 /// - 选中态为居中的 2px System Blue 短下划线。
 class DomainTabs extends StatefulWidget {
@@ -18,7 +19,6 @@ class DomainTabs extends StatefulWidget {
     required this.labels,
     required this.selectedIndex,
     required this.onSelected,
-    this.fadeColor,
   });
 
   /// 栏目文字，必须全部为 2 个汉字。
@@ -30,9 +30,6 @@ class DomainTabs extends StatefulWidget {
   /// 点击栏目回调。
   final ValueChanged<int> onSelected;
 
-  /// 右侧渐隐的终色，默认取页面底色。
-  final Color? fadeColor;
-
   @override
   State<DomainTabs> createState() => _DomainTabsState();
 }
@@ -40,10 +37,10 @@ class DomainTabs extends StatefulWidget {
 class _DomainTabsState extends State<DomainTabs> {
   final ScrollController _controller = ScrollController();
 
-  /// 每项宽度（= 可视宽度 / 6），用于吸附计算。
+  /// 每项宽度（= 可视内容宽度 / 6），用于吸附计算。
   double _itemWidth = 0;
 
-  /// 是否已滑到最右端；到端点后不再绘制渐隐。
+  /// 是否已滑到最右端；到端点后隐藏「›」。
   bool _atEnd = false;
 
   @override
@@ -52,7 +49,7 @@ class _DomainTabsState extends State<DomainTabs> {
     super.dispose();
   }
 
-  /// 横滑结束吸附到最近的栏目边界，并维护右侧渐隐的显隐。
+  /// 横滑结束吸附到最近的栏目边界，并维护右侧「›」的显隐。
   bool _onScroll(ScrollNotification notification) {
     if (!_controller.hasClients) {
       return false;
@@ -87,7 +84,6 @@ class _DomainTabsState extends State<DomainTabs> {
       '域内栏目必须统一 2 个汉字',
     );
     final AppTokens tokens = AppTokens.of(context);
-    final Color fadeColor = widget.fadeColor ?? tokens.background;
     // 横向 ListView 必须有确定高度：字号 × 行高（1.0）+ 上下内边距 24。
     final double tabHeight =
         MediaQuery.textScalerOf(context).scale(AppType.segment.fontSize ?? 14) +
@@ -95,12 +91,18 @@ class _DomainTabsState extends State<DomainTabs> {
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        final double itemWidth = constraints.maxWidth / 6;
-        _itemWidth = itemWidth;
         final bool scrollable = widget.labels.length > 6;
+        // 超出 6 项时右侧留 16dp 给「›」，6 项仍严格等宽。
+        const double moreGutter = 16;
+        final double contentWidth = scrollable
+            ? math.max(0, constraints.maxWidth - moreGutter)
+            : constraints.maxWidth;
+        final double itemWidth = contentWidth / 6;
+        _itemWidth = itemWidth;
 
         final Widget content = SizedBox(
           height: tabHeight,
+          width: contentWidth,
           child: scrollable
               ? Material(
                   type: MaterialType.transparency,
@@ -134,33 +136,26 @@ class _DomainTabsState extends State<DomainTabs> {
               bottom: BorderSide(color: tokens.line, width: AppTokens.hairline),
             ),
           ),
-          child: Stack(
-            children: <Widget>[
-              content,
-              if (scrollable && !_atEnd)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  // 设计稿是右侧 6% 渐隐；真机上 6% 会压到第 6 个栏目的文字。
-                  // 这里按 6% 与 10dp 取小值，只渐隐右侧留白，保证 6 个字完整。
-                  width: math.min(constraints.maxWidth * 0.06, 10),
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: <Color>[
-                            fadeColor.withValues(alpha: 0),
-                            fadeColor,
-                          ],
-                        ),
-                      ),
+          child: SizedBox(
+            height: tabHeight,
+            child: Row(
+              children: <Widget>[
+                Expanded(child: content),
+                if (scrollable)
+                  SizedBox(
+                    width: moreGutter,
+                    child: Center(
+                      child: _atEnd
+                          ? const SizedBox.shrink()
+                          : Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: tokens.text3,
+                            ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },

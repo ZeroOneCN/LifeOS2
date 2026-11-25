@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -10,245 +11,349 @@ import '../../core/network/api_exception.dart';
 import '../../core/profile/profile_service.dart';
 import '../../core/update/release_info.dart';
 import '../../shared/widgets/app_buttons.dart';
-import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/notification_bell.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/v2/domain_header.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 import 'avatar_preview_page.dart';
 
-/// 设置根页：账户卡（含头像）+ 服务器地址 + 状态行 + 账户设置 + 外观 + 关于。
+/// 设置根页 2.0：账户头 + 账户与连接 + 外观 + 字体大小 + 关于。
+///
+/// 不设域内栏目条：设置本身是一个分组列表，外观与字体档位需要就地切换，
+/// 拆成子页反而多一层跳转。通知中心保留在本页入口，不提升为一级 Tab。
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final AppScope scope = AppScope.of(context);
-
+    final AppTokens tokens = AppTokens.of(context);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[scope.auth, scope.overview]),
+      listenable: Listenable.merge(<Listenable>[
+        scope.auth,
+        scope.overview,
+        scope.update,
+      ]),
       builder: (BuildContext context, _) {
         final AppUser? user = scope.auth.user;
         final bool offline = scope.auth.connectionFailed;
-        return RootPageScaffold(
-          title: '设置',
-          children: <Widget>[
-            _AccountCard(user: user, offline: offline),
-            ValueListenableBuilder<String>(
-              valueListenable: scope.apiClient.baseUrlListenable,
-              builder: (BuildContext context, String baseUrl, _) {
-                return EntryTile(
-                  icon: Icons.dns_outlined,
-                  title: '服务器地址',
-                  // 地址较长，1.3x 下会被断成多行；单行缩放保证完整可见。
-                  subtitleWidget: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(baseUrl, maxLines: 1, softWrap: false),
+        return PopScope(
+          canPop: false,
+          child: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: isDark
+                ? SystemUiOverlayStyle.light.copyWith(
+                    statusBarColor: Colors.transparent,
+                  )
+                : SystemUiOverlayStyle.dark.copyWith(
+                    statusBarColor: Colors.transparent,
+                  ),
+            child: Scaffold(
+              backgroundColor: tokens.background,
+              body: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: <Widget>[
+                    const DomainHeader(
+                      title: '设置',
+                      actions: <Widget>[NotificationBell(compact: true)],
                     ),
-                  ),
-                  onTap: () => context.push('/settings/server'),
-                );
-              },
-            ),
-            SectionCard(
-              title: '状态',
-              child: Column(
-                children: <Widget>[
-                  _InfoRow(
-                    label: '登录状态',
-                    value: user != null
-                        ? '已登录（${user.account}）'
-                        : (offline ? '连接失败（已保留登录状态）' : '未登录'),
-                  ),
-                  const Divider(height: 16),
-                  _InfoRow(
-                    // 「已加载 / 待加载」是技术状态，用户看不懂；改成能否看到
-                    // 最近数据 + 点按刷新。
-                    label: '首页数据',
-                    value:
-                        scope.overview.health.hasData ||
-                            scope.overview.finance.hasData
-                        ? '已同步最新数据'
-                        : (offline ? '未同步' : '同步中…'),
-                  ),
-                  if (offline) ...<Widget>[
-                    const Divider(height: 16),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            '无法连接服务器，点击右侧重试',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppTokens.pagePadding,
+                          4,
+                          AppTokens.pagePadding,
+                          24,
+                        ),
+                        children: <Widget>[
+                          _AccountCard(user: user, offline: offline),
+                          if (offline) ...<Widget>[
+                            const SizedBox(height: 12),
+                            GroupCard(
+                              children: <Widget>[
+                                V2EntryRow(
+                                  title: '连接失败',
+                                  subtitle: '已保留登录状态，网络恢复后可重试',
+                                  icon: Icons.wifi_off_outlined,
+                                  trailing: TextButton(
+                                    onPressed: scope.overview.retry,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: tokens.accent,
+                                      textStyle: AppType.action,
+                                      minimumSize: const Size(44, 32),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text('重试'),
+                                  ),
+                                  onTap: scope.overview.retry,
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SectionHeader(title: '账户与连接'),
+                          GroupCard(
+                            children: <Widget>[
+                              V2EntryRow(
+                                title: '账户设置',
+                                subtitle: user == null ? '登录后可管理账号信息' : null,
+                                icon: Icons.manage_accounts_outlined,
+                                onTap: () => context.push(
+                                  user == null ? '/login' : '/settings/account',
+                                ),
+                              ),
+                              V2EntryRow(
+                                title: '登录设备',
+                                subtitle: user == null
+                                    ? '登录后查看活跃会话'
+                                    : '查看活跃会话，下线其他设备',
+                                icon: Icons.devices_outlined,
+                                onTap: () => context.push(
+                                  user == null ? '/login' : '/settings/devices',
+                                ),
+                              ),
+                              V2EntryRow(
+                                title: '通知中心',
+                                subtitle: '系统与应用通知',
+                                icon: Icons.notifications_none_outlined,
+                                onTap: () => context.push('/notifications'),
+                              ),
+                              ValueListenableBuilder<String>(
+                                valueListenable:
+                                    scope.apiClient.baseUrlListenable,
+                                builder:
+                                    (BuildContext context, String baseUrl, _) {
+                                      return V2EntryRow(
+                                        title: '服务器地址',
+                                        subtitle: baseUrl,
+                                        icon: Icons.dns_outlined,
+                                        onTap: () =>
+                                            context.push('/settings/server'),
+                                      );
+                                    },
+                              ),
+                            ],
+                          ),
+                          const SectionHeader(title: '外观'),
+                          GroupCard(
+                            children: <Widget>[
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  14,
+                                ),
+                                child: ValueListenableBuilder<ThemeMode>(
+                                  valueListenable: scope.preferences.themeMode,
+                                  builder:
+                                      (
+                                        BuildContext context,
+                                        ThemeMode mode,
+                                        _,
+                                      ) {
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: <Widget>[
+                                            V2Segmented<ThemeMode>(
+                                              selected: mode,
+                                              onChanged: scope
+                                                  .preferences
+                                                  .setThemeMode,
+                                              options:
+                                                  const <
+                                                    V2SegmentedOption<ThemeMode>
+                                                  >[
+                                                    V2SegmentedOption<
+                                                      ThemeMode
+                                                    >(
+                                                      label: '跟随系统',
+                                                      value: ThemeMode.system,
+                                                    ),
+                                                    V2SegmentedOption<
+                                                      ThemeMode
+                                                    >(
+                                                      label: '浅色',
+                                                      value: ThemeMode.light,
+                                                    ),
+                                                    V2SegmentedOption<
+                                                      ThemeMode
+                                                    >(
+                                                      label: '深色',
+                                                      value: ThemeMode.dark,
+                                                    ),
+                                                  ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              '选择会立即生效，并在下次冷启动时保留。',
+                                              style: AppType.rowMeta.copyWith(
+                                                color: tokens.text2,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SectionHeader(title: '字体大小'),
+                          GroupCard(
+                            children: <Widget>[
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  10,
+                                  16,
+                                  14,
+                                ),
+                                child: ValueListenableBuilder<double?>(
+                                  valueListenable:
+                                      scope.preferences.fontScaleRatio,
+                                  builder:
+                                      (BuildContext context, double? ratio, _) {
+                                        final bool followSystem = ratio == null;
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: <Widget>[
+                                            Row(
+                                              children: <Widget>[
+                                                Expanded(
+                                                  child: Text(
+                                                    '跟随系统',
+                                                    style: AppType.rowTitle
+                                                        .copyWith(
+                                                          color: tokens.text,
+                                                        ),
+                                                  ),
+                                                ),
+                                                Switch(
+                                                  value: followSystem,
+                                                  activeThumbColor:
+                                                      Colors.white,
+                                                  activeTrackColor:
+                                                      tokens.accent,
+                                                  onChanged: (bool value) =>
+                                                      scope.preferences
+                                                          .setFontScaleRatio(
+                                                            value ? null : 1.0,
+                                                          ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            V2Segmented<double>(
+                                              selected: ratio ?? -1,
+                                              onChanged: scope
+                                                  .preferences
+                                                  .setFontScaleRatio,
+                                              options:
+                                                  const <
+                                                    V2SegmentedOption<double>
+                                                  >[
+                                                    V2SegmentedOption<double>(
+                                                      label: '小',
+                                                      value: 0.9,
+                                                    ),
+                                                    V2SegmentedOption<double>(
+                                                      label: '标准',
+                                                      value: 1.0,
+                                                    ),
+                                                    V2SegmentedOption<double>(
+                                                      label: '大',
+                                                      value: 1.15,
+                                                    ),
+                                                    V2SegmentedOption<double>(
+                                                      label: '特大',
+                                                      value: 1.3,
+                                                    ),
+                                                  ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              '只调整文字大小，切换时页面不会重新加载数据。',
+                                              style: AppType.rowMeta.copyWith(
+                                                color: tokens.text2,
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SectionHeader(title: '关于'),
+                          GroupCard(
+                            children: <Widget>[
+                              ListenableBuilder(
+                                listenable: scope.update,
+                                builder: (BuildContext context, _) {
+                                  final bool hasUpdate = scope.update.hasUpdate;
+                                  final String subtitle;
+                                  if (hasUpdate) {
+                                    subtitle =
+                                        '有新版本 ${scope.update.latest!.versionName}'
+                                        '（${formatBytes(scope.update.latest!.size)}）';
+                                  } else if (scope
+                                      .update
+                                      .currentVersionName
+                                      .isEmpty) {
+                                    subtitle = '查看当前版本';
+                                  } else {
+                                    subtitle =
+                                        '当前 ${scope.update.currentVersionName}';
+                                  }
+                                  return V2EntryRow(
+                                    title: '检查更新',
+                                    subtitle: subtitle,
+                                    icon: Icons.system_update_alt,
+                                    onTap: () =>
+                                        context.push('/settings/update'),
+                                  );
+                                },
+                              ),
+                              V2EntryRow(
+                                title: '关于',
+                                subtitle: '应用名、版本与后端地址',
+                                icon: Icons.info_outline,
+                                onTap: () => context.push('/settings/about'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              scope.update.currentVersionName.isEmpty
+                                  ? '版本未知'
+                                  : '版本 ${scope.update.currentVersionName}',
+                              style: AppType.rowMeta.copyWith(
+                                color: tokens.text3,
+                              ),
                             ),
                           ),
-                        ),
-                        TextButton(
-                          onPressed: scope.overview.retry,
-                          child: const Text('重试'),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
-            EntryTile(
-              icon: Icons.manage_accounts_outlined,
-              title: '账户设置',
-              subtitle: user == null ? '登录后可管理账号信息' : null,
-              onTap: () =>
-                  context.push(user == null ? '/login' : '/settings/account'),
-            ),
-            EntryTile(
-              icon: Icons.devices_outlined,
-              title: '登录设备',
-              subtitle: user == null ? '登录后查看活跃会话' : '查看活跃会话，下线其他设备',
-              onTap: () =>
-                  context.push(user == null ? '/login' : '/settings/devices'),
-            ),
-            SectionCard(
-              title: '外观',
-              child: ValueListenableBuilder<ThemeMode>(
-                valueListenable: scope.preferences.themeMode,
-                builder: (BuildContext context, ThemeMode mode, _) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      // 与字体档位同一套分段视觉：横向等宽、圆角/间距一致。
-                      Row(
-                        children: <Widget>[
-                          for (final (String label, ThemeMode target)
-                              in const <(String, ThemeMode)>[
-                                ('跟随系统', ThemeMode.system),
-                                ('浅色', ThemeMode.light),
-                                ('深色', ThemeMode.dark),
-                              ])
-                            Expanded(
-                              child: _SegmentedOption(
-                                label: label,
-                                selected: mode == target,
-                                onTap: () =>
-                                    scope.preferences.setThemeMode(target),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '选择会立即生效，并在下次冷启动时保留。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            SectionCard(
-              title: '字体大小',
-              child: ValueListenableBuilder<double?>(
-                valueListenable: scope.preferences.fontScaleRatio,
-                builder: (BuildContext context, double? ratio, _) {
-                  // `null` = 跟随系统；其余为相对系统的缩放档位。
-                  final bool followSystem = ratio == null;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              '跟随系统',
-                              style: theme.textTheme.bodyMedium,
-                            ),
-                          ),
-                          Switch(
-                            value: followSystem,
-                            onChanged: (bool value) => scope.preferences
-                                .setFontScaleRatio(value ? null : 1.0),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // 四档横向等宽；不出现倍数字样，也不换行。
-                      Row(
-                        children: <Widget>[
-                          for (final (String label, double value)
-                              in const <(String, double)>[
-                                ('小', 0.9),
-                                ('标准', 1.0),
-                                ('大', 1.15),
-                                ('特大', 1.3),
-                              ])
-                            Expanded(
-                              child: _SegmentedOption(
-                                label: label,
-                                selected: ratio == value,
-                                onTap: () =>
-                                    scope.preferences.setFontScaleRatio(value),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '只调整文字大小，切换时页面不会重新加载数据。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            ListenableBuilder(
-              listenable: scope.update,
-              builder: (BuildContext context, _) {
-                final bool hasUpdate = scope.update.hasUpdate;
-                final String subtitle;
-                if (hasUpdate) {
-                  subtitle =
-                      '有新版本 ${scope.update.latest!.versionName}'
-                      '（${formatBytes(scope.update.latest!.size)}）';
-                } else if (scope.update.currentVersionName.isEmpty) {
-                  subtitle = '查看当前版本';
-                } else {
-                  subtitle = '当前 ${scope.update.currentVersionName}';
-                }
-                return EntryTile(
-                  icon: Icons.system_update_alt,
-                  title: '检查更新',
-                  subtitle: subtitle,
-                  onTap: () => context.push('/settings/update'),
-                );
-              },
-            ),
-            EntryTile(
-              icon: Icons.info_outline,
-              title: '关于',
-              subtitle: '应用名、版本与后端地址',
-              onTap: () => context.push('/settings/about'),
-            ),
-            Text(
-              '点击头像查看大图（长按可保存）；更换或移除头像请在大图页底部操作。',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          ),
         );
       },
     );
   }
 }
 
-/// 账户卡：头像 + 昵称/账号 + 退出（或登录/重试）。
+/// 账户头：头像 + 昵称/账号 + 退出（或登录/重试）。
 class _AccountCard extends StatelessWidget {
   const _AccountCard({required this.user, required this.offline});
 
@@ -257,7 +362,7 @@ class _AccountCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final AppScope scope = AppScope.of(context);
     final AppUser? current = user;
     final String title = current != null
@@ -267,7 +372,9 @@ class _AccountCard extends StatelessWidget {
         ? '账号 ${current.account}'
         : (offline ? '已保留登录状态，网络恢复后可重试' : '登录后可同步五个 Tab 的真实数据');
 
-    return Card(
+    return Material(
+      color: tokens.surface,
+      borderRadius: BorderRadius.circular(AppTokens.cardRadius),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () =>
@@ -275,7 +382,6 @@ class _AccountCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
-            spacing: 12,
             children: <Widget>[
               GestureDetector(
                 onTap: current == null
@@ -286,65 +392,86 @@ class _AccountCard extends StatelessWidget {
                   child: UserAvatar(user: current, radius: 26),
                 ),
               ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 4,
                   children: <Widget>[
                     Row(
-                      spacing: 6,
                       children: <Widget>[
                         Flexible(
                           child: Text(
                             title,
-                            style: theme.textTheme.titleMedium,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: AppType.rowTitle.copyWith(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: tokens.text,
+                            ),
                           ),
                         ),
-                        if (current?.isAdmin ?? false)
+                        if (current?.isAdmin ?? false) ...<Widget>[
+                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.primaryContainer,
+                              color: tokens.accent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               '管理员',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
+                              style: AppType.badge.copyWith(
+                                color: tokens.accent,
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               if (current != null)
-                AppDangerButton(
-                  label: '退出',
-                  icon: Icons.logout,
-                  compact: true,
+                TextButton(
                   onPressed: () => _confirmLogout(context, scope),
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.red,
+                    textStyle: AppType.action,
+                    minimumSize: const Size(44, 36),
+                  ),
+                  child: const Text('退出'),
                 )
               else if (offline)
                 TextButton(
                   onPressed: scope.overview.retry,
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.accent,
+                    textStyle: AppType.action,
+                    minimumSize: const Size(44, 36),
+                  ),
                   child: const Text('重试'),
                 )
               else
-                FilledButton.tonal(
+                TextButton(
                   onPressed: () => context.push('/login'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.accent,
+                    textStyle: AppType.action,
+                    minimumSize: const Size(44, 36),
+                  ),
                   child: const Text('登录'),
                 ),
             ],
@@ -749,85 +876,6 @@ class _Option extends StatelessWidget {
       subtitle: subtitle == null ? null : Text(subtitle!),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              style: theme.textTheme.bodyMedium,
-              textAlign: TextAlign.end,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 横向分段选项：主题模式与字体档位共用同一套视觉（等宽、圆角、间距一致），
-/// 选中态用主色填充，替代纵向 Radio 列表。
-class _SegmentedOption extends StatelessWidget {
-  const _SegmentedOption({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Material(
-        color: selected ? colors.primary : colors.surfaceContainerHighest,
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 44,
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: selected ? colors.onPrimary : colors.onSurfaceVariant,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

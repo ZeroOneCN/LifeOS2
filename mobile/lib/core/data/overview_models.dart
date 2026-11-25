@@ -39,11 +39,7 @@ double? _toDouble(dynamic value) => _toNum(value)?.toDouble();
 
 /// 今日用药条目（总览层只给名称、剂量、是否已服）。
 class MedicationItem {
-  const MedicationItem({
-    required this.name,
-    this.dosage,
-    required this.taken,
-  });
+  const MedicationItem({required this.name, this.dosage, required this.taken});
 
   factory MedicationItem.fromJson(Map<String, dynamic> json) {
     return MedicationItem(
@@ -125,11 +121,7 @@ class HealthOverview {
 
 /// 待还账单/账单待办条目。
 class PendingBill {
-  const PendingBill({
-    required this.title,
-    this.remaining,
-    this.dueDate,
-  });
+  const PendingBill({required this.title, this.remaining, this.dueDate});
 
   factory PendingBill.fromJson(Map<String, dynamic> json) {
     return PendingBill(
@@ -144,6 +136,21 @@ class PendingBill {
   final String? dueDate;
 }
 
+/// 财务支出分类。
+class FinanceCategory {
+  const FinanceCategory({required this.label, this.amount});
+
+  factory FinanceCategory.fromJson(Map<String, dynamic> json) {
+    return FinanceCategory(
+      label: json['label'] as String? ?? '其他',
+      amount: _toDouble(json['amount']),
+    );
+  }
+
+  final String label;
+  final double? amount;
+}
+
 /// 财务域总览（GET /finance/overview）。
 class FinanceOverview {
   const FinanceOverview({
@@ -153,6 +160,7 @@ class FinanceOverview {
     this.outstandingLoans,
     this.investPnl,
     this.pendingBills = const <PendingBill>[],
+    this.categories = const <FinanceCategory>[],
   });
 
   factory FinanceOverview.fromJson(Map<String, dynamic> json) {
@@ -164,6 +172,9 @@ class FinanceOverview {
       investPnl: _toDouble(json['invest_pnl']),
       pendingBills: _asMapList(json['pending_bills'])
           .map(PendingBill.fromJson)
+          .toList(growable: false),
+      categories: _asMapList(json['categories'])
+          .map(FinanceCategory.fromJson)
           .toList(growable: false),
     );
   }
@@ -182,21 +193,33 @@ class FinanceOverview {
 
   final double? investPnl;
   final List<PendingBill> pendingBills;
+
+  /// 本月分类支出（后端已按金额倒序）。
+  final List<FinanceCategory> categories;
 }
 
 /// 即将到期物品。
 class ExpiringItem {
-  const ExpiringItem({required this.name, this.daysLeft});
+  const ExpiringItem({
+    required this.name,
+    this.daysLeft,
+    this.expireDate,
+    this.category,
+  });
 
   factory ExpiringItem.fromJson(Map<String, dynamic> json) {
     return ExpiringItem(
       name: json['item_name'] as String? ?? '物品',
       daysLeft: _toInt(json['days_left']),
+      expireDate: json['expire_date'] as String?,
+      category: json['category'] as String?,
     );
   }
 
   final String name;
   final int? daysLeft;
+  final String? expireDate;
+  final String? category;
 }
 
 /// 生活域总览（GET /lifestyle/overview）。
@@ -311,4 +334,3 @@ class EquityPoint {
   /// 截至该交易日的累计净盈亏（USD）。
   final double pnl;
 }
-

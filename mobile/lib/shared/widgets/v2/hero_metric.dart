@@ -13,6 +13,7 @@ class HeroMetric extends StatelessWidget {
     required this.value,
     this.unit,
     this.subtitle,
+    this.subtitleColor,
   });
 
   final String label;
@@ -20,11 +21,16 @@ class HeroMetric extends StatelessWidget {
   final String? unit;
   final String? subtitle;
 
+  /// 副信息颜色；默认次要文字色，投资域用它表达盈亏红绿。
+  final Color? subtitleColor;
+
   @override
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
     final String? unitText = unit;
     final String? subtitleText = subtitle;
+    // 空值用较浅、较小的占位样式：48px 粗体「—」在真机上像一条黑杠。
+    final bool placeholder = value == '—' || value == '…';
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Column(
@@ -51,7 +57,9 @@ class HeroMetric extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             overflow: TextOverflow.ellipsis,
-            style: AppType.hero.copyWith(color: tokens.text),
+            style: placeholder
+                ? AppType.largeTitle.copyWith(color: tokens.text3)
+                : AppType.hero.copyWith(color: tokens.text),
           ),
           if (subtitleText != null && subtitleText.isNotEmpty) ...<Widget>[
             const SizedBox(height: 7),
@@ -59,7 +67,9 @@ class HeroMetric extends StatelessWidget {
               subtitleText,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: AppType.heroSub.copyWith(color: tokens.text2),
+              style: AppType.heroSub.copyWith(
+                color: subtitleColor ?? tokens.text2,
+              ),
             ),
           ],
         ],

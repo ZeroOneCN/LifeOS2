@@ -292,7 +292,6 @@ class _HealthPageState extends State<HealthPage> {
                   children: <Widget>[
                     DomainHeader(
                       title: '健康',
-                      date: formatDomainDate(DateTime.now()),
                       actions: <Widget>[
                         V2IconButton(
                           icon: const Icon(Icons.search),

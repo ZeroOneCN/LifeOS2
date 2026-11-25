@@ -62,6 +62,7 @@ class _StatCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
     final String? unit = item.unit;
+    final bool placeholder = item.value == '—' || item.value == '…';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       child: Column(
@@ -89,7 +90,9 @@ class _StatCell extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             overflow: TextOverflow.ellipsis,
-            style: AppType.statValue.copyWith(color: item.color ?? tokens.text),
+            style: AppType.statValue.copyWith(
+              color: item.color ?? (placeholder ? tokens.text3 : tokens.text),
+            ),
           ),
         ],
       ),

@@ -1,33 +1,29 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
-import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
-import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/feature_entries.dart';
-import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/notification_bell.dart';
 import '../../shared/widgets/section_status.dart';
-import '../../theme/app_colors.dart';
-import '../../theme/app_typography.dart';
+import '../../shared/widgets/v2/domain_header.dart';
+import '../../shared/widgets/v2/domain_tabs.dart';
+import '../../shared/widgets/v2/hero_metric.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_icon_button.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_search.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
-/// 投资中心根页：账户概览 → 收益曲线 → 常用（外汇交易）→ 全部功能 → 交易概览。
+/// 投资中心 2.0 首屏：账户净值 Hero + 轻量收益曲线 + 盈亏/胜率/品种 + 交易概览。
 ///
-/// 摘要与收益曲线来自 `GET /investment/overview`：
-/// - `summary`：账户净值、累计净盈亏、胜率、品种数（金额口径为 USD）；
-/// - `equity_trend`：按交易日的**累计净收益**；该接口只返回近 365 天窗口，
-///   因此「全部」区间单独调用 `GET /investment/forex/stats?days=3650` 取全量
-///   （后端该接口支持最大 3650 天），仍按天展示、不聚合、不降采样。
-///   它不是账户净值曲线，副标题与图注都需写明。
-///
-/// 交易明细在独立的「外汇交易」页（`/invest/forex`），这里提供明确入口。
+/// 交易数据由网页端导入，移动端只读，因此本页不提供 FAB 写入入口。
+/// 曲线只画累计净收益，不画账户净值；完整区间与逐点明细在「分析」页。
 class InvestPage extends StatefulWidget {
   const InvestPage({super.key});
 
@@ -36,658 +32,424 @@ class InvestPage extends StatefulWidget {
 }
 
 class _InvestPageState extends State<InvestPage> {
-  /// 收益曲线区间：30 / 90 / 365 天，0 表示「全部」（全量数据，仍按天）。
+  static const List<_InvestTab> _tabs = <_InvestTab>[
+    _InvestTab(label: '概览'),
+    _InvestTab(label: '外汇', route: '/invest/forex'),
+    _InvestTab(label: '分析', route: '/invest/forex/analysis'),
+    _InvestTab(label: '日历', route: '/invest/forex/calendar'),
+    _InvestTab(label: '报告', route: '/invest/reports'),
+  ];
+
+  int _activeTab = 0;
   int _rangeDays = 90;
 
-  /// 当前选中的数据点下标；为空时默认指向区间最后一天。
-  int? _selected;
-
-  /// 「全部」区间的真全量曲线（来自 `/investment/forex/stats?days=3650`）。
-  List<EquityPoint>? _fullPoints;
-  bool _loadingFull = false;
-  String? _fullError;
-
-  bool get _isAll => _rangeDays == 0;
-
-  String get _rangeLabel {
-    switch (_rangeDays) {
-      case 30:
-        return '近 30 天';
-      case 365:
-        return '近 1 年';
-      case 0:
-        return '全部';
-      default:
-        return '近 90 天';
-    }
-  }
-
-  /// 副标题：明确数据口径与覆盖范围，避免被误读成账户净值曲线。
-  String get _subtitle {
-    final List<EquityPoint>? full = _fullPoints;
-    if (_isAll && full != null && full.isNotEmpty) {
-      return '按交易日累计的净收益（非账户净值） · '
-          '全部（${full.first.date} ~ ${full.last.date}） · 按天';
-    }
-    return '按交易日累计的净收益（非账户净值） · $_rangeLabel · 按天';
-  }
-
-  /// 拉取真全量曲线：切换「全部」时调用；失败保留旧数据并给出重试入口。
-  Future<void> _loadFull() async {
-    if (_loadingFull) {
+  Future<void> _openTab(int index) async {
+    final String? route = _tabs[index].route;
+    if (route == null) {
+      if (index != _activeTab) {
+        setState(() => _activeTab = index);
+      }
       return;
     }
-    final AppScope scope = AppScope.of(context);
-    setState(() {
-      _loadingFull = true;
-      _fullError = null;
-    });
-    try {
-      final Map<String, dynamic>? data =
-          (await scope.apiClient.get<Map<String, dynamic>>(
-        '/investment/forex/stats',
-        queryParameters: <String, dynamic>{'days': 3650},
-      ))
-              .data;
-      if (!mounted) {
-        return;
-      }
-      final List<dynamic> trend =
-          (data?['equity_trend'] as List<dynamic>?) ?? const <dynamic>[];
-      setState(() {
-        _fullPoints = trend
-            .whereType<Map>()
-            .map((Map item) =>
-                EquityPoint.fromJson(item.cast<String, dynamic>()))
-            .toList(growable: false);
-      });
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _fullError = error.message);
-    } finally {
+    setState(() => _activeTab = index);
+    await context.push(route);
+    if (mounted) {
+      setState(() => _activeTab = 0);
+      await AppScope.of(context).overview.refreshInvestment();
+    }
+  }
+
+  Future<void> _openSearch() async {
+    final String? route = await openV2Search(
+      context,
+      hint: '搜索投资功能',
+      sections: const <V2SearchSection>[
+        V2SearchSection(
+          title: '投资功能',
+          entries: <V2SearchEntry>[
+            V2SearchEntry(
+              title: '外汇交易',
+              subtitle: '交易明细与资金记录',
+              icon: Icons.swap_horiz_outlined,
+              route: '/invest/forex',
+              keywords: '外汇 交易 资金 持仓',
+            ),
+            V2SearchEntry(
+              title: '投资分析',
+              subtitle: '胜率 · 盈亏比 · 品种分布',
+              icon: Icons.insights_outlined,
+              route: '/invest/forex/analysis',
+              keywords: '分析 胜率 盈亏比 品种',
+            ),
+            V2SearchEntry(
+              title: '交易日历',
+              subtitle: '按日查看交易与盈亏',
+              icon: Icons.calendar_month_outlined,
+              route: '/invest/forex/calendar',
+              keywords: '日历 交易 月份 盈亏',
+            ),
+            V2SearchEntry(
+              title: '投资报告',
+              subtitle: '周期汇总与 PDF 导出',
+              icon: Icons.description_outlined,
+              route: '/invest/reports',
+              keywords: '报告 汇总 PDF 导出',
+            ),
+          ],
+        ),
+      ],
+    );
+    if (route != null && mounted) {
+      await context.push(route);
       if (mounted) {
-        setState(() => _loadingFull = false);
+        await AppScope.of(context).overview.refreshInvestment();
       }
     }
-  }
-
-  /// 按交易日切片；「全部」也按天保留每个点位，不按月合并、不降采样。
-  List<EquityPoint> _series(List<EquityPoint> all) {
-    if (all.isEmpty || _isAll) {
-      return all;
-    }
-    final DateTime cutoff =
-        DateTime.now().subtract(Duration(days: _rangeDays - 1));
-    final String cutoffText = _dateText(cutoff);
-    return all
-        .where((EquityPoint point) => point.date.compareTo(cutoffText) >= 0)
-        .toList(growable: false);
-  }
-
-  static String _dateText(DateTime value) {
-    final String month = value.month.toString().padLeft(2, '0');
-    final String day = value.day.toString().padLeft(2, '0');
-    return '${value.year}-$month-$day';
   }
 
   @override
   Widget build(BuildContext context) {
     final AppScope scope = AppScope.of(context);
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-
+    final AppTokens tokens = AppTokens.of(context);
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return ListenableBuilder(
       listenable: scope.overview.investmentNotifier,
       builder: (BuildContext context, _) {
         final OverviewState<InvestmentOverview> state =
             scope.overview.investment;
         final InvestmentOverview? data = state.data;
+        final bool loading = data == null && state.status == LoadStatus.loading;
         final double? netProfit = data?.netProfit;
-        final List<EquityPoint> points = _isAll
-            ? (_fullPoints ?? const <EquityPoint>[])
-            : _series(data?.equityTrend ?? const <EquityPoint>[]);
-        // 未手动选择时默认指向区间最后一天；切换区间后同样回到最后一天。
-        final int? selected = points.isEmpty
-            ? null
-            : (_selected != null && _selected! < points.length
-                ? _selected
-                : points.length - 1);
+        final Color pnlColor = (netProfit ?? 0) >= 0
+            ? tokens.green
+            : tokens.red;
+        final List<EquityPoint> points = _filteredPoints(data);
 
-        return RootPageScaffold(
-          title: '投资中心',
-          children: <Widget>[
-            OverviewStatusBanner(
-              status: state.status,
-              message: state.message,
-              onRetry: scope.overview.retry,
-            ),
-            SectionCard(
-              title: '账户概览',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: <Widget>[
-                  Row(
-                    spacing: 24,
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          spacing: 4,
+        return PopScope(
+          canPop: false,
+          child: AnnotatedRegion<SystemUiOverlayStyle>(
+            value: isDark
+                ? SystemUiOverlayStyle.light.copyWith(
+                    statusBarColor: Colors.transparent,
+                  )
+                : SystemUiOverlayStyle.dark.copyWith(
+                    statusBarColor: Colors.transparent,
+                  ),
+            child: Scaffold(
+              backgroundColor: tokens.background,
+              body: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: <Widget>[
+                    DomainHeader(
+                      title: '投资',
+                      actions: <Widget>[
+                        V2IconButton(
+                          icon: const Icon(Icons.search),
+                          tooltip: '搜索投资功能',
+                          onPressed: _openSearch,
+                        ),
+                        const NotificationBell(compact: true),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTokens.pagePadding,
+                      ),
+                      child: DomainTabs(
+                        labels: _tabs
+                            .map((_InvestTab tab) => tab.label)
+                            .toList(growable: false),
+                        selectedIndex: _activeTab,
+                        onSelected: _openTab,
+                      ),
+                    ),
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: scope.overview.refreshInvestment,
+                        color: tokens.accent,
+                        backgroundColor: tokens.surface,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppTokens.pagePadding,
+                            6,
+                            AppTokens.pagePadding,
+                            32,
+                          ),
+                          physics: const AlwaysScrollableScrollPhysics(),
                           children: <Widget>[
-                            Text(
-                              // 业务规则：净值不可能为负；后端全量口径已修正为 0，
-                              // 这里再做一次展示下限，避免区间口径的负数直接透出。
-                              formatUsd(
-                                data?.accountValue == null
-                                    ? null
-                                    : (data!.accountValue! < 0
-                                        ? 0
-                                        : data.accountValue),
+                            if (state.status != LoadStatus.idle &&
+                                state.status != LoadStatus.ready) ...<Widget>[
+                              OverviewStatusBanner(
+                                status: state.status,
+                                message: state.message,
+                                onRetry: scope.overview.retry,
                               ),
-                              style: AppTypography.amountLarge,
+                              const SizedBox(height: 12),
+                            ],
+                            HeroMetric(
+                              label: '账户净值',
+                              value: loading
+                                  ? '…'
+                                  : formatUsd(
+                                      data?.accountValue == null
+                                          ? null
+                                          : math.max(0, data!.accountValue!),
+                                    ),
+                              subtitle: _heroSubtitle(data, state.status),
+                              subtitleColor: data == null ? null : pnlColor,
                             ),
-                            Text(
-                              '账户净值（下限 \$0.00）',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: muted,
-                              ),
+                            const SizedBox(height: 14),
+                            _EquityCard(
+                              points: points,
+                              rangeDays: _rangeDays,
+                              color: pnlColor,
+                              onRangeChanged: (int days) =>
+                                  setState(() => _rangeDays = days),
+                            ),
+                            const SizedBox(height: 14),
+                            StatRail(
+                              items: <StatRailItem>[
+                                StatRailItem(
+                                  label: '累计净盈亏',
+                                  value: loading
+                                      ? '…'
+                                      : _usdSignedCompact(netProfit),
+                                  color: data == null ? null : pnlColor,
+                                ),
+                                StatRailItem(
+                                  label: '胜率',
+                                  value: loading
+                                      ? '…'
+                                      : formatPercent(data?.winRate),
+                                ),
+                                StatRailItem(
+                                  label: '品种',
+                                  value: loading
+                                      ? '…'
+                                      : formatInt(data?.symbolCount),
+                                  unit: loading ? null : '个',
+                                ),
+                              ],
+                            ),
+                            SectionHeader(
+                              title: '交易概览',
+                              actionLabel: '报告',
+                              onAction: () => _openTab(4),
+                            ),
+                            GroupCard(
+                              children: <Widget>[
+                                RecordRow(
+                                  title: '近一年交易',
+                                  subtitle: '按已平仓交易统计',
+                                  value: '${formatInt(data?.tradeCount)} 笔',
+                                  onTap: () => _openTab(1),
+                                ),
+                                RecordRow(
+                                  title: '投资报告',
+                                  subtitle: '周期汇总与 PDF 导出',
+                                  value: '${formatInt(data?.reportCount)} 份',
+                                  onTap: () => _openTab(4),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          spacing: 4,
-                          children: <Widget>[
-                            Text(
-                              formatUsdSigned(netProfit),
-                              style: AppTypography.amountLarge.copyWith(
-                                color: netProfit == null
-                                    ? null
-                                    : (netProfit >= 0
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.error),
-                              ),
-                            ),
-                            Text(
-                              '累计盈亏',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
-            SectionCard(
-              title: '收益曲线',
-              trailing: points.isEmpty
-                  ? null
-                  : Text(
-                      formatUsdSigned(points.last.pnl),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: points.last.pnl < 0
-                            ? AppColors.dangerLight
-                            : (points.last.pnl > 0
-                                ? AppColors.successLight
-                                : muted),
-                        fontFeatures: const <FontFeature>[
-                          FontFeature.tabularFigures(),
-                        ],
-                      ),
-                    ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 10,
-                children: <Widget>[
-                  Text(
-                    _subtitle,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SegmentedButton<int>(
-                      segments: const <ButtonSegment<int>>[
-                        ButtonSegment<int>(value: 30, label: Text('30 天')),
-                        ButtonSegment<int>(value: 90, label: Text('90 天')),
-                        ButtonSegment<int>(value: 365, label: Text('1 年')),
-                        ButtonSegment<int>(value: 0, label: Text('全部')),
-                      ],
-                      selected: <int>{_rangeDays},
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
-                          EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        ),
-                      ),
-                      onSelectionChanged: (Set<int> selection) {
-                        // 换区间后读数回到新区间的最后一天，不残留旧点。
-                        setState(() {
-                          _rangeDays = selection.first;
-                          _selected = null;
-                        });
-                        if (selection.first == 0) {
-                          _loadFull();
-                        }
-                      },
-                    ),
-                  ),
-                  if (_isAll && _loadingFull)
-                    const LinearProgressIndicator(minHeight: 2),
-                  if (_isAll && _fullError != null)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 6,
-                      children: <Widget>[
-                        Text(
-                          '全量曲线加载失败：$_fullError',
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.error),
-                        ),
-                        AppSecondaryButton(
-                          label: '重试',
-                          compact: true,
-                          onPressed: _loadFull,
-                        ),
-                      ],
-                    ),
-                  if (points.length < 2)
-                    EmptyState(
-                      icon: Icons.show_chart,
-                      title: _isAll && _loadingFull
-                          ? '正在加载全量数据'
-                          : '该区间没有已平仓交易',
-                      description: _isAll && _loadingFull
-                          ? '按天读取历史累计净收益'
-                          : '换一个区间查看，或等待新的平仓记录',
-                      compact: true,
-                    )
-                  else
-                    _EquityChart(
-                      points: points,
-                      muted: muted,
-                      selected: selected,
-                      onSelect: (int index) =>
-                          setState(() => _selected = index),
-                    ),
-                ],
-              ),
-            ),
-            SectionCard(
-              title: '常用',
-              child: PrimaryFeatureCard(
-                icon: Icons.candlestick_chart_outlined,
-                title: '外汇交易',
-                summary: '近一年 ${formatInt(data?.tradeCount)} 笔 · '
-                    '报告 ${formatInt(data?.reportCount)} 份',
-                onTap: () => context.push('/invest/forex'),
-              ),
-            ),
-            SectionCard(
-              title: '全部功能',
-              child: FeatureGrid(
-                children: <Widget>[
-                  FeatureTile(
-                    icon: Icons.candlestick_chart_outlined,
-                    title: '外汇交易',
-                    onTap: () => context.push('/invest/forex'),
-                  ),
-                  FeatureTile(
-                    icon: Icons.insights_outlined,
-                    title: '投资分析',
-                    onTap: () => context.push('/invest/forex/analysis'),
-                  ),
-                  FeatureTile(
-                    icon: Icons.calendar_month_outlined,
-                    title: '交易日历',
-                    onTap: () => context.push('/invest/forex/calendar'),
-                  ),
-                  FeatureTile(
-                    icon: Icons.description_outlined,
-                    title: '投资报告',
-                    onTap: () => context.push('/invest/reports'),
-                  ),
-                ],
-              ),
-            ),
-            SectionCard(
-              title: '交易概览',
-              child: Row(
-                spacing: 16,
-                children: <Widget>[
-                  Expanded(
-                    child: MetricPlaceholder(
-                      label: '胜率',
-                      value: formatPercent(data?.winRate),
-                    ),
-                  ),
-                  Expanded(
-                    child: MetricPlaceholder(
-                      label: '交易品种',
-                      value: formatInt(data?.symbolCount),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SectionCard(
-              title: '近期交易',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: <Widget>[
-                  Text(
-                    state.status == LoadStatus.unauthenticated
-                        ? '登录后可查看近一年外汇交易明细。'
-                        : '外汇交易明细已接入：可查看近一年全部交易并按币种筛选，交易数据由网页端导入。',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  AppPrimaryButton(
-                    label: '查看交易明细',
-                    icon: Icons.show_chart,
-                    onPressed: () => context.push('/invest/forex'),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         );
       },
     );
   }
+
+  String _heroSubtitle(InvestmentOverview? data, LoadStatus status) {
+    if (data == null) {
+      return status == LoadStatus.loading ? '正在加载投资数据…' : '暂无数据，下拉刷新重试';
+    }
+    return '累计净盈亏 ${formatUsdSigned(data.netProfit)}';
+  }
+
+  /// 按当前区间过滤收益点；日期无法解析的点直接丢弃，避免曲线画错。
+  List<EquityPoint> _filteredPoints(InvestmentOverview? data) {
+    final List<EquityPoint> all = data?.equityTrend ?? const <EquityPoint>[];
+    final DateTime cutoff = DateTime.now().subtract(
+      Duration(days: _rangeDays - 1),
+    );
+    return all
+        .where((EquityPoint point) {
+          final DateTime? date = DateTime.tryParse(point.date);
+          return date != null && !date.isBefore(cutoff);
+        })
+        .toList(growable: false);
+  }
+
+  /// 指标轨用的紧凑美元盈亏：`+$1,284` / `-$62`，避免两位小数把格子撑满。
+  static String _usdSignedCompact(num? value) {
+    if (value == null) {
+      return '—';
+    }
+    final String sign = value > 0 ? '+' : (value < 0 ? '-' : '');
+    return '$sign\$${formatInt(value.abs())}';
+  }
 }
 
-/// 收益曲线：中性折线 + 零线以上绿色面积 / 零线以下红色面积，不染整块背景。
-///
-/// 交互：点按选中最近的数据点；长按后拖动可连续逐日滑看（松手后保留读数）。
-/// 横轴只标首尾与均分的关键日期，曲线本身保留每一个交易日的真实点位。
-class _EquityChart extends StatelessWidget {
-  const _EquityChart({
+/// 投资域栏目的静态定义。
+class _InvestTab {
+  const _InvestTab({required this.label, this.route});
+
+  final String label;
+  final String? route;
+}
+
+/// 轻量收益卡：区间切换 + 无坐标轴折线 + 极淡面积。
+class _EquityCard extends StatelessWidget {
+  const _EquityCard({
     required this.points,
-    required this.muted,
-    required this.selected,
-    required this.onSelect,
+    required this.rangeDays,
+    required this.color,
+    required this.onRangeChanged,
   });
 
   final List<EquityPoint> points;
-  final Color muted;
-
-  /// 当前选中的下标（由父层维护，切换区间后默认指向最后一天）。
-  final int? selected;
-  final ValueChanged<int> onSelect;
-
-  static const double _chartHeight = 152;
-  static const double _padX = 4;
-
-  /// 把横坐标换算成最近的数据点下标（点按与长按拖动共用）。
-  void _selectAt(double dx, double width) {
-    if (points.length < 2 || width <= _padX * 2) {
-      return;
-    }
-    final double lineWidth = width - _padX * 2;
-    final double ratio = ((dx - _padX) / lineWidth).clamp(0.0, 1.0);
-    onSelect((ratio * (points.length - 1)).round());
-  }
-
-  /// 横轴标签抽稀：按可用宽度取 4 个等间距关键点，重复日期去重。
-  List<String> _axisLabels(double width) {
-    final int count = width >= 320 ? 4 : (width >= 220 ? 3 : 2);
-    final List<String> labels = <String>[];
-    for (int i = 0; i < count; i++) {
-      final int index = ((points.length - 1) * i / (count - 1)).round();
-      final int safe =
-          index < 0 ? 0 : (index >= points.length ? points.length - 1 : index);
-      final String date = points[safe].date;
-      final String label =
-          date.length >= 10 ? date.substring(5) : date;
-      if (labels.isEmpty || labels.last != label) {
-        labels.add(label);
-      }
-    }
-    return labels;
-  }
+  final int rangeDays;
+  final Color color;
+  final ValueChanged<int> onRangeChanged;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    double maxValue = 0;
-    double minValue = 0;
-    for (final EquityPoint point in points) {
-      if (point.pnl > maxValue) {
-        maxValue = point.pnl;
-      }
-      if (point.pnl < minValue) {
-        minValue = point.pnl;
-      }
-    }
-    final EquityPoint? current = selected == null ? null : points[selected!];
-    final TextStyle? readoutStyle = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurface,
-      fontWeight: FontWeight.w600,
-      fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 6,
-      children: <Widget>[
-        Text(
-          '最高 ${formatUsdSigned(maxValue)} · 最低 ${formatUsdSigned(minValue)}',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-        ),
-        Text(
-          current == null
-              ? '点按或长按曲线查看单点数值'
-              : '${current.date} · 累计 ${formatUsdSigned(current.pnl)}',
-          style: current == null
-              ? theme.textTheme.bodySmall?.copyWith(color: muted)
-              : readoutStyle,
-        ),
-        SizedBox(
-          height: _chartHeight,
-          child: LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final double width = constraints.maxWidth;
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (TapUpDetails details) =>
-                    _selectAt(details.localPosition.dx, width),
-                onLongPressStart: (LongPressStartDetails details) =>
-                    _selectAt(details.localPosition.dx, width),
-                onLongPressMoveUpdate: (LongPressMoveUpdateDetails details) =>
-                    _selectAt(details.localPosition.dx, width),
-                child: Semantics(
-                  label: '收益曲线，点按或长按拖动查看单日数值',
-                  child: CustomPaint(
-                    size: Size(width, _chartHeight),
-                    painter: _EquityCurvePainter(
-                      values: points
-                          .map((EquityPoint point) => point.pnl)
-                          .toList(),
-                      lineColor:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.85),
-                      gridColor: theme.colorScheme.outlineVariant
-                          .withValues(alpha: 0.5),
-                      successColor: AppColors.successLight,
-                      dangerColor: theme.colorScheme.error,
-                      minimum: minValue,
-                      maximum: maxValue,
-                      selectedIndex: selected,
+    final AppTokens tokens = AppTokens.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: tokens.surface,
+        borderRadius: BorderRadius.circular(AppTokens.cardRadius),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  '累计净收益',
+                  style: AppType.section.copyWith(color: tokens.text2),
+                ),
+              ),
+              SizedBox(
+                width: 132,
+                child: V2Segmented<int>(
+                  compact: true,
+                  selected: rangeDays,
+                  onChanged: onRangeChanged,
+                  options: const <V2SegmentedOption<int>>[
+                    V2SegmentedOption<int>(label: '30', value: 30),
+                    V2SegmentedOption<int>(label: '90', value: 90),
+                    V2SegmentedOption<int>(label: '1年', value: 365),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 86,
+            child: points.length >= 2
+                ? _Sparkline(points: points, color: color)
+                : Center(
+                    child: Text(
+                      '暂无收益曲线',
+                      style: AppType.rowMeta.copyWith(color: tokens.text3),
                     ),
                   ),
-                ),
-              );
-            },
           ),
-        ),
-        LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final List<String> labels = _axisLabels(constraints.maxWidth);
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: <Widget>[
-                for (final String label in labels)
-                  Text(
-                    label,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-              ],
-            );
-          },
-        ),
-        Text(
-          '曲线为按交易日累计的净收益，不是账户净值；零线以上为盈利，以下为亏损。'
-          '按住曲线横向拖动可逐日查看。',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            '近 $rangeDays 天 · 按交易日累计（非账户净值）',
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 曲线绘制：面积按零线上下分别着色，折线中性色，零线用虚线。
-/// 选中点额外画竖向虚线 + 实心圆点。
-class _EquityCurvePainter extends CustomPainter {
-  _EquityCurvePainter({
-    required this.values,
-    required this.lineColor,
-    required this.gridColor,
-    required this.successColor,
-    required this.dangerColor,
-    required this.minimum,
-    required this.maximum,
-    this.selectedIndex,
-  });
+class _Sparkline extends StatelessWidget {
+  const _Sparkline({required this.points, required this.color});
 
-  final List<double> values;
-  final Color lineColor;
-  final Color gridColor;
-  final Color successColor;
-  final Color dangerColor;
-  final double minimum;
-  final double maximum;
-  final int? selectedIndex;
+  final List<EquityPoint> points;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _SparklinePainter(points: points, color: color),
+      size: Size.infinite,
+    );
+  }
+}
+
+class _SparklinePainter extends CustomPainter {
+  _SparklinePainter({required this.points, required this.color});
+
+  final List<EquityPoint> points;
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (values.length < 2) {
+    if (points.length < 2 || size.width <= 0 || size.height <= 0) {
       return;
     }
-    const double left = 4;
-    const double right = 4;
-    const double top = 6;
-    const double bottom = 6;
-    final double usableWidth = size.width - left - right;
-    final double usableHeight = size.height - top - bottom;
-    final double span = maximum - minimum;
-    double yOf(double value) {
-      if (span == 0) {
-        return top + usableHeight / 2;
+    double min = points.first.pnl;
+    double max = points.first.pnl;
+    for (final EquityPoint point in points) {
+      min = math.min(min, point.pnl);
+      max = math.max(max, point.pnl);
+    }
+    final double span = (max - min).abs() < 0.01 ? 1 : max - min;
+    const double pad = 4;
+    final double drawable = math.max(1, size.height - pad * 2);
+    final double stepX = size.width / (points.length - 1);
+
+    final Path line = Path();
+    for (int i = 0; i < points.length; i++) {
+      final double x = stepX * i;
+      final double y = pad + (max - points[i].pnl) / span * drawable;
+      if (i == 0) {
+        line.moveTo(x, y);
+      } else {
+        line.lineTo(x, y);
       }
-      return top + usableHeight * (1 - (value - minimum) / span);
-    }
-
-    final double zeroY = yOf(0);
-    final Paint gridPaint = Paint()
-      ..color = gridColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    // 三条水平网格线：最高 / 零 / 最低。
-    for (final double value in <double>[maximum, 0, minimum]) {
-      final double y = yOf(value);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-    // 零线虚线强调。
-    final Paint zeroPaint = Paint()
-      ..color = lineColor.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 8) {
-      canvas.drawLine(Offset(x, zeroY), Offset(x + 4, zeroY), zeroPaint);
-    }
-
-    final List<Offset> points = <Offset>[
-      for (int i = 0; i < values.length; i++)
-        Offset(
-          left + usableWidth * (i / (values.length - 1)),
-          yOf(values[i]),
-        ),
-    ];
-    final Path line = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final Offset point in points.skip(1)) {
-      line.lineTo(point.dx, point.dy);
     }
 
     final Path area = Path.from(line)
-      ..lineTo(points.last.dx, zeroY)
-      ..lineTo(points.first.dx, zeroY)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
       ..close();
-    // 只给前景面积着色：零线以上绿、以下红，不染整块背景。
-    canvas.save();
-    canvas.clipRect(Rect.fromLTRB(0, 0, size.width, zeroY));
-    canvas.drawPath(
-      area,
-      Paint()..color = successColor.withValues(alpha: 0.16),
-    );
-    canvas.restore();
-    canvas.save();
-    canvas.clipRect(Rect.fromLTRB(0, zeroY, size.width, size.height));
-    canvas.drawPath(
-      area,
-      Paint()..color = dangerColor.withValues(alpha: 0.16),
-    );
-    canvas.restore();
 
+    canvas.drawPath(
+      area,
+      Paint()
+        ..color = color.withValues(alpha: 0.12)
+        ..style = PaintingStyle.fill,
+    );
     canvas.drawPath(
       line,
       Paint()
-        ..color = lineColor
+        ..color = color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = 2
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
-    // 起点 / 终点圆点，标出区间边界。
-    final Paint dotPaint = Paint()..color = lineColor;
-    canvas.drawCircle(points.first, 2.5, dotPaint);
-    canvas.drawCircle(points.last, 3, dotPaint);
-
-    // 选中点：竖向虚线定位 + 实心圆点。
-    final int? index = selectedIndex;
-    if (index != null && index >= 0 && index < points.length) {
-      final Offset anchor = points[index];
-      final Paint guidePaint = Paint()
-        ..color = lineColor.withValues(alpha: 0.35)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
-      for (double y = top; y < size.height - bottom; y += 7) {
-        canvas.drawLine(
-          Offset(anchor.dx, y),
-          Offset(anchor.dx, math.min(y + 4, size.height - bottom)),
-          guidePaint,
-        );
-      }
-      canvas.drawCircle(anchor, 4, Paint()..color = lineColor);
-    }
   }
 
   @override
-  bool shouldRepaint(covariant _EquityCurvePainter oldDelegate) {
-    return oldDelegate.lineColor != lineColor ||
-        oldDelegate.gridColor != gridColor ||
-        oldDelegate.minimum != minimum ||
-        oldDelegate.maximum != maximum ||
-        oldDelegate.selectedIndex != selectedIndex ||
-        !listEquals(oldDelegate.values, values);
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
+    return oldDelegate.points != points || oldDelegate.color != color;
   }
 }

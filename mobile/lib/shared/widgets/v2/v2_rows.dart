@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../theme/app_tokens.dart';
 
 /// 2.0 徽标色调。
-enum V2BadgeTone { info, warn, green, gray }
+enum V2BadgeTone { info, warn, green, gray, danger }
 
 /// 2.0 小徽标：12/600，6dp 圆角，用于「已服 / 待服 / 剩 6 天」等状态。
 class V2Badge extends StatelessWidget {
@@ -26,6 +26,7 @@ class V2Badge extends StatelessWidget {
       ),
       V2BadgeTone.green => (tokens.green, tokens.green.withValues(alpha: 0.14)),
       V2BadgeTone.gray => (tokens.text2, tokens.fill2),
+      V2BadgeTone.danger => (tokens.red, tokens.red.withValues(alpha: 0.12)),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -106,6 +107,7 @@ class GroupCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppTokens.cardRadius),
       clipBehavior: Clip.antiAlias,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           for (int i = 0; i < children.length; i++) ...<Widget>[
             if (i > 0)
@@ -186,6 +188,87 @@ class TaskRow extends StatelessWidget {
   }
 }
 
+/// 2.0 设置 / 更多入口行：图标 + 标题/副信息 + 右侧箭头。
+class V2EntryRow extends StatelessWidget {
+  const V2EntryRow({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.icon,
+    this.trailing,
+    this.onTap,
+    this.danger = false,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    final String? sub = subtitle;
+    final IconData? glyph = icon;
+    final Color foreground = danger ? tokens.red : tokens.accent;
+    final Widget? trail = trailing;
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            children: <Widget>[
+              if (glyph != null) ...<Widget>[
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: foreground.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(glyph, size: 17, color: foreground),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(
+                        color: danger ? tokens.red : tokens.text,
+                      ),
+                    ),
+                    if (sub != null && sub.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              trail ?? Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 2.0 记录行：左侧标题/副信息 + 右侧等宽数值。
 class RecordRow extends StatelessWidget {
   const RecordRow({
@@ -207,6 +290,7 @@ class RecordRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
     final String? sub = subtitle;
+    final bool placeholder = value == '—' || value == '…';
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -244,7 +328,9 @@ class RecordRow extends StatelessWidget {
                 maxLines: 1,
                 softWrap: false,
                 style: AppType.rowValue.copyWith(
-                  color: valueColor ?? tokens.text,
+                  color: placeholder
+                      ? tokens.text3
+                      : (valueColor ?? tokens.text),
                 ),
               ),
             ],
