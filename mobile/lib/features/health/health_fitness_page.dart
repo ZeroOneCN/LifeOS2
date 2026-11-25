@@ -6,12 +6,14 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 健身运动：区间汇总 + 按类型汇总 + 按日期倒序的运动记录。
 ///
@@ -42,6 +44,9 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
   int _total = 0;
   bool _hasMore = true;
   bool _loadingMore = false;
+
+  /// 当前栏目：0 = 汇总，1 = 记录。
+  int _tab = 0;
 
   @override
   void initState() {
@@ -227,124 +232,167 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
     final FitnessStats? stats = _stats;
+    final bool ready =
+        _status == LoadStatus.ready || _status == LoadStatus.idle;
 
     return DetailPageScaffold(
       title: '健身运动',
-      child: ListView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
+          if (!ready || stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              SegmentedButton<int>(
-                segments: const <ButtonSegment<int>>[
-                  ButtonSegment<int>(value: 7, label: Text('7 天')),
-                  ButtonSegment<int>(value: 30, label: Text('30 天')),
-                  ButtonSegment<int>(value: 0, label: Text('全部')),
-                ],
-                selected: <int>{_days},
-                showSelectedIcon: false,
-                onSelectionChanged: (Set<int> selection) =>
-                    _changeRange(selection.first),
-              ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '区间汇总',
-                  trailing: Text(
-                    _rangeLabel(_days),
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '总时长',
-                          value: formatDuration(stats.totalMinutes),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '总消耗（kcal）',
-                          value: _number(stats.totalCalories),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '记录条数',
-                          value: formatInt(stats.totalCount),
-                        ),
-                      ),
-                    ],
-                  ),
+            )
+          else ...<Widget>[
+            SummaryStrip(
+              caption: '${_rangeLabel(_days)} · '
+                  '共 ${formatInt(stats.totalCount)} 条记录 · '
+                  '${formatInt(stats.byType.length)} 种运动',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '总时长',
+                  value: _durationCompact(stats.totalMinutes),
                 ),
-                if (stats.byType.isNotEmpty)
-                  SectionCard(
-                    title: '按类型汇总',
-                    child: Column(
-                      spacing: 8,
-                      children: <Widget>[
-                        for (final FitnessTypeSummary item in stats.byType)
-                          _TypeRow(item: item),
-                      ],
-                    ),
-                  ),
-                SectionCard(
-                  title: '运动记录',
-                  trailing: AppPrimaryAction(
-                    label: '新增记录',
-                    onPressed: _openCreate,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      if (_total > 0)
-                        Text(
-                          '共 $_total 条 · 按日期倒序',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      if (_items.isEmpty)
-                        const EmptyState(
-                          icon: Icons.fitness_center_outlined,
-                          title: '暂无运动记录',
-                          description: '该区间暂无记录，点右上角「新增记录」添加',
-                          compact: true,
-                        )
-                      else
-                        for (int i = 0; i < _items.length; i++) ...<Widget>[
-                          if (i == 0 ||
-                              _items[i].recordDate != _items[i - 1].recordDate)
-                            _DateHeader(date: _items[i].recordDate),
-                          _FitnessRow(
-                            record: _items[i],
-                            onTap: () => _openEdit(_items[i]),
-                          ),
-                        ],
-                    ],
-                  ),
+                StatRailItem(
+                  label: '总消耗',
+                  value: formatInt(stats.totalCalories),
+                  unit: '千卡',
                 ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
+                StatRailItem(
+                  label: '记录',
+                  value: formatInt(stats.totalCount),
+                  unit: '条',
+                ),
               ],
-            ],
-          ),
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '7 天', value: 7),
+                V2SegmentedOption<int>(label: '30 天', value: 30),
+                V2SegmentedOption<int>(label: '全部', value: 0),
+              ],
+              selected: _days,
+              onChanged: _changeRange,
+              compact: true,
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '汇总', value: 0),
+                V2SegmentedOption<int>(label: '记录', value: 1),
+              ],
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _summaryTab(stats),
+                  _recordsTab(),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  /// 汇总栏目：按运动类型拆分时长、次数与消耗。
+  Widget _summaryTab(FitnessStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '按类型汇总 · ${formatInt(stats.byType.length)} 类',
+          actionLabel: '新增记录',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: stats.byType.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.fitness_center_outlined,
+                    title: '该区间暂无运动汇总',
+                    description: '点「新增记录」添加一条运动记录',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final FitnessTypeSummary item in stats.byType)
+                    RecordRow(
+                      title: fitnessTypeLabel(item.exerciseType),
+                      subtitle:
+                          '${formatInt(item.count)} 次 · ${formatInt(item.calories)} 千卡',
+                      value: _durationCompact(item.minutes),
+                    ),
+                ],
+        ),
+        Text(
+          '${_rangeLabel(_days)}的时长与消耗由运动记录汇总；缺失值显示「—」。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 记录栏目：按日期倒序分页展示运动明细。
+  Widget _recordsTab() {
+    final AppTokens tokens = AppTokens.of(context);
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '运动记录 · 共 ${formatInt(_total)} 条',
+          actionLabel: '新增记录',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: _items.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.fitness_center_outlined,
+                    title: '暂无运动记录',
+                    description: '该区间暂无记录，点「新增记录」添加',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (int i = 0; i < _items.length; i++) ...<Widget>[
+                    if (i == 0 ||
+                        _items[i].recordDate != _items[i - 1].recordDate)
+                      _DateHeader(date: _items[i].recordDate),
+                    _FitnessRow(
+                      record: _items[i],
+                      onTap: () => _openEdit(_items[i]),
+                    ),
+                  ],
+                ],
+        ),
+        Text(
+          '共 ${formatInt(_total)} 条 · 按日期倒序；消耗热量或距离缺失时显示「—」。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+      footer: _items.isNotEmpty
+          ? ListLoadMoreFooter(
+              loading: _loadingMore,
+              hasMore: _hasMore,
+              onPressed: _loadMore,
+            )
+          : null,
     );
   }
 }
@@ -352,61 +400,9 @@ class _HealthFitnessPageState extends State<HealthFitnessPage> {
 /// 统计区间文案。
 String _rangeLabel(int days) {
   if (days <= 0) {
-    return '全部记录';
+    return '全部区间';
   }
   return '近 $days 天';
-}
-
-/// 数值展示：整数不带小数，非整数保留一位；null 显示「—」。
-String _number(num? value) {
-  if (value == null) {
-    return '—';
-  }
-  return value == value.roundToDouble()
-      ? formatInt(value.round())
-      : formatOneDecimal(value);
-}
-
-/// 按类型汇总行：类型 + 总时长 + 次数/消耗。
-class _TypeRow extends StatelessWidget {
-  const _TypeRow({required this.item});
-
-  final FitnessTypeSummary item;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 2,
-      children: <Widget>[
-        Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                fitnessTypeLabel(item.exerciseType),
-                style: theme.textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Text(
-              formatDuration(item.minutes),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-              ),
-            ),
-          ],
-        ),
-        Text(
-          '${item.count} 次 · ${_number(item.calories)} kcal',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-        ),
-      ],
-    );
-  }
 }
 
 /// 日期分组标题：列表按日期倒序，同一天只在首条前出现一次。
@@ -417,23 +413,30 @@ class _DateHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
-      child: Text(
-        date,
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(date, style: AppType.section.copyWith(color: tokens.text2)),
     );
   }
 }
 
+/// 时长压缩展示：`92` → `1h32m`；空值显示「—」。
+String _durationCompact(int? minutes) {
+  if (minutes == null || minutes <= 0) {
+    return '—';
+  }
+  final int hours = minutes ~/ 60;
+  final int rest = minutes % 60;
+  if (hours == 0) {
+    return '${rest}m';
+  }
+  return rest == 0 ? '${hours}h' : '${hours}h${rest}m';
+}
+
 /// 运动记录行：类型 + 时长 + 消耗 / 距离；点按进入编辑页。
 ///
-/// 热量或距离缺失时显示「—」，不把空值渲染成 0 kcal / 0.00 km。
+/// 热量或距离缺失时显示「—」，不把空值渲染成 0 千卡 / 0.00 km。
 class _FitnessRow extends StatelessWidget {
   const _FitnessRow({required this.record, required this.onTap});
 
@@ -442,51 +445,55 @@ class _FitnessRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final String calories = record.calories == null
-        ? '消耗 —'
-        : '消耗 ${_number(record.calories)} kcal';
-    final String detail = record.distanceKm == null
-        ? calories
-        : '$calories · ${record.distanceKm!.toStringAsFixed(2)} km';
+    final AppTokens tokens = AppTokens.of(context);
+    final String detail = <String>[
+      record.calories == null
+          ? '消耗 —'
+          : '消耗 ${formatInt(record.calories)} 千卡',
+      if (record.distanceKm != null)
+        '距离 ${record.distanceKm!.toStringAsFixed(2)} km',
+    ].join(' · ');
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 2,
-          children: <Widget>[
-            Row(
-              spacing: 8,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    fitnessTypeLabel(record.exerciseType),
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      fitnessTypeLabel(record.exerciseType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    // 备注是自由文本，不作为结构化字段重复展示；编辑页仍可查看修改。
+                    Text(
+                      detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
                 ),
-                Text(
-                  formatDuration(record.durationMin),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, size: 18, color: muted),
-              ],
-            ),
-            // 备注是自由文本，不作为结构化字段重复展示；编辑页仍可查看修改。
-            Text(
-              detail,
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
-            ),
-          ],
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _durationCompact(record.durationMin),
+                maxLines: 1,
+                softWrap: false,
+                style: AppType.rowValue.copyWith(color: tokens.text),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );

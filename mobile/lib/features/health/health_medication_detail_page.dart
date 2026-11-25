@@ -5,10 +5,12 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/utils/formatters.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../finance/finance_status_widgets.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 用药记录明细：单日记录的三餐用量与完成情况。
 ///
@@ -169,105 +171,103 @@ class _HealthMedicationDetailPageState
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final MedicationRecord? record = _record;
 
     return DetailPageScaffold(
       title: '用药明细',
-      actions: record == null
-          ? null
-          : <Widget>[
-              IconButton(
-                tooltip: '编辑该记录',
-                onPressed: _openEdit,
-                icon: const Icon(Icons.edit_outlined),
-              ),
-            ],
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (record != null) ...<Widget>[
-                SectionCard(
-                  title: '用药信息',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 10,
-                    children: <Widget>[
-                      Row(
-                        spacing: 8,
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              record.medicineName,
-                              style: theme.textTheme.titleMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          StatusChip(
-                            label: record.isComplete ? '已完成' : '未完成',
-                            tone: record.isComplete
-                                ? StatusTone.success
-                                : StatusTone.warning,
-                          ),
-                        ],
-                      ),
-                      _DetailRow(label: '日期', value: record.recordDate),
-                      if (record.frequency != null)
-                        _DetailRow(label: '频次', value: record.frequency!),
-                      _DetailRow(
-                        label: '总用量',
-                        value: '${record.totalDoses} 粒/次包干',
-                      ),
-                      if (record.note != null && record.note!.trim().isNotEmpty)
-                        _DetailRow(label: '备注', value: record.note!),
-                    ],
-                  ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (record != null) ...<Widget>[
+            SummaryStrip(
+              caption: '${formatListDate(record.recordDate)} · '
+                  '早餐 ${record.doseBreakfast} / 午餐 ${record.doseLunch} / '
+                  '晚餐 ${record.doseDinner} 粒',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '总用量',
+                  value: formatInt(record.totalDoses),
+                  unit: '粒',
                 ),
-                SectionCard(
-                  title: '三餐用量',
-                  child: Column(
-                    spacing: 10,
-                    children: <Widget>[
-                      _MealRow(
-                        label: '早餐',
-                        dose: record.doseBreakfast,
-                        taken: record.takenBreakfast,
-                        onCheckIn: () => _checkIn(0),
-                      ),
-                      _MealRow(
-                        label: '午餐',
-                        dose: record.doseLunch,
-                        taken: record.takenLunch,
-                        onCheckIn: () => _checkIn(1),
-                      ),
-                      _MealRow(
-                        label: '晚餐',
-                        dose: record.doseDinner,
-                        taken: record.takenDinner,
-                        onCheckIn: () => _checkIn(2),
-                      ),
-                    ],
-                  ),
+                StatRailItem(
+                  label: '已服',
+                  value: formatInt(record.takenDoses),
+                  unit: '粒',
+                  color: tokens.green,
+                ),
+                StatRailItem(
+                  label: '待服',
+                  value: formatInt(record.totalDoses - record.takenDoses),
+                  unit: '粒',
+                  color: record.isComplete ? null : tokens.orange,
                 ),
               ],
-            ],
-          ),
+            ),
+            SectionHeader(
+              title: '用药信息',
+              actionLabel: '编辑',
+              onAction: _openEdit,
+            ),
+            GroupCard(
+              children: <Widget>[
+                TaskRow(
+                  title: record.medicineName,
+                  trailing: V2Badge(
+                    record.isComplete ? '已完成' : '未完成',
+                    tone: record.isComplete
+                        ? V2BadgeTone.green
+                        : V2BadgeTone.warn,
+                  ),
+                ),
+                _DetailRow(label: '日期', value: record.recordDate),
+                if (record.frequency != null)
+                  _DetailRow(label: '频次', value: record.frequency!),
+                _DetailRow(
+                  label: '总用量',
+                  value: '${record.totalDoses} 粒/次包干',
+                ),
+                if (record.note != null && record.note!.trim().isNotEmpty)
+                  _DetailRow(label: '备注', value: record.note!.trim()),
+              ],
+            ),
+            const SectionHeader(title: '三餐用量'),
+            GroupCard(
+              children: <Widget>[
+                _MealRow(
+                  label: '早餐',
+                  dose: record.doseBreakfast,
+                  taken: record.takenBreakfast,
+                  onCheckIn: () => _checkIn(0),
+                ),
+                _MealRow(
+                  label: '午餐',
+                  dose: record.doseLunch,
+                  taken: record.takenLunch,
+                  onCheckIn: () => _checkIn(1),
+                ),
+                _MealRow(
+                  label: '晚餐',
+                  dose: record.doseDinner,
+                  taken: record.takenDinner,
+                  onCheckIn: () => _checkIn(2),
+                ),
+              ],
+            ),
+            Text(
+              '点「打卡」会把该餐次记为已服；编辑或删除后会返回列表并刷新统计。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// 明细字段行：左标签右值。
+/// 明细字段行：左标签（次要字色）右值（主字色，可换行）。
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
 
@@ -276,30 +276,28 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      spacing: 12,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+    final AppTokens tokens = AppTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: AppType.rowMeta.copyWith(color: tokens.text2)),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppType.rowTitle.copyWith(color: tokens.text),
+            ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: theme.textTheme.bodyMedium,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-/// 单餐行：餐次 + 粒数 + 已服/未服；未服时可直接打卡。
+/// 单餐行：餐次 + 粒数 → 已服徽标 / 打卡入口。
 class _MealRow extends StatelessWidget {
   const _MealRow({
     required this.label,
@@ -315,37 +313,49 @@ class _MealRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      spacing: 12,
-      children: <Widget>[
-        SizedBox(
-          width: 44,
-          child: Text(label, style: theme.textTheme.bodyMedium),
-        ),
-        Expanded(
-          child: Text(
-            dose == 0 ? '无需服用' : '$dose 粒',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    final AppTokens tokens = AppTokens.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 44,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: AppType.rowTitle.copyWith(color: tokens.text),
+              ),
             ),
-          ),
-        ),
-        if (dose == 0)
-          const StatusChip(label: '—', tone: StatusTone.info)
-        else if (taken)
-          const StatusChip(label: '已服', tone: StatusTone.success)
-        else
-          FilledButton.tonal(
-            onPressed: onCheckIn,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(64, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              visualDensity: VisualDensity.compact,
+            Expanded(
+              child: Text(
+                dose == 0 ? '无需服用' : '$dose 粒',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.rowMeta.copyWith(color: tokens.text2),
+              ),
             ),
-            child: const Text('打卡'),
-          ),
-      ],
+            if (dose == 0)
+              const V2Badge('—')
+            else if (taken)
+              const V2Badge('已服', tone: V2BadgeTone.green)
+            else
+              TextButton(
+                onPressed: onCheckIn,
+                style: TextButton.styleFrom(
+                  foregroundColor: tokens.accent,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(44, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  textStyle: AppType.action.copyWith(fontSize: 13),
+                ),
+                child: const Text('打卡'),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

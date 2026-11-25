@@ -6,12 +6,15 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 步数统计：区间汇总 + 每日趋势柱状图 + 分时段累计。
 ///
@@ -28,6 +31,9 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
   StepStats? _stats;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
+
+  /// 当前栏目：0 = 每日，1 = 分时段。
+  int _tab = 0;
 
   @override
   void initState() {
@@ -163,152 +169,198 @@ class _HealthStepsPageState extends State<HealthStepsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final StepStats? stats = _stats;
+    final bool ready =
+        _status == LoadStatus.ready || _status == LoadStatus.idle;
 
     return DetailPageScaffold(
       title: '步数统计',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '步幅设置',
-          onPressed: _openStrideSettings,
-          icon: const Icon(Icons.straighten_outlined),
-        ),
-      ],
-      // 主操作改为右下角圆形悬浮按钮（与体检 / 睡眠 / 用药一致）。
-      floatingActionButton: AddEntryFab(
-        tooltip: '新增步数',
-        onPressed: _openCreate,
-      ),
-      child: ListView(
-        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
-        padding: const EdgeInsets.only(bottom: 88),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              SegmentedButton<int>(
-                segments: const <ButtonSegment<int>>[
-                  ButtonSegment<int>(value: 7, label: Text('7 天')),
-                  ButtonSegment<int>(value: 30, label: Text('30 天')),
-                  ButtonSegment<int>(value: 90, label: Text('90 天')),
-                ],
-                selected: <int>{_days},
-                showSelectedIcon: false,
-                onSelectionChanged: (Set<int> selection) =>
-                    _changeRange(selection.first),
-              ),
-              ListStatusView(
+          if (!ready || stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '区间汇总',
-                  trailing: Text(
-                    '记录 ${stats.recordCount} 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '总步数',
-                              value: formatInt(stats.totalSteps),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '日均',
-                              value: stats.avgSteps == null
-                                  ? '—'
-                                  : formatInt(stats.avgSteps!),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '最高单日',
-                              value: stats.maxSteps == null
-                                  ? '—'
-                                  : formatInt(stats.maxSteps!),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (stats.trend.isEmpty)
-                        const EmptyState(
-                          icon: Icons.directions_walk_outlined,
-                          title: '该区间没有步数记录',
-                          description: '点底部「新增步数」录入第一条',
-                          compact: true,
-                        )
-                      else
-                        _TrendBars(trend: stats.trend),
-                    ],
-                  ),
+            )
+          else ...<Widget>[
+            SummaryStrip(
+              caption: '近 $_days 天 · 记录 ${formatInt(stats.recordCount)} 条 · '
+                  '${stats.maxSteps == null ? '最高单日 —' : '最高单日 ${formatInt(stats.maxSteps)} 步'}',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '总步数',
+                  value: formatInt(stats.totalSteps),
+                  unit: '步',
                 ),
-                if (stats.byPeriod.any((StepPeriod item) => !item.isFull))
-                  SectionCard(
-                    title: '分时段累计',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 10,
-                      children: <Widget>[
-                        for (final StepPeriod item
-                            in stats.byPeriod.where(
-                                (StepPeriod value) => !value.isFull))
-                          _PeriodBar(
-                            label: item.period,
-                            steps: item.steps,
-                            maxSteps: stats.byPeriod
-                                .where((StepPeriod value) => !value.isFull)
-                                .map((StepPeriod value) => value.steps)
-                                .reduce((int a, int b) => a > b ? a : b),
-                          ),
-                      ],
-                    ),
-                  ),
-                SectionCard(
-                  title: '每日明细',
-                  trailing: Text(
-                    '最近 ${stats.trend.length > 14 ? 14 : stats.trend.length} 天 · 点按编辑',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: stats.trend.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.directions_walk_outlined,
-                          title: '暂无每日数据',
-                          description: '该区间没有步数记录',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final StepTrendPoint point
-                                in stats.trend.reversed.take(14))
-                              _DailyRow(
-                                point: point,
-                                onTap: () => _openDay(point.date),
-                              ),
-                          ],
-                        ),
+                StatRailItem(
+                  label: '日均',
+                  value: formatInt(stats.avgSteps),
+                  unit: stats.avgSteps == null ? null : '步',
+                ),
+                StatRailItem(
+                  label: '记录',
+                  value: formatInt(stats.recordCount),
+                  unit: '条',
                 ),
               ],
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '7 天', value: 7),
+                V2SegmentedOption<int>(label: '30 天', value: 30),
+                V2SegmentedOption<int>(label: '90 天', value: 90),
+              ],
+              selected: _days,
+              onChanged: _changeRange,
+              compact: true,
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '每日', value: 0),
+                V2SegmentedOption<int>(label: '分时段', value: 1),
+              ],
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _dailyTab(stats),
+                  _periodTab(stats),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 每日栏目：近 14 天走势 + 每日明细 + 步幅设置入口。
+  Widget _dailyTab(StepStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    // 走势图与每日明细都只展示最近 14 天，标题按实际展示天数计数。
+    final int shownDays = stats.trend.length > 14 ? 14 : stats.trend.length;
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        if (stats.trend.isNotEmpty) ...<Widget>[
+          SectionHeader(title: '近 14 天走势 · ${formatInt(shownDays)} 天'),
+          GroupCard(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: _TrendBars(trend: stats.trend),
+              ),
             ],
           ),
         ],
+        SectionHeader(
+          title: '每日明细 · 共 ${formatInt(shownDays)} 天',
+          actionLabel: '新增步数',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: stats.trend.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.directions_walk_outlined,
+                    title: '该区间没有步数记录',
+                    description: '点「新增步数」录入第一条',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final StepTrendPoint point
+                      in stats.trend.reversed.take(14))
+                    _DailyRow(point: point, onTap: () => _openDay(point.date)),
+                ],
+        ),
+        GroupCard(
+          children: <Widget>[
+            V2EntryRow(
+              title: '步幅设置',
+              subtitle: '修改后按新步幅重算全部历史距离',
+              icon: Icons.straighten_outlined,
+              onTap: _openStrideSettings,
+            ),
+          ],
+        ),
+        Text(
+          '仅展示最近 14 天，点按某天可查看并编辑分时段记录。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+      footer: ListLoadMoreFooter(
+        loading: false,
+        hasMore: false,
+        onPressed: _refresh,
       ),
+    );
+  }
+
+  /// 分时段栏目：区间内各时段累计的进度条。
+  Widget _periodTab(StepStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    final List<StepPeriod> periods = stats.byPeriod
+        .where((StepPeriod item) => !item.isFull)
+        .toList(growable: false);
+    final int maxSteps = periods.isEmpty
+        ? 0
+        : periods
+              .map((StepPeriod item) => item.steps)
+              .reduce((int a, int b) => a > b ? a : b);
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '分时段累计 · ${formatInt(periods.length)} 段',
+          actionLabel: '新增步数',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: periods.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.schedule_outlined,
+                    title: '暂无分时段数据',
+                    description: '该区间没有可展示的时段累计',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final StepPeriod item in periods)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 52),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: _PeriodBar(
+                          label: item.period,
+                          steps: item.steps,
+                          maxSteps: maxSteps,
+                        ),
+                      ),
+                    ),
+                ],
+        ),
+        Text(
+          '分时段累计不含全天的最终汇总行，避免与各时段重复计算。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
     );
   }
 }
@@ -321,7 +373,7 @@ class _TrendBars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final List<StepTrendPoint> points =
         trend.length > 14 ? trend.sublist(trend.length - 14) : trend;
     final int maxSteps = points
@@ -334,9 +386,7 @@ class _TrendBars extends StatelessWidget {
       children: <Widget>[
         Text(
           '近 ${points.length} 天走势（最高 ${formatInt(maxSteps)} 步）',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: AppType.rowMeta.copyWith(color: tokens.text2),
         ),
         SizedBox(
           height: 108,
@@ -355,7 +405,7 @@ class _TrendBars extends StatelessWidget {
                             ? 2
                             : (78 * points[i].steps / maxSteps).clamp(2, 78),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
+                          color: tokens.accent.withValues(
                             alpha: points[i].steps == maxSteps ? 1 : 0.55,
                           ),
                           borderRadius: const BorderRadius.vertical(
@@ -374,8 +424,8 @@ class _TrendBars extends StatelessWidget {
                           child: Text(
                             _axisLabel(points, i),
                             maxLines: 1,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                            style: AppType.rowMeta.copyWith(
+                              color: tokens.text3,
                               fontSize: 10,
                             ),
                           ),
@@ -415,14 +465,19 @@ class _PeriodBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final double fraction = maxSteps == 0 ? 0 : steps / maxSteps;
     return Row(
       spacing: 10,
       children: <Widget>[
         SizedBox(
           width: 54,
-          child: Text(label, style: theme.textTheme.bodySmall),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
+          ),
         ),
         Expanded(
           child: ClipRRect(
@@ -430,16 +485,20 @@ class _PeriodBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: fraction.clamp(0, 1),
               minHeight: 6,
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              backgroundColor: tokens.fill2,
+              color: tokens.accent,
             ),
           ),
         ),
         SizedBox(
-          width: 62,
+          width: 68,
           child: Text(
             formatInt(steps),
             textAlign: TextAlign.right,
-            style: theme.textTheme.bodySmall?.copyWith(
+            maxLines: 1,
+            softWrap: false,
+            style: AppType.rowMeta.copyWith(
+              color: tokens.text,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
           ),
@@ -458,38 +517,48 @@ class _DailyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        child: Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Text(point.date, style: theme.textTheme.bodyMedium),
-                  Text(
-                    '${point.distanceKm.toStringAsFixed(2)} km · '
-                    '${point.calories.toStringAsFixed(1)} kcal',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      formatListDate(point.date),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${point.distanceKm.toStringAsFixed(2)} km · '
+                      '${formatInt(point.calories)} 千卡',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Text(
-              formatInt(point.steps),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              const SizedBox(width: 12),
+              Text(
+                formatInt(point.steps),
+                maxLines: 1,
+                softWrap: false,
+                style: AppType.rowValue.copyWith(color: tokens.text),
               ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
@@ -650,7 +719,7 @@ class _DayPeriodSheetState extends State<_DayPeriodSheet> {
                 child: EmptyState(
                   icon: Icons.directions_walk_outlined,
                   title: '当天没有时段记录',
-                  description: '可在步数页底部「新增步数」补录',
+                  description: '可在步数页「新增步数」补录',
                   compact: true,
                 ),
               )
@@ -708,7 +777,7 @@ class _PeriodRecordRow extends StatelessWidget {
                   ),
                   Text(
                     '${record.distanceKm.toStringAsFixed(2)} km · '
-                    '${record.calories.toStringAsFixed(1)} kcal',
+                    '${formatInt(record.calories)} 千卡',
                     style: theme.textTheme.bodySmall?.copyWith(color: muted),
                   ),
                 ],

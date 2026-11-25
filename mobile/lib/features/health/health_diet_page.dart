@@ -6,12 +6,14 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 饮食记录：今日摄入汇总 + 按日期倒序、同日按餐次排列的记录列表。
 ///
@@ -42,6 +44,9 @@ class _HealthDietPageState extends State<HealthDietPage> {
   int _total = 0;
   bool _hasMore = true;
   bool _loadingMore = false;
+
+  /// 当前栏目：0 = 今日，1 = 历史。
+  int _tab = 0;
 
   @override
   void initState() {
@@ -231,126 +236,137 @@ class _HealthDietPageState extends State<HealthDietPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
     final DietStats? stats = _stats;
     final DietDayTotals? today = stats?.forDate(_todayText);
+    final bool ready =
+        _status == LoadStatus.ready || _status == LoadStatus.idle;
 
     return DetailPageScaffold(
       title: '饮食记录',
-      child: ListView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
+          if (!ready || stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null)
-                SectionCard(
-                  title: '今日摄入',
-                  trailing: Text(
-                    // 与列表分组一致使用完整日期，避免同页出现 11-08 / 2026-11-08 两种写法。
-                    '$_todayText · ${today?.count ?? 0} 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '热量 kcal',
-                              value: today == null
-                                  ? '—'
-                                  : _number(today.calories),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '蛋白质 g',
-                              value: today == null
-                                  ? '—'
-                                  : formatOneDecimal(today.protein),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '碳水 g',
-                              value: today == null
-                                  ? '—'
-                                  : formatOneDecimal(today.carbs),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '脂肪 g',
-                              value: today == null
-                                  ? '—'
-                                  : formatOneDecimal(today.fat),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+            )
+          else ...<Widget>[
+            SummaryStrip(
+              caption: '$_todayText · 今日 ${formatInt(today?.count ?? 0)} 条 · '
+                  '全部 ${formatInt(_total)} 条',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '今日热量',
+                  value: formatInt(today?.calories),
+                  unit: today == null ? null : '千卡',
                 ),
-              if (_status == LoadStatus.ready)
-                SectionCard(
-                  title: '饮食记录',
-                  trailing: AppPrimaryAction(
-                    label: '新增记录',
-                    onPressed: _openCreate,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      if (_total > 0)
-                        Text(
-                          '共 $_total 条 · 按日期倒序，同日按餐次排列',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      if (_items.isEmpty)
-                        const EmptyState(
-                          icon: Icons.restaurant_outlined,
-                          title: '暂无饮食记录',
-                          description: '点右上角「新增记录」添加第一餐',
-                          compact: true,
-                        )
-                      else
-                        ..._buildGroups(theme),
-                    ],
-                  ),
+                StatRailItem(
+                  label: '蛋白质',
+                  value: formatOneDecimal(today?.protein),
+                  unit: today == null ? null : 'g',
                 ),
-              if (_items.isNotEmpty)
-                ListLoadMoreFooter(
-                  loading: _loadingMore,
-                  hasMore: _hasMore,
-                  onPressed: _loadMore,
+                StatRailItem(
+                  label: '碳水',
+                  value: formatOneDecimal(today?.carbs),
+                  unit: today == null ? null : 'g',
                 ),
-            ],
-          ),
+                StatRailItem(
+                  label: '脂肪',
+                  value: formatOneDecimal(today?.fat),
+                  unit: today == null ? null : 'g',
+                ),
+              ],
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '今日', value: 0),
+                V2SegmentedOption<int>(label: '历史', value: 1),
+              ],
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _buildTab(todayOnly: true),
+                  _buildTab(todayOnly: false),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  /// 构建今日 / 历史栏目：各自独立滚动，共用同一份分页数据与状态。
+  Widget _buildTab({required bool todayOnly}) {
+    final AppTokens tokens = AppTokens.of(context);
+    final List<DietRecord> items = todayOnly
+        ? _sortedItems
+              .where((DietRecord item) => item.recordDate == _todayText)
+              .toList(growable: false)
+        : _sortedItems;
+    final int count = todayOnly
+        ? (_stats?.forDate(_todayText)?.count ?? items.length)
+        : _total;
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: todayOnly
+              ? '今日记录 · 共 ${formatInt(count)} 条'
+              : '历史记录 · 共 ${formatInt(count)} 条',
+          actionLabel: '新增记录',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: items.isEmpty
+              ? <Widget>[
+                  EmptyState(
+                    icon: Icons.restaurant_outlined,
+                    title: todayOnly ? '今天还没有饮食记录' : '暂无饮食记录',
+                    description: todayOnly
+                        ? '点「新增记录」添加今天第一餐'
+                        : '点「新增记录」添加第一条记录',
+                    compact: true,
+                  ),
+                ]
+              : (todayOnly
+                  ? <Widget>[
+                      for (final DietRecord item in items)
+                        _DietRow(record: item, onTap: () => _openEdit(item)),
+                    ]
+                  : _buildGroups()),
+        ),
+        Text(
+          todayOnly
+              ? '今日摄入与每日小计同源；热量或营养素缺失时显示「—」。'
+              : '按日期倒序，同日按餐次排列；每日小计与今日摄入同源。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+      // 分页只作用于「历史」；今日栏目没有更多今日记录可加载。
+      footer: !todayOnly && _items.isNotEmpty
+          ? ListLoadMoreFooter(
+              loading: _loadingMore,
+              hasMore: _hasMore,
+              onPressed: _loadMore,
+            )
+          : null,
+    );
+  }
+
   /// 构建「日期标题（含当日小计）+ 该日记录行」，日期与餐次顺序由 [_sortedItems] 保证。
-  List<Widget> _buildGroups(ThemeData theme) {
+  List<Widget> _buildGroups() {
     final List<DietRecord> items = _sortedItems;
     final List<Widget> children = <Widget>[];
     for (int i = 0; i < items.length; i++) {
@@ -361,7 +377,6 @@ class _HealthDietPageState extends State<HealthDietPage> {
             date: item.recordDate,
             totals: _stats?.forDate(item.recordDate),
             isToday: item.recordDate == _todayText,
-            theme: theme,
           ),
         );
       }
@@ -369,16 +384,6 @@ class _HealthDietPageState extends State<HealthDietPage> {
     }
     return children;
   }
-}
-
-/// 数值展示：整数不带小数，非整数保留一位；null 显示「—」。
-String _number(num? value) {
-  if (value == null) {
-    return '—';
-  }
-  return value == value.roundToDouble()
-      ? formatInt(value.round())
-      : formatOneDecimal(value);
 }
 
 /// 日期分组标题：日期（今天额外标注）+ 当日热量 + 三大营养素小计。
@@ -389,20 +394,18 @@ class _DateHeader extends StatelessWidget {
     required this.date,
     required this.totals,
     required this.isToday,
-    required this.theme,
   });
 
   final String date;
   final DietDayTotals? totals;
   final bool isToday;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final DietDayTotals? day = totals;
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 2,
@@ -413,21 +416,20 @@ class _DateHeader extends StatelessWidget {
               Expanded(
                 child: Text(
                   isToday ? '$date · 今天' : date,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
+                  style: AppType.rowMeta.copyWith(
+                    color: tokens.text2,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
               if (day != null)
                 Text(
-                  '${_number(day.calories)} kcal',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
+                  '${formatInt(day.calories)} 千卡',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppType.rowMeta.copyWith(
+                    color: tokens.text3,
                     fontWeight: FontWeight.w600,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
                   ),
                 ),
             ],
@@ -457,19 +459,17 @@ class _NutrientTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Text(
       '$label ${formatOneDecimal(value)} g',
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-      ),
+      style: AppType.rowMeta.copyWith(color: tokens.text3),
     );
   }
 }
 
-/// 饮食记录行：餐次 + 食物名 + 克数 + 热量 / 三大营养素；点按进入编辑页。
+/// 饮食记录行：食物名 + 餐次/克数 + 热量与三大营养素；点按进入编辑页。
 ///
-/// 热量或营养素缺失时显示「—」，不把空值渲染成 0 kcal / 0 g。
+/// 热量或营养素缺失时显示「—」，不把空值渲染成 0 千卡 / 0 g。
 class _DietRow extends StatelessWidget {
   const _DietRow({required this.record, required this.onTap});
 
@@ -478,83 +478,88 @@ class _DietRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      mealTypeLabel(record.mealType),
+      '${formatCompact(record.weightG)} g',
+    ].join(' · ');
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 2,
-          children: <Widget>[
-            Row(
-              spacing: 8,
-              children: <Widget>[
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    mealTypeLabel(record.mealType),
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 2,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          record.foodName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.rowTitle.copyWith(color: tokens.text),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.rowMeta.copyWith(
+                            color: tokens.text2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${formatInt(record.calories)} 千卡',
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(
+                      color: record.calories == null
+                          ? tokens.text3
+                          : tokens.text,
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: Text(
-                    record.foodName,
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  '${formatCompact(record.weightG)} g',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, size: 18, color: muted),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 48),
-              child: Wrap(
+                  const SizedBox(width: 6),
+                  Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+                ],
+              ),
+              Wrap(
                 spacing: 12,
                 runSpacing: 2,
                 children: <Widget>[
                   Text(
-                    '热量 ${_number(record.calories)} kcal',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  Text(
                     '蛋白质 ${formatOneDecimal(record.protein)} g',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
                   Text(
                     '碳水 ${formatOneDecimal(record.carbs)} g',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
                   Text(
                     '脂肪 ${formatOneDecimal(record.fat)} g',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
                 ],
               ),
-            ),
-            if (record.note != null && record.note!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 48),
-                child: Text(
+              if (record.note != null && record.note!.isNotEmpty)
+                Text(
                   record.note!,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowMeta.copyWith(color: tokens.text3),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

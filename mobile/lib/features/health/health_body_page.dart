@@ -5,11 +5,16 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
-import '../../shared/widgets/app_buttons.dart';
+import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 体重记录页：与网页端 `/health/body` 同源。
 ///
@@ -45,6 +50,9 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
 
   /// 趋势图当前选中的点下标；null 表示未选中（显示操作提示）。
   int? _selected;
+
+  /// 当前栏目：0 = 手动记录，1 = 设备称重。
+  int _tab = 0;
 
   @override
   void initState() {
@@ -272,98 +280,98 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
 
   @override
   Widget build(BuildContext context) {
+    final BodyStats? stats = _stats;
+    // 新增入口放在「历史记录」标题右侧：内嵌到健康根页时导航栏操作会被隐藏，
+    // 主操作必须留在页面内容里；同时不受浮动按钮遮挡，滚动到底也能点到。
     return DetailPageScaffold(
       title: '体重记录',
-      // 新增入口移到右上角：页面里的体重趋势与历史列表是主要浏览内容，
-      // 底部整条按钮会压缩可视区域；同时避免与健康中心其他页的悬浮按钮叠加。
-      actions: <Widget>[
-        IconButton(
-          tooltip: '新增体重',
-          onPressed: _status == LoadStatus.loading ? null : _openCreate,
-          icon: const Icon(Icons.add),
-        ),
-      ],
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          ListStatusView(
-            status: _status,
-            message: _message,
-            onRetry: _refresh,
-          ),
-          if (_status == LoadStatus.ready) ...<Widget>[
-            _overviewCard(),
-            _trendCard(),
-            _historyCard(),
+          if (stats == null)
+            Expanded(
+              child: ListPageBody(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+            )
+          else ...<Widget>[
+            // 刷新失败但仍有旧数据：保留内容，顶部提示可重试；加载中不打断浏览。
+            if (_status == LoadStatus.failed ||
+                _status == LoadStatus.connectionFailed ||
+                _status == LoadStatus.unauthenticated)
+              OverviewStatusBanner(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+            SummaryStrip(
+              caption: _overviewCaption(stats),
+              items: _summaryItems(stats),
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '手动记录', value: 0),
+                V2SegmentedOption<int>(label: '设备称重', value: 1),
+              ],
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _recordsTab(stats),
+                  _deviceTab(),
+                ],
+              ),
+            ),
           ],
         ],
       ),
     );
   }
 
-  /// 概览卡：2×2 指标，避免 4 列在 375dp / 1.3 倍字号下挤压。
-  Widget _overviewCard() {
-    final ThemeData theme = Theme.of(context);
-    final BodyStats? stats = _stats;
-    final BodyLatest? latest = stats?.latest;
-    final String date = latest?.date ?? '';
-    return SectionCard(
-      // 记录总数只在「历史记录」卡头出现一次，概览卡不重复展示。
-      title: '身体概览',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 14,
-        children: <Widget>[
-          Row(
-            spacing: 16,
-            children: <Widget>[
-              Expanded(
-                child: MetricPlaceholder(
-                  label: date.isEmpty ? '当前体重' : '当前体重 · ${_shortDate(date)}',
-                  value: _weightText(latest?.weightKg),
-                ),
-              ),
-              Expanded(
-                child: MetricPlaceholder(
-                  label: 'BMI',
-                  value: _numberText(latest?.bmi, digits: 1),
-                ),
-              ),
-            ],
-          ),
-          Row(
-            spacing: 16,
-            children: <Widget>[
-              Expanded(
-                child: MetricPlaceholder(
-                  label: '体脂率',
-                  value: _numberText(latest?.bodyFatPercent, digits: 1, unit: '%'),
-                ),
-              ),
-              Expanded(
-                child: MetricPlaceholder(
-                  label: '平均体重',
-                  value: _weightText(stats?.avgWeight),
-                ),
-              ),
-            ],
-          ),
-          if (_rangeText(stats) != null)
-            Text(
-              _rangeText(stats)!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          // 蓝牙入口：与手动录入并存，失败时可从蓝牙页降级回手动录入。
-          AppSecondaryButton(
-            label: '蓝牙体重秤称重',
-            icon: Icons.bluetooth_searching,
-            onPressed: _status == LoadStatus.loading ? null : _openBle,
-          ),
-        ],
+  /// 概览句：最近记录日期、总条数与体重区间；无记录时给出可执行引导。
+  String _overviewCaption(BodyStats stats) {
+    final String date = stats.latest?.date ?? '';
+    final String range = _rangeText(stats) ?? '';
+    return <String>[
+      date.isEmpty ? '还没有体重记录' : '最近记录 ${_shortDate(date)}',
+      '共 ${formatInt(stats.recordCount)} 条',
+      if (range.isNotEmpty) range,
+    ].join(' · ');
+  }
+
+  /// 概览指标轨：当前体重 / BMI / 体脂率 / 平均体重，未采集统一显示「—」。
+  List<StatRailItem> _summaryItems(BodyStats stats) {
+    final BodyLatest? latest = stats.latest;
+    final bool hasWeight = latest?.weightKg != null;
+    final bool hasBmi = latest?.bmi != null;
+    final bool hasFat = latest?.bodyFatPercent != null;
+    final bool hasAvg = stats.avgWeight != null;
+    return <StatRailItem>[
+      StatRailItem(
+        label: '当前体重',
+        value: hasWeight ? formatOneDecimal(latest!.weightKg) : '—',
+        unit: hasWeight ? 'kg' : null,
       ),
-    );
+      StatRailItem(
+        label: 'BMI',
+        value: hasBmi ? formatOneDecimal(latest!.bmi) : '—',
+      ),
+      StatRailItem(
+        label: '体脂率',
+        value: hasFat ? '${formatOneDecimal(latest!.bodyFatPercent)}%' : '—',
+      ),
+      StatRailItem(
+        label: '平均体重',
+        value: hasAvg ? formatOneDecimal(stats.avgWeight) : '—',
+        unit: hasAvg ? 'kg' : null,
+      ),
+    ];
   }
 
   /// 区间说明：最低/最高只有拿到 2 个不同测量值才有意义。
@@ -373,90 +381,103 @@ class _HealthBodyPageState extends State<HealthBodyPage> {
     if (min == null || max == null) {
       return null;
     }
-    return '区间最低 ${min.toStringAsFixed(1)} kg · 最高 ${max.toStringAsFixed(1)} kg';
+    return '区间 ${formatOneDecimal(min)}–${formatOneDecimal(max)} kg';
   }
 
-  /// 趋势卡：体重折线；记录日不足 2 个时给空态说明。
-  Widget _trendCard() {
+  /// 手动记录栏目：体重趋势 + 历史记录，新增入口在历史标题右侧。
+  Widget _recordsTab(BodyStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
     final List<({String date, double weight})> points = _weightPoints();
-    return SectionCard(
-      title: '体重趋势',
-      trailing: Text(
-        '${points.length} 个体重点',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final int total = stats.recordCount > 0 ? stats.recordCount : _records.length;
+    return ListPageBody(
+      // 数据状态已由外层统一处理，栏目内始终渲染已就绪的内容。
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(title: '体重趋势 · ${formatInt(points.length)} 个体重点'),
+        GroupCard(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: points.length < 2
+                  ? const EmptyState(
+                      icon: Icons.monitor_weight_outlined,
+                      title: '数据不足，暂不画趋势',
+                      description: '至少 2 个记录日才有折线，继续记录后自动展示。',
+                      compact: true,
+                    )
+                  : _WeightChart(
+                      points: points,
+                      selected: _selected,
+                      onSelect: (int index) =>
+                          setState(() => _selected = index),
+                    ),
             ),
-      ),
-      child: points.length < 2
-          ? const EmptyState(
-              icon: Icons.monitor_weight_outlined,
-              title: '数据不足，暂不画趋势',
-              description: '至少 2 个记录日才有折线，继续记录后自动展示。',
-              compact: true,
-            )
-          : _WeightChart(
-              points: points,
-              selected: _selected,
-              onSelect: (int index) => setState(() => _selected = index),
+          ],
+        ),
+        SectionHeader(
+          title: '历史记录 · 共 ${formatInt(total)} 条',
+          actionLabel: '新增体重',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (_records.isEmpty)
+              const EmptyState(
+                icon: Icons.monitor_weight_outlined,
+                title: '暂无体重记录',
+                description: '点「新增体重」录入第一条',
+                compact: true,
+              )
+            else
+              for (final BodyRecord record in _records)
+                _BodyRow(record: record, onTap: () => _openEdit(record)),
+          ],
+        ),
+        if (_skippedDates.isNotEmpty)
+          Text(
+            '${_skippedDates.length} 条历史记录（${_skippedDates.join('、')}）'
+            '因后端数据异常（身高/体重为 0）暂无法读取，已记录待后端修复。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
+          ),
+        Text(
+          '记录与网页端同源；点按历史记录进入编辑，可修改或删除。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+      footer: _records.isEmpty
+          ? null
+          : ListLoadMoreFooter(
+              loading: false,
+              hasMore: false,
+              onPressed: () {},
             ),
     );
   }
 
-  /// 历史卡：按日期倒序，行内展示体重与关键体成分，空值显示「—」。
-  Widget _historyCard() {
-    final ThemeData theme = Theme.of(context);
-    final int total = _stats?.recordCount ?? _records.length;
-    if (_records.isEmpty) {
-      return SectionCard(
-        title: '历史记录',
-        child: const EmptyState(
-          icon: Icons.monitor_weight_outlined,
-          title: '暂无体重记录',
-          description: '点底部「新增体重」录入第一条',
-          compact: true,
-        ),
-      );
-    }
-    return SectionCard(
-      title: '历史记录',
-      trailing: Text(
-        '共 $total 条',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 4,
-        children: <Widget>[
-          for (final BodyRecord record in _records)
-            _BodyRow(record: record, onTap: () => _openEdit(record)),
-          if (_skippedDates.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                spacing: 6,
-                children: <Widget>[
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${_skippedDates.length} 条历史记录（'
-                      '${_skippedDates.join('、')}）因后端数据异常（身高/体重为 0）'
-                      '暂无法读取，已记录待后端修复。',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+  /// 设备称重栏目：蓝牙体重秤入口，同步成功后刷新历史与健康总览。
+  Widget _deviceTab() {
+    final AppTokens tokens = AppTokens.of(context);
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        const SectionHeader(title: '设备称重'),
+        GroupCard(
+          children: <Widget>[
+            V2EntryRow(
+              title: '蓝牙体重秤称重',
+              subtitle: '连接蓝牙秤同步体重与体成分',
+              icon: Icons.bluetooth_searching,
+              onTap: _status == LoadStatus.loading ? null : _openBle,
             ),
-        ],
-      ),
+          ],
+        ),
+        Text(
+          '蓝牙同步失败时可回到「手动记录」补录，两种方式共用同一份记录。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
     );
   }
 
@@ -483,7 +504,7 @@ String _weightText(double? value) {
   if (value == null || value == 0) {
     return '—';
   }
-  return '${value.toStringAsFixed(1)} kg';
+  return '${formatOneDecimal(value)} kg';
 }
 
 /// `2026-10-30` → `10-30`。
@@ -504,7 +525,7 @@ double? _bmiOf(BodyRecord record) {
   return weight / (meters * meters);
 }
 
-/// 历史行：日期 + 体重，第二行用 Wrap 展示体成分，窄屏自动换行不溢出。
+/// 历史行：日期 + 体重，第二行汇总 BMI / 体脂 / 肌肉，空值显示「—」。
 class _BodyRow extends StatelessWidget {
   const _BodyRow({required this.record, required this.onTap});
 
@@ -513,54 +534,54 @@ class _BodyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? chip = theme.textTheme.bodySmall?.copyWith(color: muted);
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      'BMI ${_numberText(_bmiOf(record), digits: 1)}',
+      '体脂 ${_numberText(record.bodyFatPercent, digits: 1, unit: '%')}',
+      '肌肉 ${_numberText(record.musclePercent, digits: 1, unit: '%')}',
+    ].join(' · ');
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 6,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    record.recordDate,
-                    style: theme.textTheme.bodyMedium,
-                  ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      record.recordDate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
                 ),
-                Text(
-                  _weightText(record.weightKg),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _weightText(record.weightKg),
+                maxLines: 1,
+                softWrap: false,
+                style: AppType.rowValue.copyWith(
+                  color: record.weightKg == null ? tokens.text3 : tokens.text,
                 ),
-                const SizedBox(width: 2),
-                Icon(Icons.chevron_right, size: 18, color: muted),
-              ],
-            ),
-            Wrap(
-              spacing: 12,
-              runSpacing: 2,
-              children: <Widget>[
-                Text('BMI ${_numberText(_bmiOf(record), digits: 1)}', style: chip),
-                Text(
-                  '体脂 ${_numberText(record.bodyFatPercent, digits: 1, unit: '%')}',
-                  style: chip,
-                ),
-                Text(
-                  '肌肉 ${_numberText(record.musclePercent, digits: 1, unit: '%')}',
-                  style: chip,
-                ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );

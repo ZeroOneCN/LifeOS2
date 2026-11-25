@@ -7,13 +7,16 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_theme.dart';
-import '../finance/finance_status_widgets.dart';
+import '../../theme/app_tokens.dart';
 
 /// 体检指标：概览 + 异常/未判定/正常分组 + 指标历史展开 + 记录增改删。
 ///
@@ -44,6 +47,9 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
 
   /// 正常指标组默认收起，避免一屏几十条。
   bool _showNormal = false;
+
+  /// 当前栏目：0 = 记录，1 = 面板，2 = 模板。
+  int _tab = 0;
 
   @override
   void initState() {
@@ -155,201 +161,275 @@ class _HealthCheckupPageState extends State<HealthCheckupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
     final CheckupStats? stats = _stats;
-
+    // 新增记录与模板入口都留在页面内：内嵌到健康根页时导航栏操作会被隐藏。
     return DetailPageScaffold(
       title: '体检指标',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '模板与组合',
-          icon: const Icon(Icons.dashboard_customize_outlined),
-          onPressed: () => context.push('/health/checkup/templates'),
-        ),
-      ],
-      floatingActionButton: AddEntryFab(
-        tooltip: '新增体检记录',
-        onPressed: () => _openForm(),
-      ),
-      child: ListView(
-        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
-        padding: const EdgeInsets.only(bottom: 88),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
+          if (stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '体检概览',
-                  trailing: Text(
-                    '共 ${stats.items.length} 项 · ${stats.totalCount} 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 8,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: _Metric(
-                              label: '指标总数',
-                              value: formatInt(stats.items.length),
-                            ),
-                          ),
-                          Expanded(
-                            child: _Metric(
-                              label: '异常指标',
-                              value: formatInt(stats.abnormalCount),
-                              color: stats.abnormalCount > 0
-                                  ? context.semanticColors.danger
-                                  : null,
-                            ),
-                          ),
-                          Expanded(
-                            child: _Metric(
-                              label: '检查记录',
-                              value: formatInt(stats.totalCount),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '${stats.statusLabel['high'] ?? '偏高'} ${stats.highCount} · '
-                        '${stats.statusLabel['low'] ?? '偏低'} ${stats.lowCount} · '
-                        '${stats.statusLabel['normal'] ?? '正常'} ${stats.normalCount}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SectionCard(
-                  title: '检查记录',
-                  trailing: Text(
-                    _recordsTotal > _records.length
-                        ? '共 $_recordsTotal 条 · 显示最近 ${_records.length} 条'
-                        : '共 $_recordsTotal 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: _records.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.monitor_heart_outlined,
-                          title: '暂无检查记录',
-                          description: '点底部「新增体检记录」录入第一条',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final CheckupRecord record in _records)
-                              _CheckupRecordRow(
-                                record: record,
-                                statusLabel: _recordStatusLabel(
-                                  stats,
-                                  record.result,
-                                ),
-                                onTap: () => _openForm(record),
-                              ),
-                          ],
-                        ),
-                ),
-                if (stats.items.isEmpty)
-                  SectionCard(
-                    title: '体检指标',
-                    child: const EmptyState(
-                      icon: Icons.monitor_heart_outlined,
-                      title: '暂无体检指标',
-                      description: '还没有体检指标记录',
-                      compact: true,
-                    ),
-                  )
-                else ...<Widget>[
-                  SectionCard(
-                    title: '异常指标（${stats.abnormalCount}）',
-                    child: _abnormalItems(stats).isEmpty
-                        ? Text(
-                            '当前所有指标均在参考范围内',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: muted,
-                            ),
-                          )
-                        : Column(
-                            spacing: 4,
-                            children: <Widget>[
-                              for (final CheckupItem item in _abnormalItems(
-                                stats,
-                              ))
-                                _CheckupRow(
-                                  item: item,
-                                  expanded: _expandedItem == item.itemName,
-                                  statusLabel: _statusLabel(stats, item),
-                                  onTap: () => _toggleItem(item.itemName),
-                                ),
-                            ],
-                          ),
-                  ),
-                  if (_unknownItems(stats).isNotEmpty)
-                    SectionCard(
-                      title: '未判定指标（${_unknownItems(stats).length}）',
-                      child: Column(
-                        spacing: 4,
-                        children: <Widget>[
-                          for (final CheckupItem item in _unknownItems(stats))
-                            _CheckupRow(
-                              item: item,
-                              expanded: _expandedItem == item.itemName,
-                              statusLabel: _statusLabel(stats, item),
-                              onTap: () => _toggleItem(item.itemName),
-                            ),
-                        ],
-                      ),
-                    ),
-                  SectionCard(
-                    title: '正常指标（${stats.normalCount}）',
-                    trailing: TextButton(
-                      onPressed: () =>
-                          setState(() => _showNormal = !_showNormal),
-                      child: Text(_showNormal ? '收起' : '展开'),
-                    ),
-                    child: _showNormal
-                        ? Column(
-                            spacing: 4,
-                            children: <Widget>[
-                              for (final CheckupItem item in _normalItems(
-                                stats,
-                              ))
-                                _CheckupRow(
-                                  item: item,
-                                  expanded: _expandedItem == item.itemName,
-                                  statusLabel: _statusLabel(stats, item),
-                                  onTap: () => _toggleItem(item.itemName),
-                                ),
-                            ],
-                          )
-                        : Text(
-                            '已收起 ${stats.normalCount} 项，点右上角「展开」查看',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: muted,
-                            ),
-                          ),
-                  ),
-                ],
+            )
+          else ...<Widget>[
+            // 刷新失败但仍有旧数据：保留内容，顶部提示可重试。
+            if (_status != LoadStatus.ready && _status != LoadStatus.idle)
+              OverviewStatusBanner(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+            SummaryStrip(
+              caption: _overviewCaption(stats),
+              items: _summaryItems(stats),
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '记录', value: 0),
+                V2SegmentedOption<int>(label: '面板', value: 1),
+                V2SegmentedOption<int>(label: '模板', value: 2),
               ],
-            ],
-          ),
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _recordsTab(stats),
+                  _itemsTab(stats),
+                  _templatesTab(),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// 概览句：指标项数与偏高 / 偏低 / 正常分布。
+  String _overviewCaption(CheckupStats stats) {
+    final String high = stats.statusLabel['high'] ?? '偏高';
+    final String low = stats.statusLabel['low'] ?? '偏低';
+    final String normal = stats.statusLabel['normal'] ?? '正常';
+    return '共 ${formatInt(stats.items.length)} 项指标 · '
+        '$high ${formatInt(stats.highCount)} · '
+        '$low ${formatInt(stats.lowCount)} · '
+        '$normal ${formatInt(stats.normalCount)}';
+  }
+
+  /// 概览指标轨：指标总数 / 异常指标 / 检查记录，异常项数为正时用警示色。
+  List<StatRailItem> _summaryItems(CheckupStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    return <StatRailItem>[
+      StatRailItem(
+        label: '指标总数',
+        value: formatInt(stats.items.length),
+        unit: '项',
+      ),
+      StatRailItem(
+        label: '异常指标',
+        value: formatInt(stats.abnormalCount),
+        unit: '项',
+        color: stats.abnormalCount > 0 ? tokens.red : null,
+      ),
+      StatRailItem(
+        label: '检查记录',
+        value: formatInt(stats.totalCount),
+        unit: '条',
+      ),
+    ];
+  }
+
+  /// 记录栏目：可编辑的检查记录列表，新增入口在标题右侧。
+  Widget _recordsTab(CheckupStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    return ListPageBody(
+      // 数据状态已由外层统一处理，栏目内始终渲染已就绪的内容。
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '检查记录 · 共 ${formatInt(_recordsTotal)} 条',
+          actionLabel: '新增记录',
+          onAction: () => _openForm(),
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (_records.isEmpty)
+              const EmptyState(
+                icon: Icons.monitor_heart_outlined,
+                title: '暂无检查记录',
+                description: '点「新增记录」录入第一条',
+                compact: true,
+              )
+            else
+              for (final CheckupRecord record in _records)
+                _CheckupRecordRow(
+                  record: record,
+                  statusLabel: _recordStatusLabel(stats, record.result),
+                  onTap: () => _openForm(record),
+                ),
+          ],
+        ),
+        if (_recordsTotal > _records.length)
+          Text(
+            '接口仅返回最近 ${formatInt(_records.length)} 条，更早记录请在网页端查看。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
+          ),
+        Text(
+          '记录与网页端同源；点按记录进入编辑，可修改或删除。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+      footer: _records.isEmpty
+          ? null
+          : ListLoadMoreFooter(
+              loading: false,
+              hasMore: false,
+              onPressed: () {},
+            ),
+    );
+  }
+
+  /// 面板栏目：异常 / 未判定 / 正常三组指标，点按展开单项历史。
+  Widget _itemsTab(CheckupStats stats) {
+    final AppTokens tokens = AppTokens.of(context);
+    final List<CheckupItem> abnormal = _abnormalItems(stats);
+    final List<CheckupItem> unknown = _unknownItems(stats);
+    final List<CheckupItem> normal = _normalItems(stats);
+    final TextStyle metaStyle = AppType.rowMeta.copyWith(color: tokens.text2);
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        if (stats.items.isEmpty) ...<Widget>[
+          const SectionHeader(title: '体检指标'),
+          const GroupCard(
+            children: <Widget>[
+              EmptyState(
+                icon: Icons.monitor_heart_outlined,
+                title: '暂无体检指标',
+                description: '还没有体检指标记录',
+                compact: true,
+              ),
+            ],
+          ),
+        ] else ...<Widget>[
+          SectionHeader(title: '异常指标 · ${formatInt(abnormal.length)} 项'),
+          GroupCard(
+            children: abnormal.isEmpty
+                ? <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Text('当前所有指标均在参考范围内', style: metaStyle),
+                    ),
+                  ]
+                : <Widget>[
+                    for (final CheckupItem item in abnormal)
+                      _CheckupRow(
+                        item: item,
+                        expanded: _expandedItem == item.itemName,
+                        statusLabel: _statusLabel(stats, item),
+                        onTap: () => _toggleItem(item.itemName),
+                      ),
+                  ],
+          ),
+          if (unknown.isNotEmpty) ...<Widget>[
+            SectionHeader(title: '未判定指标 · ${formatInt(unknown.length)} 项'),
+            GroupCard(
+              children: <Widget>[
+                for (final CheckupItem item in unknown)
+                  _CheckupRow(
+                    item: item,
+                    expanded: _expandedItem == item.itemName,
+                    statusLabel: _statusLabel(stats, item),
+                    onTap: () => _toggleItem(item.itemName),
+                  ),
+              ],
+            ),
+          ],
+          SectionHeader(
+            title: '正常指标 · ${formatInt(normal.length)} 项',
+            actionLabel: _showNormal ? '收起' : '展开',
+            onAction: () => setState(() => _showNormal = !_showNormal),
+          ),
+          GroupCard(
+            children: _showNormal
+                ? <Widget>[
+                    for (final CheckupItem item in normal)
+                      _CheckupRow(
+                        item: item,
+                        expanded: _expandedItem == item.itemName,
+                        statusLabel: _statusLabel(stats, item),
+                        onTap: () => _toggleItem(item.itemName),
+                      ),
+                  ]
+                : <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Text(
+                        '已收起 ${formatInt(normal.length)} 项，点右上角「展开」查看',
+                        style: metaStyle,
+                      ),
+                    ),
+                  ],
+          ),
+        ],
+        Text(
+          '仅偏高 / 偏低使用警示色，正常与未判定保持中性。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 模板栏目：单指标模板与组合套餐维护入口。
+  Widget _templatesTab() {
+    final AppTokens tokens = AppTokens.of(context);
+    return ListPageBody(
+      status: LoadStatus.ready,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '模板与组合',
+          actionLabel: '打开',
+          onAction: _openTemplates,
+        ),
+        GroupCard(
+          children: <Widget>[
+            V2EntryRow(
+              title: '单指标模板与组合套餐',
+              subtitle: '维护模板与组合，录入时一键带入',
+              icon: Icons.dashboard_customize_outlined,
+              onTap: _openTemplates,
+            ),
+          ],
+        ),
+        Text(
+          '模板与组合与网页端共用同一份数据；改动后回到「记录」新增即可选用。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 打开模板与组合页（原导航栏入口，内嵌模式下移到页面内）。
+  void _openTemplates() {
+    context.push<void>('/health/checkup/templates');
   }
 }
 
@@ -468,46 +548,7 @@ String _referenceText(CheckupItem item) {
   return '—';
 }
 
-/// 概览数值块，支持异常时传警示色；数字等宽。
-class _Metric extends StatelessWidget {
-  const _Metric({required this.label, required this.value, this.color});
-
-  final String label;
-  final String value;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
-      children: <Widget>[
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            softWrap: false,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 单条检查记录行：日期 + 指标项、数值 + 单位 + 参考范围、状态；点击编辑。
+/// 单条检查记录行：指标项 + 日期 / 参考范围 → 数值、单位与状态；点击编辑。
 class _CheckupRecordRow extends StatelessWidget {
   const _CheckupRecordRow({
     required this.record,
@@ -541,87 +582,65 @@ class _CheckupRecordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final String unit = (record.unit ?? '').trim();
+    final Color valueColor = _valueColor(context, record.result) ?? tokens.text;
+    // 单位按接口原样拼接：真实库里已有「mL/(min*1.」这类被截断的历史数据，
+    // 属于数据质量问题，前端不做猜测性补全。
+    final String value = unit.isEmpty
+        ? _metricValue(record.value)
+        : '${_metricValue(record.value)} $unit';
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 10,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Row(
-                    spacing: 8,
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          record.itemName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        formatListDate(record.checkDate),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: <Widget>[
-                      Text(
-                        _metricValue(record.value),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: _valueColor(context, record.result),
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
-                      ),
-                      if (unit.isNotEmpty)
-                        Text(
-                          unit,
-                          softWrap: false,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      Text(
-                        '参考 $_reference',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      record.itemName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${formatListDate(record.checkDate)} · 参考 $_reference',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                _StatusBadge(result: record.result, label: statusLabel),
-                Icon(Icons.chevron_right, size: 18, color: muted),
-              ],
-            ),
-          ],
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    Text(
+                      value,
+                      maxLines: 2,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowValue.copyWith(color: valueColor),
+                    ),
+                    const SizedBox(height: 4),
+                    _StatusBadge(result: record.result, label: statusLabel),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
@@ -644,78 +663,72 @@ class _CheckupRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final Color? valueColor = _valueColor(context, item.latestResult);
     final String unit = (item.unit ?? '').trim();
+    final String latest = unit.isEmpty
+        ? _metricValue(item.latestValue)
+        : '${_metricValue(item.latestValue)} $unit';
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 4,
           children: <Widget>[
             Row(
-              spacing: 6,
               children: <Widget>[
                 Expanded(
-                  child: Text(
-                    item.itemName,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                _StatusBadge(result: item.latestResult, label: statusLabel),
-                Icon(
-                  expanded ? Icons.expand_less : Icons.expand_more,
-                  size: 18,
-                  color: muted,
-                ),
-              ],
-            ),
-            Wrap(
-              spacing: 12,
-              runSpacing: 2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                Text.rich(
-                  TextSpan(
-                    children: <TextSpan>[
-                      TextSpan(
-                        text: '最新 ',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        item.itemName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowTitle.copyWith(color: tokens.text),
                       ),
-                      TextSpan(
-                        text: _metricValue(item.latestValue),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: valueColor,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const <FontFeature>[
-                            FontFeature.tabularFigures(),
-                          ],
-                        ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '参考 ${_referenceText(item)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowMeta.copyWith(color: tokens.text2),
                       ),
                     ],
                   ),
                 ),
-                // 单位单独成块且不换行：mL/(min*1.73m²) 这类长单位不再被
-                // 拆成「mL/（min*1.」两截。
-                if (unit.isNotEmpty)
-                  Text(
-                    unit,
-                    softWrap: false,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                const SizedBox(width: 12),
+                // 单位跟随数值整体右对齐；长单位用省略而不是换行拆断。
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Text(
+                        latest,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.rowValue.copyWith(
+                          color: valueColor ?? tokens.text,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _StatusBadge(
+                        result: item.latestResult,
+                        label: statusLabel,
+                      ),
+                    ],
                   ),
-                Text(
-                  '参考 ${_referenceText(item)}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: tokens.text3,
                 ),
               ],
             ),
@@ -727,7 +740,7 @@ class _CheckupRow extends StatelessWidget {
   }
 }
 
-/// 状态标签：偏高红、偏低橙、正常与未判定保持中性文字。
+/// 状态徽标：偏高红、偏低橙，正常与未判定保持中性灰。
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.result, required this.label});
 
@@ -736,20 +749,12 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    switch (result) {
-      case 'high':
-        return StatusChip(label: label, tone: StatusTone.danger);
-      case 'low':
-        return StatusChip(label: label, tone: StatusTone.warning);
-      default:
-        return Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        );
-    }
+    final V2BadgeTone tone = switch (result) {
+      'high' => V2BadgeTone.danger,
+      'low' => V2BadgeTone.warn,
+      _ => V2BadgeTone.gray,
+    };
+    return V2Badge(label, tone: tone);
   }
 }
 

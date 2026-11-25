@@ -6,13 +6,16 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/section_status.dart';
-import '../finance/finance_status_widgets.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 
 /// 用药跟踪：今日服药与依从率 + 分餐次 + 药品库存 + 用药记录分页。
 ///
@@ -43,6 +46,19 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
   int _total = 0;
   bool _hasMore = true;
   bool _loadingMore = false;
+
+  /// 当前栏目：0 = 今日，1 = 库存，2 = 购药，3 = 记录。
+  int _tab = 0;
+
+  /// 近 7 天已服粒数合计（依从率分子）。
+  int get _windowTaken =>
+      _stats?.bySlot.fold<int>(0, (int sum, MedSlot slot) => sum + slot.taken) ??
+      0;
+
+  /// 近 7 天计划粒数合计（依从率分母）；为 0 时依从率显示「—」。
+  int get _windowTotal =>
+      _stats?.bySlot.fold<int>(0, (int sum, MedSlot slot) => sum + slot.total) ??
+      0;
 
   @override
   void initState() {
@@ -469,286 +485,356 @@ class _HealthMedicationPageState extends State<HealthMedicationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final MedicationStats? stats = _stats;
-    // 近 7 天（stats.days）餐次计划的粒数合计，用于说明依从率分母。
-    final int windowTaken =
-        stats?.bySlot.fold<int>(
-          0,
-          (int sum, MedSlot slot) => sum + slot.taken,
-        ) ??
-        0;
-    final int windowTotal =
-        stats?.bySlot.fold<int>(
-          0,
-          (int sum, MedSlot slot) => sum + slot.total,
-        ) ??
-        0;
-
     return DetailPageScaffold(
       title: '用药跟踪',
-      // 主操作改为右下角圆形悬浮按钮（与体检 / 睡眠 / 步数一致）。
-      floatingActionButton: AddEntryFab(
-        tooltip: '新增用药',
-        onPressed: _openCreate,
-      ),
-      child: ListView(
-        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
-        padding: const EdgeInsets.only(bottom: 88),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
+          if (stats == null)
+            Expanded(
+              child: ListPageBody(
                 status: _status,
                 message: _message,
                 onRetry: _refresh,
               ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '今日用药',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '今日已服',
-                              value: '${stats.todayTaken} 粒',
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '今日待服',
-                              value: '${stats.todayPending} 粒',
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '7 日依从率',
-                              value: windowTotal == 0
-                                  ? '—'
-                                  : formatPercent(stats.adherenceRate),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        windowTotal == 0
-                            ? '口径：今日已服 / 待服按「粒」统计；近 7 天没有计划剂量，依从率暂记「—」。'
-                            : '口径：今日已服 / 待服按「粒」统计；7 日依从率 = 近 7 天已服 '
-                                  '$windowTaken / 计划 $windowTotal 粒，今日尚未到点的剂量不计为失败。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                      if (stats.todayTaken == 0 && stats.todayPending == 0)
-                        Text(
-                          '今日暂无用药计划，下方依从率统计的是近 7 天数据。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          StatusChip(
-                            label: '记录 ${stats.totalCount} 条',
-                            tone: StatusTone.info,
-                          ),
-                          StatusChip(
-                            label: '累计 ${stats.totalPills} 粒',
-                            tone: StatusTone.info,
-                          ),
-                          if (stats.bySlot.any(
-                            (MedSlot slot) => slot.total > slot.taken,
-                          ))
-                            StatusChip(
-                              label: '有未服用的餐次',
-                              tone: StatusTone.warning,
-                            ),
-                        ],
-                      ),
-                      if (stats.bySlot.isNotEmpty) ...<Widget>[
-                        Text(
-                          '近 7 天餐次完成度（按粒）',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                        Column(
-                          spacing: 8,
-                          children: <Widget>[
-                            for (final MedSlot slot in stats.bySlot)
-                              Row(
-                                spacing: 10,
-                                children: <Widget>[
-                                  SizedBox(
-                                    width: 40,
-                                    child: Text(
-                                      slot.label,
-                                      style: theme.textTheme.bodySmall,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(3),
-                                      child: LinearProgressIndicator(
-                                        value: slot.total == 0
-                                            ? 0
-                                            : slot.taken / slot.total,
-                                        minHeight: 6,
-                                        backgroundColor: theme
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    '${slot.taken}/${slot.total}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: muted,
-                                      fontFeatures: const <FontFeature>[
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
+            )
+          else ...<Widget>[
+            // 刷新失败但仍有旧数据：保留内容，顶部提示可重试。
+            if (_status != LoadStatus.ready && _status != LoadStatus.idle)
+              OverviewStatusBanner(
+                status: _status,
+                message: _message,
+                onRetry: _refresh,
+              ),
+            SummaryStrip(
+              caption: '今日已服 ${formatInt(stats.todayTaken)} 粒 · '
+                  '待服 ${formatInt(stats.todayPending)} 粒 · '
+                  '记录 ${formatInt(stats.totalCount)} 条',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '今日已服',
+                  value: formatInt(stats.todayTaken),
+                  unit: '粒',
+                  color: tokens.green,
                 ),
-                SectionCard(
-                  title: '药品库存',
-                  trailing: _lowCount > 0
-                      ? StatusChip(
-                          label: '$_lowCount 项偏低',
-                          tone: StatusTone.warning,
-                        )
-                      : Text(
-                          '${_stocks.length} 项',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      if (_stocks.isEmpty)
-                        const EmptyState(
-                          icon: Icons.medication_outlined,
-                          title: '暂无药品库存',
-                          description: '点下方「新增药品」登记库存',
-                          compact: true,
-                        )
-                      else
-                        for (final MedStock stock in _stocks)
-                          _StockRow(
-                            stock: stock,
-                            onTap: () => _openStock(stock),
-                          ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: AppPrimaryAction(
-                          label: '新增药品',
-                          onPressed: () => _openStock(),
-                        ),
-                      ),
-                    ],
-                  ),
+                StatRailItem(
+                  label: '今日待服',
+                  value: formatInt(stats.todayPending),
+                  unit: '粒',
+                  color: stats.todayPending > 0 ? tokens.orange : null,
                 ),
-                SectionCard(
-                  title: '购药记录',
-                  trailing: Text(
-                    '共 $_purchaseTotal 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 4,
-                    children: <Widget>[
-                      if (_purchaseError != null)
-                        Text(
-                          '购药记录加载失败：$_purchaseError',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        )
-                      else if (_purchases.isEmpty)
-                        const EmptyState(
-                          icon: Icons.shopping_bag_outlined,
-                          title: '暂无购药记录',
-                          description: '点下方「记录购药」登记补货',
-                          compact: true,
-                        )
-                      else
-                        for (final MedPurchase purchase in _purchases)
-                          _PurchaseRow(
-                            purchase: purchase,
-                            onEdit: () => _openPurchaseEdit(purchase),
-                            onDelete: () => _deletePurchase(purchase),
-                          ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: AppPrimaryAction(
-                          label: '记录购药',
-                          onPressed: _openPurchase,
-                        ),
-                      ),
-                    ],
-                  ),
+                StatRailItem(
+                  label: '7 日依从率',
+                  value: _windowTotal == 0
+                      ? '—'
+                      : formatPercent(stats.adherenceRate),
                 ),
-                SectionCard(
-                  title: '用药记录',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.medication_outlined,
-                          title: '暂无用药记录',
-                          description: '点底部「新增用药」添加今天的用药计划',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final MedicationRecord record in _items)
-                              _RecordRow(
-                                record: record,
-                                onTap: () => _openDetail(record),
-                                onCheckIn: () => _openCheckIn(record),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  _MedFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
               ],
-            ],
-          ),
+            ),
+            V2Segmented<int>(
+              options: const <V2SegmentedOption<int>>[
+                V2SegmentedOption<int>(label: '今日', value: 0),
+                V2SegmentedOption<int>(label: '库存', value: 1),
+                V2SegmentedOption<int>(label: '购药', value: 2),
+                V2SegmentedOption<int>(label: '记录', value: 3),
+              ],
+              selected: _tab,
+              onChanged: (int index) => setState(() => _tab = index),
+            ),
+            Expanded(
+              child: IndexedStack(
+                index: _tab,
+                children: <Widget>[
+                  _todayTab(tokens, stats),
+                  _stockTab(tokens),
+                  _purchaseTab(tokens),
+                  _recordTab(tokens),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// 「今日」栏目：今日已服 / 待服、7 日依从率与近 7 天餐次完成度。
+  Widget _todayTab(AppTokens tokens, MedicationStats stats) {
+    final bool noTodayPlan =
+        stats.todayTaken == 0 && stats.todayPending == 0;
+    final String basis = _windowTotal == 0
+        ? '口径：今日已服 / 待服按「粒」统计；近 7 天没有计划剂量，依从率暂记「—」。'
+        : '口径：今日已服 / 待服按「粒」统计；7 日依从率 = 近 7 天已服 '
+              '${formatInt(_windowTaken)} / 计划 ${formatInt(_windowTotal)} 粒，'
+              '今日尚未到点的剂量不计为失败。';
+    return ListView(
+      key: const PageStorageKey<String>('health-medication-today'),
+      padding: const EdgeInsets.only(bottom: 16),
+      children: <Widget>[
+        SectionHeader(
+          title: '今日用药',
+          actionLabel: '新增用药',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            RecordRow(
+              title: '今日已服',
+              subtitle: '按「粒」统计',
+              value: '${formatInt(stats.todayTaken)} 粒',
+              valueColor: tokens.green,
+            ),
+            RecordRow(
+              title: '今日待服',
+              subtitle: '按「粒」统计',
+              value: '${formatInt(stats.todayPending)} 粒',
+              valueColor: stats.todayPending > 0 ? tokens.orange : null,
+            ),
+            RecordRow(
+              title: '7 日依从率',
+              subtitle: '已服 ${formatInt(_windowTaken)} / '
+                  '计划 ${formatInt(_windowTotal)} 粒',
+              value: _windowTotal == 0
+                  ? '—'
+                  : formatPercent(stats.adherenceRate),
+            ),
+            RecordRow(
+              title: '累计记录',
+              subtitle: '全部用药记录',
+              value: '${formatInt(stats.totalCount)} 条',
+            ),
+            RecordRow(
+              title: '累计服药',
+              subtitle: '全部记录合计',
+              value: '${formatInt(stats.totalPills)} 粒',
+            ),
+            if (stats.bySlot.any((MedSlot slot) => slot.total > slot.taken))
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 10, 16, 10),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    V2Badge('有未服用的餐次', tone: V2BadgeTone.warn),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SectionHeader(title: '近 7 天餐次完成度'),
+        GroupCard(
+          children: stats.bySlot.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.medication_outlined,
+                    title: '暂无餐次统计',
+                    description: '近 7 天还没有用药计划',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final MedSlot slot in stats.bySlot) _SlotRow(slot: slot),
+                ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          noTodayPlan
+              ? '$basis\n今日暂无用药计划，下方依从率统计的是近 7 天数据。'
+              : basis,
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 「库存」栏目：药品余量 / 预警值 / 预计用完，点按行编辑。
+  Widget _stockTab(AppTokens tokens) {
+    return ListView(
+      key: const PageStorageKey<String>('health-medication-stock'),
+      padding: const EdgeInsets.only(bottom: 16),
+      children: <Widget>[
+        SectionHeader(
+          title: '药品库存 · 共 ${formatInt(_stocks.length)} 项',
+          actionLabel: '新增药品',
+          onAction: () => _openStock(),
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (_stocks.isEmpty)
+              const EmptyState(
+                icon: Icons.medication_outlined,
+                title: '暂无药品库存',
+                description: '点「新增药品」登记库存',
+                compact: true,
+              )
+            else ...<Widget>[
+              if (_lowCount > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      V2Badge('$_lowCount 项偏低', tone: V2BadgeTone.warn),
+                    ],
+                  ),
+                ),
+              for (final MedStock stock in _stocks)
+                _StockRow(stock: stock, onTap: () => _openStock(stock)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '余量低于预警值会标为「库存偏低」，点按行可修改库存。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 「购药」栏目：最近 5 条购药记录，可编辑 / 删除。
+  Widget _purchaseTab(AppTokens tokens) {
+    return ListView(
+      key: const PageStorageKey<String>('health-medication-purchase'),
+      padding: const EdgeInsets.only(bottom: 16),
+      children: <Widget>[
+        if (_purchaseError != null)
+          V2ErrorBanner(message: '购药记录加载失败：$_purchaseError'),
+        SectionHeader(
+          title: '购药记录 · 共 ${formatInt(_purchaseTotal)} 条',
+          actionLabel: '记录购药',
+          onAction: _openPurchase,
+        ),
+        GroupCard(
+          children: _purchases.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.shopping_bag_outlined,
+                    title: '暂无购药记录',
+                    description: '点「记录购药」登记补货',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
+                  for (final MedPurchase purchase in _purchases)
+                    _PurchaseRow(
+                      purchase: purchase,
+                      onEdit: () => _openPurchaseEdit(purchase),
+                      onDelete: () => _deletePurchase(purchase),
+                    ),
+                ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '保存购药后库存会按数量自动补货，删除记录会同步撤销补货。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+
+  /// 「记录」栏目：用药记录分页，支持行内快捷打卡。
+  Widget _recordTab(AppTokens tokens) {
+    return ListView(
+      key: const PageStorageKey<String>('health-medication-record'),
+      padding: const EdgeInsets.only(bottom: 16),
+      children: <Widget>[
+        SectionHeader(
+          title: '用药记录 · 共 ${formatInt(_total)} 条',
+          actionLabel: '新增用药',
+          onAction: _openCreate,
+        ),
+        GroupCard(
+          children: <Widget>[
+            if (_items.isEmpty)
+              const EmptyState(
+                icon: Icons.medication_outlined,
+                title: '暂无用药记录',
+                description: '点「新增用药」添加今天的用药计划',
+                compact: true,
+              )
+            else
+              for (final MedicationRecord record in _items)
+                _RecordRow(
+                  record: record,
+                  onTap: () => _openDetail(record),
+                  onCheckIn: () => _openCheckIn(record),
+                ),
+          ],
+        ),
+        if (_items.isNotEmpty)
+          ListLoadMoreFooter(
+            loading: _loadingMore,
+            hasMore: _hasMore,
+            onPressed: _loadMore,
+          ),
+        const SizedBox(height: 12),
+        Text(
+          '点按行查看明细；未完成的记录可直接在行内打卡。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
+  }
+}
+
+/// 餐次完成度行：餐次 + 进度条 + 已服 / 计划粒数。
+class _SlotRow extends StatelessWidget {
+  const _SlotRow({required this.slot});
+
+  final MedSlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            SizedBox(
+              width: 40,
+              child: Text(
+                slot.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.rowTitle.copyWith(color: tokens.text),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: slot.total == 0 ? 0 : slot.taken / slot.total,
+                  minHeight: 6,
+                  backgroundColor: tokens.fill2,
+                  color: tokens.accent,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '${formatInt(slot.taken)}/${formatInt(slot.total)}',
+              maxLines: 1,
+              softWrap: false,
+              style: AppType.rowValue.copyWith(
+                color: slot.total > slot.taken ? tokens.orange : tokens.text,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 库存行：名称 + 余量/预警值 + 预计可用天数；点按进入编辑/删除。
+/// 库存行：药品名（含低库存徽标）+ 余量 / 预警 / 预计用完 → 约 N 天。
 class _StockRow extends StatelessWidget {
   const _StockRow({required this.stock, required this.onTap});
 
@@ -757,75 +843,72 @@ class _StockRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      '余量 ${_trim(stock.quantity)} ${stock.unit}',
+      if (stock.threshold > 0) '预警 ${_trim(stock.threshold)} ${stock.unit}',
+      if (stock.predictedDate != null)
+        '预计 ${formatListDate(stock.predictedDate)} 用完',
+    ].join(' · ');
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Row(
-                    spacing: 6,
-                    children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          stock.name,
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            stock.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.rowTitle.copyWith(
+                              color: tokens.text,
+                            ),
+                          ),
                         ),
-                      ),
-                      if (stock.isLow)
-                        const StatusChip(
-                          label: '库存偏低',
-                          tone: StatusTone.danger,
-                        ),
-                    ],
-                  ),
-                  Text(
-                    // 375dp / 1.3 倍字号下「余量 20 粒 · 预警 2 粒」会折成
-                    // 两行且把「粒」挤成孤字；阈值并入括号，单位只写一次。
-                    '余量 ${_trim(stock.quantity)} ${stock.unit}'
-                    '${stock.threshold > 0 ? '（预警 ${_trim(stock.threshold)}）' : ''}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  // 预计用完日期单独占一行（整行宽度），和右侧「约 N 天」
-                  // 挤在同一行时会被省略号截掉后半句。
-                  if (stock.predictedDate != null)
+                        if (stock.isLow) ...<Widget>[
+                          const SizedBox(width: 6),
+                          const V2Badge(
+                            '库存偏低',
+                            tone: V2BadgeTone.danger,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      '预计 ${formatListDate(stock.predictedDate)} 用完',
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                      maxLines: 1,
+                      meta,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
                     ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                if (stock.daysLeft != null)
-                  Text(
-                    '约 ${stock.daysLeft} 天',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: stock.isLow ? theme.colorScheme.error : muted,
-                    ),
+              if (stock.daysLeft != null) ...<Widget>[
+                const SizedBox(width: 12),
+                Text(
+                  '约 ${formatInt(stock.daysLeft)} 天',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: AppType.rowValue.copyWith(
+                    color: stock.isLow ? tokens.red : tokens.text,
                   ),
+                ),
               ],
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
@@ -839,7 +922,7 @@ class _StockRow extends StatelessWidget {
   }
 }
 
-/// 购药记录行：日期 / 药品 / 数量 / 总价 + 编辑 / 删除入口。
+/// 购药记录行：药名 + 日期 / 数量 / 渠道 → 总价与更多操作（编辑 / 删除）。
 class _PurchaseRow extends StatelessWidget {
   const _PurchaseRow({
     required this.purchase,
@@ -853,60 +936,73 @@ class _PurchaseRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final String unit = purchase.unit ?? '盒';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        spacing: 8,
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 2,
-              children: <Widget>[
-                Text(
-                  purchase.medicineName,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    final String meta = <String>[
+      formatListDate(purchase.buyDate),
+      '${_trim(purchase.quantity)} $unit',
+      if ((purchase.channel ?? '').trim().isNotEmpty) purchase.channel!.trim(),
+    ].join(' · ');
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    purchase.medicineName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowTitle.copyWith(color: tokens.text),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              formatMoney(purchase.totalPrice),
+              maxLines: 1,
+              softWrap: false,
+              style: AppType.rowValue.copyWith(
+                color: purchase.totalPrice == null ? tokens.text3 : tokens.text,
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: '更多操作',
+              icon: Icon(Icons.more_horiz, size: 18, color: tokens.text3),
+              padding: EdgeInsets.zero,
+              onSelected: (String value) {
+                if (value == 'edit') {
+                  onEdit();
+                } else {
+                  onDelete();
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Text('编辑'),
                 ),
-                Text(
-                  '${formatListDate(purchase.buyDate)} · '
-                  '${_trim(purchase.quantity)} $unit'
-                  '${purchase.channel == null ? '' : ' · ${purchase.channel}'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Text('删除', style: TextStyle(color: tokens.red)),
                 ),
               ],
             ),
-          ),
-          if (purchase.totalPrice != null)
-            Text(
-              formatMoney(purchase.totalPrice!),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-              ),
-            ),
-          IconButton(
-            tooltip: '编辑购药记录',
-            onPressed: onEdit,
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.edit_outlined, size: 20),
-          ),
-          IconButton(
-            tooltip: '删除购药记录',
-            onPressed: onDelete,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(
-              Icons.delete_outline,
-              size: 20,
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -919,7 +1015,7 @@ class _PurchaseRow extends StatelessWidget {
   }
 }
 
-/// 用药记录行：日期/药名 + 早中晚用量 + 完成状态。
+/// 用药记录行：药名 + 完成徽标 + 日期 / 三餐用量 → 已服 / 应服与打卡入口。
 class _RecordRow extends StatelessWidget {
   const _RecordRow({
     required this.record,
@@ -935,128 +1031,87 @@ class _RecordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final bool takenBreakfast = record.takenBreakfast;
-    final bool takenLunch = record.takenLunch;
-    final bool takenDinner = record.takenDinner;
-    final int takenDoses =
-        (takenBreakfast ? record.doseBreakfast : 0) +
-        (takenLunch ? record.doseLunch : 0) +
-        (takenDinner ? record.doseDinner : 0);
-    final bool complete =
-        record.totalDoses > 0 && takenDoses >= record.totalDoses;
+    final AppTokens tokens = AppTokens.of(context);
+    final int takenDoses = record.takenDoses;
+    final bool complete = record.isComplete;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Row(
-                    spacing: 6,
-                    children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          record.medicineName,
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            record.medicineName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.rowTitle.copyWith(
+                              color: tokens.text,
+                            ),
+                          ),
                         ),
-                      ),
-                      StatusChip(
-                        label: complete ? '已完成' : '未完成',
-                        tone: complete
-                            ? StatusTone.success
-                            : StatusTone.warning,
-                      ),
-                    ],
-                  ),
+                        const SizedBox(width: 6),
+                        V2Badge(
+                          complete ? '已完成' : '未完成',
+                          tone: complete
+                              ? V2BadgeTone.green
+                              : V2BadgeTone.warn,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${formatListDate(record.recordDate)} · '
+                      '早 ${record.doseBreakfast} 午 ${record.doseLunch} '
+                      '晚 ${record.doseDinner}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
                   Text(
-                    '${formatListDate(record.recordDate)} · '
-                    '早 ${record.doseBreakfast} 午 ${record.doseLunch} '
-                    '晚 ${record.doseDinner}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    '${formatInt(takenDoses)}/${formatInt(record.totalDoses)}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(color: tokens.text),
                   ),
+                  if (record.totalDoses > 0 && !complete)
+                    TextButton(
+                      onPressed: onCheckIn,
+                      style: TextButton.styleFrom(
+                        foregroundColor: tokens.accent,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(44, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: AppType.action.copyWith(fontSize: 13),
+                      ),
+                      child: const Text('打卡'),
+                    ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: <Widget>[
-                Text(
-                  '$takenDoses/${record.totalDoses}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                if (record.totalDoses > 0 && !complete)
-                  TextButton(
-                    onPressed: onCheckIn,
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 32),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('打卡'),
-                  ),
-              ],
-            ),
-          ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
-  }
-}
-
-/// 「加载更多 / 已全部加载」页脚。
-class _MedFooter extends StatelessWidget {
-  const _MedFooter({
-    required this.loading,
-    required this.hasMore,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final bool hasMore;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (!hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          '已加载全部',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
   }
 }

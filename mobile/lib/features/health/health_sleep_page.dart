@@ -6,12 +6,13 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/health_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/add_entry_fab.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/list_load_more_footer.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 睡眠体征：累计概览 + 分阶段均值 + 睡眠记录分页与增改删。
 ///
@@ -191,138 +192,109 @@ class _HealthSleepPageState extends State<HealthSleepPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final SleepStats? stats = _stats;
 
     return DetailPageScaffold(
       title: '睡眠体征',
-      floatingActionButton: AddEntryFab(
-        tooltip: '新增睡眠记录',
-        onPressed: () => _openForm(),
-      ),
-      child: ListView(
-        // 只为浮动按钮让出滚动尾部空间，内容本身仍可滚到按钮下方。
-        padding: const EdgeInsets.only(bottom: 88),
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                // 记录条数只在「睡眠记录」卡头展示一次，概览卡不重复。
-                SectionCard(
-                  title: '睡眠概览',
-                  child: Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '平均时长',
-                          value: formatDuration(stats.avgDurationMin),
-                        ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (stats != null) ...<Widget>[
+            SummaryStrip(
+              caption: '共 ${formatInt(stats.recordCount)} 条睡眠记录 · '
+                  '日均时长 ${formatDuration(stats.avgDurationMin)}',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '平均时长',
+                  value: _durationCompact(stats.avgDurationMin),
+                ),
+                StatRailItem(
+                  label: '平均质量',
+                  value: stats.avgQuality == null
+                      ? '—'
+                      : '${formatOneDecimal(stats.avgQuality)} / 10',
+                ),
+                StatRailItem(
+                  label: '记录条数',
+                  value: formatInt(stats.recordCount),
+                  unit: '条',
+                ),
+              ],
+            ),
+            const SectionHeader(title: '分阶段睡眠'),
+            GroupCard(
+              children: stats.hasStageData
+                  ? <Widget>[
+                      RecordRow(
+                        title: '深睡',
+                        subtitle: '设备上报均值',
+                        value: formatDuration(stats.avgDeepMin?.round()),
                       ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '平均质量',
-                          value: stats.avgQuality == null
-                              ? '—'
-                              : '${formatOneDecimal(stats.avgQuality)} / 10',
-                        ),
+                      RecordRow(
+                        title: '浅睡',
+                        subtitle: '设备上报均值',
+                        value: formatDuration(stats.avgLightMin?.round()),
+                      ),
+                    ]
+                  : const <Widget>[
+                      EmptyState(
+                        icon: Icons.bedtime_outlined,
+                        title: '暂无分阶段数据',
+                        description: '当前记录未上报深睡/浅睡时长，未采集字段显示「—」',
+                        compact: true,
                       ),
                     ],
-                  ),
-                ),
-                SectionCard(
-                  title: '分阶段睡眠',
-                  child: stats.hasStageData
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          spacing: 8,
-                          children: <Widget>[
-                            _StageRow(label: '深睡', minutes: stats.avgDeepMin),
-                            _StageRow(label: '浅睡', minutes: stats.avgLightMin),
-                            Text(
-                              '分阶段时长由设备上报，未采集时显示「—」。',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: muted,
-                              ),
-                            ),
-                          ],
-                        )
-                      : const EmptyState(
-                          icon: Icons.bedtime_outlined,
-                          title: '暂无分阶段数据',
-                          description: '当前记录未上报深睡/浅睡时长，未采集字段显示「—」',
-                          compact: true,
-                        ),
-                ),
-                SectionCard(
-                  title: '睡眠记录',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.bedtime_outlined,
-                          title: '暂无睡眠记录',
-                          description: '点底部「新增睡眠」录入第一条',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final SleepRecord record in _items)
-                              _SleepRow(
-                                record: record,
-                                onTap: () => _openForm(record),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
+            ),
+            SectionHeader(
+              title: '睡眠记录 · 共 ${formatInt(_total)} 条',
+              actionLabel: '新增记录',
+              onAction: () => _openForm(),
+            ),
+            GroupCard(
+              children: <Widget>[
+                if (_items.isEmpty)
+                  const EmptyState(
+                    icon: Icons.bedtime_outlined,
+                    title: '暂无睡眠记录',
+                    description: '点「新增记录」录入第一条',
+                    compact: true,
+                  )
+                else
+                  for (final SleepRecord record in _items)
+                    _SleepRow(record: record, onTap: () => _openForm(record)),
               ],
-            ],
-          ),
+            ),
+            Text(
+              '分阶段时长由设备上报，未采集时显示「—」。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
+        footer: _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
-}
 
-/// 分阶段均值行：标签 + 数值（null 显示「—」）。
-class _StageRow extends StatelessWidget {
-  const _StageRow({required this.label, required this.minutes});
-
-  final String label;
-  final double? minutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      spacing: 12,
-      children: <Widget>[
-        Expanded(child: Text(label, style: theme.textTheme.bodyMedium)),
-        Text(
-          formatDuration(minutes?.round()),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-          ),
-        ),
-      ],
-    );
+  /// 摘要轨里的时长压缩：`432` → `7h12m`，空值显示「—」。
+  static String _durationCompact(int? minutes) {
+    if (minutes == null || minutes <= 0) {
+      return '—';
+    }
+    final int hours = minutes ~/ 60;
+    final int rest = minutes % 60;
+    if (hours == 0) {
+      return '${rest}m';
+    }
+    return rest == 0 ? '${hours}h' : '${hours}h${rest}m';
   }
 }
 
@@ -361,95 +333,78 @@ class _SleepRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final String wakeLabel = record.wakeCount == null
         ? '—'
         : '${record.wakeCount} 次';
     final String? vitals = _vitalsText;
+    // 入睡/起床、体征、分阶段与醒来次数合并为一行副信息，超长时最多两行。
+    final String meta = <String>[
+      '入睡 ${record.bedtime ?? '—'} · 起床 ${record.wakeTime ?? '—'}',
+      ?vitals,
+      if (record.deepSleepMin != null)
+        '深睡 ${formatDuration(record.deepSleepMin)}',
+      if (record.lightSleepMin != null)
+        '浅睡 ${formatDuration(record.lightSleepMin)}',
+      '醒来 $wakeLabel',
+      if ((record.note ?? '').trim().isNotEmpty) record.note!.trim(),
+    ].join(' · ');
+
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      formatListDate(record.recordDate),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      meta,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   Text(
-                    formatListDate(record.recordDate),
-                    style: theme.textTheme.bodyMedium,
+                    formatDuration(record.durationMin),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(color: tokens.text),
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    '入睡 ${record.bedtime ?? '—'} · 起床 ${record.wakeTime ?? '—'}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    record.sleepQuality == null
+                        ? '质量 —'
+                        : '质量 ${record.sleepQuality}/10',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
-                  if (vitals != null)
-                    Text(
-                      vitals,
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: <Widget>[
-                      if (record.deepSleepMin != null)
-                        Text(
-                          '深睡 ${formatDuration(record.deepSleepMin)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      if (record.lightSleepMin != null)
-                        Text(
-                          '浅睡 ${formatDuration(record.lightSleepMin)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      Text(
-                        '醒来 $wakeLabel',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (record.note != null && record.note!.isNotEmpty)
-                    Text(
-                      record.note!,
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                Text(
-                  formatDuration(record.durationMin),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                Text(
-                  record.sleepQuality == null
-                      ? '质量 —'
-                      : '质量 ${record.sleepQuality}/10',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                ),
-                Icon(Icons.chevron_right, size: 18, color: muted),
-              ],
-            ),
-          ],
+              const SizedBox(width: 6),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
