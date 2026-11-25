@@ -560,11 +560,14 @@ class _CheckupRecordRow extends StatelessWidget {
   final String statusLabel;
   final VoidCallback onTap;
 
-  /// 参考范围：后端原值优先原样展示，缺失时才由上下限拼出。
+  /// 参考范围：后端原值优先展示，缺失时才由上下限拼出。
+  ///
+  /// 后端历史数据的区间小数位不统一（`65.00-85.00` 与 `208.3-428.4`），
+  /// 这里统一去掉无意义的尾随零，保证同一页内区间格式一致。
   String get _reference {
     final String? raw = record.referenceRange?.trim();
     if (raw != null && raw.isNotEmpty) {
-      return raw;
+      return _trimReference(raw);
     }
     final double? low = record.refLow;
     final double? high = record.refHigh;

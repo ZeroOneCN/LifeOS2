@@ -46,6 +46,11 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
   BankStats? _stats;
   int _carrierTotal = 0;
   int _cardBillTotal = 0;
+
+  /// 手机号卡余额合计与本月已扣：来自 `/lifestyle/phone-cards/stats`，
+  /// 与银行卡口径分开统计，摘要区按当前栏目展示对应口径。
+  double _phoneBalanceTotal = 0;
+  double _phoneMonthDeduct = 0;
   LoadStatus _status = LoadStatus.loading;
   String? _message;
 
@@ -105,6 +110,12 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
               queryParameters: <String, dynamic>{'page': 1, 'page_size': 100})
           .then((value) => value.data)
           .catchError((Object _) => null);
+      // 手机号卡汇总（余额合计 / 本月已扣）：与银行卡统计分开，摘要区按 Tab 取用。
+      final Future<Map<String, dynamic>?> phoneStatsFuture = scope.apiClient
+          .get<Map<String, dynamic>>('/lifestyle/phone-cards/stats',
+              queryParameters: <String, dynamic>{'days': 30})
+          .then((value) => value.data)
+          .catchError((Object _) => null);
       // 运营商 / 卡账单为附属字典：失败时保留空表，不阻塞主列表。
       final Future<Map<String, dynamic>?> carrierFuture = scope.apiClient
           .get<Map<String, dynamic>>('/lifestyle/carriers',
@@ -123,6 +134,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
           phoneFuture,
           carrierFuture,
           billFuture,
+          phoneStatsFuture,
         ],
       );
       final Map<String, dynamic>? statsJson =
@@ -135,6 +147,8 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
           responses[3] as Map<String, dynamic>?;
       final Map<String, dynamic>? billJson =
           responses[4] as Map<String, dynamic>?;
+      final Map<String, dynamic>? phoneStatsJson =
+          responses[5] as Map<String, dynamic>?;
       if (statsJson == null || listJson == null) {
         throw const ApiException(
           kind: ApiErrorKind.badResponse,
@@ -174,6 +188,10 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
         _cardBills
           ..clear()
           ..addAll(bills);
+        _phoneBalanceTotal =
+            (phoneStatsJson?['balance_total'] as num?)?.toDouble() ?? 0;
+        _phoneMonthDeduct =
+            (phoneStatsJson?['month_deduct'] as num?)?.toDouble() ?? 0;
         _carrierTotal =
             (carrierJson?['total'] as num?)?.toInt() ?? carriers.length;
         _cardBillTotal =
@@ -562,6 +580,55 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
     }
   }
 
+  /// 摘要区按当前栏目展示对应口径，避免在「手机号」Tab 下看到银行卡余额合计。
+  ///
+  /// [stats] 为银行卡统计；手机号卡余额与本月扣账来自独立统计接口。
+  SummaryStrip _buildSummary(BankStats stats) {
+    final int phoneCount = _phones.length;
+    switch (_tab) {
+      case 1:
+        return SummaryStrip(
+          caption: '余额与信用额度仅统计银行卡，不含手机号卡',
+          items: <StatRailItem>[
+            StatRailItem(label: '银行卡', value: formatInt(stats.total), unit: '张'),
+            StatRailItem(label: '卡内余额合计', value: formatMoney(stats.balanceTotal)),
+            StatRailItem(label: '信用额度', value: formatMoney(stats.creditTotal)),
+          ],
+        );
+      case 2:
+        return SummaryStrip(
+          caption: '运营商平台用于手机号卡归属',
+          items: <StatRailItem>[
+            StatRailItem(label: '运营商', value: formatInt(_carrierTotal), unit: '家'),
+            StatRailItem(label: '手机号卡', value: formatInt(phoneCount), unit: '张'),
+            StatRailItem(label: '银行卡', value: formatInt(stats.total), unit: '张'),
+          ],
+        );
+      case 3:
+        return SummaryStrip(
+          caption: '卡账单按月记录，支持新增与编辑',
+          items: <StatRailItem>[
+            StatRailItem(
+              label: '卡账单',
+              value: formatInt(_cardBillTotal),
+              unit: '条',
+            ),
+            StatRailItem(label: '本月扣账', value: formatMoney(_phoneMonthDeduct)),
+            StatRailItem(label: '手机号卡', value: formatInt(phoneCount), unit: '张'),
+          ],
+        );
+      default:
+        return SummaryStrip(
+          caption: '余额由充值 / 扣费 / 校准流水自动汇总',
+          items: <StatRailItem>[
+            StatRailItem(label: '手机号卡', value: formatInt(phoneCount), unit: '张'),
+            StatRailItem(label: '手机卡余额合计', value: formatMoney(_phoneBalanceTotal)),
+            StatRailItem(label: '本月已扣', value: formatMoney(_phoneMonthDeduct)),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final BankStats? stats = _stats;
@@ -587,26 +654,7 @@ class _LifestyleCardsPageState extends State<LifestyleCardsPage> {
                 message: _message,
                 onRetry: _refresh,
               ),
-            SummaryStrip(
-              caption: '手机号 ${formatInt(_phones.length)} 张 · '
-                  '运营商 ${formatInt(_carrierTotal)} 家 · '
-                  '卡账单 ${formatInt(_cardBillTotal)} 条',
-              items: <StatRailItem>[
-                StatRailItem(
-                  label: '银行卡',
-                  value: formatInt(stats.total),
-                  unit: '张',
-                ),
-                StatRailItem(
-                  label: '卡内余额',
-                  value: formatMoney(stats.balanceTotal),
-                ),
-                StatRailItem(
-                  label: '信用额度',
-                  value: formatMoney(stats.creditTotal),
-                ),
-              ],
-            ),
+            _buildSummary(stats),
             V2Segmented<int>(
               options: const <V2SegmentedOption<int>>[
                 V2SegmentedOption<int>(label: '手机号', value: 0),
