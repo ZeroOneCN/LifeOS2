@@ -2,16 +2,41 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/finance_models.dart';
 import '../../core/utils/formatters.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 /// 列表页「加载更多 / 已全部加载」页脚（实现已抽到 shared，这里保留导出，
 /// 财务页无需改 import）。
 export '../../shared/widgets/list_load_more_footer.dart';
 
-/// 状态色调：统一映射到主题里的语义色，避免各页面自己写颜色。
+/// 状态色调：统一映射到 2.0 设计令牌里的语义色，避免各页面自己写颜色。
 enum StatusTone { info, success, warning, danger }
 
-/// 小状态标签（待还 / 部分还款 / 已结清等）。
+/// 状态色调 → 前景 / 背景色对。
+({Color foreground, Color background}) _toneColors(
+  AppTokens tokens,
+  StatusTone tone,
+) {
+  return switch (tone) {
+    StatusTone.info => (
+      foreground: tokens.accent,
+      background: tokens.accent.withValues(alpha: 0.12),
+    ),
+    StatusTone.success => (
+      foreground: tokens.green,
+      background: tokens.green.withValues(alpha: 0.14),
+    ),
+    StatusTone.warning => (
+      foreground: tokens.orange,
+      background: tokens.orange.withValues(alpha: 0.14),
+    ),
+    StatusTone.danger => (
+      foreground: tokens.red,
+      background: tokens.red.withValues(alpha: 0.12),
+    ),
+  };
+}
+
+/// 小状态标签（待还 / 部分还款 / 已结清等），与 [V2Badge] 同一视觉口径。
 class StatusChip extends StatelessWidget {
   const StatusChip({super.key, required this.label, required this.tone});
 
@@ -20,35 +45,21 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppSemanticColors colors = context.semanticColors;
-    final Color background;
-    final Color foreground;
-    switch (tone) {
-      case StatusTone.success:
-        background = colors.successContainer;
-        foreground = colors.onSuccessContainer;
-      case StatusTone.warning:
-        background = colors.warningContainer;
-        foreground = colors.onWarningContainer;
-      case StatusTone.danger:
-        background = colors.dangerContainer;
-        foreground = colors.onDangerContainer;
-      case StatusTone.info:
-        background = colors.infoContainer;
-        foreground = colors.onInfoContainer;
-    }
+    final AppTokens tokens = AppTokens.of(context);
+    final ({Color foreground, Color background}) colors = _toneColors(
+      tokens,
+      tone,
+    );
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: background,
+        color: colors.background,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: foreground, fontWeight: FontWeight.w500),
+        maxLines: 1,
+        style: AppType.badge.copyWith(color: colors.foreground),
       ),
     );
   }
@@ -66,7 +77,7 @@ StatusTone billTone(String status) {
   }
 }
 
-/// 账单列表行：平台 + 账单月/到期日 + 待还金额 + 状态。
+/// 账单列表行：平台 + 状态 + 到期日 → 剩余金额 + 还款入口。
 class BillRow extends StatelessWidget {
   const BillRow({
     super.key,
@@ -89,126 +100,122 @@ class BillRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final String month = bill.billMonth.length >= 7
         ? bill.billMonth.substring(0, 7)
         : bill.billMonth;
+    final bool cleared = bill.status == 'cleared';
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Row(
-                    spacing: 6,
-                    children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          '$platformName${showMonth ? ' · $month' : ''}',
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      StatusChip(
-                        label: billStatusLabel(bill.status),
-                        tone: billTone(bill.status),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    bill.dueDate == null
-                        ? '未设置到期日'
-                        : '到期 ${formatListDate(bill.dueDate)}${bill.overdue ? ' · 已逾期' : ''}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: bill.overdue ? theme.colorScheme.error : muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                // 主数字始终是「剩余」，已结清时是 ¥0.00；
-                // 不加这行小标签会被误读成账单金额变成了 0。
-                Text.rich(
-                  TextSpan(
-                    children: <InlineSpan>[
-                      if (bill.status == 'cleared')
-                        TextSpan(
-                          text: '剩余 ',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      TextSpan(text: formatMoney(bill.remaining)),
-                    ],
-                  ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                    color: bill.status == 'cleared' ? muted : null,
-                  ),
-                ),
-                if (bill.paidAmount > 0)
-                  Text(
-                    '已还 ${formatMoney(bill.paidAmount)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-              ],
-            ),
-            if (onRepay != null)
-              // 图标 + 文字标签：纯图标既看不出含义，又有误触风险。
-              Semantics(
-                button: true,
-                label: '还款',
-                child: InkWell(
-                  onTap: onRepay,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      spacing: 6,
                       children: <Widget>[
-                        Icon(
-                          Icons.payments_outlined,
-                          size: 20,
-                          color: theme.colorScheme.primary,
-                        ),
-                        Text(
-                          '还款',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontSize: 11,
+                        Flexible(
+                          child: Text(
+                            '$platformName${showMonth ? ' · $month' : ''}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppType.rowTitle.copyWith(
+                              color: tokens.text,
+                            ),
                           ),
+                        ),
+                        StatusChip(
+                          label: billStatusLabel(bill.status),
+                          tone: billTone(bill.status),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      bill.dueDate == null
+                          ? '未设置到期日'
+                          : '到期 ${formatListDate(bill.dueDate)}'
+                              '${bill.overdue ? ' · 已逾期' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(
+                        color: bill.overdue ? tokens.red : tokens.text2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: <Widget>[
+                  // 主数字始终是「剩余」，已结清时是 ¥0.00；
+                  // 不加这行小标签会被误读成账单金额变成了 0。
+                  Text.rich(
+                    TextSpan(
+                      children: <InlineSpan>[
+                        if (cleared)
+                          TextSpan(
+                            text: '剩余 ',
+                            style: AppType.rowMeta.copyWith(
+                              color: tokens.text2,
+                            ),
+                          ),
+                        TextSpan(text: formatMoney(bill.remaining)),
+                      ],
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(
+                      color: cleared ? tokens.text2 : tokens.red,
+                    ),
+                  ),
+                  if (bill.paidAmount > 0) ...<Widget>[
+                    const SizedBox(height: 2),
+                    Text(
+                      '已还 ${formatMoney(bill.paidAmount)}',
+                      maxLines: 1,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ],
+              ),
+              if (onRepay != null) ...<Widget>[
+                const SizedBox(width: 8),
+                // 文字按钮而不是纯图标：纯图标既看不出含义，又有误触风险。
+                TextButton(
+                  onPressed: onRepay,
+                  style: TextButton.styleFrom(
+                    foregroundColor: tokens.accent,
+                    minimumSize: const Size(44, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    textStyle: AppType.action.copyWith(fontSize: 13),
+                  ),
+                  child: const Text('还款'),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 「名称 + 金额」聚合明细行组（按平台 / 分类 / 规划类型）。
+/// 「名称 + 金额」聚合明细（按平台 / 分类 / 规划类型）。
 ///
-/// 金额使用等宽数字且不换行；名称单行省略，适配 375 宽 + 1.3x 字体。
+/// 与 [RecordRow] 同一信息顺序：左名称、右等宽金额；名称单行省略，
+/// 金额不换行，适配窄屏与大字号。
 class AmountBreakdownList extends StatelessWidget {
   const AmountBreakdownList({
     super.key,
@@ -221,46 +228,44 @@ class AmountBreakdownList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final List<NameAmount> shown = entries.take(maxItems).toList();
     final int rest = entries.length - shown.length;
     return Column(
-      spacing: 8,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         for (final NameAmount entry in shown)
-          Row(
-            spacing: 12,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  entry.name,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    entry.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  formatMoney(entry.amount),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  softWrap: false,
+                  style: AppType.rowValue.copyWith(color: tokens.text),
                 ),
-              ),
-              Text(
-                formatMoney(entry.amount),
-                maxLines: 1,
-                softWrap: false,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const <FontFeature>[
-                    FontFeature.tabularFigures(),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         if (rest > 0)
-          Text(
-            '其余 $rest 项已省略',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: muted.withValues(alpha: 0.8),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '其余 $rest 项已省略',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
             ),
           ),
       ],
     );
   }
 }
-

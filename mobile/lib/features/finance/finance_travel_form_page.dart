@@ -7,6 +7,7 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 新增 / 编辑旅行开支：日期 / 起止时间 / 行程 / 分类 / 项目 / 原价 / 优惠 /
 /// 交通信息 / 支付方式 / 备注。
@@ -305,7 +306,6 @@ class _FinanceTravelFormPageState extends State<FinanceTravelFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
       title: widget.isEditing ? '编辑旅行开支' : '新增旅行开支',
       bottomBar: SizedBox(
@@ -327,20 +327,7 @@ class _FinanceTravelFormPageState extends State<FinanceTravelFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       SectionCard(
                         title: '开支信息',
                         child: Column(

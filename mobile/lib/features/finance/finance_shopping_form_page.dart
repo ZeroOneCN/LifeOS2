@@ -7,6 +7,7 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 购物记录新增 / 编辑：日期 / 商品名 / 金额 / 平台 / 分类 / 备注。
 ///
@@ -299,7 +300,6 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
       title: _creating ? '新增购物记录' : '编辑购物记录',
       bottomBar: _creating
@@ -334,20 +334,7 @@ class _FinanceShoppingFormPageState extends State<FinanceShoppingFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       SectionCard(
                         title: '记录信息',
                         child: Column(

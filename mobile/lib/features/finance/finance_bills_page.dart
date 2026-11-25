@@ -6,12 +6,13 @@ import '../../core/data/overview_controller.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
-import '../../shared/widgets/app_buttons.dart';
-import '../../shared/widgets/app_tab_selector.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../shared/widgets/v2/v2_segmented.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_bill_detail_sheet.dart';
 import 'finance_bill_form_page.dart';
 import 'finance_repay_sheet.dart';
@@ -427,7 +428,6 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     final String manageLabel = switch (_tab) {
       1 => '维护租房渠道',
       2 => '维护订阅分类',
@@ -435,130 +435,93 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     };
     return DetailPageScaffold(
       title: '账单管理',
-      actions: <Widget>[
-        IconButton(
-          tooltip: manageLabel,
-          onPressed: _openManage,
-          icon: const Icon(Icons.tune_outlined),
-        ),
-      ],
-      child: CustomScrollView(
-        slivers: <Widget>[
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
-              children: <Widget>[
-                AppTabSelector(
-                  labels: const <String>['网贷借还', '房租水电', '服务订阅'],
-                  value: _tab,
-                  onChanged: _selectTab,
-                ),
-                ListStatusView(
-                  status: _status,
-                  message: _message,
-                  onRetry: _refresh,
-                ),
-              ],
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
+        children: <Widget>[
+          V2Segmented<int>(
+            options: const <V2SegmentedOption<int>>[
+              V2SegmentedOption<int>(label: '网贷借还', value: 0),
+              V2SegmentedOption<int>(label: '房租水电', value: 1),
+              V2SegmentedOption<int>(label: '服务订阅', value: 2),
+            ],
+            selected: _tab,
+            onChanged: _selectTab,
           ),
-          if (_status == LoadStatus.ready)
-            ...(_tab == 0
-                ? _loanSlivers(theme)
-                : <Widget>[
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 12,
-                        children: _content(theme),
-                      ),
-                    ),
-                  ]),
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          Expanded(child: _body(manageLabel)),
         ],
       ),
     );
   }
 
-  /// 网贷「全部账单」按月分组的 sliver 列表。
+  /// 当前栏目内容：未就绪时只显示状态条，就绪后按 Tab 就地切换。
+  Widget _body(String manageLabel) {
+    final bool ready = _status == LoadStatus.ready || _status == LoadStatus.idle;
+    if (!ready) {
+      return ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+      );
+    }
+    return IndexedStack(
+      index: _tab,
+      children: <Widget>[
+        _loanView(),
+        _housingView(manageLabel),
+        _subscriptionView(manageLabel),
+      ],
+    );
+  }
+
+  /// 网贷「全部账单」：摘要 + 即将到期 + 按月分组的懒加载账单列表。
   ///
   /// 排序口径：月份取 `bill_month`，当前月及以前按月份倒序（最近的在上），
   /// 未来月份统一排到末尾并在未来组内按时间正序；组内按到期日倒序、
   /// 同日按 id 倒序；平台仅作行内信息，不参与排序与分组。
   /// 月份分组头使用固定高度 sliver header，滚动时吸顶；「加载更多」按
   /// 服务端顺序（`bill_month` 倒序）追加更早的月份，不会打乱已加载的分组。
-  List<Widget> _loanSlivers(ThemeData theme) {
+  Widget _loanView() {
+    final AppTokens tokens = AppTokens.of(context);
     final BillStats? stats = _stats;
     if (stats == null) {
-      return const <Widget>[];
+      return const SizedBox.shrink();
     }
-    final Color muted = theme.colorScheme.onSurfaceVariant;
     final List<({String month, List<BillItem> bills})> groups = _loanGroups();
-    return <Widget>[
-      SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 12,
-          children: <Widget>[
-            SectionCard(
-              title: '合计',
-              trailing: AppPrimaryAction(
-                label: '新增账单',
-                onPressed: () => _openForm(BillKind.loan),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: <Widget>[
-                  Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '待还',
-                          value: formatMoney(stats.remaining),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '已还',
-                          value: formatMoney(stats.paid),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '利息合计',
-                          value: formatMoney(stats.totalInterest),
-                        ),
-                      ),
-                    ],
+    return CustomScrollView(
+      slivers: <Widget>[
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 12,
+            children: <Widget>[
+              SummaryStrip(
+                caption: '待还 ${formatInt(stats.pendingCount)} 笔 · '
+                    '部分还款 ${formatInt(stats.partialCount)} · '
+                    '已结清 ${formatInt(stats.clearedCount)}',
+                items: <StatRailItem>[
+                  StatRailItem(
+                    label: '待还',
+                    value: formatInt(stats.remaining),
+                    unit: '元',
+                    color: tokens.red,
                   ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: <Widget>[
-                      StatusChip(
-                        label: '待还 ${stats.pendingCount}',
-                        tone: StatusTone.danger,
-                      ),
-                      StatusChip(
-                        label: '部分还款 ${stats.partialCount}',
-                        tone: StatusTone.warning,
-                      ),
-                      StatusChip(
-                        label: '已结清 ${stats.clearedCount}',
-                        tone: StatusTone.success,
-                      ),
-                    ],
+                  StatRailItem(
+                    label: '已还',
+                    value: formatInt(stats.paid),
+                    unit: '元',
+                    color: tokens.green,
+                  ),
+                  StatRailItem(
+                    label: '利息合计',
+                    value: formatInt(stats.totalInterest),
+                    unit: '元',
                   ),
                 ],
               ),
-            ),
-            if (stats.upcoming.isNotEmpty)
-              SectionCard(
-                title: '即将到期',
-                child: Column(
-                  spacing: 4,
+              if (stats.upcoming.isNotEmpty) ...<Widget>[
+                const SectionHeader(title: '即将到期'),
+                GroupCard(
                   children: <Widget>[
                     for (final BillItem bill in stats.upcoming)
                       BillRow(
@@ -574,78 +537,85 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                       ),
                   ],
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                children: <Widget>[
-                  Text('全部账单', style: theme.textTheme.titleSmall),
-                  const Spacer(),
-                  Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      if (_items.isEmpty && _futureItems.isEmpty)
-        const SliverToBoxAdapter(
-          child: SectionCard(
-            title: '暂无账单',
-            child: EmptyState(
-              icon: Icons.receipt_long_outlined,
-              title: '还没有账单记录',
-              description: '点「新增账单」录入第一条',
-              compact: true,
-            ),
-          ),
-        )
-      else ...<Widget>[
-        for (final ({String month, List<BillItem> bills}) group
-            in groups)
-          SliverMainAxisGroup(
-            slivers: <Widget>[
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _MonthHeaderDelegate(
-                  label: group.month,
-                  count: group.bills.length,
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.only(bottom: 4),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (BuildContext context, int index) {
-                      final BillItem bill = group.bills[index];
-                      return BillRow(
-                        bill: bill,
-                        platformName: _platformName(bill.platformId),
-                        showMonth: false,
-                        onTap: () => _openLoanDetail(bill),
-                        onRepay: bill.status == 'cleared' || bill.remaining <= 0
-                            ? null
-                            : () => _openRepay(bill),
-                      );
-                    },
-                    childCount: group.bills.length,
-                  ),
-                ),
+              ],
+              SectionHeader(
+                title: '全部账单 · 共 ${formatInt(_total)} 笔',
+                actionLabel: '新增账单',
+                onAction: () => _openForm(BillKind.loan),
               ),
             ],
           ),
+        ),
+        if (_items.isEmpty && _futureItems.isEmpty)
+          const SliverToBoxAdapter(
+            child: GroupCard(
+              children: <Widget>[
+                EmptyState(
+                  icon: Icons.receipt_long_outlined,
+                  title: '还没有账单记录',
+                  description: '点「新增账单」录入第一条',
+                  compact: true,
+                ),
+              ],
+            ),
+          )
+        else ...<Widget>[
+          for (final ({String month, List<BillItem> bills}) group in groups)
+            SliverMainAxisGroup(
+              slivers: <Widget>[
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _MonthHeaderDelegate(
+                    label: group.month,
+                    count: group.bills.length,
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (BuildContext context, int index) {
+                        final BillItem bill = group.bills[index];
+                        return BillRow(
+                          bill: bill,
+                          platformName: _platformName(bill.platformId),
+                          showMonth: false,
+                          onTap: () => _openLoanDetail(bill),
+                          onRepay:
+                              bill.status == 'cleared' || bill.remaining <= 0
+                                  ? null
+                                  : () => _openRepay(bill),
+                        );
+                      },
+                      childCount: group.bills.length,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          SliverToBoxAdapter(
+            child: ListLoadMoreFooter(
+              loading: _loadingMore,
+              hasMore: _hasMore,
+              onPressed: _loadMore,
+            ),
+          ),
+        ],
         SliverToBoxAdapter(
-          child: _LoadMoreFooter(
-            loading: _loadingMore,
-            hasMore: _hasMore,
-            onPressed: _loadMore,
+          child: GroupCard(
+            children: <Widget>[
+              V2EntryRow(
+                title: '维护网贷平台',
+                subtitle: '新增或整理网贷平台名称',
+                icon: Icons.tune_outlined,
+                onTap: _openManage,
+              ),
+            ],
           ),
         ),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
-    ];
+    );
   }
 
   /// 按 `bill_month` 分组。
@@ -704,19 +674,9 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
     return aFuture ? a.compareTo(b) : b.compareTo(a);
   }
 
-  /// 当前 Tab 的内容区块。
-  List<Widget> _content(ThemeData theme) {
-    switch (_tab) {
-      case 1:
-        return _housingContent(theme);
-      case 2:
-        return _subscriptionContent(theme);
-      default:
-        return const <Widget>[];
-    }
-  }
-
-  List<Widget> _housingContent(ThemeData theme) {
+  /// 房租水电：租房信息 + 水电缴费两个分组，附字典维护入口。
+  Widget _housingView(String manageLabel) {
+    final AppTokens tokens = AppTokens.of(context);
     // 与网贷 Tab 同一口径：当前及以前倒序在前，未来排到末尾且按时间正序。
     final String today = _todayKey();
     final List<HousingItem> housings = <HousingItem>[
@@ -731,26 +691,29 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
         (UtilityItem a, UtilityItem b) =>
             _compareFutureLast(a.billMonth, b.billMonth, _currentMonthKey()),
       );
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    return <Widget>[
-      SectionCard(
-        title: '租房信息',
-        trailing: AppPrimaryAction(
-          label: '新增住房',
-          onPressed: () => _openForm(BillKind.housing),
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '租房信息 · ${formatInt(housings.length)} 条',
+          actionLabel: '新增住房',
+          onAction: () => _openForm(BillKind.housing),
         ),
-        child: housings.isEmpty
-            ? const EmptyState(
-                icon: Icons.home_outlined,
-                title: '暂无住房记录',
-                description: '点右上「新增住房」录入租房信息',
-                compact: true,
-              )
-            : Column(
-                spacing: 4,
-                children: <Widget>[
+        GroupCard(
+          children: housings.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.home_outlined,
+                    title: '暂无住房记录',
+                    description: '点「新增住房」录入租房信息',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
                   for (final HousingItem housing in housings)
-                    _RecordRow(
+                    _SimpleRow(
                       title: housing.name,
                       subtitle: '${housing.rentTermLabel} · 月租 '
                           '${formatMoney(housing.actualMonthlyRent)} · 入住 '
@@ -758,48 +721,58 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                       onTap: () => _openHousingDetail(housing),
                     ),
                 ],
-              ),
-      ),
-      SectionCard(
-        title: '水电缴费',
-        trailing: AppPrimaryAction(
-          label: '新增缴费',
-          onPressed: () => _openForm(BillKind.utility),
         ),
-        child: utilities.isEmpty
-            ? const EmptyState(
-                icon: Icons.water_drop_outlined,
-                title: '暂无水电记录',
-                description: '点右上「新增缴费」录入水费/电费',
-                compact: true,
-              )
-            : Column(
-                spacing: 4,
-                children: <Widget>[
+        SectionHeader(
+          title: '水电缴费 · ${formatInt(utilities.length)} 条',
+          actionLabel: '新增缴费',
+          onAction: () => _openForm(BillKind.utility),
+        ),
+        GroupCard(
+          children: utilities.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.water_drop_outlined,
+                    title: '暂无水电记录',
+                    description: '点「新增缴费」录入水费 / 电费',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
                   for (final UtilityItem item in utilities)
-                    _RecordRow(
+                    _SimpleRow(
                       title: '${_shortMonth(item.billMonth)} · '
                           '${_feeTypeLabel(item.feeType)}',
                       subtitle: '${formatMoney(item.amount)}'
-                          '${item.dueDate == null ? '' : ' · 到期 ${_shortDate(item.dueDate)}'}'
-                          ' · ${item.paid ? '已缴' : '未缴'}',
-                      trailing: StatusChip(
-                        label: item.paid ? '已缴' : '未缴',
-                        tone: item.paid ? StatusTone.success : StatusTone.warning,
+                          '${item.dueDate == null ? '' : ' · 到期 ${_shortDate(item.dueDate)}'}',
+                      trailing: V2Badge(
+                        item.paid ? '已缴' : '未缴',
+                        tone: item.paid ? V2BadgeTone.green : V2BadgeTone.warn,
                       ),
                       onTap: () => _openUtilityDetail(item),
                     ),
                 ],
-              ),
-      ),
-      Text(
-        '住房与水电记录与网页端共用同一份数据；删除前会再确认一次。',
-        style: theme.textTheme.bodySmall?.copyWith(color: muted),
-      ),
-    ];
+        ),
+        GroupCard(
+          children: <Widget>[
+            V2EntryRow(
+              title: manageLabel,
+              subtitle: '新增或整理房租 / 水电录入选项',
+              icon: Icons.tune_outlined,
+              onTap: _openManage,
+            ),
+          ],
+        ),
+        Text(
+          '住房与水电记录与网页端共用同一份数据；删除前会再确认一次。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
   }
 
-  List<Widget> _subscriptionContent(ThemeData theme) {
+  /// 服务订阅：订阅列表 + 字典维护入口。
+  Widget _subscriptionView(String manageLabel) {
+    final AppTokens tokens = AppTokens.of(context);
     final String today = _todayKey();
     final List<SubscriptionItem> items = <SubscriptionItem>[
       ...?_subscriptions,
@@ -810,26 +783,29 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
           today,
         ),
       );
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    return <Widget>[
-      SectionCard(
-        title: '订阅列表',
-        trailing: AppPrimaryAction(
-          label: '新增订阅',
-          onPressed: () => _openForm(BillKind.subscription),
+    return ListPageBody(
+      status: _status,
+      message: _message,
+      onRetry: _refresh,
+      blocks: <Widget>[
+        SectionHeader(
+          title: '订阅列表 · ${formatInt(items.length)} 条',
+          actionLabel: '新增订阅',
+          onAction: () => _openForm(BillKind.subscription),
         ),
-        child: items.isEmpty
-            ? const EmptyState(
-                icon: Icons.subscriptions_outlined,
-                title: '暂无订阅',
-                description: '点右上「新增订阅」录入会员/服务器等周期性付费',
-                compact: true,
-              )
-            : Column(
-                spacing: 4,
-                children: <Widget>[
+        GroupCard(
+          children: items.isEmpty
+              ? const <Widget>[
+                  EmptyState(
+                    icon: Icons.subscriptions_outlined,
+                    title: '暂无订阅',
+                    description: '点「新增订阅」录入会员 / 服务器等周期性付费',
+                    compact: true,
+                  ),
+                ]
+              : <Widget>[
                   for (final SubscriptionItem item in items)
-                    _RecordRow(
+                    _SimpleRow(
                       title: item.planName == null || item.planName!.isEmpty
                           ? item.name
                           : '${item.name} · ${item.planName}',
@@ -837,24 +813,34 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
                           '${formatMoney(item.amount)} / '
                           '${item.billingCycleLabel} · 开通 '
                           '${_shortDate(item.startDate)}',
-                      trailing: StatusChip(
-                        label: item.statusLabel,
+                      trailing: V2Badge(
+                        item.statusLabel,
                         tone: switch (item.status) {
-                          'expired' => StatusTone.info,
-                          'cancelled' => StatusTone.info,
-                          _ => StatusTone.success,
+                          'expired' => V2BadgeTone.gray,
+                          'cancelled' => V2BadgeTone.gray,
+                          _ => V2BadgeTone.green,
                         },
                       ),
                       onTap: () => _openSubscriptionDetail(item),
                     ),
                 ],
-              ),
-      ),
-      Text(
-        '金额、周期与状态和网页端一致，修改后会同步更新。',
-        style: theme.textTheme.bodySmall?.copyWith(color: muted),
-      ),
-    ];
+        ),
+        GroupCard(
+          children: <Widget>[
+            V2EntryRow(
+              title: manageLabel,
+              subtitle: '新增或整理订阅分类',
+              icon: Icons.tune_outlined,
+              onTap: _openManage,
+            ),
+          ],
+        ),
+        Text(
+          '金额、周期与状态和网页端一致，修改后会同步更新。',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
+      ],
+    );
   }
 
   /// 平台 id → 名称；未拉到平台列表时退化为「平台 id」。
@@ -982,9 +968,9 @@ class _FinanceBillsPageState extends State<FinanceBillsPage> {
   }
 }
 
-/// 通用记录行：标题 + 副标题 + 可选状态芯片。
-class _RecordRow extends StatelessWidget {
-  const _RecordRow({
+/// 通用记录行：标题 + 副信息 + 可选状态徽标。
+class _SimpleRow extends StatelessWidget {
+  const _SimpleRow({
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -998,86 +984,47 @@ class _RecordRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          spacing: 8,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            ?trailing,
-            const Icon(Icons.chevron_right, size: 18),
-          ],
+              if (trailing != null) ...<Widget>[
+                const SizedBox(width: 8),
+                trailing!,
+              ],
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );
-  }
-}
-
-/// 「加载更多 / 已全部加载」页脚。
-class _LoadMoreFooter extends StatelessWidget {
-  const _LoadMoreFooter({
-    required this.loading,
-    required this.hasMore,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final bool hasMore;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-    if (!hasMore) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          '已加载全部',
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-    return TextButton(onPressed: onPressed, child: const Text('加载更多'));
   }
 }
 
@@ -1089,10 +1036,10 @@ class _MonthHeaderDelegate extends SliverPersistentHeaderDelegate {
   final int count;
 
   @override
-  double get minExtent => 34;
+  double get minExtent => 32;
 
   @override
-  double get maxExtent => 34;
+  double get maxExtent => 32;
 
   @override
   Widget build(
@@ -1100,27 +1047,25 @@ class _MonthHeaderDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Container(
-      height: 34,
+      height: 32,
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
+        // 用页面底色遮住下方滚动内容，避免吸顶时文字与账单行重叠。
+        color: tokens.background,
         border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant),
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(color: tokens.line, width: AppTokens.hairline),
         ),
       ),
       child: Row(
         children: <Widget>[
-          Text(label, style: theme.textTheme.titleSmall),
+          Text(label, style: AppType.section.copyWith(color: tokens.text2)),
           const Spacer(),
           Text(
             '$count 笔',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
           ),
         ],
       ),

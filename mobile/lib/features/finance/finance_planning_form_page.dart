@@ -7,6 +7,7 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 新增 / 编辑财务规划：日期 / 类型 / 标题 / 目标金额 / 已存金额 / 状态 / 备注。
 ///
@@ -208,7 +209,6 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
     return DetailPageScaffold(
       title: widget.isEditing ? '编辑财务规划' : '新增财务规划',
       bottomBar: SizedBox(
@@ -228,20 +228,7 @@ class _FinancePlanningFormPageState extends State<FinancePlanningFormPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: <Widget>[
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
-                  ),
+                if (_error != null) V2ErrorBanner(message: _error!),
                 SectionCard(
                   title: '规划信息',
                   child: Column(

@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_buttons.dart';
 import '../../../shared/widgets/app_select.dart';
 import '../../../shared/widgets/root_page_scaffold.dart';
 import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 账单记录类型：对应网页端 `/finance/bills` 的三个 Tab。
 enum BillKind {
@@ -581,20 +582,7 @@ class _FinanceBillFormPageState extends State<FinanceBillFormPage> {
                       children: _fields(),
                     ),
                   ),
-                  if (_error != null)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onErrorContainer,
-                        ),
-                      ),
-                    ),
+                  if (_error != null) V2ErrorBanner(message: _error!),
                     ],
                   ),
                 ],

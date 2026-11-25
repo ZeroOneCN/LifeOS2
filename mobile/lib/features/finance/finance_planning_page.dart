@@ -10,8 +10,10 @@ import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_status_widgets.dart';
 
 /// 财务规划：汇总（目标 / 已存 / 完成率、进行中 / 已完成）+ 按类型已存 + 规划分页。
@@ -247,7 +249,7 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final PlanStats? stats = _stats;
     // 只展示有已存金额的类型；金额为 0 的类型在窄屏上只是噪音。
     final List<NameAmount> types = stats == null
@@ -260,139 +262,89 @@ class _FinancePlanningPageState extends State<FinancePlanningPage> {
 
     return DetailPageScaffold(
       title: '财务规划',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '新增规划',
-          onPressed: _openCreate,
-          icon: const Icon(Icons.add),
-        ),
-      ],
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '全部规划',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Column(
-                    spacing: 12,
-                    children: <Widget>[
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '目标合计',
-                              value: formatMoney(stats.targetTotal),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '已存合计',
-                              value: formatMoney(stats.savedTotal),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '整体完成率',
-                              value: formatPercent(
-                                stats.targetTotal <= 0
-                                    ? null
-                                    : stats.savedTotal /
-                                        stats.targetTotal *
-                                        100,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        spacing: 16,
-                        children: <Widget>[
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '规划总数',
-                              value: formatInt(stats.total),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '进行中',
-                              value: formatInt(stats.active),
-                            ),
-                          ),
-                          Expanded(
-                            child: MetricPlaceholder(
-                              label: '已完成',
-                              value: formatInt(stats.done),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (stats != null) ...<Widget>[
+            SummaryStrip(
+              caption: '全部规划 ${formatInt(stats.total)} 条 · '
+                  '进行中 ${formatInt(stats.active)} · '
+                  '已完成 ${formatInt(stats.done)}',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '目标合计',
+                  value: formatInt(stats.targetTotal),
+                  unit: '元',
+                ),
+                StatRailItem(
+                  label: '已存合计',
+                  value: formatInt(stats.savedTotal),
+                  unit: '元',
+                  color: tokens.green,
+                ),
+                StatRailItem(
+                  label: '整体完成率',
+                  value: formatPercent(
+                    stats.targetTotal <= 0
+                        ? null
+                        : stats.savedTotal / stats.targetTotal * 100,
                   ),
                 ),
-                if (types.isNotEmpty)
-                  SectionCard(
-                    title: '按类型已存',
-                    trailing: Text(
-                      '共 ${formatInt(types.length)} 类',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+              ],
+            ),
+            if (types.isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '按类型已存'),
+              GroupCard(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
                     child: AmountBreakdownList(entries: types),
                   ),
-                SectionCard(
-                  title: '全部规划',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.flag_outlined,
-                          title: '暂无规划',
-                          description: '可在网页端新增储蓄、消费或投资规划',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final PlanItem plan in _items)
-                              _PlanRow(
-                                plan: plan,
-                                onEdit: () => _openEdit(plan),
-                                onDelete: () => _deletePlan(plan),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+                ],
+              ),
             ],
-          ),
+            SectionHeader(
+              title: '全部规划 · 共 ${formatInt(_total)} 条',
+              actionLabel: '新增规划',
+              onAction: _openCreate,
+            ),
+            GroupCard(
+              children: _items.isEmpty
+                  ? const <Widget>[
+                      EmptyState(
+                        icon: Icons.flag_outlined,
+                        title: '暂无规划',
+                        description: '点「新增规划」建立储蓄、消费或投资目标',
+                        compact: true,
+                      ),
+                    ]
+                  : <Widget>[
+                      for (final PlanItem plan in _items)
+                        _PlanRow(
+                          plan: plan,
+                          onEdit: () => _openEdit(plan),
+                          onDelete: () => _deletePlan(plan),
+                        ),
+                    ],
+            ),
+            Text(
+              '规划与网页端共用同一份数据；删除会同步回退目标、已存与完成率。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
+        footer: _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
@@ -412,121 +364,116 @@ class _PlanRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final double? progress = plan.progress;
-    final String? target = plan.targetAmount == null
-        ? null
-        : formatMoney(plan.targetAmount);
+    final String? target =
+        plan.targetAmount == null ? null : formatMoney(plan.targetAmount);
 
     return InkWell(
       onTap: onEdit,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 6,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    plan.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-                StatusChip(
-                  label: planStatusLabel(plan.status),
-                  tone: _planTone(plan.status),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: '更多操作',
-                  padding: EdgeInsets.zero,
-                  onSelected: (String value) {
-                    if (value == 'edit') {
-                      onEdit();
-                    } else {
-                      onDelete();
-                    }
-                  },
-                  itemBuilder: (BuildContext context) =>
-                      const <PopupMenuEntry<String>>[
-                    PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
-                    PopupMenuItem<String>(value: 'delete', child: Text('删除')),
-                  ],
-                ),
-              ],
-            ),
-            Text(
-              <String>[
-                plan.planDate,
-                // 「目标」单独出现时会被读成缺值（目标是什么？），补「计划」
-                // 明确它是规划类型。
-                if (plan.planType.isNotEmpty) '${plan.planType}计划',
-              ].join(' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
-            ),
-            Row(
-              spacing: 12,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    '已存 ${formatMoney(plan.savedAmount)}',
-                    maxLines: 1,
-                    softWrap: false,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: muted,
-                      fontFeatures: const <FontFeature>[
-                        FontFeature.tabularFigures(),
-                      ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      plan.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
                   ),
-                ),
-                Text(
-                  target == null ? '未设目标' : '目标 $target',
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
+                  const SizedBox(width: 8),
+                  StatusChip(
+                    label: planStatusLabel(plan.status),
+                    tone: _planTone(plan.status),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '更多操作',
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.more_horiz,
+                      size: 18,
+                      color: tokens.text3,
+                    ),
+                    onSelected: (String value) {
+                      if (value == 'edit') {
+                        onEdit();
+                      } else {
+                        onDelete();
+                      }
+                    },
+                    itemBuilder: (BuildContext context) =>
+                        const <PopupMenuEntry<String>>[
+                      PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
+                      PopupMenuItem<String>(value: 'delete', child: Text('删除')),
                     ],
                   ),
-                ),
-              ],
-            ),
-            Row(
-              spacing: 8,
-              children: <Widget>[
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: progress ?? 0,
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(3),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                <String>[
+                  plan.planDate,
+                  // 「目标」单独出现时会被读成缺值（目标是什么？），补「计划」
+                  // 明确它是规划类型。
+                  if (plan.planType.isNotEmpty) '${plan.planType}计划',
+                ].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppType.rowMeta.copyWith(color: tokens.text2),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '已存 ${formatMoney(plan.savedAmount)}',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: AppType.rowMeta.copyWith(color: tokens.text),
+                    ),
                   ),
-                ),
-                // 进度条只有视觉长度，补一个具体百分比，便于精确对照。
-                Text(
-                  formatPercent(progress == null ? null : progress * 100),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: muted,
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
+                  const SizedBox(width: 12),
+                  Text(
+                    target == null ? '未设目标' : '目标 $target',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: progress ?? 0,
+                        minHeight: 6,
+                        color: tokens.accent,
+                        backgroundColor: tokens.fill2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 进度条只有视觉长度，补一个具体百分比，便于精确对照。
+                  Text(
+                    formatPercent(progress == null ? null : progress * 100),
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

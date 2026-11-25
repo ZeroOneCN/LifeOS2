@@ -8,8 +8,10 @@ import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_shopping_manage_sheet.dart';
 import 'finance_status_widgets.dart';
 
@@ -238,116 +240,101 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final ShoppingStats? stats = _stats;
 
     return DetailPageScaffold(
       title: '购物记录',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '新增购物记录',
-          onPressed: _openCreate,
-          icon: const Icon(Icons.add),
-        ),
-        IconButton(
-          tooltip: '平台 / 分类维护',
-          onPressed: _manage,
-          icon: const Icon(Icons.tune_outlined),
-        ),
-      ],
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '共 ${formatInt(stats.count)} 笔',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '消费总额',
-                          value: formatMoney(stats.total),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '平均单笔',
-                          value: formatMoney(stats.average),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '涉及平台',
-                          value: '${formatInt(stats.byPlatform.length)} 个',
-                        ),
-                      ),
-                    ],
-                  ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (stats != null) ...<Widget>[
+            SummaryStrip(
+              caption: '共 ${formatInt(stats.count)} 笔 · '
+                  '涉及 ${formatInt(stats.byPlatform.length)} 个平台',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '消费总额',
+                  value: formatInt(stats.total),
+                  unit: '元',
+                  color: tokens.red,
                 ),
-                if (stats.byPlatform.isNotEmpty)
-                  SectionCard(
-                    title: '按平台消费',
-                    trailing: Text(
-                      '共 ${formatInt(stats.byPlatform.length)} 个',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                StatRailItem(
+                  label: '平均单笔',
+                  value: formatInt(stats.average),
+                  unit: '元',
+                ),
+                StatRailItem(
+                  label: '涉及平台',
+                  value: formatInt(stats.byPlatform.length),
+                  unit: '个',
+                ),
+              ],
+            ),
+            if (stats.byPlatform.isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '按平台消费'),
+              GroupCard(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
                     ),
                     child: AmountBreakdownList(entries: stats.byPlatform),
                   ),
-                SectionCard(
-                  title: '全部记录',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.shopping_bag_outlined,
-                          title: '暂无购物记录',
-                          description: '后端暂无购物数据，可在网页端新增或导入',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final ShoppingRecord record in _items)
-                              _ShoppingRow(
-                                record: record,
-                                platformName: record.platformLabel(_platforms),
-                                categoryName: _categoryName(record.categoryId),
-                                onTap: () => _openRecord(record),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+                ],
+              ),
             ],
-          ),
+            SectionHeader(
+              title: '全部记录 · 共 ${formatInt(_total)} 条',
+              actionLabel: '新增记录',
+              onAction: _openCreate,
+            ),
+            GroupCard(
+              children: _items.isEmpty
+                  ? const <Widget>[
+                      EmptyState(
+                        icon: Icons.shopping_bag_outlined,
+                        title: '暂无购物记录',
+                        description: '点「新增记录」录入第一笔消费',
+                        compact: true,
+                      ),
+                    ]
+                  : <Widget>[
+                      for (final ShoppingRecord record in _items)
+                        _ShoppingRow(
+                          record: record,
+                          platformName: record.platformLabel(_platforms),
+                          categoryName: _categoryName(record.categoryId),
+                          onTap: () => _openRecord(record),
+                        ),
+                    ],
+            ),
+            GroupCard(
+              children: <Widget>[
+                V2EntryRow(
+                  title: '平台 / 分类维护',
+                  subtitle: '新增或整理购物平台与消费分类',
+                  icon: Icons.tune_outlined,
+                  onTap: _manage,
+                ),
+              ],
+            ),
+            Text(
+              '记录与网页端共用同一份数据；点按一条记录可编辑或删除。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
+        footer: _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
@@ -405,69 +392,67 @@ class _ShoppingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
+    final AppTokens tokens = AppTokens.of(context);
+    final String meta = <String>[
+      formatListDate(record.recordDate),
+      platformName,
+      ?categoryName,
+    ].join(' · ');
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      record.productName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   Text(
-                    record.productName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: <Widget>[
-                      Text(formatListDate(record.recordDate), style: metaStyle),
-                      Text(platformName, style: metaStyle),
-                      if (categoryName != null)
-                        Text(categoryName!, style: metaStyle),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              spacing: 2,
-              children: <Widget>[
-                Text(
-                  formatMoney(record.totalPrice),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                if (record.unitPrice != null)
-                  Text(
-                    '单价 ${formatMoney(record.unitPrice)}',
+                    formatMoney(record.totalPrice),
                     maxLines: 1,
                     softWrap: false,
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: AppType.rowValue.copyWith(color: tokens.text),
                   ),
-              ],
-            ),
-            Icon(Icons.chevron_right, size: 18, color: muted),
-          ],
+                  if (record.unitPrice != null) ...<Widget>[
+                    const SizedBox(height: 2),
+                    Text(
+                      '单价 ${formatMoney(record.unitPrice)}',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right, size: 15, color: tokens.text3),
+            ],
+          ),
         ),
       ),
     );

@@ -11,9 +11,10 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../../theme/app_theme.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_status_widgets.dart';
 
 /// 旅行开支：汇总（实付 / 原价 / 优惠）+ 按行程筛选 + 按分类支出 + 明细分页。
@@ -294,7 +295,7 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     final TravelStats? stats = _stats;
     // 后端会返回金额为 0 的分类，展示层过滤掉，避免「¥0.00」噪音。
     final List<NameAmount> categories = stats == null
@@ -305,32 +306,20 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
 
     return DetailPageScaffold(
       title: '旅行开支',
-      actions: <Widget>[
-        IconButton(
-          tooltip: '维护行程与支付方式',
-          onPressed: _openManage,
-          icon: const Icon(Icons.tune_outlined),
-        ),
-        IconButton(
-          tooltip: '新增旅行开支',
-          onPressed: _openCreate,
-          icon: const Icon(Icons.add),
-        ),
-      ],
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_ledgers.isNotEmpty)
-                SectionCard(
-                  title: '行程筛选',
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (_ledgers.isNotEmpty) ...<Widget>[
+            const SectionHeader(title: '行程筛选'),
+            GroupCard(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: AppSelectField<int>(
                     label: '行程',
                     value: _ledgerId,
@@ -351,84 +340,97 @@ class _FinanceTravelPageState extends State<FinanceTravelPage> {
                     },
                   ),
                 ),
-              if (_status == LoadStatus.ready && stats != null) ...<Widget>[
-                SectionCard(
-                  title: '合计',
-                  trailing: Text(
-                    '共 ${formatInt(stats.count)} 笔',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: Row(
-                    spacing: 16,
-                    children: <Widget>[
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '实付合计',
-                          value: formatMoney(stats.totalActual),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '原价合计',
-                          value: formatMoney(stats.totalOriginal),
-                        ),
-                      ),
-                      Expanded(
-                        child: MetricPlaceholder(
-                          label: '优惠合计',
-                          value: formatMoney(stats.totalDiscount),
-                          // 优惠是「省下来的钱」，用语义成功色区分实付 / 原价。
-                          valueColor: context.semanticColors.success,
-                        ),
-                      ),
-                    ],
-                  ),
+              ],
+            ),
+          ],
+          if (stats != null) ...<Widget>[
+            SummaryStrip(
+              caption: '共 ${formatInt(stats.count)} 笔 · '
+                  '原价 ${formatMoney(stats.totalOriginal)} · '
+                  '优惠 ${formatMoney(stats.totalDiscount)}',
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '实付合计',
+                  value: formatInt(stats.totalActual),
+                  unit: '元',
+                  color: tokens.red,
                 ),
-                if (categories.isNotEmpty)
-                  SectionCard(
-                    title: '按分类支出',
+                StatRailItem(
+                  label: '原价合计',
+                  value: formatInt(stats.totalOriginal),
+                  unit: '元',
+                ),
+                StatRailItem(
+                  label: '优惠合计',
+                  value: formatInt(stats.totalDiscount),
+                  unit: '元',
+                  // 优惠是「省下来的钱」，用语义成功色区分实付 / 原价。
+                  color: tokens.green,
+                ),
+              ],
+            ),
+            if (categories.isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '按分类支出'),
+              GroupCard(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: AmountBreakdownList(entries: categories),
                   ),
-                SectionCard(
-                  title: '开支明细',
-                  trailing: Text(
-                    '共 $_total 条',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  child: _items.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.train_outlined,
-                          title: '该行程暂无开支',
-                          description: '切换其他行程，或先在网页端录入消费明细',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final TravelDetail detail in _items)
-                              _TravelRow(
-                                detail: detail,
-                                ledgerName: _ledgerName(detail.ledgerId),
-                                onEdit: () => _openEdit(detail),
-                                onDelete: () => _deleteDetail(detail),
-                              ),
-                          ],
-                        ),
-                ),
-                if (_items.isNotEmpty)
-                  ListLoadMoreFooter(
-                    loading: _loadingMore,
-                    hasMore: _hasMore,
-                    onPressed: _loadMore,
-                  ),
-              ],
+                ],
+              ),
             ],
-          ),
+            SectionHeader(
+              title: '开支明细 · 共 ${formatInt(_total)} 条',
+              actionLabel: '新增开支',
+              onAction: _openCreate,
+            ),
+            GroupCard(
+              children: _items.isEmpty
+                  ? const <Widget>[
+                      EmptyState(
+                        icon: Icons.train_outlined,
+                        title: '该行程暂无开支',
+                        description: '切换其他行程，或先新增一笔消费明细',
+                        compact: true,
+                      ),
+                    ]
+                  : <Widget>[
+                      for (final TravelDetail detail in _items)
+                        _TravelRow(
+                          detail: detail,
+                          ledgerName: _ledgerName(detail.ledgerId),
+                          onEdit: () => _openEdit(detail),
+                          onDelete: () => _deleteDetail(detail),
+                        ),
+                    ],
+            ),
+            GroupCard(
+              children: <Widget>[
+                V2EntryRow(
+                  title: '行程 / 支付方式维护',
+                  subtitle: '管理行程名称与常用支付方式',
+                  icon: Icons.tune_outlined,
+                  onTap: _openManage,
+                ),
+              ],
+            ),
+            Text(
+              '明细与网页端共用同一份数据；删除会同步回退合计与分类统计。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
+        footer: _items.isNotEmpty
+            ? ListLoadMoreFooter(
+                loading: _loadingMore,
+                hasMore: _hasMore,
+                onPressed: _loadMore,
+              )
+            : null,
       ),
     );
   }
@@ -463,95 +465,95 @@ class _TravelRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
-    final TextStyle? metaStyle =
-        theme.textTheme.bodySmall?.copyWith(color: muted);
-    final List<Widget> meta = <Widget>[
+    final AppTokens tokens = AppTokens.of(context);
+    final List<String> meta = <String>[
       // 明细里有消费日与行程（名称本身带出发日期）两个日期，加前缀区分。
       // 消费日与账单 / 购物 / 流水列表统一成同年 `MM-dd`。
-      Text('消费 ${formatListDate(detail.detailDate)}', style: metaStyle),
-      Text(detail.category, style: metaStyle),
-      if (detail.durationMinutes != null)
-        Text(detail.durationText, style: metaStyle),
-      if (ledgerName != null) Text('行程 $ledgerName', style: metaStyle),
+      '消费 ${formatListDate(detail.detailDate)}',
+      detail.category,
+      if (detail.durationMinutes != null) detail.durationText,
+      if (ledgerName != null) '行程 $ledgerName',
     ];
     return InkWell(
       onTap: onEdit,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 3,
-                children: <Widget>[
-                  Text(
-                    detail.item,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  // 元信息用 Wrap：窄屏 / 1.3x 字体下换行而不是省略号截断。
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: meta,
-                  ),
-                  if (detail.discount > 0)
-                    // 优惠用成功色：与汇总卡「优惠合计」同色，扫视时能一眼分开
-                    // 实付（正文色）与省下的金额。
-                    Text.rich(
-                      TextSpan(
-                        style: metaStyle,
-                        children: <TextSpan>[
-                          TextSpan(
-                            text: '原价 ${formatMoney(detail.originalPrice)} · ',
-                          ),
-                          TextSpan(
-                            text: '优惠 ${formatMoney(detail.discount)}',
-                            style: TextStyle(
-                              color: context.semanticColors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      detail.item,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      meta.join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                    if (detail.discount > 0) ...<Widget>[
+                      const SizedBox(height: 2),
+                      // 优惠用成功色：与摘要轨「优惠合计」同色，扫视时能一眼
+                      // 分开实付（正文色）与省下的金额。
+                      Text.rich(
+                        TextSpan(
+                          style: AppType.rowMeta.copyWith(color: tokens.text2),
+                          children: <InlineSpan>[
+                            TextSpan(
+                              text:
+                                  '原价 ${formatMoney(detail.originalPrice)} · ',
+                            ),
+                            TextSpan(
+                              text: '优惠 ${formatMoney(detail.discount)}',
+                              style: TextStyle(
+                                color: tokens.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                formatMoney(detail.actualPrice),
+                maxLines: 1,
+                softWrap: false,
+                style: AppType.rowValue.copyWith(color: tokens.text),
+              ),
+              PopupMenuButton<String>(
+                tooltip: '更多操作',
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_horiz, size: 18, color: tokens.text3),
+                onSelected: (String value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    const <PopupMenuEntry<String>>[
+                  PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
+                  PopupMenuItem<String>(value: 'delete', child: Text('删除')),
                 ],
               ),
-            ),
-            Text(
-              formatMoney(detail.actualPrice),
-              maxLines: 1,
-              softWrap: false,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-              ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: '更多操作',
-              padding: EdgeInsets.zero,
-              onSelected: (String value) {
-                if (value == 'edit') {
-                  onEdit();
-                } else {
-                  onDelete();
-                }
-              },
-              itemBuilder: (BuildContext context) =>
-                  const <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(value: 'edit', child: Text('编辑')),
-                PopupMenuItem<String>(value: 'delete', child: Text('删除')),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
