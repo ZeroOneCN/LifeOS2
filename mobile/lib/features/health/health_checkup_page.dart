@@ -585,11 +585,12 @@ class _CheckupRecordRow extends StatelessWidget {
     final AppTokens tokens = AppTokens.of(context);
     final String unit = (record.unit ?? '').trim();
     final Color valueColor = _valueColor(context, record.result) ?? tokens.text;
-    // 单位按接口原样拼接：真实库里已有「mL/(min*1.」这类被截断的历史数据，
-    // 属于数据质量问题，前端不做猜测性补全。
+    final String number = _metricValue(record.value);
+    // 长单位单独占一行，避免在中途按字符折断（如 mL/(min*1.73m²)）。
+    final bool longUnit = unit.length > 8;
     final String value = unit.isEmpty
-        ? _metricValue(record.value)
-        : '${_metricValue(record.value)} $unit';
+        ? number
+        : (longUnit ? '$number\n$unit' : '$number $unit');
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -632,8 +633,8 @@ class _CheckupRecordRow extends StatelessWidget {
                   Flexible(
                     child: Text(
                       value,
-                      maxLines: 1,
-                      softWrap: false,
+                      // 长单位已用换行符分成两行，这里最多两行。
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
                       style: AppType.rowValue.copyWith(color: valueColor),
@@ -668,9 +669,11 @@ class _CheckupRow extends StatelessWidget {
     final AppTokens tokens = AppTokens.of(context);
     final Color? valueColor = _valueColor(context, item.latestResult);
     final String unit = (item.unit ?? '').trim();
+    final String number = _metricValue(item.latestValue);
+    final bool longUnit = unit.length > 8;
     final String latest = unit.isEmpty
-        ? _metricValue(item.latestValue)
-        : '${_metricValue(item.latestValue)} $unit';
+        ? number
+        : (longUnit ? '$number\n$unit' : '$number $unit');
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -714,8 +717,8 @@ class _CheckupRow extends StatelessWidget {
                 Flexible(
                   child: Text(
                     latest,
-                    maxLines: 1,
-                    softWrap: false,
+                    // 与记录行一致：长单位折两行，不裁掉单位。
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.right,
                     style: AppType.rowValue.copyWith(
@@ -773,8 +776,8 @@ class _CheckupHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
+    final Color muted = tokens.text2;
     final int shown = item.trend.length;
     final List<double> chartValues = item.trend
         .where((CheckupTrendPoint point) => point.value != null)
@@ -784,8 +787,8 @@ class _CheckupHistory extends StatelessWidget {
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(10),
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -796,14 +799,14 @@ class _CheckupHistory extends StatelessWidget {
               Expanded(
                 child: Text(
                   '历史记录',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: AppType.section.copyWith(color: muted),
                 ),
               ),
               Text(
                 item.count > shown
                     ? '共 ${item.count} 次 · 最近 $shown 次'
                     : '共 ${item.count} 次',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                style: AppType.rowMeta.copyWith(color: tokens.text3),
               ),
             ],
           ),
@@ -820,13 +823,13 @@ class _CheckupHistory extends StatelessWidget {
             ),
             Text(
               '最近 $shown 次趋势',
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
             ),
           ],
           if (shown == 0)
             Text(
               '无历史明细',
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
             )
           else
             for (final CheckupTrendPoint point in item.trend.reversed)
@@ -835,17 +838,18 @@ class _CheckupHistory extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      point.date,
+                      formatListDate(point.date),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                      style: AppType.rowMeta.copyWith(color: muted),
                     ),
                   ),
                   Text(
                     _metricValue(point.value),
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: AppType.rowMeta.copyWith(
                       color: _valueColor(context, point.result),
+                      fontWeight: FontWeight.w600,
                       fontFeatures: const <FontFeature>[
                         FontFeature.tabularFigures(),
                       ],
@@ -853,7 +857,7 @@ class _CheckupHistory extends StatelessWidget {
                   ),
                   Text(
                     _pointLabel(point.result),
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    style: AppType.rowMeta.copyWith(color: tokens.text3),
                   ),
                 ],
               ),
