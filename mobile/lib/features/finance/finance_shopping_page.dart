@@ -45,6 +45,9 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
   bool _hasMore = true;
   bool _loadingMore = false;
 
+  /// 分类筛选：null 表示全部；切换后重新拉第一页，分页沿用筛选条件。
+  int? _categoryFilter;
+
   @override
   void initState() {
     super.initState();
@@ -82,7 +85,7 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
       final Future<Object?> listFuture = scope.apiClient
           .get<Map<String, dynamic>>(
             '/finance/shopping/records',
-            queryParameters: <String, dynamic>{'page': 1, 'page_size': 20},
+            queryParameters: _listQuery(1),
           )
           .then((value) => value.data);
       final Future<Object?> platformFuture = scope.apiClient
@@ -156,10 +159,7 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
     try {
       final Map<String, dynamic>? json = (await scope.apiClient
               .get<Map<String, dynamic>>('/finance/shopping/records',
-                  queryParameters: <String, dynamic>{
-            'page': _page + 1,
-            'page_size': 20,
-          }))
+                  queryParameters: _listQuery(_page + 1)))
           .data;
       if (json == null) {
         throw const ApiException(
@@ -188,6 +188,42 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
         setState(() => _loadingMore = false);
       }
     }
+  }
+
+  /// 列表查询参数：分类筛选只在选中时透传，未选中时后端返回全部。
+  Map<String, dynamic> _listQuery(int page) {
+    return <String, dynamic>{
+      'page': page,
+      'page_size': 20,
+      if (_categoryFilter != null) 'category_id': _categoryFilter,
+    };
+  }
+
+  /// 切换分类筛选：清空已加载分页并重新拉第一页。
+  void _applyCategory(int? id) {
+    if (_categoryFilter == id) {
+      return;
+    }
+    setState(() {
+      _categoryFilter = id;
+      _items.clear();
+      _hasMore = true;
+      _status = LoadStatus.loading;
+    });
+    _refresh();
+  }
+
+  /// 分类筛选徽标：与报告生成页的 ChoiceChip 风格保持一致。
+  Widget _categoryChip(int? id, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _categoryFilter == id,
+        visualDensity: VisualDensity.compact,
+        onSelected: (_) => _applyCategory(id),
+      ),
+    );
   }
 
   /// 分页响应 `items` → [ShoppingRecord]。
@@ -287,8 +323,22 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
                 ],
               ),
             ],
+            if (_categories.isNotEmpty)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: <Widget>[
+                    _categoryChip(null, '全部分类'),
+                    for (final MapEntry<int, String> entry
+                        in _categories.entries)
+                      _categoryChip(entry.key, entry.value),
+                  ],
+                ),
+              ),
             SectionHeader(
-              title: '全部记录 · 共 ${formatInt(_total)} 条',
+              title: _categoryFilter == null
+                  ? '全部记录 · 共 ${formatInt(_total)} 条'
+                  : '${_categories[_categoryFilter] ?? '筛选结果'} · 共 ${formatInt(_total)} 条',
               actionLabel: '新增记录',
               onAction: _openCreate,
             ),

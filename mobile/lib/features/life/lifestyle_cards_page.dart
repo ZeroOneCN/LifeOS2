@@ -1304,10 +1304,10 @@ class _CardRow extends StatelessWidget {
   }
 }
 
-/// 手机号卡卡片上的写操作（收在「操作」菜单里）。
-enum _PhoneCardAction { recharge, deduct, adjust, edit, delete }
+/// 手机号卡卡片上的操作（收在「操作」菜单里，卡片本身只保留余额与本月扣费）。
+enum _PhoneCardAction { ledger, recharge, deduct, adjust, edit, delete }
 
-/// 单张手机号卡：号码 + 余额 → 运营商 / 套餐 / 账期 → 状态与操作 → 最近流水。
+/// 单张手机号卡：号码 + 余额 → 运营商 / 套餐 / 账期 → 本月扣费 + 操作菜单。
 class _PhoneCardRow extends StatelessWidget {
   const _PhoneCardRow({
     required this.card,
@@ -1416,28 +1416,16 @@ class _PhoneCardRow extends StatelessWidget {
                 )
               else
                 const Spacer(),
-              TextButton(
-                onPressed: onToggleLedger,
-                style: TextButton.styleFrom(
-                  foregroundColor: tokens.accent,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  textStyle: AppType.action.copyWith(fontSize: 13),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  ledgerExpanded ? '收起流水' : '最近流水',
-                  maxLines: 1,
-                  softWrap: false,
-                ),
-              ),
-              // 充值 / 扣费 / 校准 / 编辑 / 删除收进「操作」菜单，卡片只留流水入口。
+              // 流水与充值 / 扣费 / 校准 / 编辑 / 删除统一收进「操作」菜单，
+              // 卡片只保留号码、余额、套餐与本月扣费，降低信息密度。
               PopupMenuButton<_PhoneCardAction>(
-                tooltip: '充值 / 扣费 / 校准',
+                tooltip: '更多操作',
                 icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
                 padding: EdgeInsets.zero,
                 onSelected: (_PhoneCardAction action) {
                   switch (action) {
+                    case _PhoneCardAction.ledger:
+                      onToggleLedger();
                     case _PhoneCardAction.recharge:
                       onRecharge();
                     case _PhoneCardAction.deduct:
@@ -1452,6 +1440,11 @@ class _PhoneCardRow extends StatelessWidget {
                 },
                 itemBuilder: (BuildContext context) =>
                     <PopupMenuEntry<_PhoneCardAction>>[
+                  PopupMenuItem<_PhoneCardAction>(
+                    value: _PhoneCardAction.ledger,
+                    child: Text(ledgerExpanded ? '收起流水' : '查看流水'),
+                  ),
+                  const PopupMenuDivider(),
                   const PopupMenuItem<_PhoneCardAction>(
                     value: _PhoneCardAction.recharge,
                     child: Text('充值'),

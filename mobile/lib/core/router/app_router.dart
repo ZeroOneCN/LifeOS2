@@ -62,6 +62,7 @@ import '../../features/reports/report_detail_page.dart';
 import '../../features/reports/report_generate_page.dart';
 import '../../features/reports/report_list_page.dart';
 import '../../features/settings/about_page.dart';
+import '../../features/settings/account_password_page.dart';
 import '../../features/settings/account_settings_page.dart';
 import '../../features/settings/device_sessions_page.dart';
 import '../../features/settings/server_config_page.dart';
@@ -812,6 +813,12 @@ GoRouter createAppRouter() {
                   GoRoute(
                     path: 'account',
                     builder: (_, _) => const AccountSettingsPage(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'password',
+                        builder: (_, _) => const AccountPasswordPage(),
+                      ),
+                    ],
                   ),
                   GoRoute(path: 'about', builder: (_, _) => const AboutPage()),
                   GoRoute(path: 'update', builder: (_, _) => const UpdatePage()),

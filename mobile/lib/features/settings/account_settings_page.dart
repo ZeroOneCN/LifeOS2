@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
@@ -7,6 +9,7 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
 import '../../theme/app_tokens.dart';
 
 /// 账户设置：基本资料编辑（昵称 / 邮箱 / 手机 / 签名）+ 登录密码修改。
@@ -30,36 +33,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   final TextEditingController _email = TextEditingController();
   final TextEditingController _phone = TextEditingController();
   final TextEditingController _signature = TextEditingController();
-  final TextEditingController _currentPassword = TextEditingController();
-  final TextEditingController _newPassword = TextEditingController();
-  final TextEditingController _confirmPassword = TextEditingController();
 
   LoadStatus _status = LoadStatus.loading;
   String? _message;
   String _account = '';
   bool _hasPassword = false;
   bool _savingProfile = false;
-  bool _savingPassword = false;
-
-  /// 密码可见性：默认隐藏，点眼睛图标临时显示，便于核对输入。
-  bool _showCurrent = false;
-  bool _showNew = false;
-  bool _showConfirm = false;
-
-  /// 密码输入框右侧的可见性开关。
-  Widget _visibilityToggle({
-    required bool visible,
-    required VoidCallback onPressed,
-  }) {
-    return IconButton(
-      icon: Icon(
-        visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-        size: 18,
-      ),
-      tooltip: visible ? '隐藏密码' : '显示密码',
-      onPressed: onPressed,
-    );
-  }
 
   @override
   void initState() {
@@ -77,9 +56,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     _email.dispose();
     _phone.dispose();
     _signature.dispose();
-    _currentPassword.dispose();
-    _newPassword.dispose();
-    _confirmPassword.dispose();
     super.dispose();
   }
 
@@ -167,51 +143,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     }
   }
 
-  /// 修改密码：长度 ≥ 6、两次输入一致；已有密码时后端会校验当前密码。
-  Future<void> _savePassword() async {
-    final String next = _newPassword.text.trim();
-    if (next.length < 6) {
-      _snack('新密码长度不能少于 6 位');
-      return;
-    }
-    if (next != _confirmPassword.text.trim()) {
-      _snack('两次输入的新密码不一致');
-      return;
-    }
-    if (_hasPassword && _currentPassword.text.trim().isEmpty) {
-      _snack('请填写当前密码');
-      return;
-    }
-    final AppScope scope = AppScope.of(context);
-    setState(() => _savingPassword = true);
-    try {
-      await scope.apiClient.put<Map<String, dynamic>>(
-        '/user/settings',
-        data: <String, dynamic>{
-          if (_hasPassword) 'current_password': _currentPassword.text.trim(),
-          'new_password': next,
-        },
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() => _hasPassword = true);
-      _currentPassword.clear();
-      _newPassword.clear();
-      _confirmPassword.clear();
-      _snack('密码已修改');
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _snack('修改失败：${error.message}');
-    } finally {
-      if (mounted) {
-        setState(() => _savingPassword = false);
-      }
-    }
-  }
-
   String? _blankToNull(String raw) {
     final String value = raw.trim();
     return value.isEmpty ? null : value;
@@ -240,6 +171,12 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
     return DetailPageScaffold(
       title: '账户设置',
+      // 主操作固定在底栏，与账单 / 体重等表单页一致；密码修改拆到独立子页。
+      bottomBar: AppPrimaryButton(
+        label: '保存资料',
+        loading: _savingProfile,
+        onPressed: _saveProfile,
+      ),
       child: ListPageBody(
         status: _status,
         message: _message,
@@ -302,80 +239,25 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       counterText: '',
                     ),
                   ),
-                  AppPrimaryButton(
-                    label: '保存资料',
-                    icon: null,
-                    loading: _savingProfile,
-                    onPressed: _saveProfile,
-                  ),
                 ],
               ),
             ),
           ),
-          SectionCard(
-            title: '登录密码',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
-              children: <Widget>[
-                if (_account.isNotEmpty)
-                  Text(
-                    '账号：$_account',
-                    style: AppType.rowMeta.copyWith(color: tokens.text2),
-                  ),
-                if (_hasPassword)
-                  TextFormField(
-                    controller: _currentPassword,
-                    obscureText: !_showCurrent,
-                    decoration: InputDecoration(
-                      labelText: '当前密码',
-                      suffixIcon: _visibilityToggle(
-                        visible: _showCurrent,
-                        onPressed: () =>
-                            setState(() => _showCurrent = !_showCurrent),
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    '当前账号尚未设置密码；填写新密码即可设置。',
-                    style: AppType.rowMeta.copyWith(color: tokens.text2),
-                  ),
-                TextFormField(
-                  controller: _newPassword,
-                  obscureText: !_showNew,
-                  decoration: InputDecoration(
-                    labelText: '新密码',
-                    hintText: '至少 6 位',
-                    suffixIcon: _visibilityToggle(
-                      visible: _showNew,
-                      onPressed: () => setState(() => _showNew = !_showNew),
-                    ),
-                  ),
-                ),
-                TextFormField(
-                  controller: _confirmPassword,
-                  obscureText: !_showConfirm,
-                  decoration: InputDecoration(
-                    labelText: '确认新密码',
-                    suffixIcon: _visibilityToggle(
-                      visible: _showConfirm,
-                      onPressed: () =>
-                          setState(() => _showConfirm = !_showConfirm),
-                    ),
-                  ),
-                ),
-                AppSecondaryButton(
-                  label: '修改密码',
-                  loading: _savingPassword,
-                  onPressed: _savePassword,
-                ),
-                Text(
-                  '密码修改成功后立即生效，其他设备上的登录状态不受影响。',
-                  style: AppType.rowMeta.copyWith(color: tokens.text3),
-                ),
-              ],
-            ),
+          GroupCard(
+            children: <Widget>[
+              V2EntryRow(
+                title: '修改登录密码',
+                subtitle: _account.isEmpty
+                    ? '在独立页面修改，成功后立即生效'
+                    : '账号 $_account · ${_hasPassword ? '已设置密码' : '尚未设置密码'}',
+                icon: Icons.lock_outline,
+                onTap: () => context.push('/settings/account/password'),
+              ),
+            ],
+          ),
+          Text(
+            '资料保存后立即生效；密码在独立页面修改。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
           ),
         ],
       ),
