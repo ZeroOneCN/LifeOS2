@@ -166,6 +166,7 @@ LifeOS 将个人生活的核心维度整合到一个统一平台：记录健康�
 |---|---|
 | 后端 | Python 3 · FastAPI · SQLAlchemy · MySQL 8 |
 | 前端 | React 19 · TypeScript · Vite · Tailwind CSS · shadcn/ui（Radix UI） |
+| 移动端 | Flutter 3 · Dart 3 · go_router · Dio（Android，共用同一后端） |
 | 认证 | JWT 双令牌（access + refresh，滑动续期 + 令牌轮换） |
 | 图表 | Recharts |
 | 主题 | next-themes（浅色 / 深色 / 跟随系统） |
@@ -184,10 +185,18 @@ LifeOS V2.0/
 │   └── backups/         # 数据库备份归档（仅本地，不入库）
 ├── frontend/            # 前端应用（Vite，端口 9015）
 │   └── src/             # 页面、组件与配置源码（src/demo/ 为演示 mock 数据层）
+├── mobile/              # Flutter 移动端（Android，控制台构建 APK）
+│   └── lib/             # core / features / shared / theme
 ├── images/              # 文档配图
 ├── 说明文档.md           # 项目管理载体（规划 / 实施方案 / 进度记录）
 └── README.md
 ```
+
+### 移动端（Flutter）
+
+- 覆盖健康 / 财务 / 生活 / 投资 / 设置五个域，与网页端共用同一后端实例，在 App 内配置服务器地址即可。
+- 页面采用 2.0 套件（摘要 → 分组 → 明细），域内栏目在 Tab 内切换不跳页；返回键回到健康首页，健康概览再按一次才退出应用。
+- 运行、构建与测试命令见 [mobile/README.md](mobile/README.md)。
 
 ---
 
