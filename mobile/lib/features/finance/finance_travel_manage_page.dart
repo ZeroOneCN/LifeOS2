@@ -253,7 +253,8 @@ class _FinanceTravelManagePageState extends State<FinanceTravelManagePage> {
     return DetailPageScaffold(
       title: '行程与支付方式',
       child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
+          padding: const EdgeInsets.only(bottom: 24),
           children: <Widget>[
             if (_loading)
               const Padding(

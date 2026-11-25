@@ -481,7 +481,8 @@ class _CardFormPageState extends State<CardFormPage> {
         onPressed: _saving ? null : _save,
       ),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
+        padding: const EdgeInsets.only(bottom: 24),
         children: <Widget>[
           SectionCard(
             title: _kindTitle,
