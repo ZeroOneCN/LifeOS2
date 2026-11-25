@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/data/overview_controller.dart';
 import '../../core/network/api_exception.dart';
+import '../../theme/app_tokens.dart';
 
 /// 业务列表页的状态占位：加载中 / 失败 / 连接失败 / 未登录。
 ///
@@ -25,13 +26,17 @@ class ListStatusView extends StatelessWidget {
       return const SizedBox.shrink();
     }
     if (status == LoadStatus.loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
+      final AppTokens tokens = AppTokens.of(context);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
         child: Center(
           child: SizedBox(
             width: 24,
             height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: tokens.text2,
+            ),
           ),
         ),
       );
@@ -68,8 +73,7 @@ class OverviewStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
 
     if (status == LoadStatus.idle || status == LoadStatus.ready) {
       return const SizedBox.shrink();
@@ -83,36 +87,29 @@ class OverviewStatusBanner extends StatelessWidget {
       leading = SizedBox(
         width: 16,
         height: 16,
-        child: CircularProgressIndicator(strokeWidth: 2, color: muted),
+        child: CircularProgressIndicator(strokeWidth: 2, color: tokens.text2),
       );
       text = '正在加载总览数据…';
     } else if (status == LoadStatus.unauthenticated) {
-      leading = Icon(Icons.lock_outline, size: 18, color: muted);
+      leading = Icon(Icons.lock_outline, size: 18, color: tokens.text2);
       text = '未登录，登录后显示真实数据';
-      action = TextButton(
-        onPressed: () => context.push('/login'),
-        child: const Text('登录'),
-      );
+      action = _action('登录', () => context.push('/login'), tokens);
     } else if (status == LoadStatus.connectionFailed) {
-      leading = Icon(Icons.cloud_off_outlined, size: 18, color: muted);
+      leading = Icon(Icons.cloud_off_outlined, size: 18, color: tokens.text2);
       text = '连接失败，已保留登录状态';
       detail = message ?? '请检查服务器地址与网络后重试';
-      action = TextButton(onPressed: onRetry, child: const Text('重试'));
+      action = _action('重试', onRetry, tokens);
     } else {
-      leading = Icon(
-        Icons.error_outline,
-        size: 18,
-        color: theme.colorScheme.error,
-      );
+      leading = Icon(Icons.error_outline, size: 18, color: tokens.red);
       text = humanizeApiMessage(message);
-      action = TextButton(onPressed: onRetry, child: const Text('重试'));
+      action = _action('重试', onRetry, tokens);
     }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       ),
       child: Row(
         spacing: 8,
@@ -125,14 +122,12 @@ class OverviewStatusBanner extends StatelessWidget {
               children: <Widget>[
                 Text(
                   text,
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
                 ),
                 if (detail != null)
                   Text(
                     detail,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: muted.withValues(alpha: 0.8),
-                    ),
+                    style: AppType.rowMeta.copyWith(color: tokens.text3),
                   ),
               ],
             ),
@@ -140,6 +135,22 @@ class OverviewStatusBanner extends StatelessWidget {
           ?action,
         ],
       ),
+    );
+  }
+
+  /// 状态条内的小操作按钮：System Blue 文字、32 高、不撑开行高。
+  Widget _action(String label, VoidCallback onPressed, AppTokens tokens) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: tokens.accent,
+        textStyle: AppType.action,
+        minimumSize: const Size(44, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+      child: Text(label),
     );
   }
 }

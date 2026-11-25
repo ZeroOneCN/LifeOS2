@@ -175,12 +175,12 @@ extension AppThemeContext on BuildContext {
       Theme.of(this).extension<AppSemanticColors>()!;
 }
 
-/// 圆角令牌：全 App 的按钮、Tab 指示器等「控件类」统一 8dp。
+/// 圆角令牌：全 App 的按钮、Tab 指示器等「控件类」统一 10dp（与 2.0 一致）。
 ///
-/// 卡片、输入框属于「容器类」，各自保持原有 12dp，不与控件混用。
+/// 卡片、输入框属于「容器类」，卡片用 [AppTokens.cardRadius]（14）。
 abstract final class AppRadii {
-  /// 控件圆角（按钮 / Tab 指示器 / 分段选择器）。
-  static const double control = 8;
+  /// 控件圆角（按钮 / Tab 指示器 / 分段选择器 / 输入框）。
+  static const double control = 10;
 }
 
 abstract final class AppTheme {
@@ -194,7 +194,6 @@ abstract final class AppTheme {
     final AppSemanticColors semantic = isDark
         ? AppSemanticColors.dark
         : AppSemanticColors.light;
-    final Color cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     // 2.0 视觉令牌：只替换底色、顶栏、底栏与 FAB 等「框架级」颜色，
     // 旧页面的卡片 / 表单 / 语义色保持原样，避免一次性改色造成回归。
     final AppTokens tokens = isDark ? AppTokens.dark : AppTokens.light;
@@ -246,39 +245,44 @@ abstract final class AppTheme {
         }),
       ),
       cardTheme: CardThemeData(
-        color: cardColor,
+        // 统一到 2.0 分组卡片：surface 底色 + 14dp 圆角 + 0.5dp 发丝线。
+        color: tokens.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: scheme.outline),
+          borderRadius: BorderRadius.circular(AppTokens.cardRadius),
+          side: BorderSide(color: tokens.line, width: AppTokens.hairline),
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: scheme.outline,
-        thickness: 1,
-        space: 1,
+        color: tokens.line,
+        thickness: AppTokens.hairline,
+        space: AppTokens.hairline,
       ),
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        iconColor: scheme.onSurfaceVariant,
-        textColor: scheme.onSurface,
+        iconColor: tokens.text2,
+        textColor: tokens.text,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          // 注意：不能用 Size.fromHeight（minWidth=infinity），
-          // 否则 FilledButton 放进 Row 时会强制无限宽度并触发布局断言。
+          // 2.0 主操作统一 System Blue 填充；注意不能用 Size.fromHeight
+          //（minWidth=infinity），否则放进 Row 会强制无限宽度并触发布局断言。
+          backgroundColor: tokens.accent,
+          foregroundColor: Colors.white,
           minimumSize: const Size(64, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.control),
           ),
         ),
       ),
-      // 次操作 / 危险操作都由 OutlinedButton 承担：统一 48 高、8 圆角，
-      // 与主操作同尺寸，成对出现时不会一个长一个短。
+      // 次操作 / 危险操作都由 OutlinedButton 承担：统一 48 高、10 圆角、
+      // 发丝线描边，与主操作同尺寸，成对出现时不会一个长一个短。
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
+          foregroundColor: tokens.accent,
+          side: BorderSide(color: tokens.line),
           minimumSize: const Size(64, 48),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
@@ -311,23 +315,25 @@ abstract final class AppTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        // 2.0 输入框：浅填充 + 10dp 圆角，聚焦时描边切到 System Blue。
         filled: true,
-        fillColor: scheme.surfaceContainerHigh,
+        fillColor: tokens.fill2,
+        hintStyle: TextStyle(color: tokens.text3),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: scheme.outline),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: tokens.line),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: scheme.outline),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: tokens.line),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: scheme.primary, width: 1.5),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          borderSide: BorderSide(color: tokens.accent, width: 1.5),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: cardColor,
+        backgroundColor: tokens.surface,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

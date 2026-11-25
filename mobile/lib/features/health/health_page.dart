@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -6,9 +8,11 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
 import '../../core/models/health_models.dart';
+import '../../core/models/report_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/notification_bell.dart';
+import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../shared/widgets/v2/domain_header.dart';
 import '../../shared/widgets/v2/domain_tabs.dart';
@@ -18,6 +22,14 @@ import '../../shared/widgets/v2/v2_icon_button.dart';
 import '../../shared/widgets/v2/v2_rows.dart';
 import '../../shared/widgets/v2/v2_search.dart';
 import '../../theme/app_tokens.dart';
+import '../reports/report_list_page.dart';
+import 'health_body_page.dart';
+import 'health_checkup_page.dart';
+import 'health_diet_page.dart';
+import 'health_fitness_page.dart';
+import 'health_medication_page.dart';
+import 'health_sleep_page.dart';
+import 'health_steps_page.dart';
 
 /// 健康中心 2.0 首屏：大标题 + 6 等分栏目 + Hero 步数 + 指标轨 + 今日用药 + 最近记录。
 ///
@@ -44,8 +56,11 @@ class _HealthPageState extends State<HealthPage> {
   bool _weekStatsLoading = false;
   bool _weekStatsFailed = false;
 
-  /// 当前高亮的栏目。概览固定为 0；点击其它栏目先高亮再跳转，返回后归位。
+  /// 当前高亮的栏目。概览固定为 0。
   int _activeTab = 0;
+
+  /// 已打开过的栏目：首次点击才构建页面，之后由 [IndexedStack] 保活。
+  final Set<int> _visitedTabs = <int>{0};
 
   /// 域内栏目：统一 2 个汉字，顺序与效果稿一致。
   static const List<_HealthTab> _tabs = <_HealthTab>[
@@ -152,20 +167,45 @@ class _HealthPageState extends State<HealthPage> {
     ]);
   }
 
-  /// 点击域内栏目：概览留在本页，其余跳到对应子页；返回后对账一次。
-  Future<void> _openTab(int index) async {
-    final String? route = _tabs[index].route;
-    if (route == null) {
-      if (index != _activeTab) {
-        setState(() => _activeTab = index);
-      }
+  /// 点击域内栏目：内容就地切换，不再压栈跳转。
+  ///
+  /// 首次进入某栏目才构建页面（懒加载），之后由 [IndexedStack] 保活，
+  /// 再次切回不会丢滚动位置与已加载数据；切回概览时刷新一次摘要。
+  void _openTab(int index) {
+    if (index == _activeTab) {
       return;
     }
-    setState(() => _activeTab = index);
-    await context.push(route);
-    if (mounted) {
-      setState(() => _activeTab = 0);
-      await _refresh();
+    final bool backToOverview = index == 0;
+    setState(() {
+      _activeTab = index;
+      _visitedTabs.add(index);
+    });
+    if (backToOverview) {
+      unawaited(_refresh());
+    }
+  }
+
+  /// 栏目序号 → 内容页。索引与 [_tabs] 一一对应。
+  Widget _tabPage(int index) {
+    switch (index) {
+      case 1:
+        return const HealthSleepPage();
+      case 2:
+        return const HealthMedicationPage();
+      case 3:
+        return const HealthFitnessPage();
+      case 4:
+        return const HealthDietPage();
+      case 5:
+        return const HealthBodyPage();
+      case 6:
+        return const HealthStepsPage();
+      case 7:
+        return const HealthCheckupPage();
+      case 8:
+        return const ReportListPage(source: ReportSource.health);
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -239,9 +279,15 @@ class _HealthPageState extends State<HealthPage> {
       ],
     );
     if (route != null && mounted) {
-      await context.push(route);
-      if (mounted) {
-        await _refresh();
+      // 搜索结果若是域内栏目，直接切到对应栏目，保持「不跳转」的一致体验。
+      final int index = _tabs.indexWhere((_HealthTab tab) => tab.route == route);
+      if (index > 0) {
+        _openTab(index);
+      } else {
+        await context.push(route);
+        if (mounted) {
+          await _refresh();
+        }
       }
     }
   }
@@ -275,7 +321,13 @@ class _HealthPageState extends State<HealthPage> {
         final bool loading = data == null && state.status == LoadStatus.loading;
 
         return PopScope(
+          // 根页始终不退出：栏目内按返回键先回到概览，再按一次留在概览。
           canPop: false,
+          onPopInvokedWithResult: (bool didPop, Object? result) {
+            if (!didPop && _activeTab != 0) {
+              _openTab(0);
+            }
+          },
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: isDark
                 ? SystemUiOverlayStyle.light.copyWith(
@@ -314,11 +366,14 @@ class _HealthPageState extends State<HealthPage> {
                       ),
                     ),
                     Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: _refresh,
-                        color: tokens.accent,
-                        backgroundColor: tokens.surface,
-                        child: ListView(
+                      child: IndexedStack(
+                        index: _activeTab,
+                        children: <Widget>[
+                          RefreshIndicator(
+                            onRefresh: _refresh,
+                            color: tokens.accent,
+                            backgroundColor: tokens.surface,
+                            child: ListView(
                           padding: const EdgeInsets.fromLTRB(
                             AppTokens.pagePadding,
                             6,
@@ -381,17 +436,26 @@ class _HealthPageState extends State<HealthPage> {
                             _recentGroup(context, data, state.status),
                           ],
                         ),
+                          ),
+                          for (int i = 1; i < _tabs.length; i++)
+                            if (_visitedTabs.contains(i))
+                              DetailPageEmbedded(child: _tabPage(i))
+                            else
+                              const SizedBox.shrink(),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              floatingActionButton: FloatingActionButton(
-                tooltip: '快速记录',
-                onPressed: _openQuickRecord,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add),
-              ),
+              floatingActionButton: _activeTab == 0
+                  ? FloatingActionButton(
+                      tooltip: '快速记录',
+                      onPressed: _openQuickRecord,
+                      shape: const CircleBorder(),
+                      child: const Icon(Icons.add),
+                    )
+                  : null,
             ),
           ),
         );

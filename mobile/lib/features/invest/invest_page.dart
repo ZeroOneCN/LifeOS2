@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
+import '../../core/models/report_models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/notification_bell.dart';
+import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../shared/widgets/v2/domain_header.dart';
 import '../../shared/widgets/v2/domain_tabs.dart';
@@ -19,6 +22,10 @@ import '../../shared/widgets/v2/v2_rows.dart';
 import '../../shared/widgets/v2/v2_search.dart';
 import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_tokens.dart';
+import '../reports/report_list_page.dart';
+import 'forex_page.dart';
+import 'invest_analysis_page.dart';
+import 'invest_calendar_page.dart';
 
 /// 投资中心 2.0 首屏：账户净值 Hero + 轻量收益曲线 + 盈亏/胜率/品种 + 交易概览。
 ///
@@ -43,19 +50,37 @@ class _InvestPageState extends State<InvestPage> {
   int _activeTab = 0;
   int _rangeDays = 90;
 
-  Future<void> _openTab(int index) async {
-    final String? route = _tabs[index].route;
-    if (route == null) {
-      if (index != _activeTab) {
-        setState(() => _activeTab = index);
-      }
+  /// 已打开过的栏目：首次点击才构建页面，之后由 [IndexedStack] 保活。
+  final Set<int> _visitedTabs = <int>{0};
+
+  /// 点击栏目：内容就地切换，不再压栈跳转；切回概览时刷新一次摘要。
+  void _openTab(int index) {
+    if (index == _activeTab) {
       return;
     }
-    setState(() => _activeTab = index);
-    await context.push(route);
-    if (mounted) {
-      setState(() => _activeTab = 0);
-      await AppScope.of(context).overview.refreshInvestment();
+    final bool backToOverview = index == 0;
+    setState(() {
+      _activeTab = index;
+      _visitedTabs.add(index);
+    });
+    if (backToOverview) {
+      unawaited(AppScope.of(context).overview.refreshInvestment());
+    }
+  }
+
+  /// 栏目序号 → 内容页。索引与 [_tabs] 一一对应。
+  Widget _tabPage(int index) {
+    switch (index) {
+      case 1:
+        return const ForexPage();
+      case 2:
+        return const InvestAnalysisPage();
+      case 3:
+        return const InvestCalendarPage();
+      case 4:
+        return const ReportListPage(source: ReportSource.investment);
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -100,9 +125,17 @@ class _InvestPageState extends State<InvestPage> {
       ],
     );
     if (route != null && mounted) {
-      await context.push(route);
-      if (mounted) {
-        await AppScope.of(context).overview.refreshInvestment();
+      // 搜索结果若是域内栏目，直接切到对应栏目，保持「不跳转」的一致体验。
+      final int index = _tabs.indexWhere(
+        (_InvestTab tab) => tab.route == route,
+      );
+      if (index > 0) {
+        _openTab(index);
+      } else {
+        await context.push(route);
+        if (mounted) {
+          await AppScope.of(context).overview.refreshInvestment();
+        }
       }
     }
   }
@@ -126,7 +159,13 @@ class _InvestPageState extends State<InvestPage> {
         final List<EquityPoint> points = _filteredPoints(data);
 
         return PopScope(
+          // 根页始终不退出：栏目内按返回键先回到概览，再按一次留在概览。
           canPop: false,
+          onPopInvokedWithResult: (bool didPop, Object? result) {
+            if (!didPop && _activeTab != 0) {
+              _openTab(0);
+            }
+          },
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: isDark
                 ? SystemUiOverlayStyle.light.copyWith(
@@ -165,11 +204,14 @@ class _InvestPageState extends State<InvestPage> {
                       ),
                     ),
                     Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: scope.overview.refreshInvestment,
-                        color: tokens.accent,
-                        backgroundColor: tokens.surface,
-                        child: ListView(
+                      child: IndexedStack(
+                        index: _activeTab,
+                        children: <Widget>[
+                          RefreshIndicator(
+                            onRefresh: scope.overview.refreshInvestment,
+                            color: tokens.accent,
+                            backgroundColor: tokens.surface,
+                            child: ListView(
                           padding: const EdgeInsets.fromLTRB(
                             AppTokens.pagePadding,
                             6,
@@ -255,6 +297,13 @@ class _InvestPageState extends State<InvestPage> {
                             ),
                           ],
                         ),
+                          ),
+                          for (int i = 1; i < _tabs.length; i++)
+                            if (_visitedTabs.contains(i))
+                              DetailPageEmbedded(child: _tabPage(i))
+                            else
+                              const SizedBox.shrink(),
+                        ],
                       ),
                     ),
                   ],

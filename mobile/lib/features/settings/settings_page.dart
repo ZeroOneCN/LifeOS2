@@ -15,14 +15,13 @@ import '../../shared/widgets/notification_bell.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../../shared/widgets/v2/domain_header.dart';
 import '../../shared/widgets/v2/v2_rows.dart';
-import '../../shared/widgets/v2/v2_segmented.dart';
 import '../../theme/app_tokens.dart';
 import 'avatar_preview_page.dart';
 
-/// 设置根页 2.0：账户头 + 账户与连接 + 外观 + 字体大小 + 关于。
+/// 设置根页 2.0：账户头 + 账户与连接 + 关于。
 ///
-/// 不设域内栏目条：设置本身是一个分组列表，外观与字体档位需要就地切换，
-/// 拆成子页反而多一层跳转。通知中心保留在本页入口，不提升为一级 Tab。
+/// 不设域内栏目条：设置本身是一个分组列表，通知中心保留在本页入口，
+/// 不提升为一级 Tab。外观与字体不再由应用接管，统一跟随系统设置。
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
@@ -134,158 +133,6 @@ class SettingsPage extends StatelessWidget {
                                             context.push('/settings/server'),
                                       );
                                     },
-                              ),
-                            ],
-                          ),
-                          const SectionHeader(title: '外观'),
-                          GroupCard(
-                            children: <Widget>[
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  12,
-                                  16,
-                                  14,
-                                ),
-                                child: ValueListenableBuilder<ThemeMode>(
-                                  valueListenable: scope.preferences.themeMode,
-                                  builder:
-                                      (
-                                        BuildContext context,
-                                        ThemeMode mode,
-                                        _,
-                                      ) {
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: <Widget>[
-                                            V2Segmented<ThemeMode>(
-                                              selected: mode,
-                                              onChanged: scope
-                                                  .preferences
-                                                  .setThemeMode,
-                                              options:
-                                                  const <
-                                                    V2SegmentedOption<ThemeMode>
-                                                  >[
-                                                    V2SegmentedOption<
-                                                      ThemeMode
-                                                    >(
-                                                      label: '跟随系统',
-                                                      value: ThemeMode.system,
-                                                    ),
-                                                    V2SegmentedOption<
-                                                      ThemeMode
-                                                    >(
-                                                      label: '浅色',
-                                                      value: ThemeMode.light,
-                                                    ),
-                                                    V2SegmentedOption<
-                                                      ThemeMode
-                                                    >(
-                                                      label: '深色',
-                                                      value: ThemeMode.dark,
-                                                    ),
-                                                  ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '选择会立即生效，并在下次冷启动时保留。',
-                                              style: AppType.rowMeta.copyWith(
-                                                color: tokens.text2,
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SectionHeader(title: '字体大小'),
-                          GroupCard(
-                            children: <Widget>[
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  10,
-                                  16,
-                                  14,
-                                ),
-                                child: ValueListenableBuilder<double?>(
-                                  valueListenable:
-                                      scope.preferences.fontScaleRatio,
-                                  builder:
-                                      (BuildContext context, double? ratio, _) {
-                                        final bool followSystem = ratio == null;
-                                        return Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: <Widget>[
-                                            Row(
-                                              children: <Widget>[
-                                                Expanded(
-                                                  child: Text(
-                                                    '跟随系统',
-                                                    style: AppType.rowTitle
-                                                        .copyWith(
-                                                          color: tokens.text,
-                                                        ),
-                                                  ),
-                                                ),
-                                                Switch(
-                                                  value: followSystem,
-                                                  activeThumbColor:
-                                                      Colors.white,
-                                                  activeTrackColor:
-                                                      tokens.accent,
-                                                  onChanged: (bool value) =>
-                                                      scope.preferences
-                                                          .setFontScaleRatio(
-                                                            value ? null : 1.0,
-                                                          ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            V2Segmented<double>(
-                                              selected: ratio ?? -1,
-                                              onChanged: scope
-                                                  .preferences
-                                                  .setFontScaleRatio,
-                                              options:
-                                                  const <
-                                                    V2SegmentedOption<double>
-                                                  >[
-                                                    V2SegmentedOption<double>(
-                                                      label: '小',
-                                                      value: 0.9,
-                                                    ),
-                                                    V2SegmentedOption<double>(
-                                                      label: '标准',
-                                                      value: 1.0,
-                                                    ),
-                                                    V2SegmentedOption<double>(
-                                                      label: '大',
-                                                      value: 1.15,
-                                                    ),
-                                                    V2SegmentedOption<double>(
-                                                      label: '特大',
-                                                      value: 1.3,
-                                                    ),
-                                                  ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              '只调整文字大小，切换时页面不会重新加载数据。',
-                                              style: AppType.rowMeta.copyWith(
-                                                color: tokens.text2,
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                ),
                               ),
                             ],
                           ),

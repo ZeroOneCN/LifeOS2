@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 空态：图标 + 标题 + 说明，居中。
+import '../../theme/app_tokens.dart';
+
+/// 空态：图标 + 标题 + 说明，居中（2.0 字号与灰阶）。
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -17,22 +19,23 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return Padding(
       padding: EdgeInsets.symmetric(vertical: compact ? 12 : 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         spacing: 8,
         children: <Widget>[
-          Icon(icon, size: compact ? 32 : 48, color: muted),
-          Text(title, style: theme.textTheme.bodyLarge),
+          Icon(icon, size: compact ? 32 : 48, color: tokens.text3),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: AppType.rowTitle.copyWith(color: tokens.text),
+          ),
           Text(
             description,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: muted,
-            ),
             textAlign: TextAlign.center,
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
         ],
       ),
@@ -57,7 +60,7 @@ class MetricPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
@@ -69,17 +72,15 @@ class MetricPlaceholder extends StatelessWidget {
             value,
             maxLines: 1,
             softWrap: false,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: valueColor,
+            style: AppType.statValue.copyWith(
+              color: valueColor ?? tokens.text,
               fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
             ),
           ),
         ),
         Text(
           label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: AppType.statLabel.copyWith(color: tokens.text2),
         ),
       ],
     );
@@ -87,6 +88,8 @@ class MetricPlaceholder extends StatelessWidget {
 }
 
 /// 带说明文字的入口行（指向某个二级页）。
+///
+/// 底色、圆角、发丝线由全局 `cardTheme` 提供，与卡片保持同一 2.0 样式。
 class EntryTile extends StatelessWidget {
   const EntryTile({
     super.key,

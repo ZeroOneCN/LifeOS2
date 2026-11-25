@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -5,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/data/overview_models.dart';
+import '../../core/models/report_models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/notification_bell.dart';
+import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_status.dart';
 import '../../shared/widgets/v2/domain_header.dart';
 import '../../shared/widgets/v2/domain_tabs.dart';
@@ -16,6 +20,13 @@ import '../../shared/widgets/v2/v2_icon_button.dart';
 import '../../shared/widgets/v2/v2_rows.dart';
 import '../../shared/widgets/v2/v2_search.dart';
 import '../../theme/app_tokens.dart';
+import '../reports/report_list_page.dart';
+import 'finance_bills_page.dart';
+import 'finance_debts_page.dart';
+import 'finance_planning_page.dart';
+import 'finance_shopping_page.dart';
+import 'finance_transactions_page.dart';
+import 'finance_travel_page.dart';
 
 /// 财务中心 2.0 首屏：本月支出 Hero + 待还/债务/贷款指标 + 待还账单 + 分类支出。
 ///
@@ -43,20 +54,43 @@ class _FinancePageState extends State<FinancePage> {
 
   int _activeTab = 0;
 
-  /// 点击栏目：概览留在本页，其余跳子页；返回后刷新摘要。
-  Future<void> _openTab(int index) async {
-    final String? route = _tabs[index].route;
-    if (route == null) {
-      if (index != _activeTab) {
-        setState(() => _activeTab = index);
-      }
+  /// 已打开过的栏目：首次点击才构建页面，之后由 [IndexedStack] 保活。
+  final Set<int> _visitedTabs = <int>{0};
+
+  /// 点击栏目：内容就地切换，不再压栈跳转；切回概览时刷新一次摘要。
+  void _openTab(int index) {
+    if (index == _activeTab) {
       return;
     }
-    setState(() => _activeTab = index);
-    await context.push(route);
-    if (mounted) {
-      setState(() => _activeTab = 0);
-      await AppScope.of(context).overview.refreshFinance();
+    final bool backToOverview = index == 0;
+    setState(() {
+      _activeTab = index;
+      _visitedTabs.add(index);
+    });
+    if (backToOverview) {
+      unawaited(AppScope.of(context).overview.refreshFinance());
+    }
+  }
+
+  /// 栏目序号 → 内容页。索引与 [_tabs] 一一对应。
+  Widget _tabPage(int index) {
+    switch (index) {
+      case 1:
+        return const FinanceBillsPage();
+      case 2:
+        return const FinanceDebtsPage();
+      case 3:
+        return const FinanceShoppingPage();
+      case 4:
+        return const FinanceTravelPage();
+      case 5:
+        return const FinancePlanningPage();
+      case 6:
+        return const FinanceTransactionsPage();
+      case 7:
+        return const ReportListPage(source: ReportSource.finance);
+      default:
+        return const SizedBox.shrink();
     }
   }
 
@@ -123,9 +157,17 @@ class _FinancePageState extends State<FinancePage> {
       ],
     );
     if (route != null && mounted) {
-      await context.push(route);
-      if (mounted) {
-        await AppScope.of(context).overview.refreshFinance();
+      // 搜索结果若是域内栏目，直接切到对应栏目，保持「不跳转」的一致体验。
+      final int index = _tabs.indexWhere(
+        (_FinanceTab tab) => tab.route == route,
+      );
+      if (index > 0) {
+        _openTab(index);
+      } else {
+        await context.push(route);
+        if (mounted) {
+          await AppScope.of(context).overview.refreshFinance();
+        }
       }
     }
   }
@@ -159,7 +201,13 @@ class _FinancePageState extends State<FinancePage> {
         final bool loading = data == null && state.status == LoadStatus.loading;
 
         return PopScope(
+          // 根页始终不退出：栏目内按返回键先回到概览，再按一次留在概览。
           canPop: false,
+          onPopInvokedWithResult: (bool didPop, Object? result) {
+            if (!didPop && _activeTab != 0) {
+              _openTab(0);
+            }
+          },
           child: AnnotatedRegion<SystemUiOverlayStyle>(
             value: isDark
                 ? SystemUiOverlayStyle.light.copyWith(
@@ -198,11 +246,14 @@ class _FinancePageState extends State<FinancePage> {
                       ),
                     ),
                     Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: scope.overview.refreshFinance,
-                        color: tokens.accent,
-                        backgroundColor: tokens.surface,
-                        child: ListView(
+                      child: IndexedStack(
+                        index: _activeTab,
+                        children: <Widget>[
+                          RefreshIndicator(
+                            onRefresh: scope.overview.refreshFinance,
+                            color: tokens.accent,
+                            backgroundColor: tokens.surface,
+                            child: ListView(
                           padding: const EdgeInsets.fromLTRB(
                             AppTokens.pagePadding,
                             6,
@@ -267,17 +318,26 @@ class _FinancePageState extends State<FinancePage> {
                             _categoryGroup(context, data, state.status),
                           ],
                         ),
+                          ),
+                          for (int i = 1; i < _tabs.length; i++)
+                            if (_visitedTabs.contains(i))
+                              DetailPageEmbedded(child: _tabPage(i))
+                            else
+                              const SizedBox.shrink(),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              floatingActionButton: FloatingActionButton(
-                tooltip: '快速记账',
-                onPressed: _openQuickRecord,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add),
-              ),
+              floatingActionButton: _activeTab == 0
+                  ? FloatingActionButton(
+                      tooltip: '快速记账',
+                      onPressed: _openQuickRecord,
+                      shape: const CircleBorder(),
+                      child: const Icon(Icons.add),
+                    )
+                  : null,
             ),
           ),
         );

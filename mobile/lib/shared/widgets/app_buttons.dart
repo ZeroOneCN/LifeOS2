@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 
 /// 全 App 按钮规范（唯一口径，页面不得各写各的）。
 ///
 /// | 语义 | 组件 | 高度 | 圆角 | 颜色 | 图标 |
 /// | --- | --- | --- | --- | --- | --- |
-/// | 主操作 | [AppPrimaryButton] | 48 | 8 | primary 填充 | 语义图标 |
-/// | 次操作 | [AppSecondaryButton] | 48 | 8 | 描边中性色 | 语义图标 |
-/// | 危险操作 | [AppDangerButton] | 48 / 紧凑 36 | 8 | 危险色描边 + 危险色文字 | delete_outline |
-/// | 区块主操作 | [AppPrimaryAction] | 36 | 8 | primary 实心填充 | add |
+/// | 主操作 | [AppPrimaryButton] | 48 | 10 | System Blue 填充 | 语义图标 |
+/// | 次操作 | [AppSecondaryButton] | 48 | 10 | 发丝线描边 + 强调色文字 | 语义图标 |
+/// | 危险操作 | [AppDangerButton] | 48 / 紧凑 36 | 10 | 危险色描边 + 危险色文字 | delete_outline |
+/// | 区块主操作 | [AppPrimaryAction] | 36 | 10 | System Blue 实心填充 | add |
 ///
 /// 同一页面里成对出现的「编辑 / 删除」必须放进 [AppActionRow]，
 /// 两个按钮各占一半宽度，保证宽高等比。
@@ -182,10 +183,10 @@ class AppDangerButton extends StatelessWidget {
   }
 }
 
-/// 区块主操作（新增账单 / 新增记录）：主色实心 + 图标 + 36 高 + 8 圆角。
+/// 区块主操作（新增账单 / 新增记录）：System Blue 实心 + 图标 + 36 高 + 10 圆角。
 ///
 /// 它是真正的按钮而不是一行文字：有底色、圆角、图标和按压态；
-/// 与主操作按钮使用同一个主题色，仅高度更紧凑以适配列表头部。
+/// 与主操作按钮使用同一个强调色，仅高度更紧凑以适配列表头部。
 class AppPrimaryAction extends StatelessWidget {
   const AppPrimaryAction({
     super.key,
@@ -200,19 +201,22 @@ class AppPrimaryAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return FilledButton.icon(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
+        backgroundColor: tokens.accent,
+        foregroundColor: Colors.white,
         minimumSize: const Size(0, kAppInlineActionHeight),
         padding: const EdgeInsets.symmetric(horizontal: 12),
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kAppInlineActionRadius),
         ),
-        textStyle: theme.textTheme.labelLarge?.copyWith(fontSize: 13),
+        textStyle: AppType.action.copyWith(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       icon: Icon(icon, size: 18),
       label: _ButtonLabel(label),
