@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 药品库存新增 / 编辑：药品名称 + 低库存阈值。
 ///
@@ -268,20 +269,7 @@ class _HealthMedStockFormPageState extends State<HealthMedStockFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       SectionCard(
                         title: '库存信息',
                         child: Column(

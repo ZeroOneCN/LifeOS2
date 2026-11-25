@@ -9,6 +9,7 @@ import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/app_select.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 运动记录录入 / 编辑：日期 + 类型 + 时长（必填）+ 热量 / 距离 / 备注（可选）。
 ///
@@ -389,20 +390,7 @@ class _HealthFitnessFormPageState extends State<HealthFitnessFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: 12,
                     children: <Widget>[
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       SectionCard(
                         title: _editing ? '修改运动记录' : '运动信息',
                         child: Column(

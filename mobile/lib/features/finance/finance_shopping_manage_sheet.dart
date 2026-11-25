@@ -6,6 +6,10 @@ import '../../core/app_scope.dart';
 import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 
 /// 购物记录的平台 / 分类 / 账本维护面板 + xlsx 导入。
 ///
@@ -452,9 +456,40 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
     return value;
   }
 
+  /// 行尾「编辑 / 删除」菜单：图标统一 text3，删除项用危险色。
+  Widget _actionMenu(
+    AppTokens tokens, {
+    VoidCallback? onEdit,
+    required VoidCallback onDelete,
+  }) {
+    return PopupMenuButton<String>(
+      tooltip: '更多操作',
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+      onSelected: (String value) {
+        if (value == 'edit') {
+          onEdit?.call();
+        } else {
+          onDelete();
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        if (onEdit != null)
+          const PopupMenuItem<String>(
+            value: 'edit',
+            child: Text('编辑'),
+          ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Text('删除', style: TextStyle(color: tokens.red)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -474,12 +509,18 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
                 child: Row(
                   children: <Widget>[
                     Expanded(
-                      child: Text('平台 / 分类维护', style: theme.textTheme.titleMedium),
+                      child: Text(
+                        '平台 / 分类维护',
+                        style: AppType.rowTitle.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: tokens.text,
+                        ),
+                      ),
                     ),
                     IconButton(
                       tooltip: '关闭',
                       onPressed: () => Navigator.of(context).pop(_changed),
-                      icon: const Icon(Icons.close),
+                      icon: Icon(Icons.close, size: 20, color: tokens.text2),
                     ),
                   ],
                 ),
@@ -487,154 +528,133 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
+                  child: V2ErrorBanner(message: _error!),
                 ),
-              if (_busy) const LinearProgressIndicator(minHeight: 2),
+              if (_busy)
+                LinearProgressIndicator(minHeight: 2, color: tokens.accent),
               Flexible(
                 child: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(child: CircularProgressIndicator()),
+                    ? Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Center(
+                          child: CircularProgressIndicator(color: tokens.text2),
+                        ),
                       )
                     : ListView(
                         shrinkWrap: true,
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                         children: <Widget>[
-                          _SectionHeader(
-                            title: '平台',
-                            action: AppPrimaryAction(
-                              label: '新增平台',
-                              onPressed: _busy ? () {} : _addPlatform,
-                            ),
+                          SectionHeader(
+                            title: '平台 · 共 ${_platforms.length} 个',
+                            actionLabel: '新增平台',
+                            onAction: _busy ? null : _addPlatform,
                           ),
-                          if (_platforms.isEmpty)
-                            const _EmptyLine(text: '暂无平台，点右上新增')
-                          else
-                            for (final NamedOption item in _platforms)
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                title: Text(item.name),
-                                trailing: IconButton(
-                                  tooltip: '删除平台',
-                                  onPressed:
-                                      _busy ? null : () => _deletePlatform(item),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ),
-                          const SizedBox(height: 12),
-                          _SectionHeader(
-                            title: '分类',
-                            action: AppPrimaryAction(
-                              label: '新增分类',
-                              onPressed: _busy ? () {} : _addCategory,
-                            ),
-                          ),
-                          if (_categories.isEmpty)
-                            const _EmptyLine(text: '暂无分类，点右上新增')
-                          else
-                            for (final _CategoryRow item in _categories)
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                title: Text(item.name),
-                                subtitle: item.keywords.isEmpty
-                                    ? const Text('无自动匹配关键词')
-                                    : Text(
-                                        '关键词：${item.keywords.join('、')}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    IconButton(
-                                      tooltip: '重命名',
-                                      onPressed: _busy
-                                          ? null
-                                          : () => _renameCategory(item),
-                                      icon: const Icon(Icons.edit_outlined),
+                          GroupCard(
+                            children: <Widget>[
+                              if (_platforms.isEmpty)
+                                const EmptyState(
+                                  icon: Icons.storefront_outlined,
+                                  title: '暂无平台',
+                                  description: '点「新增平台」录入第一个平台',
+                                  compact: true,
+                                )
+                              else
+                                for (final NamedOption item in _platforms)
+                                  TaskRow(
+                                    title: item.name,
+                                    trailing: _actionMenu(
+                                      tokens,
+                                      onDelete: () => _deletePlatform(item),
                                     ),
-                                    IconButton(
-                                      tooltip: '删除分类',
-                                      onPressed: _busy
-                                          ? null
-                                          : () => _deleteCategory(item),
-                                      icon: const Icon(Icons.delete_outline),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          const SizedBox(height: 12),
-                          _SectionHeader(
-                            title: '账本',
-                            action: AppPrimaryAction(
-                              label: '新增账本',
-                              onPressed: _busy ? () {} : _addLedger,
-                            ),
-                          ),
-                          if (_ledgers.isEmpty)
-                            const _EmptyLine(text: '暂无账本，点右上新增')
-                          else
-                            for (final NamedOption item in _ledgers)
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                title: Text(item.name),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    IconButton(
-                                      tooltip: '重命名账本',
-                                      onPressed:
-                                          _busy ? null : () => _renameLedger(item),
-                                      icon: const Icon(Icons.edit_outlined),
-                                    ),
-                                    IconButton(
-                                      tooltip: '删除账本',
-                                      onPressed:
-                                          _busy ? null : () => _deleteLedger(item),
-                                      icon: const Icon(Icons.delete_outline),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              spacing: 8,
-                              children: <Widget>[
-                                Text(
-                                  '从 Excel 导入',
-                                  style: theme.textTheme.titleSmall,
-                                ),
-                                Text(
-                                  '表头需含：日期、商品名称、总价；可选平台 / 规格 / 单价 / 订单号 / 账本。'
-                                  '订单号+日期+商品+总价 相同视为重复，自动跳过。',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
+                            ],
+                          ),
+                          SectionHeader(
+                            title: '分类 · 共 ${_categories.length} 个',
+                            actionLabel: '新增分类',
+                            onAction: _busy ? null : _addCategory,
+                          ),
+                          GroupCard(
+                            children: <Widget>[
+                              if (_categories.isEmpty)
+                                const EmptyState(
+                                  icon: Icons.sell_outlined,
+                                  title: '暂无分类',
+                                  description: '点「新增分类」录入第一个分类',
+                                  compact: true,
+                                )
+                              else
+                                for (final _CategoryRow item in _categories)
+                                  _CategoryTile(
+                                    name: item.name,
+                                    keywords: item.keywords,
+                                    isFallback: item.isFallback,
+                                    trailing: _actionMenu(
+                                      tokens,
+                                      onEdit: () => _renameCategory(item),
+                                      onDelete: () => _deleteCategory(item),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                          SectionHeader(
+                            title: '账本 · 共 ${_ledgers.length} 个',
+                            actionLabel: '新增账本',
+                            onAction: _busy ? null : _addLedger,
+                          ),
+                          GroupCard(
+                            children: <Widget>[
+                              if (_ledgers.isEmpty)
+                                const EmptyState(
+                                  icon: Icons.menu_book_outlined,
+                                  title: '暂无账本',
+                                  description: '点「新增账本」录入第一个账本',
+                                  compact: true,
+                                )
+                              else
+                                for (final NamedOption item in _ledgers)
+                                  TaskRow(
+                                    title: item.name,
+                                    trailing: _actionMenu(
+                                      tokens,
+                                      onEdit: () => _renameLedger(item),
+                                      onDelete: () => _deleteLedger(item),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          GroupCard(
+                            children: <Widget>[
+                              Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  spacing: 8,
+                                  children: <Widget>[
+                                    Text(
+                                      '从 Excel 导入',
+                                      style: AppType.section.copyWith(
+                                        color: tokens.text2,
+                                      ),
+                                    ),
+                                    Text(
+                                      '表头需含：日期、商品名称、总价；可选平台 / 规格 / 单价 / 订单号 / 账本。'
+                                      '订单号+日期+商品+总价 相同视为重复，自动跳过。',
+                                      style: AppType.rowMeta.copyWith(
+                                        color: tokens.text2,
+                                      ),
+                                    ),
+                                    AppPrimaryButton(
+                                      label: '选择 .xlsx 导入',
+                                      icon: Icons.upload_file,
+                                      onPressed: _busy ? null : _importXlsx,
+                                    ),
+                                  ],
                                 ),
-                                AppPrimaryButton(
-                                  label: '选择 .xlsx 导入',
-                                  icon: Icons.upload_file,
-                                  onPressed: _busy ? null : _importXlsx,
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -647,37 +667,65 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, required this.action});
+/// 分类行：名称 + 可选兜底徽标在上，自动匹配关键词在下，右侧为操作菜单。
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    required this.name,
+    required this.keywords,
+    required this.trailing,
+    this.isFallback = false,
+  });
 
-  final String title;
-  final Widget action;
+  final String name;
+  final List<String> keywords;
+  final Widget trailing;
+  final bool isFallback;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+    final AppTokens tokens = AppTokens.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    spacing: 6,
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppType.rowTitle.copyWith(color: tokens.text),
+                        ),
+                      ),
+                      if (isFallback)
+                        const V2Badge('兜底', tone: V2BadgeTone.gray),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    keywords.isEmpty
+                        ? '无自动匹配关键词'
+                        : '关键词：${keywords.join('、')}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            trailing,
+          ],
         ),
-        action,
-      ],
-    );
-  }
-}
-
-class _EmptyLine extends StatelessWidget {
-  const _EmptyLine({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.bodySmall,
       ),
     );
   }

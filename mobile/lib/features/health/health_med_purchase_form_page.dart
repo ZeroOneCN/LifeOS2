@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 新增 / 编辑购药记录：购买日期、药品名称、渠道、数量、单位、每包装粒数、
 /// 单价、总价、备注。
@@ -236,20 +237,7 @@ class _HealthMedPurchaseFormPageState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: <Widget>[
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
-                  ),
+                if (_error != null) V2ErrorBanner(message: _error!),
                 SectionCard(
                   title: '购药信息',
                   child: Column(

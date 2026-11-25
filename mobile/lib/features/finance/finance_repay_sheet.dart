@@ -5,6 +5,8 @@ import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 
 /// 债务还款 / 收款的底部弹层。
 ///
@@ -244,8 +246,7 @@ class _DebtRepaySheetState extends State<DebtRepaySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final ({double amount, double discount, double actual, double remaining})
         preview = _preview;
     return Padding(
@@ -265,12 +266,15 @@ class _DebtRepaySheetState extends State<DebtRepaySheet> {
               children: <Widget>[
                 Text(
                   _isEdit ? '修改$_action记录' : '$_action · ${widget.debt.name}',
-                  style: theme.textTheme.titleMedium,
+                  style: AppType.rowTitle.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: tokens.text,
+                  ),
                 ),
                 Text(
                   '债务剩余 ${formatMoney(widget.debt.outstanding)} · '
                   '${widget.debt.name}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
                 ),
                 _DateField(
                   label: '$_action日期',
@@ -290,6 +294,7 @@ class _DebtRepaySheetState extends State<DebtRepaySheet> {
                 TextField(
                   controller: _note,
                   maxLength: 100,
+                  style: AppType.rowTitle.copyWith(color: tokens.text),
                   decoration: const InputDecoration(
                     labelText: '备注',
                     counterText: '',
@@ -304,12 +309,7 @@ class _DebtRepaySheetState extends State<DebtRepaySheet> {
                     '清账后剩余 ${formatMoney(preview.remaining)}',
                   ],
                 ),
-                if (_error != null)
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.error),
-                  ),
+                if (_error != null) V2ErrorBanner(message: _error!),
                 if (_isEdit)
                   AppActionRow(
                     first: AppPrimaryButton(
@@ -606,8 +606,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final ({double payable, double discount, double actual, double remaining})
         preview = _preview;
     return Padding(
@@ -627,28 +626,38 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
               children: <Widget>[
                 Text(
                   _isEdit ? '修改还款记录' : '还款 · ${widget.bill.billMonth}',
-                  style: theme.textTheme.titleMedium,
+                  style: AppType.rowTitle.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: tokens.text,
+                  ),
                 ),
                 Text(
                   '账单应还 ${formatMoney(widget.bill.amount)} · '
                   '已还 ${formatMoney(widget.bill.paidAmount)} · '
                   '剩余 ${formatMoney(widget.bill.remaining)}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
                 ),
                 if (_legacy)
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.colorScheme.error),
+                      color: tokens.fill2,
+                      borderRadius:
+                          BorderRadius.circular(AppTokens.controlRadius),
                     ),
-                    child: Text(
-                      '这条是旧口径数据：「实付 = 应付 − 优惠」对不上库中原值。'
-                      '请核对下方金额，确认后按新口径重新计算并保存。',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 8,
+                      children: <Widget>[
+                        Icon(Icons.info_outline, size: 18, color: tokens.orange),
+                        Expanded(
+                          child: Text(
+                            '这条是旧口径数据：「实付 = 应付 − 优惠」对不上库中原值。'
+                            '请核对下方金额，确认后按新口径重新计算并保存。',
+                            style: AppType.rowMeta.copyWith(color: tokens.text2),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 _DateField(
@@ -669,6 +678,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                 TextField(
                   controller: _method,
                   maxLength: 30,
+                  style: AppType.rowTitle.copyWith(color: tokens.text),
                   decoration: const InputDecoration(
                     labelText: '还款方式',
                     hintText: '如：银行卡、支付宝、微信',
@@ -678,6 +688,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                 TextField(
                   controller: _note,
                   maxLength: 100,
+                  style: AppType.rowTitle.copyWith(color: tokens.text),
                   decoration: const InputDecoration(
                     labelText: '备注',
                     counterText: '',
@@ -692,12 +703,7 @@ class _LoanRepaySheetState extends State<LoanRepaySheet> {
                     '清账后剩余 ${formatMoney(preview.remaining)}',
                   ],
                 ),
-                if (_error != null)
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.error),
-                  ),
+                if (_error != null) V2ErrorBanner(message: _error!),
                 if (_isEdit)
                   AppActionRow(
                     first: AppPrimaryButton(
@@ -763,15 +769,19 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
         ),
-        child: Text(value),
+        child: Text(
+          value,
+          style: AppType.rowTitle.copyWith(color: tokens.text),
+        ),
       ),
     );
   }
@@ -791,14 +801,17 @@ class _MoneyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: AppType.rowTitle.copyWith(color: tokens.text),
       decoration: InputDecoration(
         labelText: label,
         // 金额字段统一带 ¥，与账单/债务页的展示口径一致。
         prefixText: '¥ ',
         helperText: helper,
+        helperStyle: AppType.rowMeta.copyWith(color: tokens.text2),
       ),
     );
   }
@@ -813,13 +826,12 @@ class _PreviewBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: tokens.fill2,
+        borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -827,17 +839,14 @@ class _PreviewBox extends StatelessWidget {
         children: <Widget>[
           Text(
             title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
           for (final String line in lines)
             Text(
               line,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[
-                  FontFeature.tabularFigures(),
-                ],
+              style: AppType.rowValue.copyWith(
+                fontSize: 14,
+                color: tokens.text,
               ),
             ),
         ],

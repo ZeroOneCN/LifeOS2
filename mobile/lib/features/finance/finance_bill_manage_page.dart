@@ -6,7 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 import '../../shared/widgets/v2/v2_rows.dart';
 import '../../theme/app_tokens.dart';
 
@@ -251,6 +251,14 @@ class _FinanceBillManagePageState extends State<FinanceBillManagePage> {
     return parts.join(' · ');
   }
 
+  /// 列表状态：首屏加载 / 接口失败 / 就绪。
+  LoadStatus get _status {
+    if (_loading) {
+      return LoadStatus.loading;
+    }
+    return _error != null ? LoadStatus.failed : LoadStatus.ready;
+  }
+
   /// 金额格式：整数不带小数，其余保留两位。
   String _money(double value) {
     return value == value.roundToDouble()
@@ -263,67 +271,56 @@ class _FinanceBillManagePageState extends State<FinanceBillManagePage> {
     final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: _title,
-      child: ListView(
-        // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
-        padding: const EdgeInsets.only(bottom: 24),
-        children: <Widget>[
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            OverviewStatusBanner(
-              status: LoadStatus.failed,
-              message: _error,
-              onRetry: _refresh,
-            )
-          else ...<Widget>[
-            SectionHeader(
-              title: '$_title（${_items.length}）',
-              actionLabel: _addLabel,
-              onAction: () => _openForm(),
-            ),
-            if (_items.isEmpty)
-              GroupCard(
-                children: <Widget>[
-                  EmptyState(
-                    icon: Icons.list_alt_outlined,
-                    title: '暂无$_title',
-                    description: '新增后可在此维护名称与规则，删除不影响历史账单',
-                    compact: true,
-                    actionLabel: _addLabel,
-                    onAction: () => _openForm(),
-                  ),
-                ],
-              )
-            else
-              GroupCard(
-                children: <Widget>[
-                  for (final Map<String, dynamic> item in _items)
-                    _DictionaryRow(
-                      title: item['name'] as String? ?? '未命名',
-                      subtitle: widget.kind == BillManageKind.loanPlatform
-                          ? _platformSubtitle(item)
-                          : '',
-                      onTap: () => _openForm(item),
-                      onEdit: () => _openForm(item),
-                      onDelete: () => _delete(item),
+      child: ListPageBody(
+        status: _status,
+        message: _error,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          SectionHeader(
+            title: '$_title · 共 ${_items.length} 条',
+            actionLabel: _addLabel,
+            onAction: () => _openForm(),
+          ),
+          GroupCard(
+            children: _items.isEmpty
+                ? <Widget>[
+                    EmptyState(
+                      icon: Icons.list_alt_outlined,
+                      title: '暂无$_title',
+                      description: '新增后可在此维护名称与规则，删除不影响历史账单',
+                      compact: true,
+                      actionLabel: _addLabel,
+                      onAction: () => _openForm(),
                     ),
-                ],
-              ),
-            Text(
-              _deleteImpact,
-              style: AppType.rowMeta.copyWith(color: tokens.text3),
-            ),
-          ],
+                  ]
+                : <Widget>[
+                    for (final Map<String, dynamic> item in _items)
+                      _DictionaryRow(
+                        title: item['name'] as String? ?? '未命名',
+                        subtitle: widget.kind == BillManageKind.loanPlatform
+                            ? _platformSubtitle(item)
+                            : '',
+                        badge: widget.kind == BillManageKind.loanPlatform &&
+                                (item['grace_auto'] as bool? ?? false)
+                            ? '容时自动'
+                            : null,
+                        onTap: () => _openForm(item),
+                        onEdit: () => _openForm(item),
+                        onDelete: () => _delete(item),
+                      ),
+                  ],
+          ),
+          Text(
+            _deleteImpact,
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
+          ),
         ],
       ),
     );
   }
 }
 
-/// 单条字典记录：名称 / 规则摘要 + 右侧「编辑 / 删除」菜单。
+/// 单条字典记录：名称 [+ 徽标] 在上、规则摘要在下，右侧「编辑 / 删除」菜单。
 class _DictionaryRow extends StatelessWidget {
   const _DictionaryRow({
     required this.title,
@@ -331,10 +328,12 @@ class _DictionaryRow extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    this.badge,
   });
 
   final String title;
   final String subtitle;
+  final String? badge;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -342,6 +341,7 @@ class _DictionaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
+    final String? tag = badge;
     return InkWell(
       onTap: onTap,
       child: ConstrainedBox(
@@ -355,11 +355,21 @@ class _DictionaryRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppType.rowTitle.copyWith(color: tokens.text),
+                    Row(
+                      spacing: 6,
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                AppType.rowTitle.copyWith(color: tokens.text),
+                          ),
+                        ),
+                        if (tag != null && tag.isNotEmpty)
+                          V2Badge(tag, tone: V2BadgeTone.info),
+                      ],
                     ),
                     if (subtitle.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 2),
@@ -582,11 +592,7 @@ class _LoanPlatformDialogState extends State<_LoanPlatformDialog> {
               maxLines: 2,
               decoration: const InputDecoration(labelText: '备注（可选）'),
             ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+            if (_error != null) V2ErrorBanner(message: _error!),
           ],
         ),
       ),

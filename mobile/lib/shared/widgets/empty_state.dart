@@ -62,50 +62,6 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// 指标占位块：数值 + 标签（数字等宽）。
-class MetricPlaceholder extends StatelessWidget {
-  const MetricPlaceholder({
-    super.key,
-    required this.label,
-    this.value = '—',
-    this.valueColor,
-  });
-
-  final String label;
-  final String value;
-
-  /// 数值颜色：用于「优惠合计」这类需要语义色的指标。
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppTokens tokens = AppTokens.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
-      children: <Widget>[
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            value,
-            maxLines: 1,
-            softWrap: false,
-            style: AppType.statValue.copyWith(
-              color: valueColor ?? tokens.text,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-        Text(
-          label,
-          style: AppType.statLabel.copyWith(color: tokens.text2),
-        ),
-      ],
-    );
-  }
-}
-
 /// 带说明文字的入口行（指向某个二级页）。
 ///
 /// 底色、圆角、发丝线由全局 `cardTheme` 提供，与卡片保持同一 2.0 样式。

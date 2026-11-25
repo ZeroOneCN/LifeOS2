@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 新增 / 编辑用药记录：日期 + 药品名 + 早/午/晚粒数 + 已服状态 + 备注。
 ///
@@ -434,20 +435,7 @@ class _HealthMedicationCreatePageState extends State<HealthMedicationCreatePage>
                           ),
                         ),
                       ),
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                       Text(
                         '保存需要联网，成功后列表、今日统计与 7 日依从率会立即刷新。',
                         textAlign: TextAlign.center,

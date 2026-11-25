@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 睡眠记录录入 / 编辑。
 ///
@@ -544,20 +545,7 @@ class _HealthSleepFormPageState extends State<HealthSleepFormPage> {
                           ],
                         ),
                       ),
-                      if (_error != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                            ),
-                          ),
-                        ),
+                      if (_error != null) V2ErrorBanner(message: _error!),
                     ],
                   ),
                 ],

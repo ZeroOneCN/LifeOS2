@@ -4,12 +4,16 @@ import '../../core/app_scope.dart';
 import '../../core/data/overview_controller.dart';
 import '../../core/models/report_models.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
 import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_tokens.dart';
 import 'report_actions.dart';
 
 /// 报告明细页：财务报告 / 投资报告共用。
@@ -174,8 +178,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final ReportDetail? detail = _detail;
     final String title = detail == null || detail.displayTitle.isEmpty
         ? widget.source.pageTitle
@@ -209,81 +212,70 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 onPressed: _exporting ? null : _delete,
               ),
             ),
-      child: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && detail != null) ...<Widget>[
-                SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 6,
-                    children: <Widget>[
-                      if (detail.rangeText.isNotEmpty)
-                        Row(
-                          spacing: 6,
-                          children: <Widget>[
-                            Icon(
-                              Icons.calendar_month_outlined,
-                              size: 16,
-                              color: muted,
-                            ),
-                            Flexible(
-                              child: Text(
-                                detail.rangeText,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: muted,
-                                  fontFeatures: const <FontFeature>[
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      // 报告是生成时快照：明确「截至生成日」，避免与当前实时数据混淆。
-                      Text(
-                        detail.createdText.isEmpty
-                            ? '本报告为生成时快照，数据截至生成日，不随当前数据变化。'
-                            : '${detail.createdText} · 快照口径：数据截至生成日，不随当前数据变化。',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                      if (detail.displaySummary.isNotEmpty)
-                        Text.rich(
-                          _summarySpan(context, detail.displaySummary),
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                    ],
-                  ),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (detail != null) ...<Widget>[
+            SummaryStrip(
+              caption: _summaryCaption(detail),
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '明细行数',
+                  value: formatInt(totalRows),
+                  unit: '项',
                 ),
-                if (showToc) _buildToc(context, sections),
-                for (int i = 0; i < sections.length; i++)
-                  _buildSectionCard(sections[i], i),
-                if (detail.content.isEmpty)
-                  const SectionCard(
-                    child: EmptyState(
-                      icon: Icons.description_outlined,
-                      title: '报告暂无明细',
-                      description: '该报告未包含可展示的区块',
-                      compact: true,
-                    ),
-                  ),
+                StatRailItem(
+                  label: '内容区块',
+                  value: formatInt(sections.length),
+                  unit: '个',
+                ),
               ],
+            ),
+            if (detail.displaySummary.isNotEmpty) ...<Widget>[
+              const SectionHeader(title: '报告摘要'),
+              SectionCard(
+                child: Text.rich(
+                  _summarySpan(context, detail.displaySummary),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             ],
-          ),
+            if (showToc) _buildToc(context, sections),
+            if (sections.isNotEmpty) ...<Widget>[
+              SectionHeader(title: '报告内容 · 共 ${formatInt(totalRows)} 项'),
+              for (int i = 0; i < sections.length; i++)
+                _buildSectionCard(sections[i], i),
+            ],
+            if (detail.content.isEmpty)
+              const GroupCard(
+                children: <Widget>[
+                  EmptyState(
+                    icon: Icons.description_outlined,
+                    title: '报告暂无明细',
+                    description: '该报告未包含可展示的区块',
+                    compact: true,
+                  ),
+                ],
+              ),
+            // 报告是生成时快照：明确「截至生成日」，避免与当前实时数据混淆。
+            Text(
+              '本报告为生成时快照，数据截至生成日，不随当前数据变化。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// 概览句：统计区间与生成时间；快照口径说明统一放页尾，避免首屏重复。
+  String _summaryCaption(ReportDetail detail) {
+    return <String>[
+      if (detail.rangeText.isNotEmpty) '统计区间 ${detail.rangeText}',
+      if (detail.createdText.isNotEmpty) detail.createdText,
+    ].join(' · ');
   }
 
   /// 是否按美元口径展示金额（投资报告）。
@@ -683,12 +675,19 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return a == b || (a.contains(b) && a.length - b.length <= 12);
   }
 
-  /// 单个分组卡片；key 供目录跳转定位。
+  /// 单个分组卡片；key 供目录跳转定位，右上角标注该分组的明细行数。
   Widget _buildSectionCard(_ReportSection section, int index) {
+    final AppTokens tokens = AppTokens.of(context);
     final GlobalKey key = _sectionKeys.putIfAbsent(index, () => GlobalKey());
     return SectionCard(
       key: key,
       title: section.title,
+      trailing: section.rowCount > 0
+          ? Text(
+              '${formatInt(section.rowCount)} 项',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 8,

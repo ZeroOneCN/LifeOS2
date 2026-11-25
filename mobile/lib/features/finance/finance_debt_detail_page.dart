@@ -9,11 +9,11 @@ import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_card.dart';
-import '../../shared/widgets/section_status.dart';
-import '../../theme/app_theme.dart';
+import '../../shared/widgets/v2/stat_rail.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../shared/widgets/v2/v2_rows.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_repay_sheet.dart';
-import 'finance_status_widgets.dart';
 
 /// 债务明细：单条债务字段 + 还款记录。
 ///
@@ -144,133 +144,193 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
     }
   }
 
+  /// 底部常驻操作区：进行中且仍有未还金额时提供「记录还款 / 收款」+「编辑债务」，
+  /// 已结清时只保留编辑入口（与旧版卡片内按钮逻辑一致）。
+  Widget _bottomBar(DebtItem debt) {
+    final Widget edit = AppSecondaryButton(
+      label: '编辑债务',
+      icon: Icons.edit_outlined,
+      onPressed: _openEdit,
+    );
+    if (debt.status == 'settled' || debt.outstanding <= 0) {
+      return edit;
+    }
+    return AppActionRow(
+      first: AppPrimaryButton(
+        label: debt.isLend ? '记录收款' : '记录还款',
+        icon: Icons.payments_outlined,
+        onPressed: _openRepay,
+      ),
+      second: edit,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     final DebtItem? debt = _debt;
 
     return DetailPageScaffold(
       title: '债务明细',
-      child: ListView(
-        children: <Widget>[
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 12,
-            children: <Widget>[
-              ListStatusView(
-                status: _status,
-                message: _message,
-                onRetry: _refresh,
-              ),
-              if (_status == LoadStatus.ready && debt != null) ...<Widget>[
-                SectionCard(
-                  title: '债务信息',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 10,
-                    children: <Widget>[
-                      Row(
-                        spacing: 8,
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              debt.name,
-                              style: theme.textTheme.titleMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          StatusChip(
-                            label: debtDirectionLabel(debt.direction),
-                            tone: debt.isLend
-                                ? StatusTone.info
-                                : StatusTone.warning,
-                          ),
-                          StatusChip(
-                            label: debtStatusLabel(debt.status),
-                            tone: debt.status == 'settled'
-                                ? StatusTone.success
-                                : StatusTone.info,
-                          ),
-                        ],
-                      ),
-                      _DetailRow(
-                        label: '对方',
-                        value: debt.counterparty ?? '未填写',
-                      ),
-                      _DetailRow(label: '发生日期', value: debt.debtDate),
-                      _DetailRow(label: '本金', value: formatMoney(debt.amount)),
-                      _DetailRow(
-                        label: '未还金额',
-                        value: formatMoney(debt.outstanding),
-                        valueColor: debt.outstanding > 0
-                            ? context.semanticColors.danger
-                            : null,
-                      ),
-                      if (debt.interestRate != null)
-                        _DetailRow(
-                          label: '利率',
-                          value: formatPercent(debt.interestRate),
-                        ),
-                      _DetailRow(
-                        label: '利息合计',
-                        value: formatMoney(debt.interestTotal),
-                      ),
-                      if (debt.channel != null && debt.channel!.isNotEmpty)
-                        _DetailRow(label: '渠道', value: debt.channel!),
-                      if (debt.dueDate != null)
-                        _DetailRow(label: '到期日', value: debt.dueDate!),
-                      if (debt.note != null && debt.note!.trim().isNotEmpty)
-                        _DetailRow(label: '备注', value: debt.note!),
-                      const Divider(height: 20),
-                      if (debt.status != 'settled' && debt.outstanding > 0)
-                        AppActionRow(
-                          first: AppPrimaryButton(
-                            label: debt.isLend ? '记录收款' : '记录还款',
-                            icon: Icons.payments_outlined,
-                            onPressed: _openRepay,
-                          ),
-                          second: AppSecondaryButton(
-                            label: '编辑债务',
-                            icon: Icons.edit_outlined,
-                            onPressed: _openEdit,
-                          ),
-                        )
-                      else
-                        AppSecondaryButton(
-                          label: '编辑债务',
-                          icon: Icons.edit_outlined,
-                          onPressed: _openEdit,
-                        ),
-                    ],
-                  ),
+      bottomBar: debt == null ? null : _bottomBar(debt),
+      child: ListPageBody(
+        status: _status,
+        message: _message,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          if (debt != null) ...<Widget>[
+            SummaryStrip(
+              caption: _summaryCaption(debt),
+              items: <StatRailItem>[
+                StatRailItem(
+                  label: '本金',
+                  value: formatInt(debt.amount),
+                  unit: '元',
                 ),
-                SectionCard(
-                  title: '还款记录',
-                  trailing: Text(
-                    '${_payments.length} 笔',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                  ),
-                  child: _payments.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.payments_outlined,
-                          title: '暂无还款记录',
-                          description: '该债务还没有还款',
-                          compact: true,
-                        )
-                      : Column(
-                          spacing: 4,
-                          children: <Widget>[
-                            for (final DebtPayment item in _payments)
-                              _PaymentRow(
-                                item: item,
-                                onTap: () => _openRepay(payment: item),
-                              ),
-                          ],
-                        ),
+                StatRailItem(
+                  label: '未还',
+                  value: formatInt(debt.outstanding),
+                  unit: '元',
+                  color: debt.outstanding > 0 ? tokens.red : null,
+                ),
+                StatRailItem(
+                  label: '利息合计',
+                  value: formatInt(debt.interestTotal),
+                  unit: '元',
                 ),
               ],
+            ),
+            const SectionHeader(title: '债务信息'),
+            GroupCard(
+              children: <Widget>[
+                _DebtHeadRow(debt: debt),
+                _DetailRow(label: '本金', value: formatMoney(debt.amount)),
+                if (debt.interestRate != null)
+                  _DetailRow(
+                    label: '利率',
+                    value: formatPercent(debt.interestRate),
+                  ),
+                _DetailRow(
+                  label: '利息合计',
+                  value: formatMoney(debt.interestTotal),
+                ),
+                if (debt.channel != null && debt.channel!.isNotEmpty)
+                  _DetailRow(label: '渠道', value: debt.channel!),
+                if (debt.dueDate != null)
+                  _DetailRow(label: '到期日', value: debt.dueDate!),
+                if (debt.note != null && debt.note!.trim().isNotEmpty)
+                  _DetailRow(label: '备注', value: debt.note!.trim()),
+              ],
+            ),
+            SectionHeader(
+              title: '还款记录 · ${formatInt(_payments.length)} 笔',
+            ),
+            GroupCard(
+              children: _payments.isEmpty
+                  ? const <Widget>[
+                      EmptyState(
+                        icon: Icons.payments_outlined,
+                        title: '暂无还款记录',
+                        description: '该债务还没有还款',
+                        compact: true,
+                      ),
+                    ]
+                  : <Widget>[
+                      for (final DebtPayment item in _payments)
+                        _PaymentRow(
+                          item: item,
+                          onTap: () => _openRepay(payment: item),
+                        ),
+                    ],
+            ),
+            Text(
+              '还款记录与网页端同源；点按记录可修改或删除。',
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 概览句：方向 · 状态 · 对方（对方缺失时明确「未填写」）。
+  String _summaryCaption(DebtItem debt) {
+    final String counterparty = (debt.counterparty ?? '').trim();
+    return <String>[
+      debtDirectionLabel(debt.direction),
+      debtStatusLabel(debt.status),
+      counterparty.isEmpty ? '对方未填写' : counterparty,
+    ].join(' · ');
+  }
+}
+
+/// 债务标题行：名称 + 方向 / 状态徽标在上，对方与发生日期 + 未还金额在下。
+class _DebtHeadRow extends StatelessWidget {
+  const _DebtHeadRow({required this.debt});
+
+  final DebtItem debt;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
+    final String counterparty = (debt.counterparty ?? '').trim();
+    final String meta = <String>[
+      counterparty.isEmpty ? '对方未填写' : counterparty,
+      if (debt.debtDate.isNotEmpty) debt.debtDate,
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 4,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  debt.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowTitle.copyWith(color: tokens.text),
+                ),
+              ),
+              const SizedBox(width: 8),
+              V2Badge(
+                debtDirectionLabel(debt.direction),
+                tone: debt.isLend ? V2BadgeTone.info : V2BadgeTone.warn,
+              ),
+              const SizedBox(width: 4),
+              V2Badge(
+                debtStatusLabel(debt.status),
+                tone: debt.status == 'settled'
+                    ? V2BadgeTone.green
+                    : V2BadgeTone.info,
+              ),
+            ],
+          ),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  meta,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  '未还 ${formatMoney(debt.outstanding)}',
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: AppType.rowValue.copyWith(
+                    color: debt.outstanding > 0 ? tokens.red : tokens.text,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -279,43 +339,37 @@ class _FinanceDebtDetailPageState extends State<FinanceDebtDetailPage> {
   }
 }
 
-/// 明细字段行：左标签右值（值可带语义色）。
+/// 只读字段行：左标签（次要字色）右值（等宽数值，主字色），数值右对齐。
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value, this.valueColor});
+  const _DetailRow({required this.label, required this.value});
 
   final String label;
   final String value;
-  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Row(
-      spacing: 12,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: valueColor,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    final AppTokens tokens = AppTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        spacing: 12,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: AppType.rowMeta.copyWith(color: tokens.text2)),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppType.rowValue.copyWith(color: tokens.text),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-/// 还款记录行：日期 + 实付（含优惠说明）；点按进入编辑/删除。
+/// 还款记录行：日期 + 优惠徽标在上，备注说明 + 实付金额在下；点按进入编辑 / 删除。
 class _PaymentRow extends StatelessWidget {
   const _PaymentRow({required this.item, required this.onTap});
 
@@ -324,43 +378,64 @@ class _PaymentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
+    final String note = (item.note ?? '').trim();
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          spacing: 8,
-          children: <Widget>[
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 2,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 4,
+            children: <Widget>[
+              Row(
                 children: <Widget>[
-                  Text(item.repayDate, style: theme.textTheme.bodyMedium),
-                  if (item.discount > 0 || item.note != null)
-                    Text(
-                      <String>[
-                        if (item.discount > 0)
-                          '优惠 ${formatMoney(item.discount)}',
-                        if (item.note != null && item.note!.isNotEmpty)
-                          item.note!,
-                      ].join(' · '),
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                  Expanded(
+                    child: Text(
+                      item.repayDate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),
+                  ),
+                  if (item.discount > 0) ...<Widget>[
+                    const SizedBox(width: 8),
+                    V2Badge(
+                      '优惠 ${formatMoney(item.discount)}',
+                      tone: V2BadgeTone.green,
+                    ),
+                  ],
+                  const SizedBox(width: 2),
+                  Icon(Icons.edit_outlined, size: 15, color: tokens.text3),
                 ],
               ),
-            ),
-            Text(
-              formatMoney(item.actual),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      note.isEmpty ? '实付金额' : note,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      formatMoney(item.actual),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppType.rowValue.copyWith(color: tokens.text),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const Icon(Icons.edit_outlined, size: 16),
-          ],
+            ],
+          ),
         ),
       ),
     );

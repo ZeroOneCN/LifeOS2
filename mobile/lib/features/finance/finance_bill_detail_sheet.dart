@@ -5,7 +5,9 @@ import '../../core/models/finance_models.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/app_buttons.dart';
-import '../../theme/app_theme.dart';
+import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
+import '../../theme/app_tokens.dart';
 import 'finance_bill_form_page.dart';
 import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
@@ -283,99 +285,122 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   }
 
   /// 房租期次区块：标题 + 新增入口 + 每期状态与操作。
-  List<Widget> _rentTermSection(ThemeData theme, Color muted) {
+  List<Widget> _rentTermSection() {
+    final AppTokens tokens = AppTokens.of(context);
     return <Widget>[
-      const Divider(height: 24),
+      const SizedBox(height: 4),
       Row(
         children: <Widget>[
           Expanded(
-            child: Text('房租期次', style: theme.textTheme.titleSmall),
+            child: Text(
+              '房租期次',
+              style: AppType.section.copyWith(color: tokens.text2),
+            ),
           ),
-          TextButton.icon(
+          TextButton(
             onPressed: _addTerm,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('新增一期'),
+            style: TextButton.styleFrom(
+              foregroundColor: tokens.accent,
+              minimumSize: const Size(44, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              textStyle: AppType.action,
+            ),
+            child: const Text('新增一期'),
           ),
         ],
       ),
       if (_loadingTerms)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator(minHeight: 2),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: LinearProgressIndicator(
+            minHeight: 2,
+            color: tokens.text2,
+          ),
         )
       else if (_termsError != null)
-        Text(
-          '期次加载失败：$_termsError',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-        )
+        V2ErrorBanner(message: '期次加载失败：$_termsError')
       else if (_terms.isEmpty)
-        Text(
-          '暂无期次，点「新增一期」按合同录入',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+        const EmptyState(
+          icon: Icons.event_note_outlined,
+          title: '暂无期次',
+          description: '点「新增一期」按合同录入',
+          compact: true,
         )
       else
         Column(
           spacing: 4,
           children: <Widget>[
-            for (final RentTerm term in _terms)
-              Row(
-                spacing: 8,
-                children: <Widget>[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          '第 ${term.termNo} 期 · ${formatMoney(term.amount)}',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                        Text(
-                          '到期 ${term.dueDate}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  StatusChip(
-                    label: term.paid ? '已交' : '未交',
-                    tone: term.paid ? StatusTone.success : StatusTone.warning,
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: '期次操作',
-                    padding: EdgeInsets.zero,
-                    onSelected: (String value) {
-                      switch (value) {
-                        case 'edit':
-                          _editTerm(term);
-                        case 'paid':
-                          _togglePaid(term);
-                        case 'delete':
-                          _deleteTerm(term);
-                      }
-                    },
-                    itemBuilder: (BuildContext context) =>
-                        <PopupMenuEntry<String>>[
-                      const PopupMenuItem<String>(
-                        value: 'edit',
-                        child: Text('编辑金额 / 到期日'),
-                      ),
-                      PopupMenuItem<String>(
-                        value: 'paid',
-                        child: Text(term.paid ? '标记为未交' : '标记为已交'),
-                      ),
-                      const PopupMenuItem<String>(
-                        value: 'delete',
-                        child: Text('删除本期'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            for (final RentTerm term in _terms) _rentTermRow(term, tokens),
           ],
         ),
     ];
+  }
+
+  /// 单期房租行：期次与金额在上，到期日在下，右侧状态与操作菜单。
+  Widget _rentTermRow(RentTerm term, AppTokens tokens) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        spacing: 8,
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: <Widget>[
+                Text(
+                  '第 ${term.termNo} 期 · ${formatMoney(term.amount)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowTitle.copyWith(color: tokens.text),
+                ),
+                Text(
+                  '到期 ${term.dueDate}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppType.rowMeta.copyWith(color: tokens.text2),
+                ),
+              ],
+            ),
+          ),
+          StatusChip(
+            label: term.paid ? '已交' : '未交',
+            tone: term.paid ? StatusTone.success : StatusTone.warning,
+          ),
+          PopupMenuButton<String>(
+            tooltip: '期次操作',
+            padding: EdgeInsets.zero,
+            icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+            onSelected: (String value) {
+              switch (value) {
+                case 'edit':
+                  _editTerm(term);
+                case 'paid':
+                  _togglePaid(term);
+                case 'delete':
+                  _deleteTerm(term);
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'edit',
+                child: Text('编辑金额 / 到期日'),
+              ),
+              PopupMenuItem<String>(
+                value: 'paid',
+                child: Text(term.paid ? '标记为未交' : '标记为已交'),
+              ),
+              const PopupMenuItem<String>(
+                value: 'delete',
+                child: Text('删除本期'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   /// 网贷账单的还款记录（列表项本身不含，需要单独取一次）。
@@ -606,8 +631,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final Color muted = theme.colorScheme.onSurfaceVariant;
+    final AppTokens tokens = AppTokens.of(context);
     return SafeArea(
       top: false,
       child: ConstrainedBox(
@@ -629,11 +653,16 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 2,
                       children: <Widget>[
-                        Text(_title, style: theme.textTheme.titleMedium),
+                        Text(
+                          _title,
+                          style: AppType.rowTitle.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: tokens.text,
+                          ),
+                        ),
                         Text(
                           _subtitle,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: muted),
+                          style: AppType.rowMeta.copyWith(color: tokens.text2),
                         ),
                       ],
                     ),
@@ -643,15 +672,14 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
                       _mutated ? BillDetailAction.changed : null,
                     ),
                     tooltip: '关闭',
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, size: 20, color: tokens.text2),
                   ),
                 ],
               ),
               _statusChips(),
-              ..._fieldRows(theme, muted),
-              if (widget.kind == BillKind.housing)
-                ..._rentTermSection(theme, muted),
-              if (widget.kind == BillKind.loan) ..._repaymentSection(theme, muted),
+              ..._fieldRows(),
+              if (widget.kind == BillKind.housing) ..._rentTermSection(),
+              if (widget.kind == BillKind.loan) ..._repaymentSection(),
               if (widget.kind == BillKind.loan &&
                   (_bill?.status != 'cleared' || (_bill?.remaining ?? 0) > 0) &&
                   _bill != null) ...<Widget>[
@@ -726,7 +754,8 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   }
 
   /// 按记录类型输出完整字段（字段名与后端 / 网页端一致）。
-  List<Widget> _fieldRows(ThemeData theme, Color muted) {
+  List<Widget> _fieldRows() {
+    final AppTokens tokens = AppTokens.of(context);
     final List<({String label, String value, Color? color})> rows;
     switch (widget.kind) {
       case BillKind.loan:
@@ -742,9 +771,7 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
             (
               label: '待还金额',
               value: formatMoney(bill.remaining),
-              color: bill.remaining > 0
-                  ? context.semanticColors.danger
-                  : context.semanticColors.success,
+              color: bill.remaining > 0 ? tokens.red : tokens.green,
             ),
             (label: '利息', value: formatMoney(bill.interest), color: null),
             (
@@ -827,89 +854,107 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
       for (final ({String label, String value, Color? color}) row in rows)
         _SheetRow(label: row.label, value: row.value, valueColor: row.color),
       if (rows.isEmpty)
-        Text('没有可展示的字段', style: theme.textTheme.bodySmall?.copyWith(
-          color: muted,
-        )),
+        Text(
+          '没有可展示的字段',
+          style: AppType.rowMeta.copyWith(color: tokens.text3),
+        ),
     ];
   }
 
   /// 网贷账单的还款记录（其余类型不展示该区块）。
-  List<Widget> _repaymentSection(ThemeData theme, Color muted) {
+  List<Widget> _repaymentSection() {
+    final AppTokens tokens = AppTokens.of(context);
     return <Widget>[
-      const Divider(height: 20),
+      const SizedBox(height: 4),
       Row(
         children: <Widget>[
           Expanded(
-            child: Text('还款记录', style: theme.textTheme.titleSmall),
+            child: Text(
+              '还款记录',
+              style: AppType.section.copyWith(color: tokens.text2),
+            ),
           ),
           if (_loadingRepayments)
-            const SizedBox(
+            SizedBox(
               width: 14,
               height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: tokens.text2,
+              ),
             )
           else
             Text(
               '${_repayments.length} 笔',
-              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+              style: AppType.rowMeta.copyWith(color: tokens.text3),
             ),
         ],
       ),
       if (_repaymentsError != null)
-        Text(
-          '还款记录加载失败：$_repaymentsError',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.error,
-          ),
-        )
+        V2ErrorBanner(message: '还款记录加载失败：$_repaymentsError')
       else if (!_loadingRepayments && _repayments.isEmpty)
-        Text('暂无还款记录', style: theme.textTheme.bodySmall?.copyWith(color: muted)),
-      for (final BillRepayment item in _repayments)
-        InkWell(
-          onTap: _deleting ? null : () => _openRepay(repayment: item),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              spacing: 8,
-              children: <Widget>[
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 2,
-                    children: <Widget>[
-                      Text(item.repayDate, style: theme.textTheme.bodyMedium),
-                      if (item.discount > 0 || item.method != null || item.note != null)
-                        Text(
-                          <String>[
-                            if (item.discount > 0)
-                              '优惠 ${formatMoney(item.discount)}',
-                            if (item.method != null &&
-                                item.method!.trim().isNotEmpty)
-                              item.method!,
-                            if (item.note != null && item.note!.isNotEmpty)
-                              item.note!,
-                          ].join(' · '),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: muted),
-                        ),
-                    ],
-                  ),
-                ),
-                Text(
-                  formatMoney(item.actual),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const <FontFeature>[
-                      FontFeature.tabularFigures(),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.edit_outlined, size: 16),
-              ],
-            ),
-          ),
+        const EmptyState(
+          icon: Icons.receipt_long_outlined,
+          title: '暂无还款记录',
+          description: '点下方「还款」录入第一笔',
+          compact: true,
         ),
+      for (final BillRepayment item in _repayments) _repaymentRow(item, tokens),
     ];
+  }
+
+  /// 单条还款记录：日期在上、优惠 / 方式 / 备注在下，右侧实付与编辑图标。
+  Widget _repaymentRow(BillRepayment item, AppTokens tokens) {
+    return InkWell(
+      onTap: _deleting ? null : () => _openRepay(repayment: item),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          spacing: 8,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
+                children: <Widget>[
+                  Text(
+                    item.repayDate,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppType.rowTitle.copyWith(color: tokens.text),
+                  ),
+                  if (item.discount > 0 ||
+                      item.method != null ||
+                      item.note != null)
+                    Text(
+                      <String>[
+                        if (item.discount > 0)
+                          '优惠 ${formatMoney(item.discount)}',
+                        if (item.method != null &&
+                            item.method!.trim().isNotEmpty)
+                          item.method!,
+                        if (item.note != null && item.note!.isNotEmpty)
+                          item.note!,
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.rowMeta.copyWith(color: tokens.text2),
+                    ),
+                ],
+              ),
+            ),
+            Text(
+              formatMoney(item.actual),
+              maxLines: 1,
+              softWrap: false,
+              style: AppType.rowValue.copyWith(color: tokens.text),
+            ),
+            Icon(Icons.edit_outlined, size: 16, color: tokens.text3),
+          ],
+        ),
+      ),
+    );
   }
 
   /// `yyyy-MM-dd` → `yyyy-MM`。
@@ -1070,11 +1115,7 @@ class _TermFormDialogState extends State<_TermFormDialog> {
                 value: _paid,
                 onChanged: (bool value) => setState(() => _paid = value),
               ),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
+            if (_error != null) V2ErrorBanner(message: _error!),
           ],
         ),
       ),
@@ -1119,24 +1160,21 @@ class _SheetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return Row(
       spacing: 12,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
           label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: AppType.rowMeta.copyWith(color: tokens.text2),
         ),
         Expanded(
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: valueColor,
-              fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+            style: AppType.rowValue.copyWith(
+              color: valueColor ?? tokens.text,
             ),
           ),
         ),

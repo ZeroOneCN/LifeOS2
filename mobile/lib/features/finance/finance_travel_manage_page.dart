@@ -6,7 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../shared/widgets/app_buttons.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/root_page_scaffold.dart';
-import '../../shared/widgets/section_status.dart';
+import '../../shared/widgets/v2/v2_page_kit.dart';
 import '../../shared/widgets/v2/v2_rows.dart';
 import '../../theme/app_tokens.dart';
 
@@ -251,93 +251,121 @@ class _FinanceTravelManagePageState extends State<FinanceTravelManagePage> {
     await _saveChannel(channel, name);
   }
 
+  /// 列表状态：首屏加载 / 接口失败 / 就绪。
+  LoadStatus get _status {
+    if (_loading) {
+      return LoadStatus.loading;
+    }
+    return _error != null ? LoadStatus.failed : LoadStatus.ready;
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppTokens tokens = AppTokens.of(context);
     return DetailPageScaffold(
       title: '行程与支付方式',
-      child: ListView(
-        // 左右与顶部由二级页骨架统一提供，这里只留滚动尾部留白。
-        padding: const EdgeInsets.only(bottom: 24),
-        children: <Widget>[
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            OverviewStatusBanner(
-              status: LoadStatus.failed,
-              message: _error,
-              onRetry: _refresh,
-            )
-          else ...<Widget>[
-            SectionHeader(
-              title: '行程账本（${_ledgers.length}）',
-              actionLabel: '新增',
-              onAction: () => _openLedgerForm(),
-            ),
-            if (_ledgers.isEmpty)
-              GroupCard(
-                children: <Widget>[
-                  EmptyState(
-                    icon: Icons.luggage_outlined,
-                    title: '暂无行程',
-                    description: '新增行程后可把旅行消费归到对应账本',
-                    compact: true,
-                    actionLabel: '新增行程',
-                    onAction: () => _openLedgerForm(),
-                  ),
-                ],
-              )
-            else
-              GroupCard(
-                children: <Widget>[
-                  for (final _Ledger ledger in _ledgers)
-                    _DictionaryRow(
-                      title: ledger.name,
-                      subtitle: ledger.rangeText,
-                      onEdit: () => _openLedgerForm(ledger),
-                      onDelete: () => _deleteLedger(ledger),
+      child: ListPageBody(
+        status: _status,
+        message: _error,
+        onRetry: _refresh,
+        blocks: <Widget>[
+          SectionHeader(
+            title: '行程账本 · 共 ${_ledgers.length} 个',
+            actionLabel: '新增行程',
+            onAction: () => _openLedgerForm(),
+          ),
+          GroupCard(
+            children: _ledgers.isEmpty
+                ? <Widget>[
+                    EmptyState(
+                      icon: Icons.luggage_outlined,
+                      title: '暂无行程',
+                      description: '新增行程后可把旅行消费归到对应账本',
+                      compact: true,
+                      actionLabel: '新增行程',
+                      onAction: () => _openLedgerForm(),
                     ),
-                ],
-              ),
-            SectionHeader(
-              title: '支付方式（${_channels.length}）',
-              actionLabel: '新增',
-              onAction: () => _openChannelForm(),
-            ),
-            if (_channels.isEmpty)
-              GroupCard(
-                children: <Widget>[
-                  EmptyState(
-                    icon: Icons.credit_card_outlined,
-                    title: '暂无支付方式',
-                    description: '新增后记账时可直接选择',
-                    compact: true,
-                    actionLabel: '新增支付方式',
-                    onAction: () => _openChannelForm(),
-                  ),
-                ],
-              )
-            else
-              GroupCard(
-                children: <Widget>[
-                  for (final _Channel channel in _channels)
-                    _DictionaryRow(
-                      title: channel.name,
-                      onEdit: () => _openChannelForm(channel),
-                      onDelete: () => _deleteChannel(channel),
+                  ]
+                : <Widget>[
+                    for (final _Ledger ledger in _ledgers)
+                      TaskRow(
+                        title: ledger.name,
+                        subtitle: ledger.rangeText,
+                        onTap: () => _openLedgerForm(ledger),
+                        trailing: _actionMenu(
+                          tokens,
+                          onEdit: () => _openLedgerForm(ledger),
+                          onDelete: () => _deleteLedger(ledger),
+                        ),
+                      ),
+                  ],
+          ),
+          SectionHeader(
+            title: '支付方式 · 共 ${_channels.length} 个',
+            actionLabel: '新增支付方式',
+            onAction: () => _openChannelForm(),
+          ),
+          GroupCard(
+            children: _channels.isEmpty
+                ? <Widget>[
+                    EmptyState(
+                      icon: Icons.credit_card_outlined,
+                      title: '暂无支付方式',
+                      description: '新增后记账时可直接选择',
+                      compact: true,
+                      actionLabel: '新增支付方式',
+                      onAction: () => _openChannelForm(),
                     ),
-                ],
-              ),
-            Text(
-              '删除行程不会删除其下明细，明细会显示为「未归属行程」。',
-              style: AppType.rowMeta.copyWith(color: tokens.text3),
-            ),
-          ],
+                  ]
+                : <Widget>[
+                    for (final _Channel channel in _channels)
+                      TaskRow(
+                        title: channel.name,
+                        onTap: () => _openChannelForm(channel),
+                        trailing: _actionMenu(
+                          tokens,
+                          onEdit: () => _openChannelForm(channel),
+                          onDelete: () => _deleteChannel(channel),
+                        ),
+                      ),
+                  ],
+          ),
+          Text(
+            '删除行程不会删除其下明细，明细会显示为「未归属行程」。',
+            style: AppType.rowMeta.copyWith(color: tokens.text3),
+          ),
         ],
       ),
+    );
+  }
+
+  /// 行尾「编辑 / 删除」菜单：图标统一 text3，删除项用危险色。
+  Widget _actionMenu(
+    AppTokens tokens, {
+    required VoidCallback onEdit,
+    required VoidCallback onDelete,
+  }) {
+    return PopupMenuButton<String>(
+      tooltip: '更多操作',
+      padding: EdgeInsets.zero,
+      icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
+      onSelected: (String value) {
+        if (value == 'edit') {
+          onEdit();
+        } else {
+          onDelete();
+        }
+      },
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(
+          value: 'edit',
+          child: Text('编辑'),
+        ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          child: Text('删除', style: TextStyle(color: tokens.red)),
+        ),
+      ],
     );
   }
 }
@@ -407,86 +435,6 @@ class _LedgerDraft {
   final String? note;
 }
 
-/// 字典行：标题 + 副标题 + 编辑 / 删除菜单。
-class _DictionaryRow extends StatelessWidget {
-  const _DictionaryRow({
-    required this.title,
-    this.subtitle,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final String title;
-  final String? subtitle;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppTokens tokens = AppTokens.of(context);
-    final String? sub = subtitle;
-    return InkWell(
-      onTap: onEdit,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 52),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppType.rowTitle.copyWith(color: tokens.text),
-                    ),
-                    if (sub != null && sub.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 2),
-                      Text(
-                        sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppType.rowMeta.copyWith(color: tokens.text2),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: '更多操作',
-                padding: EdgeInsets.zero,
-                icon: Icon(Icons.more_vert, size: 18, color: tokens.text3),
-                onSelected: (String value) {
-                  if (value == 'edit') {
-                    onEdit();
-                  } else {
-                    onDelete();
-                  }
-                },
-                itemBuilder: (BuildContext context) =>
-                    <PopupMenuEntry<String>>[
-                  const PopupMenuItem<String>(
-                    value: 'edit',
-                    child: Text('编辑'),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'delete',
-                    child: Text('删除', style: TextStyle(color: tokens.red)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// 账本编辑底部表单。
 class _LedgerFormSheet extends StatefulWidget {
   const _LedgerFormSheet({this.initial});
@@ -502,6 +450,7 @@ class _LedgerFormSheetState extends State<_LedgerFormSheet> {
   final TextEditingController _note = TextEditingController();
   String? _startDate;
   String? _endDate;
+  String? _error;
 
   @override
   void initState() {
@@ -549,6 +498,7 @@ class _LedgerFormSheetState extends State<_LedgerFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     final EdgeInsets insets = MediaQuery.viewInsetsOf(context);
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -561,10 +511,14 @@ class _LedgerFormSheetState extends State<_LedgerFormSheet> {
           children: <Widget>[
             Text(
               widget.initial == null ? '新增行程' : '编辑行程',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: AppType.rowTitle.copyWith(
+                fontWeight: FontWeight.w600,
+                color: tokens.text,
+              ),
             ),
             TextField(
               controller: _name,
+              style: AppType.rowTitle.copyWith(color: tokens.text),
               decoration: const InputDecoration(labelText: '行程名称'),
             ),
             Row(
@@ -589,16 +543,16 @@ class _LedgerFormSheetState extends State<_LedgerFormSheet> {
             TextField(
               controller: _note,
               maxLines: 2,
+              style: AppType.rowTitle.copyWith(color: tokens.text),
               decoration: const InputDecoration(labelText: '备注（可选）'),
             ),
+            if (_error != null) V2ErrorBanner(message: _error!),
             AppPrimaryButton(
               label: '保存',
               onPressed: () {
                 final String name = _name.text.trim();
                 if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请填写行程名称')),
-                  );
+                  setState(() => _error = '请填写行程名称');
                   return;
                 }
                 Navigator.of(context).pop(
@@ -632,10 +586,10 @@ class _DateTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    final AppTokens tokens = AppTokens.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppTokens.controlRadius),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
@@ -643,8 +597,10 @@ class _DateTile extends StatelessWidget {
         ),
         child: Text(
           value ?? '未选择',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: value == null ? theme.colorScheme.onSurfaceVariant : null,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppType.rowTitle.copyWith(
+            color: value == null ? tokens.text3 : tokens.text,
           ),
         ),
       ),
@@ -666,6 +622,7 @@ class _NameFormSheet extends StatefulWidget {
 class _NameFormSheetState extends State<_NameFormSheet> {
   late final TextEditingController _name =
       TextEditingController(text: widget.initial);
+  String? _error;
 
   @override
   void dispose() {
@@ -675,6 +632,7 @@ class _NameFormSheetState extends State<_NameFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final AppTokens tokens = AppTokens.of(context);
     final EdgeInsets insets = MediaQuery.viewInsetsOf(context);
     return Padding(
       padding: EdgeInsets.only(bottom: insets.bottom),
@@ -685,19 +643,25 @@ class _NameFormSheetState extends State<_NameFormSheet> {
           mainAxisSize: MainAxisSize.min,
           spacing: 12,
           children: <Widget>[
-            Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              widget.title,
+              style: AppType.rowTitle.copyWith(
+                fontWeight: FontWeight.w600,
+                color: tokens.text,
+              ),
+            ),
             TextField(
               controller: _name,
+              style: AppType.rowTitle.copyWith(color: tokens.text),
               decoration: const InputDecoration(labelText: '名称'),
             ),
+            if (_error != null) V2ErrorBanner(message: _error!),
             AppPrimaryButton(
               label: '保存',
               onPressed: () {
                 final String name = _name.text.trim();
                 if (name.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('请填写名称')),
-                  );
+                  setState(() => _error = '请填写名称');
                   return;
                 }
                 Navigator.of(context).pop(name);
