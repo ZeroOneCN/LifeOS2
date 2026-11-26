@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LifeOS 2.0 · Apple 设计语言效果稿</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --board:#F5F5F7;
+  --board-text:#1D1D1F;
+  --board-dim:#6E6E73;
+  --board-line:rgba(0,0,0,.08);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","PingFang SC","Helvetica Neue",Arial,sans-serif;
+  --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+html[data-theme="light"]{
+  --bg:#F2F2F7; --surface:#FFFFFF; --surface-2:#E5E5EA;
+  --text:#000000; --text-2:rgba(60,60,67,.6); --text-3:rgba(60,60,67,.3);
+  --line:rgba(60,60,67,.29); --accent:#007AFF; --accent-soft:rgba(0,122,255,.12);
+  --green:#34C759; --red:#FF3B30; --orange:#FF9500;
+  --fill:rgba(120,120,128,.16); --fill-2:rgba(120,120,128,.10);
+  --tabbar:rgba(249,249,249,.88); --scrim:rgba(0,0,0,.32);
+}
+html[data-theme="dark"]{
+  --bg:#000000; --surface:#1C1C1E; --surface-2:#2C2C2E;
+  --text:#FFFFFF; --text-2:rgba(235,235,245,.6); --text-3:rgba(235,235,245,.3);
+  --line:rgba(84,84,88,.65); --accent:#0A84FF; --accent-soft:rgba(10,132,255,.20);
+  --green:#30D158; --red:#FF453A; --orange:#FF9F0A;
+  --fill:rgba(120,120,128,.32); --fill-2:rgba(120,120,128,.20);
+  --tabbar:rgba(22,22,24,.88); --scrim:rgba(0,0,0,.58);
+}
+body{
+  background:var(--board);color:var(--board-text);font-family:var(--font);
+  -webkit-font-smoothing:antialiased;min-height:100vh;
+}
+/* ===== 看板页头 ===== */
+.board-head{max-width:1720px;margin:0 auto;padding:64px 40px 32px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:28px;border-bottom:1px solid var(--board-line)}
+.board-head .kicker{font:12px/1.4 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--board-dim)}
+.board-head h1{font-size:46px;line-height:1.08;letter-spacing:-1.4px;font-weight:700;margin-top:12px}
+.board-head h1 span{color:var(--board-dim);font-weight:400}
+.board-head p{max-width:600px;margin-top:14px;font-size:14px;line-height:1.7;color:var(--board-dim)}
+.board-head .chipsline{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.board-head .chipsline span{font-size:12px;padding:6px 10px;border:1px solid var(--board-line);border-radius:999px;color:var(--board-text);background:#fff}
+.board-head .meta{display:flex;gap:28px;font:11px/1.6 var(--mono);color:var(--board-dim);text-align:right}
+.board-head .meta b{display:block;color:var(--board-text);font-weight:600;font-size:12px}
+.theme-switch{display:flex;align-items:center;gap:10px;margin-left:auto}
+.theme-switch span{font:10px/1 var(--mono);letter-spacing:.18em;color:var(--board-dim);text-transform:uppercase}
+.seg{display:inline-flex;border:1px solid var(--board-line);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{background:transparent;border:0;color:var(--board-dim);font-size:12px;padding:9px 16px;cursor:pointer}
+.seg button.on{background:var(--board-text);color:#fff;font-weight:600}
+/* ===== 手机与屏幕 ===== */
+.board{max-width:1720px;margin:0 auto;padding:52px 40px 80px;display:grid;grid-template-columns:repeat(auto-fill,390px);gap:60px 48px;justify-content:center}
+.frame{display:flex;flex-direction:column;gap:16px}
+.frame-label{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font:11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--board-dim);padding:0 4px}
+.frame-label b{color:var(--board-text);font-weight:600;font-size:12px;letter-spacing:.04em}
+.frame-label span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.phone{position:relative;width:390px;height:844px;border-radius:48px;background:var(--bg);color:var(--text);overflow:hidden;border:1px solid rgba(0,0,0,.12);box-shadow:0 40px 70px rgba(0,0,0,.14),0 0 0 9px #fff,0 0 0 10px rgba(0,0,0,.08);transition:background .3s,color .3s}
+html[data-theme="dark"] .phone{border-color:rgba(255,255,255,.16);box-shadow:0 40px 70px rgba(0,0,0,.45),0 0 0 9px #1A1A1C,0 0 0 10px rgba(255,255,255,.12)}
+.phone::before{content:"";position:absolute;top:10px;left:50%;transform:translateX(-50%);width:112px;height:32px;border-radius:20px;background:#000;z-index:30}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+/* 状态栏 */
+.statusbar{height:50px;flex:0 0 50px;display:flex;align-items:center;justify-content:space-between;padding:0 28px 0 32px;font:600 15px/1 var(--font)}
+.statusbar .right{display:flex;align-items:center;gap:6px}
+.statusbar .right .batt{width:24px;height:11px;border:1px solid currentColor;border-radius:3px;position:relative;opacity:.9}
+.statusbar .right .batt::after{content:"";position:absolute;inset:1.5px;right:5px;background:currentColor;border-radius:1.5px}
+/* 大标题页头 */
+.apphead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:2px 20px 12px}
+.apphead .date{font-size:13px;line-height:1.3;color:var(--text-2);margin-bottom:1px}
+.apphead h1{font-size:34px;line-height:1.12;font-weight:700;letter-spacing:-.6px}
+.head-actions{display:flex;gap:8px;padding-bottom:4px}
+.icon-btn{width:36px;height:36px;border-radius:50%;background:var(--fill);border:0;display:grid;place-items:center;color:var(--text);cursor:pointer;position:relative}
+.icon-btn .ic{width:18px;height:18px;stroke-width:1.9}
+.icon-btn .dot{position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg)}
+.ic{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:15px;height:15px}
+/* 分段栏目（iOS 风格） */
+.segscroll{
+  margin:0 20px 12px;display:flex;overflow-x:auto;scrollbar-width:none;
+  scroll-snap-type:x mandatory;border-bottom:.5px solid var(--line);
+  -webkit-mask-image:linear-gradient(to right,#000 94%,transparent 100%);
+  mask-image:linear-gradient(to right,#000 94%,transparent 100%);
+}
+.segscroll::-webkit-scrollbar{display:none}
+.segscroll button{
+  flex:1 0 calc(100% / 6);min-width:calc(100% / 6);scroll-snap-align:start;position:relative;
+  border:0;background:none;color:var(--text-2);
+  font-size:14px;line-height:1;font-weight:400;
+  padding:11px 0 13px;white-space:nowrap;text-align:center;cursor:pointer;
+}
+.segscroll button.on{color:var(--text);font-weight:600}
+.segscroll button.on::after{content:"";position:absolute;left:50%;bottom:-.5px;transform:translateX(-50%);width:22px;height:2px;border-radius:1px;background:var(--accent)}
+/* 内容区 */
+.body{flex:1 1 auto;overflow:hidden;padding:0 20px 12px}
+.hero{padding:6px 0 4px}
+.hero .k{font-size:13px;line-height:1.3;color:var(--text-2)}
+.hero .v{display:flex;align-items:baseline;gap:5px;font-size:48px;line-height:1.06;font-weight:700;letter-spacing:-1.4px;font-variant-numeric:tabular-nums;margin-top:5px}
+.hero .v small{font-size:20px;font-weight:600;color:var(--text-2);letter-spacing:0}
+.hero .sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;line-height:1.4;color:var(--text-2);margin-top:7px;font-variant-numeric:tabular-nums}
+.hero .sub b{color:var(--text);font-weight:600}
+.delta{font-weight:600;font-variant-numeric:tabular-nums}
+.delta.up{color:var(--green)}
+.delta.down{color:var(--red)}
+.progress{height:4px;background:var(--fill);border-radius:2px;margin-top:13px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);border-radius:2px}
+/* 指标卡 */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border-radius:14px;margin-top:14px}
+.stats .cell{padding:11px 14px;position:relative}
+.stats .cell+.cell::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:.5px;background:var(--line)}
+.stats .k{font-size:12px;line-height:1.3;color:var(--text-2);white-space:nowrap}
+.stats .v{font-size:17px;line-height:1.2;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px;white-space:nowrap}
+.stats .v small{font-size:11px;font-weight:400;color:var(--text-2);margin-left:2px}
+.stats .v.up{color:var(--green)}
+.stats .v.down{color:var(--red)}
+/* 分组标题与卡片 */
+.shead{display:flex;align-items:baseline;justify-content:space-between;margin:16px 4px 7px}
+.shead h2{font-size:13px;line-height:1.2;font-weight:600;color:var(--text-2)}
+.shead a{font-size:15px;line-height:1.2;color:var(--accent);text-decoration:none}
+.group{background:var(--surface);border-radius:14px;overflow:hidden}
+.r{display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:52px;position:relative}
+.r+.r::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--line)}
+.r .main{flex:1;min-width:0}
+.r .title{font-size:16px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r .meta{font-size:13px;line-height:1.35;color:var(--text-2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r .val{font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.r .val.up{color:var(--green)}
+.r .val.down{color:var(--red)}
+.r .time{flex:0 0 44px;font-size:12px;line-height:1.3;color:var(--text-2);font-variant-numeric:tabular-nums}
+.badge{flex:0 0 auto;font-size:12px;line-height:1;font-weight:600;padding:4px 8px;border-radius:6px;white-space:nowrap}
+.badge.info{color:var(--accent);background:var(--accent-soft)}
+.badge.warn{color:var(--orange);background:rgba(255,149,0,.14)}
+.badge.gray{color:var(--text-2);background:var(--fill-2)}
+.badge.green{color:var(--green);background:rgba(52,199,89,.14)}
+.chev{width:13px;height:13px;color:var(--text-3);flex:0 0 auto}
+.check{width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center}
+.check.done{background:var(--accent);color:#fff}
+.check.todo{border:1.5px solid var(--line);color:transparent}
+.check .ic{width:12px;height:12px;stroke-width:2.4}
+/* 底部 Tab（iOS 半透明） */
+.tabbar{flex:0 0 83px;height:83px;display:flex;align-items:flex-start;padding:7px 6px 0;background:var(--tabbar);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);z-index:9}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;color:var(--text-3);font-size:10px;line-height:1.2;font-weight:500;padding:2px 0;cursor:pointer}
+.tab .ic{width:25px;height:25px;stroke-width:1.7}
+.tab.on{color:var(--accent)}
+.homebar{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:var(--text);opacity:.82;z-index:11}
+/* FAB */
+.fab{position:absolute;right:18px;bottom:98px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;border:0;display:grid;place-items:center;box-shadow:0 10px 22px rgba(0,122,255,.34);cursor:pointer;z-index:8}
+.fab .ic{width:24px;height:24px;stroke-width:2.2}
+/* 投资曲线卡 */
+.chartcard{background:var(--surface);border-radius:14px;padding:12px 14px 8px;margin-top:14px}
+.chartcard .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.chartcard .top .t{font-size:13px;color:var(--text-2)}
+.segmini{display:flex;background:var(--fill-2);border-radius:8px;padding:2px;gap:2px}
+.segmini button{border:0;background:none;color:var(--text);font-size:11px;font-weight:500;padding:5px 8px;border-radius:6px;cursor:pointer}
+.segmini button.on{background:var(--surface);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.chartcard svg{display:block;width:100%;height:86px}
+/* 设置 */
+.profile{display:flex;align-items:center;gap:14px;padding:12px 16px}
+.avatar{width:56px;height:56px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:20px;font-weight:600;flex:0 0 auto}
+.profile .who{flex:1;min-width:0}
+.profile .who b{display:block;font-size:20px;font-weight:600;letter-spacing:-.2px}
+.profile .who small{display:block;font-size:13px;color:var(--text-2);margin-top:3px}
+.prefrow{display:flex;align-items:center;gap:12px;padding:8px 16px;min-height:48px;position:relative}
+.prefrow+.prefrow::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--line)}
+.prefrow .label{flex:0 0 72px;font-size:16px}
+.segmented{flex:1;display:flex;background:var(--fill-2);border-radius:9px;padding:2px;gap:2px}
+.segmented button{flex:1;height:30px;border:0;background:none;color:var(--text);font-size:12px;border-radius:7px;white-space:nowrap;cursor:pointer}
+.segmented button.on{background:var(--surface);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.foot-note{font-size:12px;line-height:1.6;color:var(--text-2);text-align:center;padding:12px 0 2px}
+/* 搜索 */
+.searchwrap{padding:2px 16px 0}
+.searchfield{display:flex;align-items:center;gap:8px;height:38px;padding:0 10px;border-radius:10px;background:var(--fill-2);color:var(--text-2)}
+.searchfield .ic{width:17px;height:17px}
+.searchfield input{flex:1;border:0;background:none;outline:0;color:var(--text);font-size:17px;font-family:var(--font)}
+.searchfield input::placeholder{color:var(--text-3)}
+.searchfield .cancel{font-size:12px;color:var(--text-2);background:var(--fill);border-radius:50%;width:18px;height:18px;display:grid;place-items:center}
+.searchbody{padding:0 20px;overflow:hidden}
+.recent{display:flex;align-items:center;gap:8px;margin:14px 2px 0;overflow:hidden}
+.recent span{font-size:12px;color:var(--text-2);white-space:nowrap}
+.recent .tag{font-size:12px;color:var(--text);background:var(--fill-2);border-radius:8px;padding:6px 10px;white-space:nowrap}
+.srow{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:50px;position:relative}
+.srow+.srow::before{content:"";position:absolute;left:44px;right:0;top:0;height:.5px;background:var(--line)}
+.srow .ic{width:19px;height:19px;color:var(--text-2);flex:0 0 auto}
+.srow .t{flex:1;min-width:0;font-size:16px;line-height:1.3}
+.srow .t small{display:block;font-size:12px;color:var(--text-2);margin-top:1px}
+.srow mark{color:var(--accent);background:none;font-weight:600}
+/* 快捷面板 */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:10}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:12;background:var(--surface);border-radius:20px 20px 0 0;padding:8px 16px 34px;box-shadow:0 -20px 50px rgba(0,0,0,.18)}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--fill);margin:0 auto 10px}
+.sheet h3{font-size:17px;line-height:1.3;font-weight:600;text-align:center}
+.sheetseg{display:flex;gap:2px;background:var(--fill-2);border-radius:9px;padding:2px;margin:12px 0 8px}
+.sheetseg button{flex:1;height:32px;border:0;background:none;color:var(--text);font-size:13px;font-weight:500;border-radius:7px;cursor:pointer;white-space:nowrap}
+.sheetseg button.on{background:var(--surface);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.amount{display:flex;align-items:baseline;justify-content:space-between;padding:8px 0 12px;border-bottom:.5px solid var(--line)}
+.amount .num{font-size:40px;line-height:1;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.amount .num span{font-size:24px;font-weight:600;color:var(--text-2);margin-right:2px}
+.amount .cur{font-size:12px;color:var(--text-2)}
+.chipsrow{display:flex;gap:8px;overflow:hidden;padding:10px 0 0}
+.chip{flex:0 0 auto;font-size:13px;line-height:1;padding:8px 12px;border-radius:8px;background:var(--fill-2);color:var(--text);border:0;cursor:pointer;white-space:nowrap}
+.chip.on{background:var(--accent);color:#fff;font-weight:500}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
+.keypad button{height:45px;border:0;border-radius:10px;background:var(--fill-2);color:var(--text);font-size:22px;line-height:1;cursor:pointer;font-variant-numeric:tabular-nums}
+.keypad button.fn{font-size:15px;color:var(--text-2)}
+.keypad button.primary{grid-column:1/-1;height:50px;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:600}
+.formrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:.5px solid var(--line)}
+.formrow .k{font-size:15px;color:var(--text-2);white-space:nowrap}
+.formrow .v{font-size:15px;font-weight:500}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:32px;height:32px;border-radius:50%;border:0;background:var(--fill-2);color:var(--text);font-size:18px;line-height:1;cursor:pointer}
+.stepper b{font-size:16px;min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+/* 详情 */
+.navbar{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px}
+.navbar .back{display:flex;align-items:center;gap:3px;border:0;background:none;color:var(--accent);font-size:17px;cursor:pointer;padding:4px 0}
+.navbar .back .ic{width:20px;height:20px;stroke-width:2.2}
+.navbar .t{font-size:17px;font-weight:600}
+.navbar .link{border:0;background:none;color:var(--accent);font-size:17px;cursor:pointer;padding:4px 0}
+.kv{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:11px 16px;min-height:48px;position:relative;font-size:16px}
+.kv+.kv::before{content:"";position:absolute;left:16px;right:0;top:0;height:.5px;background:var(--line)}
+.kv .k{color:var(--text-2);white-space:nowrap}
+.kv .v{color:var(--text);font-variant-numeric:tabular-nums;text-align:right}
+.bottom-actions{position:absolute;left:0;right:0;bottom:0;display:flex;gap:10px;padding:10px 16px 34px;background:var(--bg);z-index:8}
+.btn{flex:1;height:50px;border-radius:12px;border:0;background:var(--fill-2);color:var(--text);font-size:17px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff}
+.detailbody{padding-bottom:96px}
+/* 设计规范 */
+.spec{max-width:1720px;margin:0 auto;padding:0 40px 96px}
+.spec-head{display:flex;align-items:baseline;gap:16px;border-top:1px solid var(--board-line);padding-top:44px;margin-bottom:28px}
+.spec-head h2{font-size:26px;font-weight:700;letter-spacing:-.4px}
+.spec-head span{font:11px/1 var(--mono);letter-spacing:.18em;color:var(--board-dim);text-transform:uppercase}
+.spec-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:24px}
+.spec-block{border:1px solid var(--board-line);border-radius:16px;padding:24px;background:#fff}
+.spec-block h3{font:11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--board-dim);margin-bottom:18px}
+.swatches{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.swatch{display:flex;align-items:center;gap:10px}
+.swatch i{width:30px;height:30px;border-radius:8px;border:1px solid rgba(0,0,0,.08);flex:0 0 auto}
+.swatch b{display:block;font:600 12px/1.3 var(--mono);color:var(--board-text)}
+.swatch small{font:10px/1.3 var(--mono);color:var(--board-dim)}
+.type-row{display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--board-line)}
+.type-row:last-child{border-bottom:0}
+.type-row span{font:10px/1 var(--mono);color:var(--board-dim)}
+.type-row b{font-weight:600;letter-spacing:-.4px}
+.rule-list{list-style:none;display:flex;flex-direction:column;gap:11px}
+.rule-list li{font-size:13px;line-height:1.65;color:var(--board-dim);padding-left:15px;position:relative}
+.rule-list li::before{content:"";position:absolute;left:0;top:7px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.rule-list b{color:var(--board-text);font-weight:600}
+@media (max-width:560px){
+  .board-head{padding:40px 20px 24px}
+  .board-head h1{font-size:32px}
+  .board-head .meta{display:none}
+  .theme-switch{margin-left:0;width:100%;justify-content:flex-start}
+  .board{padding:28px 0 60px;grid-template-columns:390px;gap:44px;justify-content:center;overflow-x:auto}
+  .spec{padding:0 20px 60px}
+  .spec-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21.2l7.7-7.7 1.1-1.1a5.5 5.5 0 0 0 0-7.8Z"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 7H5a2 2 0 0 1 0-4h13v4"/><path d="M20 7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M17 13h.01"/></symbol>
+  <symbol id="i-house" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="m3 7 9-4 9 4-9 4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2A2 2 0 0 0 9.4 17h8.2a2 2 0 0 0 2-1.6L21 8H6"/></symbol>
+  <symbol id="i-bank" viewBox="0 0 24 24"><path d="m3 9 9-5 9 5"/><path d="M5 9v9M9 9v9M15 9v9M19 9v9M3 21h18"/></symbol>
+</svg>
+
+<script>
+(function(){
+  var saved = null;
+  try { saved = localStorage.getItem('lifeos2-apple-theme'); } catch(e){}
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+  if (location.hash === '#dark') { document.documentElement.setAttribute('data-theme','dark'); }
+  if (location.hash === '#light') { document.documentElement.setAttribute('data-theme','light'); }
+})();
+</script>
+
+<header class="board-head">
+  <div>
+    <div class="kicker">LifeOS Mobile · Apple Design Language</div>
+    <h1>APP 2.0 <span>效果稿</span></h1>
+    <p>沿用五 Tab 与内容优先的骨架，改用 iOS 系统色、SF 字体、分组列表与半透明 Tab 栏。冷青已移除。</p>
+    <div class="chipsline">
+      <span>下拉刷新为唯一刷新</span><span>通知不升一级</span><span>快捷面板：记账 / 购物 / 交易</span><span>栏目统一 2 字</span><span>深浅色同构</span>
+    </div>
+  </div>
+  <div class="theme-switch">
+    <span>Appearance</span>
+    <div class="seg">
+      <button data-theme="light" class="on">浅色</button>
+      <button data-theme="dark">深色</button>
+    </div>
+  </div>
+  <div class="meta">
+    <div><b>System</b>iOS 色彩</div>
+    <div><b>9 Screens</b>高保真</div>
+    <div><b>SF Pro</b>字体层级</div>
+  </div>
+</header>
+<main class="board">
+<section class="frame">
+  <div class="frame-label"><b>01 / 健康 · 概览</b><span>Content first</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead">
+      <div><div class="date">11月25日 星期二</div><h1>健康</h1></div>
+      <div class="head-actions">
+        <button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      </div>
+    </div>
+    <nav class="segscroll">
+      <button class="on">概览</button><button>睡眠</button><button>用药</button><button>运动</button><button>饮食</button><button>体重</button><button>步数</button><button>体检</button><button>报告</button>
+    </nav>
+    <div class="body">
+      <div class="hero">
+        <div class="k">今日步数</div>
+        <div class="v">6,842<small>步</small></div>
+        <div class="sub">目标 8,000 · 还差 <b>1,158</b></div>
+        <div class="progress"><i style="width:85%"></i></div>
+      </div>
+      <div class="stats">
+        <div class="cell"><div class="k">睡眠</div><div class="v">7h12m</div></div>
+        <div class="cell"><div class="k">体重</div><div class="v">68.4<small>kg</small></div></div>
+        <div class="cell"><div class="k">静息心率</div><div class="v">62<small>bpm</small></div></div>
+      </div>
+      <div class="shead"><h2>今日待办</h2><a>全部</a></div>
+      <div class="group">
+        <div class="r"><div class="check done"><svg class="ic"><use href="#i-check"/></svg></div><div class="main"><div class="title">维生素 D</div><div class="meta">08:00 · 早餐后 1 粒</div></div><span class="badge gray">已服</span></div>
+        <div class="r"><div class="check todo"><svg class="ic"><use href="#i-check"/></svg></div><div class="main"><div class="title">阿托伐他汀</div><div class="meta">20:30 · 睡前 1 粒</div></div><span class="badge info">待服</span></div>
+      </div>
+      <div class="shead"><h2>最近记录</h2><a>查看</a></div>
+      <div class="group">
+        <div class="r"><div class="time">07:40</div><div class="main"><div class="title">睡眠</div><div class="meta">深睡 1小时48分</div></div><div class="val">7h12m</div></div>
+        <div class="r"><div class="time">06:50</div><div class="main"><div class="title">血压</div><div class="meta">正常范围</div></div><div class="val">118/76</div></div>
+      </div>
+    </div>
+    <button class="fab" aria-label="快速记录"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <nav class="tabbar" data-active="health"></nav>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>02 / 财务 · 概览</b><span>Money first</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead">
+      <div><div class="date">11月25日 星期二</div><h1>财务</h1></div>
+      <div class="head-actions">
+        <button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      </div>
+    </div>
+    <nav class="segscroll">
+      <button class="on">概览</button><button>账单</button><button>债务</button><button>购物</button><button>旅行</button><button>规划</button><button>流水</button><button>报告</button>
+    </nav>
+    <div class="body">
+      <div class="hero">
+        <div class="k">本月结余</div>
+        <div class="v">+¥3,286<small>.40</small></div>
+        <div class="sub">收入 <b>¥9,426.60</b> · 支出 <b>¥6,140.20</b></div>
+      </div>
+      <div class="stats">
+        <div class="cell"><div class="k">待还</div><div class="v">¥4,820</div></div>
+        <div class="cell"><div class="k">待还笔数</div><div class="v">3<small>笔</small></div></div>
+        <div class="cell"><div class="k">贷款余额</div><div class="v">¥12,000</div></div>
+      </div>
+      <div class="shead"><h2>待还账单</h2><a>查看全部</a></div>
+      <div class="group">
+        <div class="r"><div class="main"><div class="title">房租</div><div class="meta">11月28日 · 还剩 3 天</div></div><div class="val">¥2,400</div></div>
+        <div class="r"><div class="main"><div class="title">水电燃气</div><div class="meta">11月30日 · 还剩 5 天</div></div><div class="val">¥320</div></div>
+      </div>
+      <div class="shead"><h2>最近流水</h2><a>查看</a></div>
+      <div class="group">
+        <div class="r"><div class="time">今天</div><div class="main"><div class="title">午餐 · 简餐</div><div class="meta">餐饮 · 微信支付</div></div><div class="val down">-¥38.00</div></div>
+        <div class="r"><div class="time">昨天</div><div class="main"><div class="title">工资入账</div><div class="meta">收入 · 招商银行</div></div><div class="val up">+¥9,426.60</div></div>
+      </div>
+    </div>
+    <button class="fab" aria-label="快速记录"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <nav class="tabbar" data-active="finance"></nav>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>03 / 生活 · 概览</b><span>Expiry first</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead">
+      <div><div class="date">11月25日 星期二</div><h1>生活</h1></div>
+      <div class="head-actions">
+        <button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      </div>
+    </div>
+    <nav class="segscroll">
+      <button class="on">概览</button><button>物品</button><button>卡片</button><button>报告</button>
+    </nav>
+    <div class="body">
+      <div class="hero">
+        <div class="k">30 天内到期</div>
+        <div class="v">3<small>项</small></div>
+        <div class="sub">最近 <b>6 天</b> · 护肤品保质期</div>
+      </div>
+      <div class="stats">
+        <div class="cell"><div class="k">物品</div><div class="v">42<small>件</small></div></div>
+        <div class="cell"><div class="k">卡片</div><div class="v">8<small>张</small></div></div>
+        <div class="cell"><div class="k">本月新增</div><div class="v">3<small>件</small></div></div>
+      </div>
+      <div class="shead"><h2>到期时间线</h2><a>全部</a></div>
+      <div class="group">
+        <div class="r"><div class="main"><div class="title">护肤品 · 精华</div><div class="meta">12月1日 · 开封 3 个月</div></div><span class="badge warn">剩 6 天</span></div>
+        <div class="r"><div class="main"><div class="title">招商银行 · 储蓄卡</div><div class="meta">12月14日 · 卡片有效期</div></div><span class="badge warn">剩 19 天</span></div>
+        <div class="r"><div class="main"><div class="title">手机话费</div><div class="meta">余额 ¥18.40 · 月租 39 元</div></div><span class="badge warn">偏低</span></div>
+      </div>
+      <div class="shead"><h2>最近整理</h2><a>查看更多</a></div>
+      <div class="group">
+        <div class="r"><div class="time">昨天</div><div class="main"><div class="title">新增物品 3 件</div><div class="meta">数码 / 日用 / 护肤</div></div><svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+    </div>
+    <button class="fab" aria-label="新增"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <nav class="tabbar" data-active="life"></nav>
+  </div></div>
+</section>
+<section class="frame">
+  <div class="frame-label"><b>04 / 投资 · 概览</b><span>Equity first</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead">
+      <div><div class="date">11月25日 星期二</div><h1>投资</h1></div>
+      <div class="head-actions">
+        <button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      </div>
+    </div>
+    <nav class="segscroll">
+      <button class="on">概览</button><button>外汇</button><button>分析</button><button>日历</button><button>报告</button>
+    </nav>
+    <div class="body">
+      <div class="hero">
+        <div class="k">账户净值 · USD</div>
+        <div class="v">$12,480<small>.36</small></div>
+        <div class="sub"><span class="delta up">+$1,284.20</span> 累计净盈亏 · <b>+11.5%</b></div>
+      </div>
+      <div class="chartcard">
+        <div class="top"><div class="t">收益曲线</div><div class="segmini"><button>30天</button><button class="on">90天</button><button>1年</button></div></div>
+        <svg viewBox="0 0 330 86" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--green)" stop-opacity=".22"/><stop offset="1" stop-color="var(--green)" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,70 L17,66 L34,68 L51,58 L68,61 L85,52 L102,55 L119,47 L136,49 L153,40 L170,44 L187,35 L204,38 L221,30 L238,33 L255,25 L272,28 L289,20 L306,23 L323,14 L330,12 L330,86 L0,86 Z" fill="url(#ag)"/>
+          <path d="M0,70 L17,66 L34,68 L51,58 L68,61 L85,52 L102,55 L119,47 L136,49 L153,40 L170,44 L187,35 L204,38 L221,30 L238,33 L255,25 L272,28 L289,20 L306,23 L323,14 L330,12" fill="none" stroke="var(--green)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="330" cy="12" r="3.2" fill="var(--green)"/>
+        </svg>
+      </div>
+      <div class="stats">
+        <div class="cell"><div class="k">累计净盈亏</div><div class="v up">+$1,284</div></div>
+        <div class="cell"><div class="k">胜率</div><div class="v">62.4<small>%</small></div></div>
+        <div class="cell"><div class="k">品种</div><div class="v">4<small>个</small></div></div>
+      </div>
+      <div class="shead"><h2>最近交易</h2><a>全部</a></div>
+      <div class="group">
+        <div class="r"><div class="time">14:32</div><div class="main"><div class="title">EURUSD · 多</div><div class="meta">0.8 手 · 今天</div></div><div class="val up">+$184.20</div></div>
+        <div class="r"><div class="time">21:10</div><div class="main"><div class="title">XAUUSD · 空</div><div class="meta">0.3 手 · 昨天</div></div><div class="val down">-$62.40</div></div>
+      </div>
+    </div>
+    <button class="fab" aria-label="记录交易"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <nav class="tabbar" data-active="invest"></nav>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>05 / 设置 · 我的</b><span>Grouped list</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead">
+      <div><div class="date">11月25日 星期二</div><h1>设置</h1></div>
+      <div class="head-actions">
+        <button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg><span class="dot"></span></button>
+      </div>
+    </div>
+    <nav class="segscroll">
+      <button class="on">账户</button><button>连接</button><button>设备</button><button>外观</button><button>通知</button><button>更新</button>
+    </nav>
+    <div class="body">
+      <div class="group">
+        <div class="profile">
+          <div class="avatar">AC</div>
+          <div class="who"><b>Alex Chen</b><small>@alex · 已登录 · 在线</small></div>
+          <svg class="chev"><use href="#i-chev"/></svg>
+        </div>
+      </div>
+      <div class="shead"><h2>账户</h2></div>
+      <div class="group">
+        <div class="r"><svg class="ic"><use href="#i-gear"/></svg><div class="main"><div class="title">账户设置</div><div class="meta">个人资料 · 登录账号 · 密码</div></div><svg class="chev"><use href="#i-chev"/></svg></div>
+        <div class="r"><svg class="ic"><use href="#i-card"/></svg><div class="main"><div class="title">登录设备</div><div class="meta">2 台活跃 · 可下线其他设备</div></div><svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="shead"><h2>系统</h2></div>
+      <div class="group">
+        <div class="r"><svg class="ic"><use href="#i-bell"/></svg><div class="main"><div class="title">通知中心</div><div class="meta">每日 00:00 扫描</div></div><span class="badge info">1</span></div>
+        <div class="r"><svg class="ic"><use href="#i-house"/></svg><div class="main"><div class="title">服务器地址</div><div class="meta">https://lifeos.example.com</div></div><svg class="chev"><use href="#i-chev"/></svg></div>
+        <div class="r"><svg class="ic"><use href="#i-chart"/></svg><div class="main"><div class="title">检查更新</div><div class="meta">当前 1.9.4 · 有新版本 2.0.0</div></div><span class="badge info">可更新</span></div>
+      </div>
+      <div class="shead"><h2>外观</h2></div>
+      <div class="group">
+        <div class="prefrow"><div class="label">主题</div><div class="segmented"><button>跟随系统</button><button class="on">浅色</button><button>深色</button></div></div>
+        <div class="prefrow"><div class="label">字体大小</div><div class="segmented"><button>小</button><button class="on">标准</button><button>大</button><button>特大</button></div></div>
+      </div>
+    </div>
+    <nav class="tabbar" data-active="settings"></nav>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>06 / 全局搜索</b><span>Find anything</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="searchwrap" style="padding-top:10px">
+      <div class="searchfield"><svg class="ic"><use href="#i-search"/></svg><input value="账单" aria-label="搜索" /><span class="cancel">×</span></div>
+    </div>
+    <div class="searchbody">
+      <div class="recent"><span>最近</span><span class="tag">房租</span><span class="tag">体重</span><span class="tag">报告</span></div>
+      <div class="shead"><h2>功能</h2></div>
+      <div class="group">
+        <div class="srow"><svg class="ic"><use href="#i-wallet"/></svg><div class="t"><mark>账单</mark>管理<small>财务 · 待还 3 笔</small></div><svg class="chev"><use href="#i-chev"/></svg></div>
+        <div class="srow"><svg class="ic"><use href="#i-wallet"/></svg><div class="t">债务管理<small>财务 · 贷款余额 ¥12,000</small></div><svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="shead"><h2>记录</h2></div>
+      <div class="group">
+        <div class="srow"><svg class="ic"><use href="#i-clock"/></svg><div class="t">房租 · 11月28日<small>¥2,400 · 财务 / 账单</small></div><svg class="chev"><use href="#i-chev"/></svg></div>
+        <div class="srow"><svg class="ic"><use href="#i-clock"/></svg><div class="t">水电燃气 · 11月30日<small>¥320 · 财务 / 账单</small></div><svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="shead"><h2>快捷操作</h2></div>
+      <div class="group">
+        <div class="srow"><svg class="ic"><use href="#i-plus"/></svg><div class="t">记一笔支出<small>打开快速面板</small></div><svg class="chev"><use href="#i-chev"/></svg></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+<section class="frame">
+  <div class="frame-label"><b>07 / 快速面板 · 购物</b><span>Sheet</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead"><div><div class="date">11月25日 星期二</div><h1>财务</h1></div>
+      <div class="head-actions"><button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button><button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg></button></div>
+    </div>
+    <nav class="segscroll"><button class="on">概览</button><button>账单</button><button>债务</button><button>购物</button><button>旅行</button><button>规划</button><button>流水</button><button>报告</button></nav>
+    <div class="body">
+      <div class="hero"><div class="k">本月结余</div><div class="v">+¥3,286<small>.40</small></div><div class="sub">收入 <b>¥9,426.60</b> · 支出 <b>¥6,140.20</b></div></div>
+      <div class="stats"><div class="cell"><div class="k">待还</div><div class="v">¥4,820</div></div><div class="cell"><div class="k">待还笔数</div><div class="v">3<small>笔</small></div></div><div class="cell"><div class="k">贷款余额</div><div class="v">¥12,000</div></div></div>
+    </div>
+    <nav class="tabbar" data-active="finance"></nav>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>快速记录</h3>
+      <div class="sheetseg"><button>记账</button><button class="on">购物</button><button>交易</button></div>
+      <div class="amount"><div class="num"><span>¥</span>268.00</div><div class="cur">CNY · 支出</div></div>
+      <div class="chipsrow"><button class="chip on">淘宝</button><button class="chip">京东</button><button class="chip">拼多多</button><button class="chip">线下</button></div>
+      <div class="chipsrow"><button class="chip on">日用</button><button class="chip">服饰</button><button class="chip">食品</button><button class="chip">数码</button></div>
+      <div class="keypad">
+        <button>1</button><button>2</button><button>3</button>
+        <button>4</button><button>5</button><button>6</button>
+        <button>7</button><button>8</button><button>9</button>
+        <button class="fn">.</button><button>0</button><button class="fn">⌫</button>
+        <button class="primary">保存到 11月25日</button>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>08 / 快速面板 · 交易</b><span>Sheet</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="apphead"><div><div class="date">11月25日 星期二</div><h1>投资</h1></div>
+      <div class="head-actions"><button class="icon-btn" aria-label="搜索"><svg class="ic"><use href="#i-search"/></svg></button><button class="icon-btn" aria-label="通知"><svg class="ic"><use href="#i-bell"/></svg></button></div>
+    </div>
+    <nav class="segscroll"><button class="on">概览</button><button>外汇</button><button>分析</button><button>日历</button><button>报告</button></nav>
+    <div class="body">
+      <div class="hero"><div class="k">账户净值 · USD</div><div class="v">$12,480<small>.36</small></div><div class="sub"><span class="delta up">+$1,284.20</span> 累计净盈亏 · <b>+11.5%</b></div></div>
+      <div class="stats"><div class="cell"><div class="k">累计净盈亏</div><div class="v up">+$1,284</div></div><div class="cell"><div class="k">胜率</div><div class="v">62.4<small>%</small></div></div><div class="cell"><div class="k">品种</div><div class="v">4<small>个</small></div></div></div>
+    </div>
+    <nav class="tabbar" data-active="invest"></nav>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <h3>快速记录</h3>
+      <div class="sheetseg"><button>记账</button><button>购物</button><button class="on">交易</button></div>
+      <div class="chipsrow" style="padding-top:12px"><button class="chip on">EURUSD</button><button class="chip">XAUUSD</button><button class="chip">GBPUSD</button><button class="chip">USDJPY</button></div>
+      <div class="formrow"><div class="k">方向</div><div class="segmented" style="flex:0 0 132px"><button class="on">多</button><button>空</button></div></div>
+      <div class="formrow"><div class="k">手数</div><div class="stepper"><button>−</button><b>0.80</b><button>+</button></div></div>
+      <div class="formrow"><div class="k">盈亏</div><div class="v" style="color:var(--green)">+$184.20</div></div>
+      <div class="formrow"><div class="k">平仓时间</div><div class="v">今天 14:32</div></div>
+      <button class="btn primary" style="width:100%;margin-top:16px">保存交易</button>
+    </div>
+  </div></div>
+</section>
+
+<section class="frame">
+  <div class="frame-label"><b>09 / 账单详情</b><span>Detail</span></div>
+  <div class="phone"><div class="screen">
+    <div class="statusbar"></div>
+    <div class="navbar"><button class="back"><svg class="ic"><use href="#i-back"/></svg>返回</button><div class="t">账单详情</div><button class="link">编辑</button></div>
+    <div class="body detailbody">
+      <div class="hero">
+        <div class="k">待还 · 房租</div>
+        <div class="v">¥2,400<small>.00</small></div>
+        <div class="sub"><span class="badge warn">剩 3 天</span> 11月28日到期 · 每月 28 日</div>
+      </div>
+      <div class="group" style="margin-top:14px">
+        <div class="kv"><div class="k">收款方</div><div class="v">房东 · 王先生</div></div>
+        <div class="kv"><div class="k">扣款账户</div><div class="v">招商银行 · 6225</div></div>
+        <div class="kv"><div class="k">周期</div><div class="v">每月 · 自动扣款</div></div>
+        <div class="kv"><div class="k">首次付款</div><div class="v">2026-01-28</div></div>
+      </div>
+      <div class="shead"><h2>还款记录</h2><a>全部</a></div>
+      <div class="group">
+        <div class="r"><div class="time">11-28</div><div class="main"><div class="title">本期待还</div><div class="meta">自动扣款 · 招商银行</div></div><span class="badge info">待还</span></div>
+        <div class="r"><div class="time">10-28</div><div class="main"><div class="title">上期已还</div><div class="meta">优惠 ¥0 · 实付 ¥2,400</div></div><span class="badge gray">已还</span></div>
+      </div>
+    </div>
+    <div class="bottom-actions"><button class="btn">编辑账单</button><button class="btn primary">记录还款</button></div>
+    <div class="homebar"></div>
+  </div></div>
+</section>
+</main>
+
+<section class="spec">
+  <div class="spec-head"><h2>设计规范</h2><span>iOS Tokens · Type · Rules</span></div>
+  <div class="spec-grid">
+    <div class="spec-block">
+      <h3>系统色</h3>
+      <div class="swatches">
+        <div class="swatch"><i style="background:#007AFF"></i><div><b>System Blue</b><small>#007AFF</small></div></div>
+        <div class="swatch"><i style="background:#34C759"></i><div><b>System Green</b><small>#34C759</small></div></div>
+        <div class="swatch"><i style="background:#FF3B30"></i><div><b>System Red</b><small>#FF3B30</small></div></div>
+        <div class="swatch"><i style="background:#FF9500"></i><div><b>System Orange</b><small>#FF9500</small></div></div>
+        <div class="swatch"><i style="background:#F2F2F7"></i><div><b>Grouped BG</b><small>#F2F2F7</small></div></div>
+        <div class="swatch"><i style="background:#FFFFFF"></i><div><b>Card</b><small>#FFFFFF</small></div></div>
+        <div class="swatch"><i style="background:#000000"></i><div><b>Label</b><small>#000000</small></div></div>
+        <div class="swatch"><i style="background:#3C3C43;opacity:.6"></i><div><b>Secondary</b><small>60% Label</small></div></div>
+      </div>
+    </div>
+    <div class="spec-block">
+      <h3>文字层级</h3>
+      <div class="type-row"><b style="font-size:30px;line-height:1.1">6,842</b><span>Hero 48 / 700</span></div>
+      <div class="type-row"><b style="font-size:22px">健康</b><span>Large Title 34 / 700</span></div>
+      <div class="type-row"><b style="font-size:15px">今日待办</b><span>Headline 17 / 600</span></div>
+      <div class="type-row"><b style="font-size:14px;font-weight:400">正文与行标题</b><span>Body 16 / 400</span></div>
+      <div class="type-row"><b style="font-size:12px;font-weight:400;color:var(--board-dim)">11月28日 · 还剩 3 天</b><span>Footnote 13 / 400</span></div>
+      <div class="type-row"><b style="font-size:11px;font-weight:600;color:var(--board-dim)">SECONDARY LABEL</b><span>Caption 12 / 600</span></div>
+    </div>
+    <div class="spec-block">
+      <h3>本版决策</h3>
+      <ul class="rule-list">
+        <li><b>下拉刷新为唯一刷新方式</b>，顶栏不再出现刷新图标。</li>
+        <li><b>通知不提升为一级入口</b>，保留顶栏铃铛与设置内「通知中心」。</li>
+        <li><b>快捷面板覆盖记账 / 购物 / 交易</b>三种模式，高频记录不再跳整页。</li>
+        <li><b>配色改为 iOS 系统色</b>：System Blue 为唯一强调色，绿/红只表达涨跌与收支。</li>
+        <li><b>顶部栏目统一 2 字</b>：等宽文字轨道，蓝色短下划线选中，右侧渐隐提示可横滑。</li>
+        <li><b>分组列表 + 16px 卡片</b>：同屏不再卡片套卡片，分隔线左缩进 16。</li>
+        <li><b>深浅色同构</b>：深色使用纯黑底 + #1C1C1E 卡片，不改变层级结构。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+<script>
+(function(){
+  var bar = '<span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx=".8"/><rect x="5" y="5.5" width="3" height="6.5" rx=".8"/><rect x="10" y="2.5" width="3" height="9.5" rx=".8"/><rect x="15" y="0" width="3" height="12" rx=".8"/></svg><span class="batt"></span></span>';
+  document.querySelectorAll('.statusbar').forEach(function(el){ el.innerHTML = bar; });
+
+  var tabs = [
+    ['health','健康','i-heart'],
+    ['finance','财务','i-wallet'],
+    ['life','生活','i-house'],
+    ['invest','投资','i-chart'],
+    ['settings','设置','i-gear']
+  ];
+  document.querySelectorAll('.tabbar').forEach(function(nav){
+    var active = nav.getAttribute('data-active');
+    nav.innerHTML = tabs.map(function(t){
+      var on = t[0] === active ? ' on' : '';
+      return '<button class="tab'+on+'"><svg class="ic"><use href="#'+t[2]+'"/></svg><span>'+t[1]+'</span></button>';
+    }).join('');
+    var screen = nav.closest('.screen');
+    if (screen && !screen.querySelector('.homebar')) {
+      var hb = document.createElement('div'); hb.className = 'homebar'; screen.appendChild(hb);
+    }
+  });
+
+  document.querySelectorAll('.segscroll').forEach(function(nav){
+    nav.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(!b) return;
+      nav.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    });
+  });
+  document.querySelectorAll('.segmented, .sheetseg, .segmini').forEach(function(nav){
+    nav.addEventListener('click', function(e){
+      var b = e.target.closest('button'); if(!b) return;
+      nav.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    });
+  });
+
+  var btns = document.querySelectorAll('.theme-switch .seg button');
+  function sync(){
+    var t = document.documentElement.getAttribute('data-theme');
+    btns.forEach(function(b){ b.classList.toggle('on', b.dataset.theme === t); });
+  }
+  btns.forEach(function(b){
+    b.addEventListener('click', function(){
+      document.documentElement.setAttribute('data-theme', b.dataset.theme);
+      try { localStorage.setItem('lifeos2-apple-theme', b.dataset.theme); } catch(e){}
+      sync();
+    });
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

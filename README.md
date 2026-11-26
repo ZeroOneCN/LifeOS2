@@ -179,18 +179,30 @@ LifeOS 将个人生活的核心维度整合到一个统一平台：记录健康�
 ## 项目结构
 
 ```
-LifeOS V2.0/
+LifeOS2/
 ├── backend/             # 后端服务（FastAPI，端口 9515）
 │   ├── app/             # 应用代码（模型 / 接口 / 服务 / 定时任务）
+│   ├── alembic/         # 数据库迁移脚本
+│   ├── tests/           # 后端测试
 │   └── backups/         # 数据库备份归档（仅本地，不入库）
 ├── frontend/            # 前端应用（Vite，端口 9015）
 │   └── src/             # 页面、组件与配置源码（src/demo/ 为演示 mock 数据层）
 ├── mobile/              # Flutter 移动端（Android，控制台构建 APK）
 │   └── lib/             # core / features / shared / theme
-├── images/              # 文档配图
+├── docs/                # 设计与审计文档（按任务归档）
+│   ├── APP2.0/          # 2.0 改版方案与 HTML 原型
+│   ├── 移动端可行性研究/  # 移动端方案、排期与验收截图
+│   ├── 部署与更新/        # 检查更新与服务器部署方案
+│   ├── 架构加固二期/      # 金额精度与架构加固文档
+│   └── 前端整合/          # 前端整合与 Vercel 部署记录
+├── scripts/             # 发布脚本（构建 APK 并生成 android.json 清单）
+├── images/              # README 配图
 ├── 说明文档.md           # 项目管理载体（规划 / 实施方案 / 进度记录）
 └── README.md
 ```
+
+> `backend/downloads/`、`backend/backups/`、`backend/uploads/`、`frontend/dist/`、`mobile/build/`
+> 均为本地产物或含业务数据，已在 `.gitignore` 中排除；发布包由 `scripts/build_release_apk.ps1` 生成。
 
 ### 移动端（Flutter）
 
