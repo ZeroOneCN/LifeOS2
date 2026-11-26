@@ -11,7 +11,9 @@ import '../../shared/widgets/v2/v2_page_kit.dart';
 
 /// 步数录入 / 编辑：日期 + 时间段 + 步数。
 ///
-/// - 新增：`POST /health/steps`，底部整行宽「保存」。
+/// - 新增：`POST /health/steps`，底部整行宽「保存」；保存后**不退出**，
+///   自动跳到下一个时间段并清空步数，支持连续录入；最后一个时段保存后返回列表
+///   （与网页端一致）。
 /// - 编辑：`PUT /health/steps/{id}`，底部「左保存、右删除」，删除二次确认。
 ///
 /// 字段与网页端一致：`record_date` / `period` / `steps`；
@@ -41,6 +43,9 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _steps = TextEditingController();
 
+  /// 连续录入时把焦点还给步数输入框，减少一次点击。
+  final FocusNode _stepsFocus = FocusNode();
+
   DateTime _date = DateTime.now();
   String _period = _periodForNow();
   StepRecord? _record;
@@ -49,6 +54,9 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
   bool _saving = false;
   bool _deleting = false;
   String? _error;
+
+  /// 连续录入期间是否已成功保存过；返回列表时用它告诉父页需要刷新。
+  bool _savedAny = false;
 
   bool get _editing => widget.recordId != null;
 
@@ -133,6 +141,7 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
   @override
   void dispose() {
     _steps.dispose();
+    _stepsFocus.dispose();
     super.dispose();
   }
 
@@ -157,6 +166,10 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
   }
 
   /// 提交：新增走 POST、编辑走 PUT；409（同日期同时段已存在）在表单内提示并保留输入。
+  ///
+  /// 新增成功后与网页端一致：
+  /// - 还有下一个时段：保留日期、切到下一个时段、清空步数，继续录入；
+  /// - 已是最后一个时段：返回列表，由父页刷新汇总。
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -172,10 +185,12 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
       _saving = true;
       _error = null;
     });
+    final String savedPeriod = _period;
+    final String savedSteps = _steps.text.trim();
     final Map<String, dynamic> payload = <String, dynamic>{
       'record_date': _dateText,
-      'period': _period,
-      'steps': int.parse(_steps.text.trim()),
+      'period': savedPeriod,
+      'steps': int.parse(savedSteps),
     };
     // 编辑时沿用原步幅，让后端按同一口径重算距离与热量。
     final double? stride = _record?.strideCm;
@@ -197,15 +212,44 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
       if (!mounted) {
         return;
       }
-      navigator.pop(true);
+      _savedAny = true;
+      // 编辑：保存后直接回列表；新增：优先跳到下一个时段连续录入。
+      final int index = kStepPeriods.indexWhere(
+        (({String value, String label}) item) => item.value == savedPeriod,
+      );
+      final bool hasNext =
+          !_editing && index >= 0 && index < kStepPeriods.length - 1;
+      if (!hasNext) {
+        navigator.pop(true);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              _editing
+                  ? '已保存 $_dateText ${stepPeriodLabel(savedPeriod)} '
+                      '$savedSteps 步'
+                  : '已保存 ${stepPeriodLabel(savedPeriod)} $savedSteps 步，'
+                      '该日最后一个时段已完成',
+            ),
+          ),
+        );
+        return;
+      }
+      final String nextPeriod = kStepPeriods[index + 1].value;
+      setState(() {
+        _saving = false;
+        _period = nextPeriod;
+        _steps.clear();
+        _error = null;
+      });
+      // 保持键盘与焦点，录完一个时段可以直接继续输入下一个时段。
+      _stepsFocus.requestFocus();
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            _editing
-                ? '已保存 $_dateText ${stepPeriodLabel(_period)} '
-                    '${_steps.text.trim()} 步'
-                : '已保存 ${stepPeriodLabel(_period)} ${_steps.text.trim()} 步',
+            '已保存 ${stepPeriodLabel(savedPeriod)} $savedSteps 步，'
+            '继续录入 ${stepPeriodLabel(nextPeriod)}',
           ),
+          duration: const Duration(seconds: 2),
         ),
       );
     } on ApiException catch (error) {
@@ -215,7 +259,7 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
       setState(() {
         _saving = false;
         _error = error.message.contains('已存在')
-            ? '$_dateText 已存在 ${stepPeriodLabel(_period)} 的记录，请换个时间段'
+            ? '$_dateText 已存在 ${stepPeriodLabel(savedPeriod)} 的记录，请换个时间段'
             : error.message;
       });
     }
@@ -282,6 +326,21 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final int steps = int.tryParse(_steps.text.trim()) ?? 0;
+    return PopScope(
+      // 连续录入期间用户可能直接返回：只要保存过，就把 true 带回列表触发刷新。
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop || !mounted) {
+          return;
+        }
+        Navigator.of(context).pop(_savedAny ? true : result);
+      },
+      child: _buildPage(theme, steps),
+    );
+  }
+
+  /// 页面主体：表单 + 底栏保存 / 删除。
+  Widget _buildPage(ThemeData theme, int steps) {
     return DetailPageScaffold(
       title: _editing ? '编辑步数' : '新增步数',
       // 保存 / 删除统一放底栏（与其它编辑页一致）：底栏占位，表单不会压住底栏，
@@ -356,13 +415,21 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
                             ),
                             TextFormField(
                               controller: _steps,
+                              focusNode: _stepsFocus,
                               autofocus: !_editing,
                               keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(
                                 labelText: '步数',
                                 hintText: '例如 3200',
                               ),
                               onChanged: (_) => setState(() {}),
+                              // 键盘「完成」直接提交，和网页端按 Enter 连续录入一致。
+                              onFieldSubmitted: (_) {
+                                if (!_saving && !_deleting) {
+                                  _save();
+                                }
+                              },
                               validator: (String? value) {
                                 final int? parsed =
                                     int.tryParse((value ?? '').trim());
@@ -386,7 +453,8 @@ class _HealthStepsCreatePageState extends State<HealthStepsCreatePage> {
                       Text(
                         _editing
                             ? '保存与删除均在线提交；删除后当天汇总、日均与时段分布会立即刷新。'
-                            : '保存后列表与区间汇总会立即刷新；同一天同一时间段的记录不能重复添加。',
+                            : '保存后自动跳到下一个时间段，可连续录入；'
+                                '录完最后一个时段自动返回列表。同一时段不能重复添加。',
                         textAlign: TextAlign.center,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
