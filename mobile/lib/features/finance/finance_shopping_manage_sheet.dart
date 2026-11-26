@@ -19,17 +19,26 @@ import '../../theme/app_tokens.dart';
 ///   避免后端全量覆盖把分类的自动匹配规则清空；
 /// - 账本：新增、重命名、删除（标准 CRUD）；删除只解除记录归属，不删记录；
 /// - 导入：选 .xlsx 后上传，可选归属账本；文件内有「账本」列时以列值为准。
-Future<bool?> showShoppingManageSheet(BuildContext context) {
-  return showModalBottomSheet<bool>(
+///
+/// 面板只能下滑或点击遮罩关闭，关闭时不带返回值；发生过写入通过 [onMutated]
+/// 通知调用方刷新，避免「下滑关闭」与「返回结果」两条路径各写一套。
+Future<void> showShoppingManageSheet(
+  BuildContext context, {
+  VoidCallback? onMutated,
+}) {
+  return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => const _ShoppingManageSheet(),
+    builder: (_) => _ShoppingManageSheet(onMutated: onMutated),
   );
 }
 
 class _ShoppingManageSheet extends StatefulWidget {
-  const _ShoppingManageSheet();
+  const _ShoppingManageSheet({this.onMutated});
+
+  /// 面板内发生过写入时回调，供调用方刷新列表与汇总。
+  final VoidCallback? onMutated;
 
   @override
   State<_ShoppingManageSheet> createState() => _ShoppingManageSheetState();
@@ -41,8 +50,12 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
   List<_CategoryRow> _categories = <_CategoryRow>[];
   bool _loading = true;
   bool _busy = false;
-  bool _changed = false;
   String? _error;
+
+  /// 标记面板内发生过写入：调用方据此刷新列表与汇总（下滑关闭同样生效）。
+  void _notifyMutated() {
+    widget.onMutated?.call();
+  }
 
   @override
   void initState() {
@@ -303,8 +316,8 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
       final int skipped = (json?['skipped'] as num?)?.toInt() ?? 0;
       setState(() {
         _busy = false;
-        _changed = true;
       });
+      _notifyMutated();
       messenger.showSnackBar(
         SnackBar(
           content: Text('导入完成：新增 $imported 条，跳过重复或无效 $skipped 条'),
@@ -368,8 +381,8 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
       }
       setState(() {
         _busy = false;
-        _changed = true;
       });
+      _notifyMutated();
       messenger.showSnackBar(SnackBar(content: Text(message)));
       await _load();
     } on ApiException catch (error) {
@@ -504,25 +517,15 @@ class _ShoppingManageSheetState extends State<_ShoppingManageSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              // 弹层自带顶部拖拽手柄，可下滑关闭，不再额外放右上角关闭按钮。
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        '平台 / 分类维护',
-                        style: AppType.rowTitle.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: tokens.text,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '关闭',
-                      onPressed: () => Navigator.of(context).pop(_changed),
-                      icon: Icon(Icons.close, size: 20, color: tokens.text2),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(
+                  '平台 / 分类维护',
+                  style: AppType.rowTitle.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: tokens.text,
+                  ),
                 ),
               ),
               if (_error != null)

@@ -409,10 +409,11 @@ class _FinanceShoppingPageState extends State<FinanceShoppingPage> {
     }
   }
 
-  /// 平台 / 分类维护；面板内改动后重载字典与汇总。
+  /// 平台 / 分类维护；面板内改动后重载字典与汇总（下滑关闭也能感知）。
   Future<void> _manage() async {
-    final bool? changed = await showShoppingManageSheet(context);
-    if (changed == true && mounted) {
+    bool mutated = false;
+    await showShoppingManageSheet(context, onMutated: () => mutated = true);
+    if (mutated && mounted) {
       await _refresh();
     }
   }

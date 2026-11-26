@@ -12,8 +12,8 @@ import 'finance_bill_form_page.dart';
 import 'finance_repay_sheet.dart';
 import 'finance_status_widgets.dart';
 
-/// 详情层返回值：编辑（由列表页跳转表单）、已删除或还款后有变更（列表页直接刷新）。
-enum BillDetailAction { edit, deleted, changed }
+/// 详情层返回值：编辑（由列表页跳转表单）或已删除（列表页直接刷新）。
+enum BillDetailAction { edit, deleted }
 
 /// 账单详情层：三个 Tab 的列表项点按后先看完整字段，再决定是否编辑/删除。
 ///
@@ -70,12 +70,8 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
   /// 网贷账单当前快照：还款后重新拉取，保证已还/剩余/状态实时更新。
   BillItem? _bill;
 
-  /// 本层内是否发生过还款相关变更；关闭时回传，让列表页刷新汇总。
-  bool _mutated = false;
-
-  /// 标记本层发生过写操作：既用于关闭时回传，也立即通知上层（兼容返回键/下滑关闭）。
+  /// 标记本层发生过写操作：通过回调通知上层刷新（返回键 / 下滑关闭同样生效）。
   void _markMutated() {
-    _mutated = true;
     widget.onMutated?.call();
   }
 
@@ -645,34 +641,21 @@ class _FinanceBillDetailSheetState extends State<FinanceBillDetailSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: <Widget>[
-              Row(
+              // 弹层自带顶部拖拽手柄，可下滑关闭，不再额外放右上角关闭按钮。
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 2,
                 children: <Widget>[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      spacing: 2,
-                      children: <Widget>[
-                        Text(
-                          _title,
-                          style: AppType.rowTitle.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: tokens.text,
-                          ),
-                        ),
-                        Text(
-                          _subtitle,
-                          style: AppType.rowMeta.copyWith(color: tokens.text2),
-                        ),
-                      ],
+                  Text(
+                    _title,
+                    style: AppType.rowTitle.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: tokens.text,
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      _mutated ? BillDetailAction.changed : null,
-                    ),
-                    tooltip: '关闭',
-                    icon: Icon(Icons.close, size: 20, color: tokens.text2),
+                  Text(
+                    _subtitle,
+                    style: AppType.rowMeta.copyWith(color: tokens.text2),
                   ),
                 ],
               ),
