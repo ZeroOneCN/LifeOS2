@@ -210,7 +210,23 @@ LifeOS2/
 - 页面采用 2.0 套件（摘要 → 分组 → 明细），域内栏目在 Tab 内切换不跳页；返回键回到健康首页，健康概览再按一次才退出应用。
 - 列表与表单统一：日期 `MM-DD`、金额千分位、空值「—」、主操作固定在底栏；购物记录支持按分类筛选，手机号卡的操作收进卡片菜单。
 - 账户设置：资料编辑在账户页（底栏保存），修改密码为独立子页；登录设备支持搜索、下线二次确认与 IP 脱敏。
-- 运行、构建与测试命令见 [mobile/README.md](mobile/README.md)。
+- 系统字号自适应：全局把系统字号缩放钳制在 1.0~1.3，统计卡、账单、卡片余额等金额用等比缩放，大字号下不截断、不溢出。
+- 交互细节：步数新增支持连续录入（保存后自动切下一时段）；账单详情、购物平台 / 分类维护等弹层用顶部拖拽手柄下滑关闭，不再放右上角关闭按钮。
+- 版本与更新：App「设置 → 关于 → 检查更新」读取后端 `GET /api/v1/app/releases/android`，局域网内直接下载并安装新包（当前 1.0.3 / build 2013）。
+- 运行、构建与测试命令见 [mobile/README.md](mobile/README.md)；发布新包用 `scripts/build_release_apk.ps1`，见下方「移动端发布」。
+
+### 移动端发布（局域网更新）
+
+```powershell
+# 构建 release APK，并原子写入 backend/downloads/android.json（versionCode 必须递增）
+powershell -ExecutionPolicy Bypass -File scripts/build_release_apk.ps1 `
+  -BuildNumber 2014 -VersionName "1.0.4" -Notes "更新说明"
+```
+
+- 产物：`backend/downloads/LifeOS-<版本>-<构建号>.apk` 与 `android.json`（版本号、SHA-256、体积、签名证书），均不入库。
+- 分发：`GET /api/v1/app/releases/android` 返回清单，`GET /api/v1/downloads/<文件名>` 提供下载，App「检查更新」按 versionCode 比对。
+- 校验：下载后按清单 SHA-256 校验；签名证书须与上一版一致，否则系统会拒绝覆盖安装。
+- 清单中的中文说明需用 UTF-8 写入；命令行直接传中文可能因 PowerShell 5 编码问题变成乱码，建议先从 UTF-8 文件读取再传参（如 `-Notes $notes`）。
 
 ---
 

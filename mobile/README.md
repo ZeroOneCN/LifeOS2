@@ -26,6 +26,8 @@ lib/
 - 信息顺序：`SummaryStrip`（2~4 项指标）→ `SectionHeader`（标题 + 数量 + 操作）→ `GroupCard` 行 → 页尾说明
 - 栏目切换用 `V2Segmented` + `IndexedStack`，在 Tab 内就地切换，不跳页
 - 颜色与字号统一取 `AppTokens.of(context)` / `AppType`，深浅色跟随系统；不提供外观/字体设置
+- 字号自适应：`app.dart` 全局把系统字号缩放钳制在 1.0~1.3；金额与统计值外层套 `FittedBox(fit: BoxFit.scaleDown)`，标签允许两行，不用省略号截断
+- 内容弹层：统一 `showModalBottomSheet` + `showDragHandle: true`，靠下滑或点击遮罩关闭，不再放右上角关闭按钮；弹层内的写操作通过 `onMutated` 回调通知调用方刷新
 - 返回键：详情页回上一级；任意非健康 Tab 根页回健康首页；健康概览再按一次退出应用
 
 ## 本地运行
@@ -39,6 +41,18 @@ flutter build apk --debug           # 调试包
 ```
 
 后端地址在 App「设置 → 服务器地址」中配置，需与网页端指向同一实例。
+
+## 发布（局域网更新）
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ..\scripts\build_release_apk.ps1 `
+  -BuildNumber 2014 -VersionName "1.0.4" -Notes "更新说明"
+```
+
+- 产物写入 `../backend/downloads/`（APK + `android.json`），目录不入库。
+- App「设置 → 关于 → 检查更新」读取 `GET /api/v1/app/releases/android`，按 versionCode 判断是否有新版本。
+- versionCode 必须大于已装版本；签名证书需与上一版一致，否则系统拒绝覆盖安装。
+- 当前线上版本：1.0.3（build 2013）。
 
 ## 已知事项
 
