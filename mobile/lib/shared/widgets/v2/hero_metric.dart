@@ -43,23 +43,27 @@ class HeroMetric extends StatelessWidget {
             style: AppType.rowMeta.copyWith(color: tokens.text2),
           ),
           const SizedBox(height: 5),
-          Text.rich(
-            TextSpan(
-              children: <InlineSpan>[
-                TextSpan(text: value),
-                if (unitText != null && unitText.isNotEmpty)
-                  TextSpan(
-                    text: ' $unitText',
-                    style: AppType.heroUnit.copyWith(color: tokens.text2),
-                  ),
-              ],
+          // 首屏大数字同样不能被截断：宽度不足时整体等比缩小。
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text.rich(
+              TextSpan(
+                children: <InlineSpan>[
+                  TextSpan(text: value),
+                  if (unitText != null && unitText.isNotEmpty)
+                    TextSpan(
+                      text: ' $unitText',
+                      style: AppType.heroUnit.copyWith(color: tokens.text2),
+                    ),
+                ],
+              ),
+              maxLines: 1,
+              softWrap: false,
+              style: placeholder
+                  ? AppType.largeTitle.copyWith(color: tokens.text3)
+                  : AppType.hero.copyWith(color: tokens.text),
             ),
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: placeholder
-                ? AppType.largeTitle.copyWith(color: tokens.text3)
-                : AppType.hero.copyWith(color: tokens.text),
           ),
           if (subtitleText != null && subtitleText.isNotEmpty) ...<Widget>[
             const SizedBox(height: 7),

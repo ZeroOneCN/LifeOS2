@@ -300,6 +300,7 @@ class RecordRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Expanded(
+                flex: 3,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +315,7 @@ class RecordRow extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         sub,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppType.rowMeta.copyWith(color: tokens.text2),
                       ),
@@ -323,14 +324,22 @@ class RecordRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                value,
-                maxLines: 1,
-                softWrap: false,
-                style: AppType.rowValue.copyWith(
-                  color: placeholder
-                      ? tokens.text3
-                      : (valueColor ?? tokens.text),
+              // 右侧数值（多为金额）最多占 2/5 宽，放不下时等比缩小，不截断。
+              Flexible(
+                flex: 2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppType.rowValue.copyWith(
+                      color: placeholder
+                          ? tokens.text3
+                          : (valueColor ?? tokens.text),
+                    ),
+                  ),
                 ),
               ),
             ],

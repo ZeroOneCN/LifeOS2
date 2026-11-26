@@ -114,6 +114,7 @@ class BillRow extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Expanded(
+                flex: 3,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,40 +154,48 @@ class BillRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  // 主数字始终是「剩余」，已结清时是 ¥0.00；
-                  // 不加这行小标签会被误读成账单金额变成了 0。
-                  Text.rich(
-                    TextSpan(
-                      children: <InlineSpan>[
-                        if (cleared)
-                          TextSpan(
-                            text: '剩余 ',
-                            style: AppType.rowMeta.copyWith(
-                              color: tokens.text2,
-                            ),
-                          ),
-                        TextSpan(text: formatMoney(bill.remaining)),
+              // 金额列最多占 2/5 宽；大字号或长金额时整体等比缩小，不截断。
+              Flexible(
+                flex: 2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      // 主数字始终是「剩余」，已结清时是 ¥0.00；
+                      // 不加这行小标签会被误读成账单金额变成了 0。
+                      Text.rich(
+                        TextSpan(
+                          children: <InlineSpan>[
+                            if (cleared)
+                              TextSpan(
+                                text: '剩余 ',
+                                style: AppType.rowMeta.copyWith(
+                                  color: tokens.text2,
+                                ),
+                              ),
+                            TextSpan(text: formatMoney(bill.remaining)),
+                          ],
+                        ),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: AppType.rowValue.copyWith(
+                          color: cleared ? tokens.text2 : tokens.red,
+                        ),
+                      ),
+                      if (bill.paidAmount > 0) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          '已还 ${formatMoney(bill.paidAmount)}',
+                          maxLines: 1,
+                          style: AppType.rowMeta.copyWith(color: tokens.text2),
+                        ),
                       ],
-                    ),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: AppType.rowValue.copyWith(
-                      color: cleared ? tokens.text2 : tokens.red,
-                    ),
+                    ],
                   ),
-                  if (bill.paidAmount > 0) ...<Widget>[
-                    const SizedBox(height: 2),
-                    Text(
-                      '已还 ${formatMoney(bill.paidAmount)}',
-                      maxLines: 1,
-                      style: AppType.rowMeta.copyWith(color: tokens.text2),
-                    ),
-                  ],
-                ],
+                ),
               ),
               if (onRepay != null) ...<Widget>[
                 const SizedBox(width: 8),
@@ -240,6 +249,7 @@ class AmountBreakdownList extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Expanded(
+                  flex: 3,
                   child: Text(
                     entry.name,
                     maxLines: 1,
@@ -248,11 +258,19 @@ class AmountBreakdownList extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  formatMoney(entry.amount),
-                  maxLines: 1,
-                  softWrap: false,
-                  style: AppType.rowValue.copyWith(color: tokens.text),
+                // 聚合金额同样等比缩小，避免大字号下被裁掉尾数。
+                Flexible(
+                  flex: 2,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      formatMoney(entry.amount),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: AppType.rowValue.copyWith(color: tokens.text),
+                    ),
+                  ),
                 ),
               ],
             ),

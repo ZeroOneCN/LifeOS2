@@ -937,16 +937,25 @@ class _NumberBalanceRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: <Widget>[
               Expanded(
+                flex: 3,
                 child: Text(number, style: numberStyle),
               ),
               const SizedBox(width: _gap),
               Text('·', style: balanceStyle),
               const SizedBox(width: 6),
-              Text(
-                balanceText,
-                maxLines: 1,
-                softWrap: false,
-                style: balanceStyle,
+              // 余额是这行最重要的数字：空间不足时缩小字号，不省略尾数。
+              Flexible(
+                flex: 2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    balanceText,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: balanceStyle,
+                  ),
+                ),
               ),
               copy,
             ],
@@ -965,11 +974,15 @@ class _NumberBalanceRow extends StatelessWidget {
             ),
             Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                balanceText,
-                maxLines: 1,
-                softWrap: false,
-                style: balanceStyle,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  balanceText,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: balanceStyle,
+                ),
               ),
             ),
           ],

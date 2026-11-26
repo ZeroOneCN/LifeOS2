@@ -19,6 +19,20 @@ class LifeOsApp extends StatelessWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: router,
+      // 跟随系统字号，但把上限收在 1.3：更极端的系统字号会让三列指标卡
+      // 与金额行整体溢出；需要更大字号时靠组件内的等比缩放兜底。
+      builder: (BuildContext context, Widget? child) {
+        final MediaQueryData media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: media.textScaler.clamp(
+              minScaleFactor: 1.0,
+              maxScaleFactor: 1.3,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

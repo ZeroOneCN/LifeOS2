@@ -363,9 +363,10 @@ class _ReportRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    // 区间标题在系统大字号下允许换行，避免「2026-06-08 ~ 2026…」截断。
                     Text(
                       title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppType.rowTitle.copyWith(color: tokens.text),
                     ),

@@ -73,27 +73,32 @@ class _StatCell extends StatelessWidget {
         children: <Widget>[
           Text(
             item.label,
-            maxLines: 1,
+            // 大字号下「银行卡余额合计」这类标签允许两行，不截断语义。
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppType.statLabel.copyWith(color: tokens.text2),
           ),
           const SizedBox(height: 4),
-          Text.rich(
-            TextSpan(
-              children: <InlineSpan>[
-                TextSpan(text: item.value),
-                if (unit != null && unit.isNotEmpty)
-                  TextSpan(
-                    text: ' $unit',
-                    style: AppType.statUnit.copyWith(color: tokens.text2),
-                  ),
-              ],
-            ),
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: AppType.statValue.copyWith(
-              color: item.color ?? (placeholder ? tokens.text3 : tokens.text),
+          // 金额必须完整可读：三列等宽 + 系统大字号时，等比缩小而不是省略。
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text.rich(
+              TextSpan(
+                children: <InlineSpan>[
+                  TextSpan(text: item.value),
+                  if (unit != null && unit.isNotEmpty)
+                    TextSpan(
+                      text: ' $unit',
+                      style: AppType.statUnit.copyWith(color: tokens.text2),
+                    ),
+                ],
+              ),
+              maxLines: 1,
+              softWrap: false,
+              style: AppType.statValue.copyWith(
+                color: item.color ?? (placeholder ? tokens.text3 : tokens.text),
+              ),
             ),
           ),
         ],
