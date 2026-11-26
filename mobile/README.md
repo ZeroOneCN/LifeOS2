@@ -1,6 +1,6 @@
-# LifeOS Mobile
+# 量化生活 · LifeOS Mobile
 
-LifeOS 2.0 的 Flutter 移动端，与网页端共用同一个后端（FastAPI，默认 `http://<服务器IP>:9515/api/v1`）。
+LifeOS 2.0（中文名「量化生活」）的 Flutter 移动端，桌面显示名为「量化生活」，与网页端共用同一个后端（FastAPI，默认 `http://<服务器IP>:9515/api/v1`）。
 
 ## 技术栈
 

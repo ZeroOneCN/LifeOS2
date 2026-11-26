@@ -2,7 +2,7 @@
   <img src="images/系统首页.png" alt="LifeOS V2.0 系统首页" width="100%" />
 </p>
 
-<h1 align="center">LifeOS V2.0</h1>
+<h1 align="center">量化生活 · LifeOS V2.0</h1>
 
 <p align="center">
   个人生活管理系统 —— 一站式管理健康、财务、生活方式、投资与日常提醒

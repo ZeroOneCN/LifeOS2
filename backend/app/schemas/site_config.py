@@ -5,9 +5,9 @@ from pydantic import BaseModel
 
 # ── 内置默认值（后端为唯一权威来源，读取时用于归一化空字段） ──────────────
 
-DEFAULT_SITE_TITLE = "数字化生活助手"
+DEFAULT_SITE_TITLE = "量化生活"
 DEFAULT_LOGIN_SUBTITLE = "使用你的账号登录以继续"
-DEFAULT_REGISTER_SUBTITLE = "创建账号以使用数字化生活助手"
+DEFAULT_REGISTER_SUBTITLE = "创建账号以使用量化生活"
 
 # 标题类字段长度上限（与数据库列长度保持一致）
 MAX_TITLE_LEN = 64
