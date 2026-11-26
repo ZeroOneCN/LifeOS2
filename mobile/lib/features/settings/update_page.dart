@@ -344,10 +344,11 @@ class _UpdatePageState extends State<UpdatePage> with WidgetsBindingObserver {
                         ],
                         const Divider(height: 16),
                         _InfoRow(
-                          label: '清单地址',
-                          value:
-                              '${update.serverBase}/api/v1'
-                              '${UpdateService.manifestPath}',
+                          label: '更新来源',
+                          value: update.latestFromStore
+                              ? '应用仓库 apps.01iot.top'
+                              : '${update.serverBase}/api/v1'
+                                    '${UpdateService.manifestPath}',
                           small: true,
                         ),
                       ],

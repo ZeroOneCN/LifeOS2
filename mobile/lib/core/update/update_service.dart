@@ -84,6 +84,70 @@ class UpdateService {
   /// 清单路径（相对 `/api/v1` 前缀）。
   static const String manifestPath = '/app/releases/android';
 
+  /// 应用仓库根地址：团队统一发布渠道，优先从这里检查更新。
+  static const String storeBase = 'https://apps.01iot.top';
+
+  /// 应用仓库使用的包名（与 `android/app/build.gradle` 的 applicationId 一致）。
+  static const String storePackageName = 'com.lifeos.mobile';
+
+  /// 从应用仓库检查更新（`GET /api/update/check`，公开接口）。
+  ///
+  /// Args:
+  ///   versionCode: 当前安装包的构建号，服务端按整数比较。
+  ///
+  /// Returns:
+  ///   有新版本时返回仓库里的最新版本；已是最新时返回 null。
+  ///
+  /// Throws:
+  ///   UpdateFailure: `notPublished` 表示应用尚未在仓库上架（调用方回退自建清单），
+  ///   其他为网络不可达或响应异常。
+  Future<ReleaseInfo?> fetchFromStore({required int versionCode}) async {
+    final String url = Uri.parse('$storeBase/api/update/check')
+        .replace(
+          queryParameters: <String, String>{
+            'packageName': storePackageName,
+            'versionCode': '$versionCode',
+          },
+        )
+        .toString();
+    try {
+      final Response<Map<String, dynamic>> response = await _dio
+          .get<Map<String, dynamic>>(
+            url,
+            options: Options(
+              responseType: ResponseType.json,
+              headers: <String, dynamic>{'Cache-Control': 'no-cache'},
+            ),
+          );
+      final Map<String, dynamic>? data = response.data;
+      if (data == null || data['hasUpdate'] != true) {
+        return null;
+      }
+      final Object? latest = data['latest'];
+      if (latest is! Map<String, dynamic>) {
+        throw const UpdateFailure(
+          UpdateFailureKind.manifestInvalid,
+          '应用仓库没有返回最新版本信息',
+        );
+      }
+      return ReleaseInfo.fromStore(latest);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) {
+        throw const UpdateFailure(
+          UpdateFailureKind.notPublished,
+          '应用仓库未上架该应用',
+        );
+      }
+      throw _mapDioException(error, url);
+    } on ManifestFormatException catch (error) {
+      throw UpdateFailure(
+        UpdateFailureKind.manifestInvalid,
+        '应用仓库版本信息解析失败：${error.message}',
+        hint: '出错字段 ${error.field}',
+      );
+    }
+  }
+
   /// 把更新服务器地址与清单里的下载地址拼成绝对地址。
   ///
   /// Args:

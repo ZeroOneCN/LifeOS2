@@ -44,6 +44,7 @@ class UpdateController extends ChangeNotifier {
   ReleaseInfo? _latest;
   UpdateFailure? _lastFailure;
   DateTime? _lastCheckedAt;
+  bool _latestFromStore = false;
 
   /// 已安装版本（versionName），未加载完成时为空串。
   String get currentVersionName => _currentVersionName;
@@ -62,6 +63,9 @@ class UpdateController extends ChangeNotifier {
 
   /// 最近一次检查时间。
   DateTime? get lastCheckedAt => _lastCheckedAt;
+
+  /// 最近一次成功结果是否来自应用仓库（否则来自自建服务器清单）。
+  bool get latestFromStore => _latestFromStore;
 
   /// 更新服务器根地址：设置里填了就用它，否则跟随当前 API 的 host。
   String get serverBase => _preferences.updateBaseUrl ?? _apiClient.origin;
@@ -143,14 +147,21 @@ class UpdateController extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final ReleaseInfo info = await _service.fetchManifest(serverBase);
-      _latest = info;
-      _lastCheckedAt = DateTime.now();
-      _checking = false;
-      notifyListeners();
-      return hasUpdate
-          ? UpdateCheckResult.available
-          : UpdateCheckResult.upToDate;
+      try {
+        // 优先应用仓库：团队统一发布渠道，返回 null 表示已是最新。
+        final ReleaseInfo? store = await _service.fetchFromStore(
+          versionCode: _currentVersionCode,
+        );
+        _latest = store;
+        _latestFromStore = true;
+        return _finishCheck();
+      } on UpdateFailure {
+        // 未上架或仓库不可达：回退自建服务器清单（局域网 / 自托管场景）。
+        final ReleaseInfo info = await _service.fetchManifest(serverBase);
+        _latest = info;
+        _latestFromStore = false;
+        return _finishCheck();
+      }
     } on UpdateFailure catch (failure) {
       _checking = false;
       if (markFailure) {
@@ -169,5 +180,18 @@ class UpdateController extends ChangeNotifier {
       }
       return UpdateCheckResult.failed;
     }
+  }
+
+  /// 收尾一次成功的检查：刷新检查时间、通知界面并给出三态结果。
+  ///
+  /// Returns:
+  ///   [UpdateCheckResult.available] 或 [UpdateCheckResult.upToDate]。
+  UpdateCheckResult _finishCheck() {
+    _lastCheckedAt = DateTime.now();
+    _checking = false;
+    notifyListeners();
+    return hasUpdate
+        ? UpdateCheckResult.available
+        : UpdateCheckResult.upToDate;
   }
 }

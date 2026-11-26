@@ -114,6 +114,57 @@ class ReleaseInfo {
     );
   }
 
+  /// 从应用仓库 `GET /api/update/check` 的 `latest` 对象构造清单。
+  ///
+  /// 应用仓库的字段是驼峰命名，且下载地址已带签名、可直接请求；
+  /// 这里统一映射成与自建清单相同的 [ReleaseInfo]，下载与校验逻辑无需分叉。
+  ///
+  /// Args:
+  ///   json: 响应里的 `latest` 对象。
+  ///
+  /// Returns:
+  ///   校验通过的 [ReleaseInfo]。
+  ///
+  /// Throws:
+  ///   ManifestFormatException: 必填字段缺失、类型不符或版本号格式非法。
+  factory ReleaseInfo.fromStore(Map<String, dynamic> json) {
+    final String versionName = _asString(json, 'versionName');
+    if (parseVersionName(versionName) == null) {
+      throw ManifestFormatException(
+        'versionName',
+        '版本号「$versionName」不是三段式（如 1.0.0）',
+      );
+    }
+    final int versionCode = _asInt(json, 'versionCode');
+    if (versionCode <= 0) {
+      throw const ManifestFormatException('versionCode', '构建号必须为正整数');
+    }
+    final String downloadUrl = _asString(json, 'downloadUrl').trim();
+    if (downloadUrl.isEmpty) {
+      throw const ManifestFormatException('downloadUrl', '下载地址为空');
+    }
+    final String sha256 = _asString(json, 'sha256').trim().toLowerCase();
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(sha256)) {
+      throw const ManifestFormatException('sha256', 'SHA-256 不是 64 位十六进制');
+    }
+    final int size = _asInt(json, 'fileSize');
+    if (size <= 0) {
+      throw const ManifestFormatException('fileSize', '安装包大小必须为正整数');
+    }
+    final Object? sdk = json['minSdk'];
+    return ReleaseInfo(
+      manifestVersion: 1,
+      versionName: versionName,
+      versionCode: versionCode,
+      downloadUrl: downloadUrl,
+      sha256: sha256,
+      size: size,
+      releaseNotes: (json['changelog'] as String?)?.trim() ?? '',
+      publishedAt: (json['publishedAt'] as String?)?.trim() ?? '',
+      minAndroidSdk: sdk is int && !sdk.isNegative ? sdk : null,
+    );
+  }
+
   /// 是否比当前安装版本更新。
   ///
   /// 规则：先按 `major.minor.patch` 比语义版本，相同再比 `versionCode`
