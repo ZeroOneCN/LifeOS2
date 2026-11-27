@@ -1,6 +1,7 @@
 /// 应用级常量与网络默认值。
 abstract final class AppConfig {
-  static const String appName = 'LifeOS';
+  /// 应用中文名：同时用于多任务卡片标题（`MaterialApp.title`）、关于页与系统应用名。
+  static const String appName = '量化生活';
 
   /// 默认指向局域网内的后端（9515），与网页端 9015 不同。
   ///

@@ -79,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
       title: '登录',
       child: ListView(
         children: <Widget>[
-          Text('LifeOS 账号', style: theme.textTheme.titleLarge),
+          Text('量化生活账号', style: theme.textTheme.titleLarge),
           const SizedBox(height: 8),
           Text(
             '登录后五个 Tab 会加载真实总览数据。',
